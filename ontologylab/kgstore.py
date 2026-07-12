@@ -1,0 +1,1298 @@
+"""sqlite knowledge-graph store for ontologylab (successor to drylab's memory.py).
+
+One sqlite file holds the ontology schema tables, collected documents, and
+the graph itself (``nodes`` / ``edges``), each row carrying a status in
+``proposed | verified | rejected``. The load-bearing invariant, carried over
+from drylab's ``Finding.verified``: **nothing is ever verified except by an
+explicit human approval call.** The write API is split so the extraction path
+(``insert_proposed``) is physically incapable of writing ``verified``; only
+``approve()`` may set it.
+
+The same ``KGStore`` class serves the mutable working DB (read-write, WAL)
+and an immutable knowledge pack (``read_only=True``, opened via
+``file:...?mode=ro&immutable=1`` so no ``-wal`` sidecar is ever created).
+
+Entity resolution (ARCHITECTURE.md §5.5) runs inside ``insert_proposed``:
+nodes are deduped by ``(schema_version_id, entity_type, normalized_name)``
+across proposed+verified rows (plus an alias lookup), and every relation
+endpoint is bound to the resolved node id — so the KG is one connected graph,
+not per-chunk stars.
+
+Search is tier-1 FTS5 **lexical** search (not vector/semantic); the raw BM25
+rank is normalized to a 0..1 higher-is-better ``match_score`` (§5.4).
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sqlite3
+import time
+import uuid
+from collections import deque
+from pathlib import Path
+from typing import Any, Iterable, Optional
+
+from ontologylab import ontology_schema as default_schema
+from ontologylab.models import Document, ProposedEntity, ProposedRelation
+
+REVIEW_STATUSES = ("proposed", "verified", "rejected")
+
+
+class KGStoreError(Exception):
+    """Generic store-level error (unknown item, bad filter, misuse)."""
+
+
+class EndpointNotVerified(KGStoreError):
+    """Raised when approving an edge whose endpoints are not both verified."""
+
+
+class UnknownItem(KGStoreError):
+    """Raised when an id matches neither a node nor an edge."""
+
+
+def normalize_name(name: str) -> str:
+    """Normalization key for entity resolution.
+
+    Casefolds and strips all non-alphanumeric characters, so surface variants
+    like "RateLimiter" / "rate-limiter" / "Rate Limiter" share one key.
+    (ARCHITECTURE.md §5.5 specifies casefold+whitespace-collapse; that formula
+    does not unify its own §5.5 acceptance-test variants, so the key here is
+    the stricter alphanumeric-only reduction. Still exact-match resolution —
+    no fuzzy merging.)
+    """
+    return re.sub(r"[^0-9a-z]+", "", name.casefold())
+
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS schema_version (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    label         TEXT NOT NULL,
+    description   TEXT,
+    created_ts    REAL NOT NULL,
+    is_active     INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS entity_type (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    schema_version_id INTEGER NOT NULL REFERENCES schema_version(id),
+    name              TEXT NOT NULL,
+    description       TEXT,
+    attributes_json   TEXT NOT NULL DEFAULT '{}',
+    UNIQUE (schema_version_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS relation_type (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    schema_version_id INTEGER NOT NULL REFERENCES schema_version(id),
+    name              TEXT NOT NULL,
+    description       TEXT,
+    domain_type       TEXT NOT NULL,
+    range_type        TEXT NOT NULL,
+    directed          INTEGER NOT NULL DEFAULT 1,
+    UNIQUE (schema_version_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS documents (
+    id            TEXT PRIMARY KEY,
+    source_kind   TEXT NOT NULL,
+    source_uri    TEXT NOT NULL,
+    title         TEXT,
+    fetched_ts    REAL NOT NULL,
+    content_hash  TEXT NOT NULL,
+    raw_text_path TEXT NOT NULL,
+    UNIQUE (content_hash)
+);
+
+CREATE TABLE IF NOT EXISTS nodes (
+    id                TEXT PRIMARY KEY,
+    schema_version_id INTEGER NOT NULL REFERENCES schema_version(id),
+    entity_type       TEXT NOT NULL,
+    name              TEXT NOT NULL,
+    normalized_name   TEXT NOT NULL,
+    aliases_json      TEXT NOT NULL DEFAULT '[]',
+    properties_json   TEXT NOT NULL DEFAULT '{}',
+
+    status            TEXT NOT NULL DEFAULT 'proposed'
+                          CHECK (status IN ('proposed','verified','rejected')),
+    confidence        REAL,
+    source_doc_id     TEXT NOT NULL REFERENCES documents(id),
+    source_span       TEXT,
+    extractor_engine  TEXT NOT NULL,
+    extractor_model   TEXT,
+    prompt_version    TEXT,
+    created_ts        REAL NOT NULL,
+    verified_ts       REAL,
+    verified_by       TEXT,
+    review_note       TEXT,
+
+    embedding         BLOB,
+    embedding_model   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_nodes_type_status ON nodes (entity_type, status);
+CREATE INDEX IF NOT EXISTS idx_nodes_source_doc  ON nodes (source_doc_id);
+CREATE INDEX IF NOT EXISTS idx_nodes_name        ON nodes (name);
+-- Resolution key. Partial: a rejected row keeps its key but stops occupying
+-- it, so a later re-extraction becomes a fresh proposed row (resolution only
+-- ever matches proposed/verified rows).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nodes_resolve
+    ON nodes (schema_version_id, entity_type, normalized_name)
+    WHERE status IN ('proposed','verified');
+
+CREATE TABLE IF NOT EXISTS node_aliases (
+    node_id          TEXT NOT NULL REFERENCES nodes(id),
+    normalized_alias TEXT NOT NULL,
+    surface          TEXT NOT NULL,
+    PRIMARY KEY (node_id, normalized_alias)
+);
+CREATE INDEX IF NOT EXISTS idx_node_aliases_alias ON node_aliases (normalized_alias);
+
+CREATE TABLE IF NOT EXISTS edges (
+    id                TEXT PRIMARY KEY,
+    schema_version_id INTEGER NOT NULL REFERENCES schema_version(id),
+    relation_type     TEXT NOT NULL,
+    src_node_id       TEXT NOT NULL REFERENCES nodes(id),
+    dst_node_id       TEXT NOT NULL REFERENCES nodes(id),
+    properties_json   TEXT NOT NULL DEFAULT '{}',
+
+    status            TEXT NOT NULL DEFAULT 'proposed'
+                          CHECK (status IN ('proposed','verified','rejected')),
+    confidence        REAL,
+    source_doc_id     TEXT NOT NULL REFERENCES documents(id),
+    source_span       TEXT,
+    extractor_engine  TEXT NOT NULL,
+    extractor_model   TEXT,
+    prompt_version    TEXT,
+    created_ts        REAL NOT NULL,
+    verified_ts       REAL,
+    verified_by       TEXT,
+    review_note       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_edges_src_status ON edges (src_node_id, status);
+CREATE INDEX IF NOT EXISTS idx_edges_dst_status ON edges (dst_node_id, status);
+CREATE INDEX IF NOT EXISTS idx_edges_type       ON edges (relation_type, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_dedup
+    ON edges (schema_version_id, relation_type, src_node_id, dst_node_id)
+    WHERE status IN ('proposed','verified');
+
+-- Multi-source citations: every mention of a fact (including the first, and
+-- every resolution-merge afterwards) appends one row here. The inline
+-- source_doc_id/source_span on nodes/edges stays the first citation.
+CREATE TABLE IF NOT EXISTS citations (
+    kind          TEXT NOT NULL CHECK (kind IN ('node','edge')),
+    item_id       TEXT NOT NULL,
+    source_doc_id TEXT NOT NULL REFERENCES documents(id),
+    source_span   TEXT,
+    created_ts    REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_citations_item ON citations (kind, item_id);
+
+CREATE VIEW IF NOT EXISTS pending_review AS
+SELECT 'node' AS kind, id, entity_type AS type_name, name AS label,
+       confidence, source_doc_id, created_ts
+FROM nodes WHERE status = 'proposed'
+UNION ALL
+SELECT 'edge' AS kind, id, relation_type AS type_name,
+       src_node_id || ' -> ' || dst_node_id AS label,
+       confidence, source_doc_id, created_ts
+FROM edges WHERE status = 'proposed'
+ORDER BY created_ts ASC;
+
+-- Tier-1 lexical search index (external content on nodes). Kept in sync by
+-- triggers on the working DB; rebuilt into a pack at build time.
+CREATE VIRTUAL TABLE IF NOT EXISTS nodes_fts USING fts5(
+    name, aliases_json, properties_json,
+    content='nodes', content_rowid='rowid'
+);
+
+CREATE TRIGGER IF NOT EXISTS nodes_fts_ai AFTER INSERT ON nodes BEGIN
+    INSERT INTO nodes_fts(rowid, name, aliases_json, properties_json)
+    VALUES (new.rowid, new.name, new.aliases_json, new.properties_json);
+END;
+CREATE TRIGGER IF NOT EXISTS nodes_fts_ad AFTER DELETE ON nodes BEGIN
+    INSERT INTO nodes_fts(nodes_fts, rowid, name, aliases_json, properties_json)
+    VALUES ('delete', old.rowid, old.name, old.aliases_json, old.properties_json);
+END;
+CREATE TRIGGER IF NOT EXISTS nodes_fts_au AFTER UPDATE ON nodes BEGIN
+    INSERT INTO nodes_fts(nodes_fts, rowid, name, aliases_json, properties_json)
+    VALUES ('delete', old.rowid, old.name, old.aliases_json, old.properties_json);
+    INSERT INTO nodes_fts(rowid, name, aliases_json, properties_json)
+    VALUES (new.rowid, new.name, new.aliases_json, new.properties_json);
+END;
+"""
+
+_NODE_COLUMNS = (
+    "id, schema_version_id, entity_type, name, normalized_name, aliases_json, "
+    "properties_json, status, confidence, source_doc_id, source_span, "
+    "extractor_engine, extractor_model, prompt_version, created_ts, "
+    "verified_ts, verified_by, review_note, embedding, embedding_model"
+)
+
+
+def _status_clause(include_proposed: bool, alias: str = "") -> str:
+    """WHERE fragment for the §9.1 safety invariant.
+
+    verified always; proposed only on explicit request; rejected never.
+    ``alias`` qualifies the column (e.g. "n" -> "n.status") — this is the
+    load-bearing verified-only filter, so it is built parameterized here
+    rather than patched up by string surgery at call sites.
+    """
+    column = f"{alias}.status" if alias else "status"
+    if include_proposed:
+        return f"{column} IN ('proposed','verified')"
+    return f"{column} = 'verified'"
+
+
+def _node_dict(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "entity_type": row["entity_type"],
+        "name": row["name"],
+        "aliases": json.loads(row["aliases_json"]),
+        "properties": json.loads(row["properties_json"]),
+        "status": row["status"],
+        "confidence": row["confidence"],
+        "source_doc_id": row["source_doc_id"],
+        "source_span": json.loads(row["source_span"]) if row["source_span"] else None,
+    }
+
+
+def _edge_dict(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "relation_type": row["relation_type"],
+        "source_id": row["src_node_id"],
+        "target_id": row["dst_node_id"],
+        "properties": json.loads(row["properties_json"]),
+        "status": row["status"],
+        "confidence": row["confidence"],
+        "source_doc_id": row["source_doc_id"],
+    }
+
+
+class KGStore:
+    """Owns one sqlite connection to a working KG or an immutable pack.
+
+    Construct via :meth:`KGStore.open` — a real rewrite of drylab's
+    ``memory.open()``: takes an explicit **file** path (not a directory) and
+    a ``read_only`` flag. Read-write mode enables WAL; ``read_only=True``
+    opens ``file:...?mode=ro&immutable=1`` and executes no DDL.
+    """
+
+    def __init__(self, conn: sqlite3.Connection, db_path: Path, read_only: bool) -> None:
+        self.conn = conn
+        self.db_path = db_path
+        self.read_only = read_only
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def open(cls, file_path: str | Path, *, read_only: bool = False) -> "KGStore":
+        """Open (creating if needed, unless read_only) the KG sqlite file."""
+        db_path = Path(file_path)
+        if read_only:
+            uri = f"file:{db_path}?mode=ro&immutable=1"
+            conn = sqlite3.connect(uri, uri=True, timeout=30.0)
+            conn.row_factory = sqlite3.Row
+            return cls(conn, db_path, read_only=True)
+
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(db_path), timeout=30.0)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA foreign_keys=ON;")
+        conn.executescript(_SCHEMA)
+        conn.commit()
+        store = cls(conn, db_path, read_only=False)
+        store._seed_default_schema()
+        return store
+
+    def close(self) -> None:
+        self.conn.close()
+
+    def __enter__(self) -> "KGStore":
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self.close()
+
+    # ------------------------------------------------------------------
+    # Ontology schema
+    # ------------------------------------------------------------------
+
+    def _seed_default_schema(self) -> None:
+        cur = self.conn.execute("SELECT COUNT(*) AS n FROM schema_version")
+        if cur.fetchone()["n"]:
+            return
+        now = time.time()
+        cur = self.conn.execute(
+            "INSERT INTO schema_version (label, description, created_ts, is_active) "
+            "VALUES (?, ?, ?, 1)",
+            (
+                default_schema.DEFAULT_SCHEMA_LABEL,
+                default_schema.DEFAULT_SCHEMA_DESCRIPTION,
+                now,
+            ),
+        )
+        sv_id = cur.lastrowid
+        for name, (desc, attrs) in default_schema.DEFAULT_ENTITY_TYPES.items():
+            self.conn.execute(
+                "INSERT INTO entity_type "
+                "(schema_version_id, name, description, attributes_json) "
+                "VALUES (?, ?, ?, ?)",
+                (sv_id, name, desc, json.dumps(attrs)),
+            )
+        for name, (desc, domain, range_, directed) in (
+            default_schema.DEFAULT_RELATION_TYPES.items()
+        ):
+            self.conn.execute(
+                "INSERT INTO relation_type "
+                "(schema_version_id, name, description, domain_type, range_type, directed) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (sv_id, name, desc, domain, range_, 1 if directed else 0),
+            )
+        self.conn.commit()
+
+    def active_schema_version(self) -> sqlite3.Row:
+        cur = self.conn.execute(
+            "SELECT * FROM schema_version WHERE is_active = 1 "
+            "ORDER BY id DESC LIMIT 1"
+        )
+        row = cur.fetchone()
+        if row is None:
+            raise KGStoreError("no active schema_version row")
+        return row
+
+    def get_schema(self) -> dict[str, Any]:
+        """Return the active ontology (entity + relation types) as plain data."""
+        sv = self.active_schema_version()
+        entity_types = [
+            {
+                "name": r["name"],
+                "description": r["description"],
+                "attributes": json.loads(r["attributes_json"]),
+            }
+            for r in self.conn.execute(
+                "SELECT * FROM entity_type WHERE schema_version_id = ? ORDER BY name",
+                (sv["id"],),
+            )
+        ]
+        relation_types = [
+            {
+                "name": r["name"],
+                "description": r["description"],
+                "domain_type": r["domain_type"],
+                "range_type": r["range_type"],
+                "directed": bool(r["directed"]),
+            }
+            for r in self.conn.execute(
+                "SELECT * FROM relation_type WHERE schema_version_id = ? ORDER BY name",
+                (sv["id"],),
+            )
+        ]
+        return {
+            "schema_version_id": sv["id"],
+            "schema_label": sv["label"],
+            "entity_types": entity_types,
+            "relation_types": relation_types,
+        }
+
+    # ------------------------------------------------------------------
+    # Documents
+    # ------------------------------------------------------------------
+
+    def insert_document(
+        self,
+        *,
+        source_kind: str,
+        source_uri: str,
+        title: str | None,
+        raw_text: str,
+        content_hash: str,
+    ) -> tuple[Document, bool]:
+        """Insert a document (deduped by content hash); write raw text to disk.
+
+        Returns (document, created) — ``created`` False means an identical
+        document already existed and was returned instead.
+        """
+        self._assert_writable()
+        cur = self.conn.execute(
+            "SELECT * FROM documents WHERE content_hash = ?", (content_hash,)
+        )
+        existing = cur.fetchone()
+        if existing is not None:
+            return self._row_to_document(existing), False
+
+        doc_id = uuid.uuid4().hex
+        rel_path = f"documents/{doc_id}/raw.txt"
+        abs_path = self.db_path.parent / rel_path
+        abs_path.parent.mkdir(parents=True, exist_ok=True)
+        abs_path.write_text(raw_text, encoding="utf-8")
+
+        doc = Document(
+            id=doc_id,
+            source_kind=source_kind,
+            source_uri=source_uri,
+            title=title,
+            fetched_ts=time.time(),
+            content_hash=content_hash,
+            raw_text_path=rel_path,
+        )
+        self.conn.execute(
+            "INSERT INTO documents "
+            "(id, source_kind, source_uri, title, fetched_ts, content_hash, raw_text_path) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                doc.id,
+                doc.source_kind,
+                doc.source_uri,
+                doc.title,
+                doc.fetched_ts,
+                doc.content_hash,
+                doc.raw_text_path,
+            ),
+        )
+        self.conn.commit()
+        return doc, True
+
+    @staticmethod
+    def _row_to_document(row: sqlite3.Row) -> Document:
+        return Document(
+            id=row["id"],
+            source_kind=row["source_kind"],
+            source_uri=row["source_uri"],
+            title=row["title"],
+            fetched_ts=row["fetched_ts"],
+            content_hash=row["content_hash"],
+            raw_text_path=row["raw_text_path"],
+        )
+
+    def get_document(self, doc_id: str) -> Document:
+        cur = self.conn.execute("SELECT * FROM documents WHERE id = ?", (doc_id,))
+        row = cur.fetchone()
+        if row is None:
+            raise UnknownItem(f"unknown document id {doc_id!r}")
+        return self._row_to_document(row)
+
+    def list_documents(self) -> list[Document]:
+        cur = self.conn.execute("SELECT * FROM documents ORDER BY fetched_ts ASC")
+        return [self._row_to_document(r) for r in cur.fetchall()]
+
+    def document_raw_text(self, doc_id: str) -> str:
+        doc = self.get_document(doc_id)
+        return (self.db_path.parent / doc.raw_text_path).read_text(encoding="utf-8")
+
+    # ------------------------------------------------------------------
+    # Proposed writes (extraction path — physically cannot write 'verified')
+    # ------------------------------------------------------------------
+
+    def insert_proposed(
+        self,
+        entities: Iterable[ProposedEntity],
+        relations: Iterable[ProposedRelation],
+        *,
+        source_doc_id: str,
+        extractor_engine: str,
+        extractor_model: str | None = None,
+        prompt_version: str | None = None,
+    ) -> dict[str, Any]:
+        """Insert extraction output as ``proposed`` rows, resolving entities.
+
+        Every entity is deduped by ``(schema_version_id, entity_type,
+        normalized_name)`` (then by alias) against existing proposed+verified
+        nodes; a hit reuses that node id and merges aliases/properties
+        non-destructively, a miss inserts the minted id. Relation endpoints
+        are then bound to resolved ids; duplicate triples append a citation
+        instead of a second edge. Returns per-batch stats.
+        """
+        self._assert_writable()
+        sv_id = self.active_schema_version()["id"]
+        now = time.time()
+        stats = {
+            "nodes_new": 0,
+            "nodes_merged": 0,
+            "edges_new": 0,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+        }
+        id_map: dict[str, str] = {}
+
+        for ent in entities:
+            resolved = self._resolve_node(sv_id, ent.entity_type, ent.name)
+            span_json = ent.source_span.as_json() if ent.source_span else None
+            if resolved is not None:
+                node_id = resolved["id"]
+                self._merge_mention(resolved, ent)
+                stats["nodes_merged"] += 1
+            else:
+                node_id = ent.id
+                self.conn.execute(
+                    "INSERT INTO nodes "
+                    "(id, schema_version_id, entity_type, name, normalized_name, "
+                    " aliases_json, properties_json, status, confidence, "
+                    " source_doc_id, source_span, extractor_engine, extractor_model, "
+                    " prompt_version, created_ts) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        node_id,
+                        sv_id,
+                        ent.entity_type,
+                        ent.name,
+                        normalize_name(ent.name),
+                        json.dumps(ent.aliases),
+                        json.dumps(ent.properties),
+                        ent.confidence,
+                        source_doc_id,
+                        span_json,
+                        extractor_engine,
+                        extractor_model,
+                        prompt_version,
+                        now,
+                    ),
+                )
+                for alias in ent.aliases:
+                    self._add_alias(node_id, alias)
+                stats["nodes_new"] += 1
+            if ent.synthesized:
+                stats["synthesized_endpoints"] += 1
+            id_map[ent.id] = node_id
+            self._add_citation("node", node_id, source_doc_id, span_json, now)
+
+        for rel in relations:
+            try:
+                src = id_map[rel.src_entity_id]
+                dst = id_map[rel.dst_entity_id]
+            except KeyError as exc:
+                raise KGStoreError(
+                    f"relation {rel.id} references unknown entity id {exc}"
+                ) from exc
+            span_json = rel.source_span.as_json() if rel.source_span else None
+            cur = self.conn.execute(
+                "SELECT id FROM edges WHERE schema_version_id = ? AND "
+                "relation_type = ? AND src_node_id = ? AND dst_node_id = ? AND "
+                "status IN ('proposed','verified')",
+                (sv_id, rel.relation_type, src, dst),
+            )
+            dup = cur.fetchone()
+            if dup is not None:
+                edge_id = dup["id"]
+                stats["edges_merged"] += 1
+            else:
+                edge_id = rel.id
+                self.conn.execute(
+                    "INSERT INTO edges "
+                    "(id, schema_version_id, relation_type, src_node_id, dst_node_id, "
+                    " properties_json, status, confidence, source_doc_id, source_span, "
+                    " extractor_engine, extractor_model, prompt_version, created_ts) "
+                    "VALUES (?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        edge_id,
+                        sv_id,
+                        rel.relation_type,
+                        src,
+                        dst,
+                        json.dumps(rel.properties),
+                        rel.confidence,
+                        source_doc_id,
+                        span_json,
+                        extractor_engine,
+                        extractor_model,
+                        prompt_version,
+                        now,
+                    ),
+                )
+                stats["edges_new"] += 1
+            self._add_citation("edge", edge_id, source_doc_id, span_json, now)
+
+        self.conn.commit()
+        stats["id_map"] = id_map
+        return stats
+
+    def _resolve_node(
+        self, sv_id: int, entity_type: str, name: str
+    ) -> Optional[sqlite3.Row]:
+        """Exact-key resolution over proposed+verified nodes, then aliases."""
+        key = normalize_name(name)
+        cur = self.conn.execute(
+            "SELECT * FROM nodes WHERE schema_version_id = ? AND entity_type = ? "
+            "AND normalized_name = ? AND status IN ('proposed','verified')",
+            (sv_id, entity_type, key),
+        )
+        row = cur.fetchone()
+        if row is not None:
+            return row
+        cur = self.conn.execute(
+            "SELECT n.* FROM node_aliases a JOIN nodes n ON n.id = a.node_id "
+            "WHERE a.normalized_alias = ? AND n.schema_version_id = ? "
+            "AND n.entity_type = ? AND n.status IN ('proposed','verified') LIMIT 1",
+            (key, sv_id, entity_type),
+        )
+        return cur.fetchone()
+
+    def _merge_mention(self, existing: sqlite3.Row, ent: ProposedEntity) -> None:
+        """Non-destructive merge of a re-mention into an existing node.
+
+        Union aliases (the new surface name too, if it differs), fill only
+        absent property keys, keep the earliest created_ts (already the case:
+        created_ts is never touched).
+        """
+        aliases = json.loads(existing["aliases_json"])
+        known = {normalize_name(a) for a in aliases}
+        known.add(existing["normalized_name"])
+        new_surfaces = [ent.name] + list(ent.aliases)
+        changed_aliases = False
+        for surface in new_surfaces:
+            key = normalize_name(surface)
+            if key and key not in known:
+                aliases.append(surface)
+                known.add(key)
+                changed_aliases = True
+            self._add_alias(existing["id"], surface)
+
+        properties = json.loads(existing["properties_json"])
+        changed_props = False
+        for prop_key, value in ent.properties.items():
+            if prop_key not in properties:
+                properties[prop_key] = value
+                changed_props = True
+
+        if changed_aliases or changed_props:
+            self.conn.execute(
+                "UPDATE nodes SET aliases_json = ?, properties_json = ? WHERE id = ?",
+                (json.dumps(aliases), json.dumps(properties), existing["id"]),
+            )
+
+    def _add_alias(self, node_id: str, surface: str) -> None:
+        key = normalize_name(surface)
+        if not key:
+            return
+        self.conn.execute(
+            "INSERT OR IGNORE INTO node_aliases (node_id, normalized_alias, surface) "
+            "VALUES (?, ?, ?)",
+            (node_id, key, surface),
+        )
+
+    def _add_citation(
+        self,
+        kind: str,
+        item_id: str,
+        source_doc_id: str,
+        span_json: str | None,
+        ts: float,
+    ) -> None:
+        self.conn.execute(
+            "INSERT INTO citations (kind, item_id, source_doc_id, source_span, created_ts) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (kind, item_id, source_doc_id, span_json, ts),
+        )
+
+    def citations(self, kind: str, item_id: str) -> list[dict[str, Any]]:
+        cur = self.conn.execute(
+            "SELECT source_doc_id, source_span, created_ts FROM citations "
+            "WHERE kind = ? AND item_id = ? ORDER BY created_ts ASC",
+            (kind, item_id),
+        )
+        return [
+            {
+                "source_doc_id": r["source_doc_id"],
+                "source_span": json.loads(r["source_span"]) if r["source_span"] else None,
+            }
+            for r in cur.fetchall()
+        ]
+
+    # ------------------------------------------------------------------
+    # Human approval gate (the only path to status='verified')
+    # ------------------------------------------------------------------
+
+    def _find_kind(self, item_id: str) -> tuple[str, sqlite3.Row]:
+        cur = self.conn.execute("SELECT * FROM nodes WHERE id = ?", (item_id,))
+        row = cur.fetchone()
+        if row is not None:
+            return "node", row
+        cur = self.conn.execute("SELECT * FROM edges WHERE id = ?", (item_id,))
+        row = cur.fetchone()
+        if row is not None:
+            return "edge", row
+        raise UnknownItem(f"no node or edge with id {item_id!r}")
+
+    def approve(
+        self,
+        item_id: str,
+        *,
+        by: str = "local-user",
+        note: str | None = None,
+        cascade: bool = False,
+    ) -> dict[str, Any]:
+        """Flip one proposed row to verified (human action, never automatic).
+
+        For an edge, both endpoint nodes must already be verified, else
+        EndpointNotVerified is raised. ``cascade=True`` approves an edge
+        together with its endpoints in one explicit command — the endpoints
+        get real approvals (verified_by/verified_ts), no invariant bypass.
+        """
+        self._assert_writable()
+        kind, row = self._find_kind(item_id)
+        approved: list[str] = []
+        if kind == "edge":
+            for endpoint_id in (row["src_node_id"], row["dst_node_id"]):
+                _, endpoint = self._find_kind(endpoint_id)
+                if endpoint["status"] != "verified":
+                    if cascade:
+                        self._set_status(
+                            "node", endpoint_id, "verified", by=by, note=note
+                        )
+                        approved.append(endpoint_id)
+                    else:
+                        raise EndpointNotVerified(
+                            f"edge {item_id} endpoint {endpoint_id} is "
+                            f"{endpoint['status']!r}; approve endpoints first"
+                        )
+        self._set_status(kind, item_id, "verified", by=by, note=note)
+        approved.append(item_id)
+        self.conn.commit()
+        return {"kind": kind, "approved_ids": approved}
+
+    def reject(
+        self, item_id: str, *, by: str = "local-user", note: str | None = None
+    ) -> dict[str, Any]:
+        """Flip one proposed row to rejected (kept for audit, never served)."""
+        self._assert_writable()
+        kind, _ = self._find_kind(item_id)
+        self._set_status(kind, item_id, "rejected", by=by, note=note)
+        self.conn.commit()
+        return {"kind": kind, "rejected_ids": [item_id]}
+
+    def _set_status(
+        self, kind: str, item_id: str, status: str, *, by: str, note: str | None
+    ) -> None:
+        table = "nodes" if kind == "node" else "edges"
+        self.conn.execute(
+            f"UPDATE {table} SET status = ?, verified_ts = ?, verified_by = ?, "
+            "review_note = COALESCE(?, review_note) WHERE id = ?",
+            (status, time.time(), by, note, item_id),
+        )
+
+    def bulk_approve(
+        self,
+        *,
+        entity_type: str | None = None,
+        relation_type: str | None = None,
+        source_doc_id: str | None = None,
+        min_confidence: float | None = None,
+        by: str = "local-user",
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        """Approve a filtered batch: nodes first, then edges whose endpoints
+        are verified after the node pass; blocked edges are reported as
+        skipped, never silently approved and never auto-approving endpoints.
+        """
+        self._assert_writable()
+        node_where = ["status = 'proposed'"]
+        node_args: list[Any] = []
+        if entity_type:
+            node_where.append("entity_type = ?")
+            node_args.append(entity_type)
+        if source_doc_id:
+            node_where.append("source_doc_id = ?")
+            node_args.append(source_doc_id)
+        if min_confidence is not None:
+            node_where.append("confidence >= ?")
+            node_args.append(min_confidence)
+
+        nodes_approved: list[str] = []
+        if not relation_type:  # a relation_type filter targets edges only
+            cur = self.conn.execute(
+                f"SELECT id FROM nodes WHERE {' AND '.join(node_where)}", node_args
+            )
+            for row in cur.fetchall():
+                self._set_status("node", row["id"], "verified", by=by, note=note)
+                nodes_approved.append(row["id"])
+
+        edge_where = ["e.status = 'proposed'"]
+        edge_args: list[Any] = []
+        if relation_type:
+            edge_where.append("e.relation_type = ?")
+            edge_args.append(relation_type)
+        if entity_type:
+            # Keep the edge pass inside the human's stated batch scope: only
+            # edges BOTH of whose endpoints are of the filtered entity type.
+            # Without this, any proposed edge between previously-verified
+            # nodes of unrelated types would be silently over-approved.
+            edge_where.append(
+                "(SELECT entity_type FROM nodes WHERE id = e.src_node_id) = ? AND "
+                "(SELECT entity_type FROM nodes WHERE id = e.dst_node_id) = ?"
+            )
+            edge_args.extend([entity_type, entity_type])
+        if source_doc_id:
+            edge_where.append("e.source_doc_id = ?")
+            edge_args.append(source_doc_id)
+        if min_confidence is not None:
+            edge_where.append("e.confidence >= ?")
+            edge_args.append(min_confidence)
+
+        edges_approved: list[str] = []
+        edges_skipped: list[str] = []
+        cur = self.conn.execute(
+            "SELECT e.*, s.status AS src_status, d.status AS dst_status "
+            "FROM edges e "
+            "JOIN nodes s ON s.id = e.src_node_id "
+            "JOIN nodes d ON d.id = e.dst_node_id "
+            f"WHERE {' AND '.join(edge_where)}",
+            edge_args,
+        )
+        for row in cur.fetchall():
+            if row["src_status"] == "verified" and row["dst_status"] == "verified":
+                self._set_status("edge", row["id"], "verified", by=by, note=note)
+                edges_approved.append(row["id"])
+            else:
+                edges_skipped.append(row["id"])
+        self.conn.commit()
+        return {
+            "nodes_approved": nodes_approved,
+            "edges_approved": edges_approved,
+            "edges_skipped": edges_skipped,
+        }
+
+    def pending_review(
+        self,
+        *,
+        kind: str | None = None,
+        type_name: str | None = None,
+        source_doc_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        where = ["1=1"]
+        args: list[Any] = []
+        if kind:
+            where.append("kind = ?")
+            args.append(kind)
+        if type_name:
+            where.append("type_name = ?")
+            args.append(type_name)
+        if source_doc_id:
+            where.append("source_doc_id = ?")
+            args.append(source_doc_id)
+        args.append(limit)
+        cur = self.conn.execute(
+            f"SELECT * FROM pending_review WHERE {' AND '.join(where)} LIMIT ?", args
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+    def counts(self) -> dict[str, int]:
+        out: dict[str, int] = {}
+        for status in REVIEW_STATUSES:
+            out[f"nodes_{status}"] = self.conn.execute(
+                "SELECT COUNT(*) AS n FROM nodes WHERE status = ?", (status,)
+            ).fetchone()["n"]
+            out[f"edges_{status}"] = self.conn.execute(
+                "SELECT COUNT(*) AS n FROM edges WHERE status = ?", (status,)
+            ).fetchone()["n"]
+        out["documents"] = self.conn.execute(
+            "SELECT COUNT(*) AS n FROM documents"
+        ).fetchone()["n"]
+        return out
+
+    # ------------------------------------------------------------------
+    # Verified-only reads (pack build + ground-truth queries)
+    # ------------------------------------------------------------------
+
+    def verified_subgraph(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Return (nodes, edges) with status='verified' only; an edge is
+        included only when both endpoints are in the verified node set."""
+        nodes = [
+            _node_dict(r)
+            for r in self.conn.execute("SELECT * FROM nodes WHERE status = 'verified'")
+        ]
+        edges = [
+            _edge_dict(r)
+            for r in self.conn.execute(
+                "SELECT e.* FROM edges e "
+                "JOIN nodes s ON s.id = e.src_node_id AND s.status = 'verified' "
+                "JOIN nodes d ON d.id = e.dst_node_id AND d.status = 'verified' "
+                "WHERE e.status = 'verified'"
+            )
+        ]
+        return nodes, edges
+
+    # ------------------------------------------------------------------
+    # Query surface (shared by dashboard, CLI, and the MCP server)
+    # ------------------------------------------------------------------
+
+    def entity_lookup(
+        self,
+        *,
+        id: str | None = None,
+        name: str | None = None,
+        entity_type: str | None = None,
+        fuzzy: bool = True,
+        include_proposed: bool = False,
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Resolve a node by id or by (normalized/alias/fuzzy) name."""
+        status_sql = _status_clause(include_proposed)
+        results: list[dict[str, Any]] = []
+        seen: set[str] = set()
+
+        def add(row: sqlite3.Row, score: float) -> None:
+            if row["id"] in seen:
+                return
+            seen.add(row["id"])
+            item = _node_dict(row)
+            item["match_score"] = round(score, 4)
+            item["source_document_ids"] = sorted(
+                {c["source_doc_id"] for c in self.citations("node", row["id"])}
+                or {row["source_doc_id"]}
+            )
+            results.append(item)
+
+        if id is not None:
+            cur = self.conn.execute(
+                f"SELECT * FROM nodes WHERE id = ? AND {status_sql}", (id,)
+            )
+            row = cur.fetchone()
+            if row is not None:
+                add(row, 1.0)
+            return results[:limit]
+
+        if name is None:
+            raise KGStoreError("entity_lookup requires id or name")
+
+        key = normalize_name(name)
+        type_sql = " AND entity_type = ?" if entity_type else ""
+        type_args = [entity_type] if entity_type else []
+
+        cur = self.conn.execute(
+            f"SELECT * FROM nodes WHERE normalized_name = ? AND {status_sql}{type_sql}",
+            [key, *type_args],
+        )
+        for row in cur.fetchall():
+            add(row, 1.0)
+
+        aliased_type_sql = " AND n.entity_type = ?" if entity_type else ""
+        cur = self.conn.execute(
+            "SELECT n.* FROM node_aliases a JOIN nodes n ON n.id = a.node_id "
+            f"WHERE a.normalized_alias = ? AND {_status_clause(include_proposed, 'n')}"
+            f"{aliased_type_sql}",
+            [key, *type_args],
+        )
+        for row in cur.fetchall():
+            add(row, 0.95)
+
+        if fuzzy and len(results) < limit:
+            for item in self.semantic_search(
+                name,
+                top_k=limit,
+                entity_type=entity_type,
+                include_proposed=include_proposed,
+            ):
+                if item["id"] not in seen:
+                    seen.add(item["id"])
+                    results.append(item)
+        return results[:limit]
+
+    def semantic_search(
+        self,
+        query: str,
+        *,
+        top_k: int = 10,
+        entity_type: str | None = None,
+        min_score: float = 0.0,
+        include_proposed: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Tier-1 **lexical** (FTS5/BM25) search over node names/aliases/properties.
+
+        Not vector search. The raw sqlite bm25() rank (negative,
+        smaller-is-better) is normalized rank-preservingly into the stable
+        0..1 higher-is-better ``match_score`` contract of §5.4:
+        ``relevance = max(0, -bm25_raw)``, ``match_score = relevance / (1 + relevance)``.
+        """
+        terms = [t for t in re.findall(r"\w+", query) if t]
+        if not terms:
+            return []
+        match_expr = " OR ".join(f'"{t}"' for t in terms)
+        status_sql = _status_clause(include_proposed, "n")
+        type_sql = " AND n.entity_type = ?" if entity_type else ""
+        args: list[Any] = [match_expr]
+        if entity_type:
+            args.append(entity_type)
+        args.append(top_k * 4)  # over-fetch before status/type/score filtering
+        cur = self.conn.execute(
+            "SELECT n.*, bm25(nodes_fts) AS raw_rank FROM nodes_fts "
+            "JOIN nodes n ON n.rowid = nodes_fts.rowid "
+            f"WHERE nodes_fts MATCH ? AND {status_sql}{type_sql} "
+            "ORDER BY raw_rank ASC LIMIT ?",
+            args,
+        )
+        results = []
+        for row in cur.fetchall():
+            relevance = max(0.0, -float(row["raw_rank"]))
+            score = relevance / (1.0 + relevance)
+            if score < min_score:
+                continue
+            item = _node_dict(row)
+            item["match_score"] = round(score, 4)
+            item["source_document_ids"] = sorted(
+                {c["source_doc_id"] for c in self.citations("node", row["id"])}
+                or {row["source_doc_id"]}
+            )
+            results.append(item)
+            if len(results) >= top_k:
+                break
+        return results
+
+    def graph_query(
+        self,
+        *,
+        entity_type: str | None = None,
+        relation_type: str | None = None,
+        property_filters: dict[str, Any] | None = None,
+        include_proposed: bool = False,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Filtered subgraph: matching nodes plus the edges among them."""
+        status_sql = _status_clause(include_proposed)
+        where = [status_sql]
+        args: list[Any] = []
+        if entity_type:
+            where.append("entity_type = ?")
+            args.append(entity_type)
+        for prop_key, value in (property_filters or {}).items():
+            where.append("json_extract(properties_json, ?) = ?")
+            args.extend([f"$.{prop_key}", value])
+        args.extend([limit, offset])
+        node_rows = self.conn.execute(
+            f"SELECT * FROM nodes WHERE {' AND '.join(where)} "
+            "ORDER BY name LIMIT ? OFFSET ?",
+            args,
+        ).fetchall()
+        nodes = [_node_dict(r) for r in node_rows]
+        node_ids = {n["id"] for n in nodes}
+        edges: list[dict[str, Any]] = []
+        if node_ids:
+            placeholders = ",".join("?" for _ in node_ids)
+            edge_where = [
+                status_sql,
+                f"src_node_id IN ({placeholders})",
+                f"dst_node_id IN ({placeholders})",
+            ]
+            edge_args: list[Any] = [*node_ids, *node_ids]
+            if relation_type:
+                edge_where.insert(1, "relation_type = ?")
+                edge_args.insert(0, relation_type)
+            edges = [
+                _edge_dict(r)
+                for r in self.conn.execute(
+                    f"SELECT * FROM edges WHERE {' AND '.join(edge_where)}", edge_args
+                )
+            ]
+        return {"nodes": nodes, "edges": edges}
+
+    def _neighbors(
+        self,
+        node_id: str,
+        relation_types: list[str] | None,
+        direction: str,
+        include_proposed: bool,
+    ) -> list[sqlite3.Row]:
+        status_sql = _status_clause(include_proposed, "e")
+        rel_sql = ""
+        rel_args: list[Any] = []
+        if relation_types:
+            rel_sql = (
+                " AND e.relation_type IN ("
+                + ",".join("?" for _ in relation_types)
+                + ")"
+            )
+            rel_args = list(relation_types)
+        clauses = []
+        if direction in ("out", "both"):
+            clauses.append(("e.src_node_id = ?", "e.dst_node_id"))
+        if direction in ("in", "both"):
+            clauses.append(("e.dst_node_id = ?", "e.src_node_id"))
+        rows: list[sqlite3.Row] = []
+        node_status_sql = _status_clause(include_proposed, "n")
+        for where_col, other_col in clauses:
+            rows.extend(
+                self.conn.execute(
+                    f"SELECT e.*, {other_col} AS other_id FROM edges e "
+                    f"JOIN nodes n ON n.id = {other_col} "
+                    f"WHERE {where_col} AND {status_sql} AND {node_status_sql}{rel_sql}",
+                    [node_id, *rel_args],
+                ).fetchall()
+            )
+        return rows
+
+    def traverse_relations(
+        self,
+        start_ids: list[str],
+        *,
+        relation_types: list[str] | None = None,
+        direction: str = "both",
+        max_hops: int = 2,
+        include_proposed: bool = False,
+        limit: int = 200,
+    ) -> dict[str, Any]:
+        """N-hop BFS neighborhood from seed nodes (naive, local-scale)."""
+        if direction not in ("in", "out", "both"):
+            raise KGStoreError("direction must be 'in', 'out', or 'both'")
+        visited: dict[str, int] = {}
+        edge_ids: set[str] = set()
+        edges: list[dict[str, Any]] = []
+        frontier = deque()
+        # Seeds obey the same §9.1 status filter as discovered nodes — a
+        # rejected/proposed seed id must not leak through the traversal.
+        for node_id in self._filter_ids_by_status(start_ids, include_proposed):
+            visited[node_id] = 0
+            frontier.append((node_id, 0))
+        while frontier:
+            node_id, depth = frontier.popleft()
+            if depth >= max_hops or len(visited) >= limit:
+                continue
+            for row in self._neighbors(
+                node_id, relation_types, direction, include_proposed
+            ):
+                if row["id"] not in edge_ids:
+                    edge_ids.add(row["id"])
+                    edges.append(_edge_dict(row))
+                other = row["other_id"]
+                if other not in visited and len(visited) < limit:
+                    visited[other] = depth + 1
+                    frontier.append((other, depth + 1))
+        nodes = []
+        if visited:
+            placeholders = ",".join("?" for _ in visited)
+            hydrated = {
+                row["id"]: row
+                for row in self.conn.execute(
+                    f"SELECT * FROM nodes WHERE id IN ({placeholders})",
+                    list(visited),
+                )
+            }
+            for node_id, depth in visited.items():
+                row = hydrated.get(node_id)
+                if row is not None:
+                    item = _node_dict(row)
+                    item["hop"] = depth
+                    nodes.append(item)
+        return {"nodes": nodes, "edges": edges}
+
+    def _filter_ids_by_status(
+        self, node_ids: list[str], include_proposed: bool
+    ) -> list[str]:
+        """Return the subset of ``node_ids`` visible under the status filter."""
+        if not node_ids:
+            return []
+        placeholders = ",".join("?" for _ in node_ids)
+        visible = {
+            row["id"]
+            for row in self.conn.execute(
+                f"SELECT id FROM nodes WHERE id IN ({placeholders}) "
+                f"AND {_status_clause(include_proposed)}",
+                list(node_ids),
+            )
+        }
+        return [node_id for node_id in node_ids if node_id in visible]
+
+    def find_path(
+        self,
+        source_id: str,
+        target_id: str,
+        *,
+        max_hops: int = 6,
+        relation_types: list[str] | None = None,
+        include_proposed: bool = False,
+    ) -> dict[str, Any]:
+        """Shortest relation path between two nodes (BFS, undirected walk)."""
+        not_found = {"found": False, "hop_count": None, "path": [], "path_edges": []}
+        if source_id == target_id:
+            # The trivial self-path only exists if the node itself exists AND
+            # is visible under the §9.1 status filter.
+            row = self.conn.execute(
+                f"SELECT id, name FROM nodes WHERE id = ? "
+                f"AND {_status_clause(include_proposed)}",
+                (source_id,),
+            ).fetchone()
+            if row is None:
+                return not_found
+            return {
+                "found": True,
+                "hop_count": 0,
+                "path": [{"node_id": source_id, "name": row["name"]}],
+                "path_edges": [],
+            }
+        if len(self._filter_ids_by_status([source_id, target_id], include_proposed)) != 2:
+            return not_found
+        parents: dict[str, tuple[str, sqlite3.Row]] = {}
+        visited = {source_id}
+        frontier = deque([(source_id, 0)])
+        while frontier:
+            node_id, depth = frontier.popleft()
+            if depth >= max_hops:
+                continue
+            for row in self._neighbors(
+                node_id, relation_types, "both", include_proposed
+            ):
+                other = row["other_id"]
+                if other in visited:
+                    continue
+                visited.add(other)
+                parents[other] = (node_id, row)
+                if other == target_id:
+                    return self._materialize_path(source_id, target_id, parents)
+                frontier.append((other, depth + 1))
+        return {"found": False, "hop_count": None, "path": [], "path_edges": []}
+
+    def _materialize_path(
+        self,
+        source_id: str,
+        target_id: str,
+        parents: dict[str, tuple[str, sqlite3.Row]],
+    ) -> dict[str, Any]:
+        path_edges: list[dict[str, Any]] = []
+        node_ids = [target_id]
+        cursor = target_id
+        while cursor != source_id:
+            prev, edge_row = parents[cursor]
+            path_edges.append(_edge_dict(edge_row))
+            node_ids.append(prev)
+            cursor = prev
+        node_ids.reverse()
+        path_edges.reverse()
+        path = []
+        for node_id in node_ids:
+            row = self.conn.execute(
+                "SELECT id, name FROM nodes WHERE id = ?", (node_id,)
+            ).fetchone()
+            path.append({"node_id": node_id, "name": row["name"] if row else None})
+        return {
+            "found": True,
+            "hop_count": len(path_edges),
+            "path": path,
+            "path_edges": path_edges,
+        }
+
+    # ------------------------------------------------------------------
+    # Misc
+    # ------------------------------------------------------------------
+
+    def rebuild_fts(self) -> None:
+        """Rebuild the FTS5 index from the nodes content table."""
+        self._assert_writable()
+        self.conn.execute("INSERT INTO nodes_fts(nodes_fts) VALUES('rebuild')")
+        self.conn.commit()
+
+    def _assert_writable(self) -> None:
+        if self.read_only:
+            raise KGStoreError("store is read-only (immutable pack)")
+
+
+__all__ = [
+    "KGStore",
+    "KGStoreError",
+    "EndpointNotVerified",
+    "UnknownItem",
+    "normalize_name",
+]

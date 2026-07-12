@@ -1,0 +1,439 @@
+"""LLM extraction pipeline: chunking, prompt building, parse + validate.
+
+The model contract (ARCHITECTURE.md §7.1): the engine returns a single
+fenced ```json block of ``{"entities": [...], "relations": [...]}`` where
+each relation references its endpoints by ``{name, entity_type}`` — never by
+array index and never by a model-invented id. ``parse_and_validate_extraction``
+calls ``extract_fenced_block`` internally (callers pass RAW model text),
+validates against the active ontology schema (off-schema items are rejected
+and logged, never coerced), mints a uuid per valid entity, resolves relation
+endpoints through the per-chunk ``(normalized_name, entity_type)`` map
+(synthesizing a flagged placeholder for a relation naming an un-emitted
+entity), and rebases every chunk-local ``source_span`` to document
+coordinates so a stored span always indexes ``documents.raw_text``.
+
+Citation integrity is enforced at parse time: a span that does not contain
+its claimed surface form is re-located by searching the chunk; an entity
+whose name cannot be found at all is dropped with a warning, never stored
+with a fabricated offset.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import uuid
+from dataclasses import dataclass, field
+from typing import Any
+
+from ontologylab.engines import (
+    CHUNK_MARKER_CLOSE,
+    CHUNK_MARKER_OPEN,
+    EngineError,
+    extract_fenced_block,
+)
+from ontologylab.kgstore import normalize_name
+from ontologylab.models import ProposedEntity, ProposedRelation, SourceSpan
+
+PROMPT_VERSION = "extract-v1"
+
+# Heuristic tokenizer: ~4 chars/token (no model-specific tokenizer dep).
+CHARS_PER_TOKEN = 4
+TARGET_CHUNK_TOKENS = 1500
+OVERLAP_TOKENS = 150
+
+
+@dataclass
+class Chunk:
+    """One chunk of a document, tracked for span rebasing."""
+
+    index: int
+    char_offset: int  # offset of chunk start within the original document
+    text: str
+
+
+@dataclass
+class ExtractionResult:
+    """Validated output of one chunk extraction."""
+
+    entities: list[ProposedEntity]
+    relations: list[ProposedRelation]
+    warnings: list[str] = field(default_factory=list)
+
+
+def estimate_tokens(text: str) -> int:
+    return max(1, len(text) // CHARS_PER_TOKEN)
+
+
+def chunk_document(
+    text: str,
+    *,
+    target_tokens: int = TARGET_CHUNK_TOKENS,
+    overlap_tokens: int = OVERLAP_TOKENS,
+) -> list[Chunk]:
+    """Split ``text`` into ~target_tokens chunks with ~overlap_tokens overlap.
+
+    Boundaries snap to whitespace where possible so an entity mention is not
+    cut mid-word; the overlap exists so a fact straddling a boundary is seen
+    whole by at least one chunk (resolution dedups the duplicate mention).
+    """
+    target_chars = target_tokens * CHARS_PER_TOKEN
+    overlap_chars = overlap_tokens * CHARS_PER_TOKEN
+    if len(text) <= target_chars:
+        return [Chunk(index=0, char_offset=0, text=text)]
+
+    chunks: list[Chunk] = []
+    start = 0
+    index = 0
+    while start < len(text):
+        end = min(start + target_chars, len(text))
+        if end < len(text):
+            # snap back to the last whitespace in the second half of the chunk
+            snap = text.rfind(" ", start + target_chars // 2, end)
+            if snap > start:
+                end = snap
+        chunks.append(Chunk(index=index, char_offset=start, text=text[start:end]))
+        index += 1
+        if end >= len(text):
+            break
+        next_start = end - overlap_chars
+        # snap forward to a whitespace so the overlap starts on a word boundary
+        snap = text.find(" ", next_start, end)
+        if snap != -1:
+            next_start = snap + 1
+        start = max(next_start, start + 1)  # always progress
+    return chunks
+
+
+# ---------------------------------------------------------------------------
+# Prompt
+# ---------------------------------------------------------------------------
+
+_FEW_SHOT = """\
+Example (for a chunk describing a rate limiting component):
+```json
+{
+  "entities": [
+    { "name": "RateLimiter", "entity_type": "Component",
+      "aliases": ["rate-limiter"], "properties": {"language": "Go"},
+      "confidence": 0.9, "source_span": {"start": 128, "end": 190} },
+    { "name": "TokenBucketAlgorithm", "entity_type": "Concept",
+      "aliases": [], "properties": {},
+      "confidence": 0.85, "source_span": {"start": 205, "end": 260} }
+  ],
+  "relations": [
+    { "relation_type": "uses",
+      "source": {"name": "RateLimiter", "entity_type": "Component"},
+      "target": {"name": "TokenBucketAlgorithm", "entity_type": "Concept"},
+      "confidence": 0.8, "source_span": {"start": 128, "end": 260} }
+  ]
+}
+```"""
+
+
+def _schema_block(schema: dict[str, Any]) -> str:
+    lines = ["Entity types:"]
+    for et in schema["entity_types"]:
+        attrs = ""
+        if et["attributes"]:
+            attrs = f" Attributes: {json.dumps(et['attributes'])}"
+        lines.append(f"- {et['name']}: {et['description']}{attrs}")
+    lines.append("Relation types:")
+    for rt in schema["relation_types"]:
+        domain = rt["domain_type"]
+        range_ = rt["range_type"]
+        lines.append(
+            f"- {rt['name']}: {rt['description']} (source type: {domain}, "
+            f"target type: {range_}; '*' means any)"
+        )
+    return "\n".join(lines)
+
+
+def build_extraction_prompt(schema: dict[str, Any], chunk_text: str) -> str:
+    """Build the extraction prompt for one document chunk.
+
+    Embeds the active ontology schema and the chunk between explicit
+    <document-chunk> markers, and pins the exact JSON output contract.
+    """
+    return f"""You are an information-extraction engine. Extract entities and relations \
+from the document chunk below, strictly following the ontology schema.
+
+{_schema_block(schema)}
+
+Rules:
+1. Return EXACTLY ONE fenced ```json block and nothing else.
+2. The JSON shape is {{"entities": [...], "relations": [...]}}.
+3. Each entity: name, entity_type (one of the schema types), aliases (list),
+   properties (only attribute keys declared for its type), confidence (0..1),
+   source_span {{"start": int, "end": int}} — character offsets INTO THE CHUNK
+   TEXT BELOW (0 = first character of the chunk) covering the mention.
+4. Each relation references its endpoints by {{"name": ..., "entity_type": ...}}
+   of entities you emitted — never by array index, never by an invented id.
+5. Only extract facts stated in the chunk. Do not use outside knowledge.
+6. If nothing is extractable, return {{"entities": [], "relations": []}}.
+
+{_FEW_SHOT}
+
+{CHUNK_MARKER_OPEN}
+{chunk_text}
+{CHUNK_MARKER_CLOSE}"""
+
+
+# ---------------------------------------------------------------------------
+# Parse + validate
+# ---------------------------------------------------------------------------
+
+
+def _validate_span(raw: Any, chunk_len: int) -> SourceSpan | None:
+    if not isinstance(raw, dict):
+        return None
+    try:
+        start = int(raw["start"])
+        end = int(raw["end"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if start < 0 or end <= start or end > chunk_len:
+        return None
+    return SourceSpan(start=start, end=end)
+
+
+def _locate(chunk_text: str, surface: str) -> SourceSpan | None:
+    """Find ``surface`` in the chunk (case-insensitive), as a span.
+
+    Uses a regex IGNORECASE search on the ORIGINAL text — searching a
+    casefolded copy would return offsets shifted by any length-changing
+    casefold (ß→ss, ﬁ→fi), corrupting the stored citation span.
+    """
+    match = re.search(re.escape(surface), chunk_text, re.IGNORECASE)
+    if match is None:
+        return None
+    return SourceSpan(start=match.start(), end=match.end())
+
+
+def _span_cites(chunk_text: str, span: SourceSpan, surface: str) -> bool:
+    return surface.casefold() in chunk_text[span.start : span.end].casefold()
+
+
+def _clamp_confidence(raw: Any) -> float | None:
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return min(1.0, max(0.0, value))
+
+
+def parse_and_validate_extraction(
+    raw_text: str, schema: dict[str, Any], chunk: Chunk
+) -> ExtractionResult:
+    """Parse raw model text into schema-valid, document-rebased proposals.
+
+    Off-schema entities/relations are rejected (with a warning), never
+    coerced; off-schema property keys are dropped key-wise. Spans are
+    validated against the claimed surface form and rebased to document
+    coordinates (``doc_start = chunk.char_offset + span.start``).
+    """
+    warnings: list[str] = []
+    block = extract_fenced_block(raw_text, lang="json")
+    try:
+        payload = json.loads(block)
+    except json.JSONDecodeError as exc:
+        raise EngineError(f"extraction JSON did not parse: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise EngineError("extraction JSON must be an object")
+
+    entity_types = {et["name"]: et for et in schema["entity_types"]}
+    relation_types = {rt["name"]: rt for rt in schema["relation_types"]}
+    chunk_len = len(chunk.text)
+
+    entities: list[ProposedEntity] = []
+    by_key: dict[tuple[str, str], ProposedEntity] = {}
+
+    for i, raw_ent in enumerate(payload.get("entities") or []):
+        if not isinstance(raw_ent, dict):
+            warnings.append(f"entity[{i}]: not an object; rejected")
+            continue
+        name = raw_ent.get("name")
+        etype = raw_ent.get("entity_type")
+        if not isinstance(name, str) or not name.strip():
+            warnings.append(f"entity[{i}]: missing/empty name; rejected")
+            continue
+        name = name.strip()
+        if etype not in entity_types:
+            warnings.append(
+                f"entity[{i}] {name!r}: unknown entity_type {etype!r}; rejected"
+            )
+            continue
+
+        # citation integrity at parse time: span must contain the name, else
+        # re-locate; unfindable names are dropped, never stored fabricated.
+        span = _validate_span(raw_ent.get("source_span"), chunk_len)
+        if span is None or not _span_cites(chunk.text, span, name):
+            relocated = _locate(chunk.text, name)
+            if relocated is None:
+                warnings.append(
+                    f"entity[{i}] {name!r}: name not found in chunk; rejected"
+                )
+                continue
+            if span is not None:
+                warnings.append(
+                    f"entity[{i}] {name!r}: span did not contain name; relocated"
+                )
+            span = relocated
+
+        aliases_raw = raw_ent.get("aliases") or []
+        aliases = [a.strip() for a in aliases_raw if isinstance(a, str) and a.strip()]
+
+        allowed_attrs = entity_types[etype]["attributes"]
+        properties: dict[str, Any] = {}
+        for prop_key, value in (raw_ent.get("properties") or {}).items():
+            spec = allowed_attrs.get(prop_key)
+            if spec is None:
+                warnings.append(
+                    f"entity[{i}] {name!r}: off-schema property {prop_key!r}; dropped"
+                )
+                continue
+            enum = spec.get("enum")
+            if enum and value not in enum:
+                warnings.append(
+                    f"entity[{i}] {name!r}: property {prop_key!r} value {value!r} "
+                    f"not in enum; dropped"
+                )
+                continue
+            properties[prop_key] = value
+
+        key = (normalize_name(name), etype)
+        if key in by_key:
+            # duplicate mention within one response: merge aliases, keep first
+            existing = by_key[key]
+            for alias in [name, *aliases]:
+                if normalize_name(alias) != normalize_name(existing.name) and all(
+                    normalize_name(alias) != normalize_name(a)
+                    for a in existing.aliases
+                ):
+                    existing.aliases.append(alias)
+            continue
+
+        entity = ProposedEntity(
+            id=uuid.uuid4().hex,
+            entity_type=etype,
+            name=name,
+            aliases=aliases,
+            properties=properties,
+            confidence=_clamp_confidence(raw_ent.get("confidence")),
+            source_span=SourceSpan(
+                start=chunk.char_offset + span.start,
+                end=chunk.char_offset + span.end,
+            ),
+        )
+        by_key[key] = entity
+        entities.append(entity)
+
+    def resolve_endpoint(
+        raw_ref: Any, rel_index: int, side: str
+    ) -> ProposedEntity | None:
+        if not isinstance(raw_ref, dict):
+            warnings.append(f"relation[{rel_index}]: {side} endpoint not an object")
+            return None
+        ref_name = raw_ref.get("name")
+        ref_type = raw_ref.get("entity_type")
+        if not isinstance(ref_name, str) or not ref_name.strip():
+            warnings.append(f"relation[{rel_index}]: {side} endpoint missing name")
+            return None
+        ref_name = ref_name.strip()
+        if ref_type not in entity_types:
+            warnings.append(
+                f"relation[{rel_index}]: {side} endpoint has unknown type {ref_type!r}"
+            )
+            return None
+        key = (normalize_name(ref_name), ref_type)
+        hit = by_key.get(key)
+        if hit is not None:
+            return hit
+        # relation names an entity the model didn't emit: mint a flagged
+        # placeholder of the declared type so the edge is never dangling.
+        span = _locate(chunk.text, ref_name)
+        placeholder = ProposedEntity(
+            id=uuid.uuid4().hex,
+            entity_type=ref_type,
+            name=ref_name,
+            confidence=None,
+            source_span=(
+                SourceSpan(
+                    start=chunk.char_offset + span.start,
+                    end=chunk.char_offset + span.end,
+                )
+                if span
+                else None
+            ),
+            synthesized=True,
+        )
+        by_key[key] = placeholder
+        entities.append(placeholder)
+        warnings.append(
+            f"relation[{rel_index}]: synthesized_endpoint {ref_name!r} ({ref_type})"
+        )
+        return placeholder
+
+    relations: list[ProposedRelation] = []
+    for i, raw_rel in enumerate(payload.get("relations") or []):
+        if not isinstance(raw_rel, dict):
+            warnings.append(f"relation[{i}]: not an object; rejected")
+            continue
+        rtype = raw_rel.get("relation_type")
+        rt_spec = relation_types.get(rtype)
+        if rt_spec is None:
+            warnings.append(
+                f"relation[{i}]: unknown relation_type {rtype!r}; rejected"
+            )
+            continue
+        src = resolve_endpoint(raw_rel.get("source"), i, "source")
+        dst = resolve_endpoint(raw_rel.get("target"), i, "target")
+        if src is None or dst is None:
+            continue
+        # domain/range check: '*' means any
+        if rt_spec["domain_type"] != "*" and src.entity_type != rt_spec["domain_type"]:
+            warnings.append(
+                f"relation[{i}] {rtype}: source type {src.entity_type} violates "
+                f"domain {rt_spec['domain_type']}; rejected"
+            )
+            continue
+        if rt_spec["range_type"] != "*" and dst.entity_type != rt_spec["range_type"]:
+            warnings.append(
+                f"relation[{i}] {rtype}: target type {dst.entity_type} violates "
+                f"range {rt_spec['range_type']}; rejected"
+            )
+            continue
+
+        # relation span must cover both endpoint mentions; if the model's
+        # span doesn't, synthesize the minimal document-coordinate span
+        # covering both endpoint spans (guaranteed to contain both names).
+        span = _validate_span(raw_rel.get("source_span"), chunk_len)
+        doc_span: SourceSpan | None = None
+        if span is not None:
+            span_text = chunk.text[span.start : span.end]
+            if (
+                src.name.casefold() in span_text.casefold()
+                and dst.name.casefold() in span_text.casefold()
+            ):
+                doc_span = SourceSpan(
+                    start=chunk.char_offset + span.start,
+                    end=chunk.char_offset + span.end,
+                )
+        if doc_span is None and src.source_span and dst.source_span:
+            doc_span = SourceSpan(
+                start=min(src.source_span.start, dst.source_span.start),
+                end=max(src.source_span.end, dst.source_span.end),
+            )
+
+        relations.append(
+            ProposedRelation(
+                id=uuid.uuid4().hex,
+                relation_type=rtype,
+                src_entity_id=src.id,
+                dst_entity_id=dst.id,
+                confidence=_clamp_confidence(raw_rel.get("confidence")),
+                source_span=doc_span,
+            )
+        )
+
+    return ExtractionResult(entities=entities, relations=relations, warnings=warnings)

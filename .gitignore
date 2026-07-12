@@ -1,0 +1,7 @@
+# runtime / build artifacts — never committed
+.venv/
+data/
+packs/
+__pycache__/
+*.egg-info/
+*.pyc

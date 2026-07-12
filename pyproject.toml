@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ontologylab"
+version = "0.1.0"
+description = "Local-first, single-user knowledge-graph pipeline: collect -> extract (LLM) -> verify (human) -> knowledge pack -> local MCP server."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "ontologylab" }]
+keywords = ["knowledge-graph", "ontology", "mcp", "local-first", "sqlite"]
+# Core pipeline is standard-library only.
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=7", "httpx"]
+# Optional local dashboard. The stdlib pipeline core never imports these.
+server = ["fastapi", "uvicorn[standard]"]
+# Optional MCP stdio server (FastMCP from the official python SDK).
+mcp = ["mcp>=1.2"]
+
+[project.scripts]
+ontologylab = "ontologylab.main:main"
+ontologylab-serve = "ontologylab.serve:main"
+ontologylab-mcp = "ontologylab.mcp_server:main"
+
+[project.urls]
+Homepage = "https://example.invalid/ontologylab"
+
+[tool.setuptools]
+packages = ["ontologylab", "ontologylab.connectors", "ontologylab.server"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

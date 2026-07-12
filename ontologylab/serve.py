@@ -1,0 +1,51 @@
+"""Local serve entry point for the ontologylab web layer.
+
+Runnable as: python -m ontologylab.serve [--host 127.0.0.1] [--port 8765]
+
+Binds to 127.0.0.1 only (single local user, no auth, no cloud).
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+from ontologylab.paths import default_data_dir
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="ontologylab.serve",
+        description="Serve the ontologylab local web layer (FastAPI + static frontend).",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Bind host (default: 127.0.0.1, local-only)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8765,
+        help="Bind port (default: 8765)",
+    )
+    parser.add_argument(
+        "--data-dir",
+        default=str(default_data_dir()),
+        help="Working data directory (default: ROOT/data)",
+    )
+    args = parser.parse_args()
+
+    import uvicorn
+
+    from ontologylab.server.app import create_app
+
+    uvicorn.run(
+        create_app(data_dir=Path(args.data_dir)),
+        host=args.host,
+        port=args.port,
+    )
+
+
+if __name__ == "__main__":
+    main()

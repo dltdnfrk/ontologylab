@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ontologylab</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>ontologylab</h1>
+    <p>Local knowledge-graph pipeline — review queue (human verification gate)</p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Main navigation">
+    <button class="tab-btn active" data-tab="review" role="tab" aria-selected="true">Review</button>
+    <button class="tab-btn" data-tab="engines" role="tab" aria-selected="false">Engines</button>
+    <button class="tab-btn" data-tab="settings" role="tab" aria-selected="false">Settings</button>
+  </nav>
+
+  <main>
+    <section id="tab-review" class="tab-panel active" data-tab-panel="review">
+      <h2>Pending proposals</h2>
+      <div class="status-box" id="counts-box">
+        <div class="status-row"><span>Loading counts…</span></div>
+      </div>
+      <div class="form-actions" style="margin: 0.75rem 0;">
+        <button type="button" id="refresh-btn" class="btn btn-primary">Refresh</button>
+      </div>
+      <div class="table-wrap table-scroll">
+        <table id="proposals-table">
+          <thead>
+            <tr>
+              <th>Kind</th>
+              <th>Type</th>
+              <th>Name / endpoints</th>
+              <th>Confidence</th>
+              <th>Doc</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="proposals-body"></tbody>
+        </table>
+      </div>
+      <p id="review-empty" class="muted hidden">No pending proposals.</p>
+      <p id="review-error" class="err-msg hidden"></p>
+    </section>
+
+    <section id="tab-engines" class="tab-panel" data-tab-panel="engines">
+      <h2>Engines</h2>
+      <ul id="engines-list"></ul>
+      <h3>Cost summary</h3>
+      <pre id="cost-pre" class="code-block">—</pre>
+    </section>
+
+    <section id="tab-settings" class="tab-panel" data-tab-panel="settings">
+      <h2>Settings</h2>
+      <pre id="settings-pre" class="code-block">—</pre>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
