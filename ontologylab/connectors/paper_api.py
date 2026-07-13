@@ -23,8 +23,24 @@ _USER_AGENT = "ontologylab/0.1 (+local, single-user)"
 _FETCH_TIMEOUT_S = 30.0
 
 _ATOM_NS = "{http://www.w3.org/2005/Atom}"
-_DEFAULT_LIMIT = 5
+DEFAULT_LIMIT = 5
 _MAX_LIMIT = 25
+
+IMPLEMENTED_SOURCES: frozenset[str] = frozenset({"arxiv"})
+
+
+class UnsupportedPaperSource(NotImplementedError):
+    """Raised for a source that is allowlisted but not implemented yet."""
+
+
+def check_source_implemented(source: str) -> str:
+    """Raise UnsupportedPaperSource unless the source has a real fetcher."""
+    if source not in IMPLEMENTED_SOURCES:
+        raise UnsupportedPaperSource(
+            f"paper source {source!r} is allowlisted but not implemented yet "
+            "(only 'arxiv' is supported)"
+        )
+    return source
 
 
 def _fetch_atom(url: str) -> str:
@@ -37,7 +53,7 @@ def _fetch_atom(url: str) -> str:
 
 def _build_query_url(query: str, limit: int) -> str:
     return (
-        "http://export.arxiv.org/api/query"
+        "https://export.arxiv.org/api/query"
         f"?search_query=all:{quote_plus(query)}"
         f"&start=0&max_results={limit}"
     )
@@ -49,6 +65,9 @@ def _normalize(text: str | None) -> str:
 
 def parse_atom(xml_text: str) -> list[RawDocument]:
     """Parse an arXiv Atom feed into RawDocuments (title + abstract only)."""
+    # Input is fetched from a single allowlisted host over the stdlib parser;
+    # ET.fromstring does no DTD/external-entity resolution beyond internal
+    # entities, so no hardened parser is needed for this trusted feed.
     root = ET.fromstring(xml_text)
     documents: list[RawDocument] = []
     for entry in root.findall(f"{_ATOM_NS}entry"):
@@ -57,6 +76,10 @@ def parse_atom(xml_text: str) -> list[RawDocument]:
         if not title and not abstract:
             continue
         source_uri = _normalize(entry.findtext(f"{_ATOM_NS}id"))
+        if not source_uri:
+            # No <id> -> no usable source_uri -> no provenance trail;
+            # such an entry must never become a document row.
+            continue
         documents.append(
             RawDocument(
                 source_kind="paper_api",
@@ -76,16 +99,14 @@ class PaperApiConnector:
 
     async def fetch(self, source_spec: dict[str, Any]) -> list[RawDocument]:
         source: str = source_spec.get("source") or "arxiv"
-        query: str = source_spec.get("query") or ""
+        # Strip ONCE here so the allowlist check and the URL are built from
+        # the same canonicalized query text.
+        query: str = (source_spec.get("query") or "").strip()
         raw_limit = source_spec.get("limit")
-        limit = _DEFAULT_LIMIT if raw_limit is None else int(raw_limit)
+        limit = DEFAULT_LIMIT if raw_limit is None else int(raw_limit)
         limit = max(1, min(limit, _MAX_LIMIT))
         # Allowlist BEFORE building a URL or touching the network.
         check_paper_query(source, query)
-        if source != "arxiv":
-            raise NotImplementedError(
-                f"paper source {source!r} is allowlisted but not implemented yet "
-                "(only 'arxiv' is supported)"
-            )
+        check_source_implemented(source)
         body = _fetch_atom(_build_query_url(query, limit))
         return parse_atom(body)

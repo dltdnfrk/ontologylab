@@ -103,6 +103,18 @@ _CHUNK_SECTION_RE = re.compile(
     re.DOTALL,
 )
 
+# Shared prompt-format contract with expansion.build_expansion_prompt: the
+# query to expand is wrapped in these markers and MockEngine parses it back
+# out. Marker precedence in MockEngine.generate: query-expansion first,
+# document-chunk (extraction) otherwise.
+QUERY_MARKER_OPEN = "<query-expansion>"
+QUERY_MARKER_CLOSE = "</query-expansion>"
+
+_QUERY_SECTION_RE = re.compile(
+    re.escape(QUERY_MARKER_OPEN) + r"\n(.*?)\n" + re.escape(QUERY_MARKER_CLOSE),
+    re.DOTALL,
+)
+
 # CamelCase tokens ("RateLimiter", "TokenBucketAlgorithm") stand in for
 # extractable entities in the neutral software-docs example domain.
 _CAMELCASE_RE = re.compile(r"\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+\b")
@@ -112,6 +124,9 @@ _CAMELCASE_RE = re.compile(r"\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+\b")
 _RELATION_LINE_RE = re.compile(
     r"^- (\w+): .*\(source type: (\S+), target type: (\S+)[;)]", re.MULTILINE
 )
+
+# Splits one CamelCase token into its words ("RateLimiter" -> Rate, Limiter).
+_CAMEL_WORD_RE = re.compile(r"[A-Z][a-z0-9]+")
 
 
 def _mock_relation_type(prompt: str) -> str:
@@ -176,12 +191,52 @@ def _mock_extraction(prompt: str) -> str:
     return "```json\n" + json.dumps(payload, indent=2) + "\n```"
 
 
+def _mock_expansion(prompt: str) -> str:
+    """Deterministically derive an expansion JSON array from the prompt.
+
+    Output is purely a function of the query text between the
+    <query-expansion> markers: ordered unique casefolded variants are
+    [lowercased query (when it differs), concatenation of all word tokens
+    lowercased ("rate limiter" -> "ratelimiter"), space-joined split of
+    each CamelCase token lowercased ("RateLimiter" -> "rate limiter")],
+    minus anything equal to the casefolded original, capped at 8.
+    """
+    section = _QUERY_SECTION_RE.search(prompt)
+    query = section.group(1).strip() if section else prompt.strip()
+
+    candidates: list[str] = []
+    lowered = query.lower()
+    if lowered != query:
+        candidates.append(lowered)
+    tokens = re.findall(r"\w+", query)
+    if tokens:
+        candidates.append("".join(tokens).lower())
+    for token in tokens:
+        if _CAMELCASE_RE.fullmatch(token):
+            words = _CAMEL_WORD_RE.findall(token)
+            candidates.append(" ".join(w.lower() for w in words))
+
+    seen = {query.casefold()}
+    variants: list[str] = []
+    for cand in candidates:
+        key = cand.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        variants.append(cand)
+        if len(variants) >= 8:
+            break
+    return "```json\n" + json.dumps(variants, indent=2) + "\n```"
+
+
 class MockEngine:
     """Offline, deterministic engine used by default in tests and CI.
 
     Never shells out and never touches the network. Output is purely a
-    function of the prompt's <document-chunk> content (the seed is kept for
-    interface compatibility; it does not affect extraction output).
+    function of the prompt text: prompts containing a <query-expansion>
+    section get a deterministic expansion array; anything else gets the
+    <document-chunk> extraction payload (the seed is kept for interface
+    compatibility; it does not affect output).
     """
 
     def __init__(self, seed: int = 7) -> None:
@@ -195,7 +250,10 @@ class MockEngine:
         self, prompt: str, *, model: Optional[str] = None
     ) -> tuple[str, dict]:
         start = time.monotonic()
-        text = _mock_extraction(prompt)
+        if QUERY_MARKER_OPEN in prompt:
+            text = _mock_expansion(prompt)
+        else:
+            text = _mock_extraction(prompt)
         self._calls += 1
         elapsed = time.monotonic() - start
         usage = {"calls": 1, "elapsed": elapsed, "engine": "mock"}

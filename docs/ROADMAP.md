@@ -153,16 +153,20 @@ first upgrade beyond it.
 - `ontologylab/connectors/web_crawl.py`: single-URL / small-URL-list fetcher (HTML → text
   extraction, e.g. via stdlib `html.parser` or a light dependency); every URL host is checked
   against `WEB_CRAWL_ALLOWED_HOSTS` before fetch.
-- CLI: `python -m ontologylab.main collect --connector paper_api --query "..." --limit 5`
+- CLI: `python -m ontologylab.main collect --paper-query "..." [--paper-source arxiv] [--limit 5]`
   writes rows into `documents` via `kgstore.py`, logs each fetch via `provenance.py`.
+  (Shipped shape: flag-style inputs — `--paper-query`/`--url`/`--file`, composable in one run —
+  were chosen over the originally sketched `--connector` subcommand shape.)
 
 **Acceptance criterion:** `collect` run against 3-5 example documents (mixed: 2-3 from the paper
 API, 1-2 from web crawl of software-docs URLs) populates `documents` with non-empty `raw_text`;
 a non-allowlisted crawl host is rejected with a clear error, and a non-allowlisted paper
 query/source is likewise rejected before any network call — neither is silently skipped.
 
-**Reused modules:** `provenance.py` (`reuse-asis`), `safety.py` (`reuse-asis` — caps on
-documents-fetched/time budget), `tui.py` (`reuse-asis` — progress line per document fetched).
+**Reused modules:** `provenance.py` (`reuse-asis`); the safety-cap intent is realized by the
+per-query result limit clamp (1..25) inside the paper connector (`Caps`/`KillSwitch` remain
+extract-only); per-document progress is the existing print-per-document lines in `collect`
+(`tui.py` is not wired into collect).
 
 **Dependency:** M0 (paths), M2 (documents table to write into). **Risk:** paper-API rate limits
 / schema drift — keep the connector thin and swappable; web crawl HTML→text quality varies by
@@ -369,7 +373,8 @@ extra time for protocol conformance testing against at least one real client.
 
 **Deliverables:**
 - Screens: **Sources** (connectors run history, trigger new collect jobs), **Extraction Jobs**
-  (SSE-streamed progress, reusing `server/runner.py`'s tailer), **Review Queue** (M5, promoted
+  (polling-based job status via `GET /api/jobs`, mirroring `tui.py`'s status-polling pattern;
+  SSE streaming is an optional later upgrade), **Review Queue** (M5, promoted
   to a first-class nav item), **Packs** (M6 list/build/export/download), **MCP Status** (which
   pack is currently active for the MCP server, a "copy stdio config" helper for MCP clients).
 - `server/settings.py`'s `engines()` availability check surfaced in a Settings screen (already
@@ -419,8 +424,11 @@ around it, so a redesign there doesn't cascade into M5–M8 rework.
 3. Connector allowlist (M3) is deny-by-default and must ship with BOTH connectors (web_crawl host
    list + paper_api source/query list) from day one, not as a retrofit — only allowlisted
    sources/queries are ever permitted.
-4. Semantic search honesty (M2/M7): the MVP ships **FTS5 lexical** search, which must be
-   labeled as lexical (not vector) in the tool description and docs — never silently claim
-   semantic/vector search that isn't there. The post-MVP embedding tier is Python cosine
-   similarity, fine at local/single-user scale but a known, documented scaling ceiling
-   (`sqlite-vec` is the first upgrade beyond it), not to be silently assumed to scale further.
+4. Semantic search honesty (M2/M7): tier-1 is **FTS5 lexical** (BM25) search, labeled as
+   lexical (not vector) in the tool description and docs — never silently claim
+   semantic/vector search that isn't there. Tier-2 SHIPPED as **fail-open LLM query
+   expansion** (`expansion.py`): an engine proposes lexical query variants OR-composed
+   into the same FTS5 MATCH, labeled `fts5+llm-expansion` only when variants were
+   actually used; any expansion failure falls back to plain lexical, still labeled
+   `fts5`. Embeddings remain an explicitly deferred, **opt-in external backend** —
+   `sqlite-vec` is still the named eventual scaling step, not to be silently assumed.

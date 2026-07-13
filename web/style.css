@@ -594,3 +594,28 @@ th, td {
   vertical-align: top;
 }
 main { padding: 1rem 1.25rem 2rem; }
+
+/* M8 dashboard extras: Sources / Jobs / Packs / MCP */
+.ok-msg { color: var(--ok); }
+
+.badge.st-running { color: var(--warn); border-color: var(--warn); }
+.badge.st-complete { color: var(--ok); border-color: var(--ok); }
+.badge.st-failed { color: var(--err); border-color: var(--err); }
+
+.badge.badge-errkind { color: var(--err); border-color: var(--err); }
+.badge.kind-rejected { color: var(--err); border-color: var(--err); }
+.badge.kind-unsupported { color: var(--warn); border-color: var(--warn); }
+.badge.kind-fetch_failed { background: var(--err); border-color: var(--err); color: #fff; }
+
+.result-box { font-size: 0.85rem; }
+.result-box.result-error { border-color: var(--err); color: var(--err); }
+
+.mcp-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+}
+.mcp-card p { margin: 0.35rem 0; }
+.mcp-card pre { margin: 0.5rem 0; }

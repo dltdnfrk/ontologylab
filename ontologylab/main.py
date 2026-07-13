@@ -23,13 +23,25 @@ import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.error import URLError
+from xml.etree.ElementTree import ParseError
 
 from ontologylab import paths
-from ontologylab.connectors.allowlist import NotAllowlisted
+from ontologylab.connectors.allowlist import (
+    NotAllowlisted,
+    check_paper_query,
+    check_url,
+)
 from ontologylab.connectors.base import RawDocument
-from ontologylab.connectors.paper_api import PaperApiConnector
+from ontologylab.connectors.paper_api import (
+    DEFAULT_LIMIT,
+    PaperApiConnector,
+    UnsupportedPaperSource,
+    check_source_implemented,
+)
 from ontologylab.connectors.web_crawl import WebCrawlConnector
 from ontologylab.engines import EngineError, get_engine
+from ontologylab.expansion import expand_query
 from ontologylab.extractor import (
     PROMPT_VERSION,
     build_extraction_prompt,
@@ -69,21 +81,50 @@ def cmd_collect(args: argparse.Namespace) -> int:
         {"urls": args.url, "files": args.file, "paper_queries": args.paper_query},
     )
 
+    if not (args.url or args.file or args.paper_query):
+        print(
+            "[ontologylab] nothing to collect: pass --url, --file, "
+            "and/or --paper-query"
+        )
+        return 2
+
+    # Mixed-run pre-validation: every gate for every input is checked BEFORE
+    # any fetch, so one rejected/unsupported input can never let an earlier
+    # input reach the network first (zero network I/O on failure).
+    try:
+        for url in args.url:
+            check_url(url)
+        for paper_query in args.paper_query or []:
+            check_paper_query(args.paper_source, paper_query)
+            check_source_implemented(args.paper_source)
+    except NotAllowlisted as exc:
+        provenance.log("collect.rejected", {"error": str(exc)})
+        print(f"[ontologylab] REJECTED: {exc}", file=sys.stderr)
+        return 2
+    except UnsupportedPaperSource as exc:
+        provenance.log("collect.unsupported", {"error": str(exc)})
+        print(f"[ontologylab] UNSUPPORTED: {exc}", file=sys.stderr)
+        return 2
+
     def _run_connector(connector, spec: dict) -> list[RawDocument] | None:
         """Fetch via one connector; None means logged failure (exit 2).
 
-        NotAllowlisted is a deliberate rejection; ValueError /
-        NotImplementedError / OSError (incl. URLError) are fetch failures —
-        all must end as a clean CLI error, never an uncaught traceback.
+        NotAllowlisted / UnsupportedPaperSource are re-checked in-fetch as
+        defense in depth; URLError (incl. HTTPError) and Atom ParseError are
+        fetch failures — all must end as a clean CLI error, never an
+        uncaught traceback.
         """
         try:
             return asyncio.run(connector.fetch(spec))
         except NotAllowlisted as exc:
             provenance.log("collect.rejected", {"error": str(exc)})
             print(f"[ontologylab] REJECTED: {exc}", file=sys.stderr)
-        except NotImplementedError as exc:
+        except UnsupportedPaperSource as exc:
             provenance.log("collect.unsupported", {"error": str(exc)})
             print(f"[ontologylab] UNSUPPORTED: {exc}", file=sys.stderr)
+        except (URLError, ParseError) as exc:
+            provenance.log("collect.fetch_failed", {"error": str(exc)})
+            print(f"[ontologylab] FETCH FAILED: {exc}", file=sys.stderr)
         except (ValueError, OSError) as exc:
             provenance.log("collect.failed", {"error": str(exc)})
             print(f"[ontologylab] collect failed: {exc}", file=sys.stderr)
@@ -118,11 +159,10 @@ def cmd_collect(args: argparse.Namespace) -> int:
             )
         )
     if not raw_docs:
-        print(
-            "[ontologylab] nothing to collect: pass --url, --file, "
-            "and/or --paper-query"
-        )
-        return 2
+        provenance.log("collect.end", {"documents": 0, "created": 0})
+        print("[ontologylab] no documents matched: inputs fetched cleanly "
+              "but yielded zero documents")
+        return 0
 
     store = _open_store(args)
     try:
@@ -429,6 +469,65 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# search (tier-1 lexical, optional tier-2 fail-open LLM query expansion)
+# ---------------------------------------------------------------------------
+
+
+def cmd_search(args: argparse.Namespace) -> int:
+    try:
+        store = _open_store(args)
+    except KGStoreError as exc:
+        print(f"[ontologylab] ERROR: {exc}", file=sys.stderr)
+        return 2
+    try:
+        variants: list[str] = []
+        if args.expand:
+            try:
+                engine = get_engine(args.engine, args.model)
+                variants, usage = asyncio.run(
+                    expand_query(args.query, engine, model=args.model)
+                )
+                if usage.get("error"):
+                    print(
+                        f"[ontologylab] expansion failed open: {usage['error']}",
+                        file=sys.stderr,
+                    )
+            except EngineError as exc:
+                print(
+                    f"[ontologylab] expansion failed open: {exc}", file=sys.stderr
+                )
+                variants = []
+        fts_query = " ".join([args.query, *variants]) if variants else args.query
+        try:
+            results = store.semantic_search(
+                fts_query,
+                top_k=args.top_k,
+                entity_type=args.type,
+                include_proposed=args.include_proposed,
+            )
+        except KGStoreError as exc:
+            print(f"[ontologylab] ERROR: {exc}", file=sys.stderr)
+            return 2
+        if variants:
+            print(
+                "[ontologylab] tier: fts5+llm-expansion "
+                f"(terms: {', '.join(variants)})"
+            )
+        else:
+            print("[ontologylab] tier: fts5")
+        if not results:
+            print(f"[ontologylab] 0 results for {args.query!r}")
+        for row in results:
+            print(
+                f"{row['name']}  {row['entity_type']}  "
+                f"score={row['match_score']:.3f}  id={row['id']}"
+            )
+        return 0
+    finally:
+        store.close()
+
+
+# ---------------------------------------------------------------------------
 # parser wiring
 # ---------------------------------------------------------------------------
 
@@ -453,7 +552,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
                                 "repeatable).")
     p_collect.add_argument("--paper-source", default="arxiv",
                            help="Paper API source (default: arxiv).")
-    p_collect.add_argument("--limit", type=int, default=5,
+    p_collect.add_argument("--limit", type=int, default=DEFAULT_LIMIT,
                            help="Max results per paper query (cap per query, "
                                 "clamped to 1..25).")
     _add_data_dir(p_collect)
@@ -509,6 +608,25 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_build.add_argument("--packs-dir", default=str(paths.default_packs_dir()))
     _add_data_dir(p_build)
     p_build.set_defaults(func=cmd_build_pack)
+
+    p_search = sub.add_parser(
+        "search",
+        help="Lexical FTS5 search of the working KG "
+             "(--expand adds fail-open LLM query expansion).",
+    )
+    p_search.add_argument("query", help="Search query.")
+    p_search.add_argument("--top-k", type=int, default=10)
+    p_search.add_argument("--type", default=None, help="Entity type filter.")
+    p_search.add_argument("--include-proposed", action="store_true",
+                          help="Include unverified (proposed) rows.")
+    p_search.add_argument("--expand", action="store_true",
+                          help="Expand the query with LLM lexical variants "
+                               "(fails open to plain lexical search).")
+    p_search.add_argument("--engine", default="mock",
+                          choices=["mock", "claude", "codex", "gemini"])
+    p_search.add_argument("--model", default=None)
+    _add_data_dir(p_search)
+    p_search.set_defaults(func=cmd_search)
 
     return parser
 

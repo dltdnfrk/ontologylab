@@ -69,8 +69,9 @@ Claude Desktop / Claude Code snippet:
 ```
 
 Tools (all read-only against the pack): `list_packs`, `load_pack`, `get_schema`,
-`entity_lookup`, `semantic_search` (FTS5 lexical), `graph_query`,
-`traverse_relations`, `find_path`.
+`entity_lookup`, `semantic_search` (FTS5 lexical; optional fail-open LLM query
+expansion via `expand=True` + `--expansion-engine` — still not vector search),
+`graph_query`, `traverse_relations`, `find_path`.
 
 ## Tests
 

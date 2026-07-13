@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any
 
 from ontologylab.kgstore import KGStore, KGStoreError
+from ontologylab.engines import EngineError, get_engine
+from ontologylab.expansion import expand_query
 from ontologylab.packbuilder import list_packs as discover_packs, pack_sqlite_path
 from ontologylab.paths import default_packs_dir
 
@@ -32,10 +34,18 @@ class PackSession:
     Pure logic — no FastMCP dependency. Tests construct this directly.
     """
 
-    def __init__(self, packs_dir: str | Path) -> None:
+    def __init__(
+        self,
+        packs_dir: str | Path,
+        *,
+        expansion_engine: str | None = None,
+        expansion_model: str | None = None,
+    ) -> None:
         self.packs_dir = Path(packs_dir)
         self.store: KGStore | None = None
         self.pack_id: str | None = None
+        self.expansion_engine = expansion_engine
+        self.expansion_model = expansion_model
 
     def close(self) -> None:
         if self.store is not None:
@@ -146,6 +156,53 @@ class PackSession:
             "count": len(results),
         }
 
+    async def semantic_search_expanded(
+        self,
+        query: str,
+        *,
+        engine_name: str | None = None,
+        model: str | None = None,
+        top_k: int = 10,
+        entity_type: str | None = None,
+        min_score: float = 0.0,
+        include_proposed: bool = False,
+    ) -> dict[str, Any]:
+        """Lexical FTS5 search with optional fail-open LLM query expansion.
+
+        When ``engine_name`` is set, an LLM proposes lexical query variants
+        that are OR-composed into the same FTS5 MATCH; any expansion failure
+        fails open to the plain lexical query. The ``search_tier`` label is
+        ``"fts5+llm-expansion"`` ONLY when at least one variant was actually
+        used, ``"fts5"`` otherwise. Never vector search.
+        """
+        store = self._require_store()
+        variants: list[str] = []
+        expansion_error: str | None = None
+        if engine_name:
+            try:
+                engine = get_engine(engine_name, model)
+            except EngineError as exc:
+                expansion_error = str(exc)
+            else:
+                variants, usage = await expand_query(query, engine, model=model)
+                expansion_error = usage.get("error")
+        fts_query = " ".join([query, *variants]) if variants else query
+        results = store.semantic_search(
+            fts_query,
+            top_k=top_k,
+            entity_type=entity_type,
+            min_score=min_score,
+            include_proposed=include_proposed,
+        )
+        return {
+            "query": query,
+            "search_tier": "fts5+llm-expansion" if variants else "fts5",
+            "expansion_terms": variants,
+            "expansion_error": expansion_error,
+            "results": results,
+            "count": len(results),
+        }
+
     def graph_query(
         self,
         entity_type: str | None = None,
@@ -245,21 +302,40 @@ def build_mcp_app(session: PackSession) -> Any:
         )
 
     @mcp.tool()
-    def semantic_search(
+    async def semantic_search(
         query: str,
         entity_type: str | None = None,
         top_k: int = 10,
         min_score: float = 0.0,
         include_proposed: bool = False,
+        expand: bool = False,
     ) -> dict:
-        """Lexical (FTS5) search over node names/aliases/properties; 0..1 match_score."""
-        return session.semantic_search(
+        """Lexical FTS5/BM25 search over node names/aliases/properties (0..1
+        match_score). With expand=True, an LLM adds lexical query variants
+        (fail-open; requires --expansion-engine at server start). NOT vector
+        search — no embeddings are involved."""
+        if not expand:
+            return session.semantic_search(
+                query,
+                entity_type=entity_type,
+                top_k=top_k,
+                min_score=min_score,
+                include_proposed=include_proposed,
+            )
+        result = await session.semantic_search_expanded(
             query,
-            entity_type=entity_type,
+            engine_name=session.expansion_engine,
+            model=session.expansion_model,
             top_k=top_k,
+            entity_type=entity_type,
             min_score=min_score,
             include_proposed=include_proposed,
         )
+        if session.expansion_engine is None:
+            result["expansion_error"] = (
+                "no expansion engine configured (start with --expansion-engine)"
+            )
+        return result
 
     @mcp.tool()
     def graph_query(
@@ -338,9 +414,25 @@ def main(argv: list[str] | None = None) -> None:
         help="Optional pack_id to load at startup. If omitted and exactly one "
         "pack exists, it is auto-loaded.",
     )
+    parser.add_argument(
+        "--expansion-engine",
+        default=None,
+        choices=["mock", "claude", "codex", "gemini"],
+        help="Optional LLM engine for semantic_search query expansion "
+        "(expand=True). Default: none (plain lexical search only).",
+    )
+    parser.add_argument(
+        "--expansion-model",
+        default=None,
+        help="Optional model name for the expansion engine.",
+    )
     args = parser.parse_args(argv)
 
-    session = PackSession(args.packs_dir)
+    session = PackSession(
+        args.packs_dir,
+        expansion_engine=args.expansion_engine,
+        expansion_model=args.expansion_model,
+    )
     if args.pack:
         try:
             session.load_pack(args.pack)

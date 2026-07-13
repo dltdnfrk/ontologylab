@@ -66,3 +66,25 @@ class ProposalAction(BaseModel):
     by: str = "local-user"
     note: Optional[str] = None
     cascade: bool = False
+
+
+class JobStatus(BaseModel):
+    """Status snapshot of one background extraction job (Extraction Jobs screen)."""
+
+    job_id: str
+    kind: str = "extract"
+    status: str  # "running" | "complete" | "failed"
+    engine: str
+    model: Optional[str] = None
+    started_ts: float
+    finished_ts: Optional[float] = None
+    totals: dict[str, int] = Field(
+        default_factory=lambda: {
+            "nodes_new": 0,
+            "nodes_merged": 0,
+            "edges_new": 0,
+            "edges_merged": 0,
+        }
+    )
+    progress: list[str] = Field(default_factory=list)
+    error: Optional[str] = None

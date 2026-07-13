@@ -14,6 +14,10 @@
 
   <nav class="tabs" role="tablist" aria-label="Main navigation">
     <button class="tab-btn active" data-tab="review" role="tab" aria-selected="true">Review</button>
+    <button class="tab-btn" data-tab="sources" role="tab" aria-selected="false">Sources</button>
+    <button class="tab-btn" data-tab="jobs" role="tab" aria-selected="false">Jobs</button>
+    <button class="tab-btn" data-tab="packs" role="tab" aria-selected="false">Packs</button>
+    <button class="tab-btn" data-tab="mcp" role="tab" aria-selected="false">MCP</button>
     <button class="tab-btn" data-tab="engines" role="tab" aria-selected="false">Engines</button>
     <button class="tab-btn" data-tab="settings" role="tab" aria-selected="false">Settings</button>
   </nav>
@@ -44,6 +48,149 @@
       </div>
       <p id="review-empty" class="muted hidden">No pending proposals.</p>
       <p id="review-error" class="err-msg hidden"></p>
+    </section>
+
+    <section id="tab-sources" class="tab-panel" data-tab-panel="sources">
+      <h2>Sources</h2>
+      <div class="form-actions" style="margin: 0.75rem 0;">
+        <button type="button" id="sources-refresh-btn" class="btn">Refresh</button>
+      </div>
+      <div class="table-wrap table-scroll">
+        <table id="documents-table">
+          <thead>
+            <tr>
+              <th>Kind</th>
+              <th>Title</th>
+              <th>URI</th>
+              <th>Fetched</th>
+            </tr>
+          </thead>
+          <tbody id="documents-body"></tbody>
+        </table>
+      </div>
+      <p id="sources-empty" class="muted hidden">No documents collected yet.</p>
+      <p id="sources-error" class="err-msg hidden"></p>
+
+      <h3>Collect</h3>
+      <form id="collect-form" class="form-grid">
+        <label>URLs (comma-separated)
+          <input type="text" id="collect-urls" placeholder="https://example.org/a, https://example.org/b" />
+        </label>
+        <label>File paths (comma-separated)
+          <input type="text" id="collect-files" placeholder="/path/to/doc.pdf" />
+        </label>
+        <label>Paper query
+          <input type="text" id="collect-paper-query" placeholder="knowledge graph extraction" />
+        </label>
+        <label>Paper source
+          <select id="collect-paper-source">
+            <option value="arxiv" selected>arxiv</option>
+            <option value="crossref">crossref</option>
+          </select>
+        </label>
+        <label>Limit
+          <input type="number" id="collect-limit" value="5" min="1" max="50" />
+        </label>
+        <div class="form-actions">
+          <button type="submit" id="collect-submit" class="btn btn-primary">Collect</button>
+        </div>
+      </form>
+      <div id="collect-result" class="status-box result-box hidden"></div>
+    </section>
+
+    <section id="tab-jobs" class="tab-panel" data-tab-panel="jobs">
+      <h2>Jobs</h2>
+      <h3>Run extraction</h3>
+      <form id="extract-form" class="form-grid">
+        <label>Engine
+          <select id="extract-engine"></select>
+        </label>
+        <label>Model (optional)
+          <input type="text" id="extract-model" placeholder="engine default" />
+        </label>
+        <label>Seed
+          <input type="number" id="extract-seed" value="7" />
+        </label>
+        <div class="form-actions">
+          <button type="submit" id="extract-submit" class="btn btn-primary">Run extraction</button>
+        </div>
+      </form>
+      <div id="extract-result" class="status-box result-box hidden"></div>
+
+      <div class="form-actions" style="margin: 0.75rem 0;">
+        <button type="button" id="jobs-refresh-btn" class="btn">Refresh</button>
+      </div>
+      <div class="table-wrap table-scroll">
+        <table id="jobs-table">
+          <thead>
+            <tr>
+              <th>Job</th>
+              <th>Engine</th>
+              <th>Status</th>
+              <th>Totals</th>
+              <th>Started</th>
+              <th>Finished</th>
+            </tr>
+          </thead>
+          <tbody id="jobs-body"></tbody>
+        </table>
+      </div>
+      <p id="jobs-empty" class="muted hidden">No jobs yet.</p>
+      <p id="jobs-error" class="err-msg hidden"></p>
+
+      <div id="job-detail" class="hidden">
+        <h3 id="job-detail-title">Job</h3>
+        <pre id="job-progress" class="code-block">—</pre>
+      </div>
+    </section>
+
+    <section id="tab-packs" class="tab-panel" data-tab-panel="packs">
+      <h2>Packs</h2>
+      <div class="form-actions" style="margin: 0.75rem 0;">
+        <button type="button" id="packs-refresh-btn" class="btn">Refresh</button>
+      </div>
+      <div class="table-wrap table-scroll">
+        <table id="packs-table">
+          <thead>
+            <tr>
+              <th>Pack</th>
+              <th>Created</th>
+              <th>Docs</th>
+              <th>Nodes</th>
+              <th>Edges</th>
+              <th>Search tier</th>
+              <th>Hash</th>
+            </tr>
+          </thead>
+          <tbody id="packs-body"></tbody>
+        </table>
+      </div>
+      <p id="packs-empty" class="muted hidden">No packs built yet.</p>
+      <p id="packs-error" class="err-msg hidden"></p>
+
+      <h3>Build pack</h3>
+      <form id="pack-build-form" class="form-grid">
+        <label>Name
+          <input type="text" id="pack-name" placeholder="my-pack" required />
+        </label>
+        <div class="form-actions">
+          <button type="submit" id="pack-build-submit" class="btn btn-primary">Build pack</button>
+        </div>
+      </form>
+      <div id="pack-build-result" class="status-box result-box hidden"></div>
+    </section>
+
+    <section id="tab-mcp" class="tab-panel" data-tab-panel="mcp">
+      <h2>MCP</h2>
+      <div class="form-actions" style="margin: 0.75rem 0;">
+        <button type="button" id="mcp-refresh-btn" class="btn">Refresh</button>
+      </div>
+      <div class="status-box">
+        <div class="status-row"><span>packs dir:</span> <code id="mcp-packs-dir">—</code></div>
+      </div>
+      <div id="mcp-cards"></div>
+      <p id="mcp-empty" class="muted hidden">No packs available to serve.</p>
+      <p id="mcp-error" class="err-msg hidden"></p>
     </section>
 
     <section id="tab-engines" class="tab-panel" data-tab-panel="engines">

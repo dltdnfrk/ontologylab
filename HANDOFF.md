@@ -66,11 +66,11 @@ MVP 컷라인 **코드 + 테스트 완료**. Ultragoal G001–G004 완료.
 
 | 영역 | 상태 |
 |---|---|
-| M0–M6 코어 (kgstore, connectors, extractor, CLI, packbuilder) | ✅ |
+| M0–M6 코어 (kgstore, connectors incl. paper_api, extractor, CLI, packbuilder) | ✅ |
 | M7 MCP (`mcp_server.py` PackSession + 8 tools) | ✅ |
-| Dashboard shell (`serve.py` + `server/` + `web/` review) | ✅ |
-| pytest (19) | ✅ green |
-| E2E: collect → extract → approve → pack → MCP query | ✅ |
+| M8 대시보드 (Review + Sources / Jobs / Packs / MCP 화면, polling 잡 러너) | ✅ |
+| pytest (128) | ✅ green |
+| E2E: collect → extract → approve → pack → MCP query (CLI + API 양쪽) | ✅ |
 
 ```bash
 cd ~/Documents/MUNI/ontologylab
@@ -82,16 +82,16 @@ python3.13 -m venv .venv && .venv/bin/pip install -e . pytest httpx fastapi 'uvi
 
 ## 남은 선택 작업 (post-MVP / M8 polish)
 
-- paper_api connector (M3 일부; MVP는 web_crawl + file upload)
-- 대시보드 Sources / Extraction Jobs / Packs / MCP Status 화면 (M8)
-- live `claude` 엔진으로 실문서 1건 추출 데모 (CI는 canned/mock)
-- 엔티티 임베딩 tier-2 search
+- ~~paper_api connector~~ ✅ 완료 (arXiv Atom, deny-by-default allowlist, 아키텍트+레드팀 게이트 통과)
+- ~~대시보드 Sources / Extraction Jobs / Packs / MCP Status 화면 (M8)~~ ✅ 완료 (polling 기반 잡 상태 — SSE는 ROADMAP에 선택 업그레이드로 명시)
+- ~~live `claude` 엔진 실문서 추출 데모~~ ✅ 완료 (2026-07-13): README.md 1건 → `claude-fable-5` 실추출 29노드/29엣지 proposed → 검증기가 환각 표면형 5건 거부(synthesized로만 편입) → conf≥0.65 벌크 승인 24/24 (미검증 엔드포인트 엣지 5건 자동 skip) → verified-only 팩 빌드 → PackSession으로 entity_lookup/FTS5/find_path(2-hop) 응답. 주의: 이 샌드박스는 python 자식 프로세스의 네트워크를 차단하므로 엔진 호출만 셸에서 실행 후 파이프라인에 주입함 — 일반 환경에선 `extract --engine claude` 한 방으로 동일.
+- ~~엔티티 tier-2 search~~ ✅ 완료 (2026-07-13): 임베딩 대신 **fail-open LLM 쿼리 확장** (gajae-code와 동일 노선 — BM25 lexical 유지 + LLM이 동의어/분절 변형 생성, 실패 시 plain lexical로 무해하게 폴백). `ontologylab search "<q>" --expand --engine <e>`, MCP `semantic_search(expand=true)` + `--expansion-engine`. 티어 라벨 정직: 변형이 실제 사용될 때만 `fts5+llm-expansion`. 라이브 검증: claude 확장으로 plain 0건이던 'rate limiter' → RateLimiter 검색 성공. 임베딩은 명시적 유보(opt-in 외부 백엔드, sqlite-vec이 최종 스케일 단계).
 
 ## 새 세션 시작 프롬프트 (붙여넣기용)
 
 ```
 ~/Documents/MUNI/ontologylab/HANDOFF.md 를 읽고 이어서 작업해줘.
-MVP(M0–M7 + E2E)는 완료. 남은 건 M8 대시보드 polish 또는 live claude 추출 데모.
+MVP(M0–M8)+live claude 데모+tier-2 쿼리확장까지 완료. 계획된 잔여 작업 없음 (선택: 임베딩 외부 백엔드).
 용어는 계속 중립(지식그래프/최적화 프레임워크)으로 유지.
 ```
 

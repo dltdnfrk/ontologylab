@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ontologylab.paths import default_data_dir
+from ontologylab.paths import default_data_dir, default_packs_dir
 
 
 def main() -> None:
@@ -34,6 +34,11 @@ def main() -> None:
         default=str(default_data_dir()),
         help="Working data directory (default: ROOT/data)",
     )
+    parser.add_argument(
+        "--packs-dir",
+        default=str(default_packs_dir()),
+        help="Knowledge-pack output directory (default: ROOT/packs)",
+    )
     args = parser.parse_args()
 
     import uvicorn
@@ -41,7 +46,7 @@ def main() -> None:
     from ontologylab.server.app import create_app
 
     uvicorn.run(
-        create_app(data_dir=Path(args.data_dir)),
+        create_app(data_dir=Path(args.data_dir), packs_dir=Path(args.packs_dir)),
         host=args.host,
         port=args.port,
     )

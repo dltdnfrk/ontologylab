@@ -159,3 +159,130 @@ def test_cli_collect_unimplemented_allowlisted_source_exits_cleanly(
     )
     assert code == 2
     assert "UNSUPPORTED" in capsys.readouterr().err
+
+
+NO_ID_ENTRY_FIXTURE = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <title>Orphan Without Identifier</title>
+    <summary>Has a title and a summary but no id element at all.</summary>
+  </entry>
+</feed>
+"""
+
+DEGENERATE_ONLY_FIXTURE = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <title>  </title>
+    <summary>
+    </summary>
+  </entry>
+  <entry>
+    <title>No Provenance</title>
+    <summary>Entry without an id is skipped too.</summary>
+  </entry>
+</feed>
+"""
+
+
+def test_parse_atom_skips_entry_without_id():
+    """No <id> -> no source_uri -> no provenance -> entry must never insert."""
+    assert parse_atom(NO_ID_ENTRY_FIXTURE) == []
+
+
+def test_build_query_url_uses_https():
+    assert _build_query_url("databases", 5).startswith(
+        "https://export.arxiv.org/api/query?"
+    )
+
+
+def test_fetch_strips_query_before_allowlist_and_url(monkeypatch):
+    """The query is stripped ONCE in fetch: allowlist and URL see same text."""
+    import ontologylab.connectors.paper_api as pa
+
+    seen_urls: list[str] = []
+
+    def fake_fetch(url):
+        seen_urls.append(url)
+        return ATOM_FIXTURE
+
+    monkeypatch.setattr(pa, "_fetch_atom", fake_fetch)
+    asyncio.run(PaperApiConnector().fetch({"query": "  databases  "}))
+    (url,) = seen_urls
+    assert url == _build_query_url("databases", 5)  # stripped, not padded
+
+
+def test_cli_collect_inputs_supplied_zero_documents_exits_zero(
+    tmp_path, capsys, monkeypatch
+):
+    """Allowlisted query + degenerate-only feed: informative message, exit 0."""
+    import ontologylab.connectors.paper_api as pa
+
+    monkeypatch.setattr(pa, "_fetch_atom", lambda url: DEGENERATE_ONLY_FIXTURE)
+    data = str(tmp_path / "data")
+    code = run_cli("collect", "--data-dir", data, "--paper-query", "databases")
+    assert code == 0
+    assert "no documents matched" in capsys.readouterr().out
+
+    store = KGStore.open(paths.kg_db_path(tmp_path / "data"))
+    try:
+        assert store.list_documents() == []
+    finally:
+        store.close()
+
+
+def test_cli_collect_mixed_run_validates_all_gates_before_any_fetch(
+    tmp_path, capsys, monkeypatch
+):
+    """One bad input in a mixed run rejects BEFORE any network I/O happens."""
+    import ontologylab.connectors.paper_api as pa
+    import ontologylab.connectors.web_crawl as wc
+
+    def boom(url):  # pragma: no cover - must not be reached
+        raise AssertionError("network I/O attempted despite failed pre-validation")
+
+    monkeypatch.setattr(pa, "_fetch_atom", boom)
+    monkeypatch.setattr(wc, "_fetch_url", boom)
+
+    # allowlisted URL first + non-allowlisted paper query second -> REJECTED
+    code = run_cli(
+        "collect", "--data-dir", str(tmp_path / "d1"),
+        "--url", "https://docs.python.org/3/library/sqlite3.html",
+        "--paper-query", "quantum finance",
+    )
+    assert code == 2
+    assert "REJECTED" in capsys.readouterr().err
+
+    # allowlisted query first + unimplemented source -> UNSUPPORTED, no fetch
+    code = run_cli(
+        "collect", "--data-dir", str(tmp_path / "d2"),
+        "--url", "https://docs.python.org/3/library/sqlite3.html",
+        "--paper-source", "crossref", "--paper-query", "databases",
+    )
+    assert code == 2
+    assert "UNSUPPORTED" in capsys.readouterr().err
+
+
+def test_cli_collect_fetch_failures_exit_cleanly(tmp_path, capsys, monkeypatch):
+    """URLError and Atom ParseError end as FETCH FAILED + exit 2, no traceback."""
+    import ontologylab.connectors.paper_api as pa
+    from urllib.error import URLError
+
+    def network_down(url):
+        raise URLError("connection refused")
+
+    monkeypatch.setattr(pa, "_fetch_atom", network_down)
+    code = run_cli(
+        "collect", "--data-dir", str(tmp_path / "d1"),
+        "--paper-query", "databases",
+    )
+    assert code == 2
+    assert "FETCH FAILED" in capsys.readouterr().err
+
+    monkeypatch.setattr(pa, "_fetch_atom", lambda url: "<feed>truncated")
+    code = run_cli(
+        "collect", "--data-dir", str(tmp_path / "d2"),
+        "--paper-query", "databases",
+    )
+    assert code == 2
+    assert "FETCH FAILED" in capsys.readouterr().err
