@@ -348,14 +348,28 @@ def cmd_review(args: argparse.Namespace) -> int:
     if not rows:
         print("[ontologylab] review queue is empty")
     else:
-        header = f"{'KIND':<5} {'ID':<34} {'TYPE':<12} {'CONF':<5} LABEL"
+        header = (
+            f"{'KIND':<5} {'ID':<34} {'TYPE':<12} {'CONF':<5} {'CRITIC':<7} LABEL"
+        )
         print(header)
         print("-" * len(header))
         for row in rows:
             conf = f"{row['confidence']:.2f}" if row["confidence"] is not None else "-"
+            critic = (
+                f"{row['critic_score']:.2f}"
+                if row.get("critic_score") is not None
+                else "-"
+            )
+            if row.get("critic_disagreement"):
+                critic += "!"
             print(
                 f"{row['kind']:<5} {row['id']:<34} {row['type_name']:<12} "
-                f"{conf:<5} {row['label']}"
+                f"{conf:<5} {critic:<7} {row['label']}"
+            )
+        if any(r.get("critic_disagreement") for r in rows):
+            print(
+                "\n[ontologylab] '!' = extractor/critic disagreement — "
+                "worth a close look (advisory only)"
             )
     print(
         f"\n[ontologylab] proposed: {counts['nodes_proposed']} nodes / "
@@ -439,6 +453,39 @@ def cmd_reject(args: argparse.Namespace) -> int:
         return 2
     finally:
         store.close()
+
+
+# ---------------------------------------------------------------------------
+# critic triage (W8: a second model pre-scores the queue — advisory only)
+# ---------------------------------------------------------------------------
+
+
+def cmd_critic(args: argparse.Namespace) -> int:
+    from ontologylab.critic import critic_review
+
+    engine = get_engine(args.engine, args.model)
+    store = _open_store(args)
+    try:
+        stats = asyncio.run(
+            critic_review(
+                store, engine, model=args.model,
+                limit=args.limit, batch_size=args.batch_size,
+            )
+        )
+    finally:
+        store.close()
+    print(
+        f"[ontologylab] critic ({args.engine}) scored {stats['scored']}/"
+        f"{stats['candidates']} pending item(s); "
+        f"{stats['disagreements']} disagreement(s) flagged"
+    )
+    for error in stats["errors"]:
+        print(f"[ontologylab] critic batch failed open: {error}", file=sys.stderr)
+    print(
+        "[ontologylab] scores are advisory — triage with "
+        "`ontologylab review --order critic`; approval stays yours"
+    )
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -725,8 +772,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_review.add_argument("--doc", default=None, help="Source document id filter.")
     p_review.add_argument(
         "--order", default="created",
-        choices=["created", "confidence", "confidence_desc"],
-        help="Queue order; 'confidence' triages least-certain items first.",
+        choices=["created", "confidence", "confidence_desc", "critic"],
+        help="Queue order; 'confidence' triages least-certain items first, "
+             "'critic' puts the critic model's lowest scores first "
+             "(run `ontologylab critic` to score).",
     )
     p_review.add_argument("--limit", type=int, default=100)
     _add_data_dir(p_review)
@@ -753,6 +802,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_reject.add_argument("--note", default=None)
     _add_data_dir(p_reject)
     p_reject.set_defaults(func=cmd_reject)
+
+    p_critic = sub.add_parser(
+        "critic",
+        help="Pre-score pending proposals with a second model (advisory "
+             "only: sorts the queue and flags disagreements; never approves).",
+    )
+    p_critic.add_argument("--engine", default="mock",
+                          choices=["mock", "claude", "codex", "gemini"])
+    p_critic.add_argument("--model", default=None)
+    p_critic.add_argument("--limit", type=int, default=200,
+                          help="Max pending items to score this run.")
+    p_critic.add_argument("--batch-size", type=int, default=20)
+    _add_data_dir(p_critic)
+    p_critic.set_defaults(func=cmd_critic)
 
     p_merge_scan = sub.add_parser(
         "merge-scan",

@@ -144,6 +144,24 @@
         var tr = document.createElement("tr");
         var conf =
           item.confidence == null ? "—" : Number(item.confidence).toFixed(2);
+        /* Advisory display ONLY: the critic score never pre-selects or
+           pre-checks a decision (anchoring-bias guard). */
+        var critic = "—";
+        if (item.critic_score != null) {
+          critic = Number(item.critic_score).toFixed(2);
+          if (item.critic_disagreement) {
+            critic +=
+              " <span class='badge' title='extractor/critic disagreement" +
+              (item.critic_rationale
+                ? ": " + escapeHtml(item.critic_rationale)
+                : "") +
+              "'>⚠</span>";
+          } else if (item.critic_rationale) {
+            critic =
+              "<span title='" + escapeHtml(item.critic_rationale) + "'>" +
+              critic + "</span>";
+          }
+        }
         tr.innerHTML =
           "<td>" +
           (item.kind || "") +
@@ -158,6 +176,9 @@
           "</small></td>" +
           "<td>" +
           conf +
+          "</td>" +
+          "<td>" +
+          critic +
           "</td>" +
           "<td><small>" +
           (item.source_doc_id || "").slice(0, 10) +
@@ -856,6 +877,59 @@
   $("#mcp-refresh-btn").addEventListener("click", loadMcp);
 
   $("#refresh-btn").addEventListener("click", loadProposals);
+
+  $("#review-order").addEventListener("change", function () {
+    reviewOrder = $("#review-order").value || "confidence";
+    loadProposals();
+  });
+
+  async function populateCriticEngines() {
+    var sel = $("#critic-engine");
+    try {
+      var engines = (await api("/api/engines")) || [];
+      sel.innerHTML = "";
+      engines.forEach(function (eng) {
+        var opt = document.createElement("option");
+        opt.value = eng.name;
+        opt.textContent = eng.name + (eng.available ? "" : " (missing)");
+        opt.disabled = !eng.available;
+        sel.appendChild(opt);
+      });
+    } catch (_) {
+      sel.innerHTML = "<option value='mock'>mock</option>";
+    }
+  }
+
+  $("#critic-run-btn").addEventListener("click", async function () {
+    var box = $("#critic-result");
+    var btn = $("#critic-run-btn");
+    btn.disabled = true;
+    showResult(box, "<span class='muted'>Critic scoring… (advisory only — approval stays yours)</span>");
+    try {
+      var res = await apiSend("/api/critic/run", {
+        engine: $("#critic-engine").value || "mock",
+      });
+      if (res && res.ok) {
+        showResult(
+          box,
+          "Critic scored <code>" + escapeHtml(String(res.scored || 0)) +
+            "</code>/<code>" + escapeHtml(String(res.candidates || 0)) +
+            "</code> pending item(s) · disagreements: <code>" +
+            escapeHtml(String(res.disagreements || 0)) + "</code>"
+        );
+        $("#review-order").value = "critic";
+        reviewOrder = "critic";
+        await loadProposals();
+      } else {
+        showResult(box, escapeHtml((res && res.detail) || "Critic run failed."), true);
+      }
+    } catch (e) {
+      showResult(box, escapeHtml(String(e.message || e)), true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  populateCriticEngines();
 
   loadProposals();
   loadEngines();

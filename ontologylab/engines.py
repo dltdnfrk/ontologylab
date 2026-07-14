@@ -115,6 +115,16 @@ _QUERY_SECTION_RE = re.compile(
     re.DOTALL,
 )
 
+# Shared prompt-format contract with critic.build_critic_prompt: the items
+# to score are wrapped in these markers as a JSON array.
+CRITIC_MARKER_OPEN = "<critic-items>"
+CRITIC_MARKER_CLOSE = "</critic-items>"
+
+_CRITIC_SECTION_RE = re.compile(
+    re.escape(CRITIC_MARKER_OPEN) + r"\n(.*?)\n" + re.escape(CRITIC_MARKER_CLOSE),
+    re.DOTALL,
+)
+
 # CamelCase tokens ("RateLimiter", "TokenBucketAlgorithm") stand in for
 # extractable entities in the neutral software-docs example domain.
 _CAMELCASE_RE = re.compile(r"\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+\b")
@@ -191,6 +201,41 @@ def _mock_extraction(prompt: str) -> str:
     return "```json\n" + json.dumps(payload, indent=2) + "\n```"
 
 
+def _mock_critic(prompt: str) -> str:
+    """Deterministically score the items in the prompt's <critic-items> JSON.
+
+    Purely a function of each item's label text: labels containing
+    "suspicious" (case-insensitive) score 0.15, everything else 0.9 — so
+    tests can stage low-scoring items on purpose. Unknown/invalid payloads
+    yield an empty array (the critic layer treats that as "no scores").
+    """
+    section = _CRITIC_SECTION_RE.search(prompt)
+    reviews: list[dict] = []
+    if section is not None:
+        try:
+            items = json.loads(section.group(1))
+        except json.JSONDecodeError:
+            items = []
+        if isinstance(items, list):
+            for item in items:
+                if not isinstance(item, dict) or "id" not in item:
+                    continue
+                label = str(item.get("label", ""))
+                low = "suspicious" in label.lower()
+                reviews.append(
+                    {
+                        "id": item["id"],
+                        "score": 0.15 if low else 0.9,
+                        "rationale": (
+                            "label reads as an extraction artifact"
+                            if low
+                            else "label consistent with the cited evidence"
+                        ),
+                    }
+                )
+    return "```json\n" + json.dumps(reviews, indent=2) + "\n```"
+
+
 def _mock_expansion(prompt: str) -> str:
     """Deterministically derive an expansion JSON array from the prompt.
 
@@ -233,8 +278,9 @@ class MockEngine:
     """Offline, deterministic engine used by default in tests and CI.
 
     Never shells out and never touches the network. Output is purely a
-    function of the prompt text: prompts containing a <query-expansion>
-    section get a deterministic expansion array; anything else gets the
+    function of the prompt text: prompts containing a <critic-items>
+    section get a deterministic critic scoring array, <query-expansion>
+    gets a deterministic expansion array; anything else gets the
     <document-chunk> extraction payload (the seed is kept for interface
     compatibility; it does not affect output).
     """
@@ -250,7 +296,9 @@ class MockEngine:
         self, prompt: str, *, model: Optional[str] = None
     ) -> tuple[str, dict]:
         start = time.monotonic()
-        if QUERY_MARKER_OPEN in prompt:
+        if CRITIC_MARKER_OPEN in prompt:
+            text = _mock_critic(prompt)
+        elif QUERY_MARKER_OPEN in prompt:
             text = _mock_expansion(prompt)
         else:
             text = _mock_extraction(prompt)

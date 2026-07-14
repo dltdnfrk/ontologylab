@@ -187,6 +187,24 @@ CREATE TABLE IF NOT EXISTS citations (
 );
 CREATE INDEX IF NOT EXISTS idx_citations_item ON citations (kind, item_id);
 
+-- W8 critic triage: a second model pre-scores proposed extractions so the
+-- review queue can be sorted and disagreements flagged. Scores are advisory
+-- ONLY: nothing in this table feeds approve()/bulk_approve(), no score ever
+-- flips a status, and the UI must never pre-select a decision from it
+-- (anchoring-bias guard).
+CREATE TABLE IF NOT EXISTS critic_reviews (
+    kind           TEXT NOT NULL CHECK (kind IN ('node','edge')),
+    item_id        TEXT NOT NULL,
+    engine         TEXT NOT NULL,
+    model          TEXT,
+    prompt_version TEXT NOT NULL,
+    score          REAL NOT NULL CHECK (score >= 0.0 AND score <= 1.0),
+    rationale      TEXT,
+    created_ts     REAL NOT NULL,
+    PRIMARY KEY (kind, item_id, engine, prompt_version)
+);
+CREATE INDEX IF NOT EXISTS idx_critic_reviews_item ON critic_reviews (kind, item_id);
+
 -- W7 merge review: fuzzy duplicate PAIRS proposed by the scanner, decided
 -- only by a human. A candidate never mutates the graph by itself; the only
 -- mutation path is an explicit merge_nodes()/dismiss call. Pairs are stored
@@ -1151,11 +1169,20 @@ class KGStore:
     # Queue orderings for pending_review. Confidence orderings put NULLs
     # last; "confidence" (ascending) surfaces the least-certain extractions
     # first — the triage default recommended by the HITL literature.
+    # "critic" surfaces the items the critic model scored lowest (unscored
+    # items last), for W8 triage.
     _REVIEW_ORDERINGS = {
-        "created": "created_ts ASC",
-        "confidence": "confidence IS NULL, confidence ASC, created_ts ASC",
-        "confidence_desc": "confidence IS NULL, confidence DESC, created_ts ASC",
+        "created": "pr.created_ts ASC",
+        "confidence": "pr.confidence IS NULL, pr.confidence ASC, pr.created_ts ASC",
+        "confidence_desc": (
+            "pr.confidence IS NULL, pr.confidence DESC, pr.created_ts ASC"
+        ),
+        "critic": "cr.score IS NULL, cr.score ASC, pr.created_ts ASC",
     }
+
+    # An extractor-vs-critic gap at/above this flags the row as a
+    # disagreement — the highest-value rows for a human to look at.
+    CRITIC_DISAGREEMENT_THRESHOLD = 0.35
 
     def pending_review(
         self,
@@ -1176,21 +1203,67 @@ class KGStore:
         where = ["1=1"]
         args: list[Any] = []
         if kind:
-            where.append("kind = ?")
+            where.append("pr.kind = ?")
             args.append(kind)
         if type_name:
-            where.append("type_name = ?")
+            where.append("pr.type_name = ?")
             args.append(type_name)
         if source_doc_id:
-            where.append("source_doc_id = ?")
+            where.append("pr.source_doc_id = ?")
             args.append(source_doc_id)
         args.append(limit)
+        # Latest critic review per item (advisory columns only — approval
+        # paths never read this join).
         cur = self.conn.execute(
-            f"SELECT * FROM pending_review WHERE {' AND '.join(where)} "
-            f"ORDER BY {order_sql} LIMIT ?",
+            "SELECT pr.*, cr.score AS critic_score, "
+            "cr.rationale AS critic_rationale, cr.engine AS critic_engine "
+            "FROM pending_review pr "
+            "LEFT JOIN (SELECT kind, item_id, engine, score, rationale, "
+            "           MAX(created_ts) AS ts FROM critic_reviews "
+            "           GROUP BY kind, item_id) cr "
+            "ON cr.kind = pr.kind AND cr.item_id = pr.id "
+            f"WHERE {' AND '.join(where)} ORDER BY {order_sql} LIMIT ?",
             args,
         )
-        return [dict(r) for r in cur.fetchall()]
+        out = []
+        for r in cur.fetchall():
+            row = dict(r)
+            conf, score = row.get("confidence"), row.get("critic_score")
+            row["critic_disagreement"] = bool(
+                conf is not None
+                and score is not None
+                and abs(conf - score) >= self.CRITIC_DISAGREEMENT_THRESHOLD
+            )
+            out.append(row)
+        return out
+
+    def record_critic_review(
+        self,
+        kind: str,
+        item_id: str,
+        *,
+        engine: str,
+        model: str | None,
+        prompt_version: str,
+        score: float,
+        rationale: str | None = None,
+    ) -> None:
+        """Upsert one advisory critic score. Never touches nodes/edges."""
+        self._assert_writable()
+        if kind not in ("node", "edge"):
+            raise KGStoreError(f"bad critic review kind {kind!r}")
+        score = min(1.0, max(0.0, float(score)))
+        self.conn.execute(
+            "INSERT INTO critic_reviews "
+            "(kind, item_id, engine, model, prompt_version, score, rationale, "
+            " created_ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT (kind, item_id, engine, prompt_version) DO UPDATE SET "
+            "score = excluded.score, rationale = excluded.rationale, "
+            "model = excluded.model, created_ts = excluded.created_ts",
+            (kind, item_id, engine, model, prompt_version, score, rationale,
+             time.time()),
+        )
+        self.conn.commit()
 
     def counts(self) -> dict[str, int]:
         out: dict[str, int] = {}

@@ -40,6 +40,7 @@ from ontologylab.server.jobs import JobRegistry
 from ontologylab.server.schemas import (
     CollectRequest,
     CostSummary,
+    CriticRunRequest,
     EngineInfo,
     ExtractRequest,
     JobStatus,
@@ -129,7 +130,8 @@ def list_proposals(
     source_doc_id: str | None = Query(None),
     order: str = Query(
         "created",
-        description="created | confidence (least-certain first) | confidence_desc",
+        description="created | confidence (least-certain first) | "
+        "confidence_desc | critic (lowest critic score first)",
     ),
     limit: int = Query(100, ge=1, le=1000),
 ) -> dict[str, Any]:
@@ -179,6 +181,28 @@ def reject_proposal(body: ProposalAction) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except KGStoreError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+# ---------------------------------------------------------------------------
+# Critic triage (W8 — advisory scores; never a decision path)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/critic/run")
+async def critic_run(body: CriticRunRequest) -> dict[str, Any]:
+    from ontologylab.critic import critic_review
+    from ontologylab.engines import get_engine
+
+    engine = get_engine(body.engine, body.model)
+    store = _open_store()
+    try:
+        stats = await critic_review(
+            store, engine, model=body.model,
+            limit=body.limit, batch_size=body.batch_size,
+        )
+        return {"ok": True, **stats}
     finally:
         store.close()
 

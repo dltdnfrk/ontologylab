@@ -68,6 +68,15 @@ class ProposalAction(BaseModel):
     cascade: bool = False
 
 
+class CriticRunRequest(BaseModel):
+    """Run the critic model over pending proposals (advisory scores only)."""
+
+    engine: str = "mock"
+    model: Optional[str] = None
+    limit: int = Field(200, ge=1, le=1000)
+    batch_size: int = Field(20, ge=1, le=100)
+
+
 class MergeScanRequest(BaseModel):
     """Run the fuzzy duplicate scan (proposals only, never merges)."""
 

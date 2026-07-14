@@ -31,7 +31,19 @@
       </div>
       <div class="form-actions" style="margin: 0.75rem 0;">
         <button type="button" id="refresh-btn" class="btn btn-primary">Refresh</button>
+        <label style="margin-left:0.5rem;">Order
+          <select id="review-order">
+            <option value="confidence" selected>least confident first</option>
+            <option value="critic">lowest critic score first</option>
+            <option value="created">oldest first</option>
+          </select>
+        </label>
+        <label style="margin-left:0.5rem;">Critic engine
+          <select id="critic-engine"></select>
+        </label>
+        <button type="button" id="critic-run-btn" class="btn">Run critic</button>
       </div>
+      <div id="critic-result" class="status-box result-box hidden"></div>
       <div class="table-wrap table-scroll">
         <table id="proposals-table">
           <thead>
@@ -40,6 +52,7 @@
               <th>Type</th>
               <th>Name / endpoints</th>
               <th>Confidence</th>
+              <th>Critic</th>
               <th>Doc</th>
               <th>Actions</th>
             </tr>
