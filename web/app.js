@@ -691,9 +691,146 @@
     }
   }
 
+  /* -- Merge review (W7) -- */
+
+  function nodeCellHtml(node) {
+    var aliases = (node.aliases || []).map(escapeHtml).join(", ") || "—";
+    var props = Object.keys(node.properties || {}).length
+      ? escapeHtml(JSON.stringify(node.properties))
+      : "—";
+    return (
+      "<td class='merge-node'>" +
+      "<strong>" + escapeHtml(node.name || "") + "</strong> " +
+      statusBadge(node.status) +
+      "<br><small class='muted'>type: " + escapeHtml(node.entity_type || "") +
+      " · conf: " + (node.confidence == null ? "—" : Number(node.confidence).toFixed(2)) +
+      " · citations: " + escapeHtml(String(node.citation_count || 0)) + "</small>" +
+      "<br><small>aliases: " + aliases + "</small>" +
+      "<br><small>props: " + props + "</small>" +
+      "<br><small class='muted'><code>" + escapeHtml((node.id || "").slice(0, 12)) + "</code></small>" +
+      "</td>"
+    );
+  }
+
+  async function mergeAct(candidateId, targetId, sourceId) {
+    var err = $("#merge-error");
+    err.classList.add("hidden");
+    try {
+      var res = await apiSend(
+        "/api/merge/candidates/" + encodeURIComponent(candidateId) + "/merge",
+        { target_id: targetId, source_id: sourceId }
+      );
+      if (res && res.ok === undefined && res.detail) throw new Error(res.detail);
+      await loadMergeCandidates();
+      await loadProposals();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.classList.remove("hidden");
+    }
+  }
+
+  async function mergeDismiss(candidateId) {
+    var err = $("#merge-error");
+    err.classList.add("hidden");
+    try {
+      var res = await apiSend(
+        "/api/merge/candidates/" + encodeURIComponent(candidateId) + "/dismiss",
+        {}
+      );
+      if (res && res.ok === undefined && res.detail) throw new Error(res.detail);
+      await loadMergeCandidates();
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.classList.remove("hidden");
+    }
+  }
+
+  async function loadMergeCandidates() {
+    var cards = $("#merge-cards");
+    var empty = $("#merge-empty");
+    var err = $("#merge-error");
+    err.classList.add("hidden");
+    try {
+      var data = await api("/api/merge/candidates?limit=100");
+      var items = (data && data.items) || [];
+      cards.innerHTML = "";
+      items.forEach(function (item) {
+        var a = item.node_a || {};
+        var b = item.node_b || {};
+        var card = document.createElement("div");
+        card.className = "mcp-card merge-card";
+        var reasons = (item.reasons || [])
+          .map(function (r) {
+            return "<span class='badge'>" + escapeHtml(r) + "</span>";
+          })
+          .join(" ");
+        card.innerHTML =
+          "<div class='row space-between'>" +
+          "<strong>score " + escapeHtml(Number(item.score || 0).toFixed(2)) + "</strong>" +
+          "<span>" + reasons + "</span>" +
+          "</div>" +
+          "<div class='table-wrap'><table class='merge-table'><tbody><tr>" +
+          nodeCellHtml(a) + nodeCellHtml(b) +
+          "</tr></tbody></table></div>" +
+          "<div class='form-actions merge-actions'></div>";
+        var actions = card.querySelector(".merge-actions");
+        function addBtn(label, cls, handler) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "btn " + cls;
+          btn.textContent = label;
+          btn.addEventListener("click", handler);
+          actions.appendChild(btn);
+          actions.appendChild(document.createTextNode(" "));
+        }
+        addBtn("◀ Keep “" + (a.name || "A") + "”", "btn-primary", function () {
+          mergeAct(item.id, a.id, b.id);
+        });
+        addBtn("Keep “" + (b.name || "B") + "” ▶", "btn-primary", function () {
+          mergeAct(item.id, b.id, a.id);
+        });
+        addBtn("Not a duplicate", "", function () {
+          mergeDismiss(item.id);
+        });
+        cards.appendChild(card);
+      });
+      empty.classList.toggle("hidden", items.length > 0);
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.classList.remove("hidden");
+    }
+  }
+
+  $("#merge-scan-btn").addEventListener("click", async function () {
+    var box = $("#merge-scan-result");
+    var btn = $("#merge-scan-btn");
+    btn.disabled = true;
+    showResult(box, "<span class='muted'>Scanning…</span>");
+    try {
+      var res = await apiSend("/api/merge/scan", {});
+      if (res && res.ok) {
+        showResult(
+          box,
+          "Scanned <code>" + escapeHtml(String(res.nodes || 0)) +
+            "</code> nodes · new candidates: <code>" +
+            escapeHtml(String(res.candidates_new || 0)) + "</code>"
+        );
+        await loadMergeCandidates();
+      } else {
+        showResult(box, escapeHtml((res && res.detail) || "Scan failed."), true);
+      }
+    } catch (e) {
+      showResult(box, escapeHtml(String(e.message || e)), true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  $("#merge-refresh-btn").addEventListener("click", loadMergeCandidates);
+
   /* -- Lazy loading + refresh wiring -- */
 
   var tabLoaders = {
+    merge: loadMergeCandidates,
     sources: loadDocuments,
     jobs: function () {
       if (!extractEnginesLoaded) {

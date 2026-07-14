@@ -442,6 +442,98 @@ def cmd_reject(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# merge review (W7: scan proposes duplicate pairs, a human merges/dismisses)
+# ---------------------------------------------------------------------------
+
+
+def cmd_merge_scan(args: argparse.Namespace) -> int:
+    from ontologylab.merge import scan_merge_candidates
+
+    store = _open_store(args)
+    try:
+        stats = scan_merge_candidates(
+            store, name_threshold=args.min_similarity
+        )
+    finally:
+        store.close()
+    print(
+        f"[ontologylab] scanned {stats['nodes']} node(s), "
+        f"{stats['pairs_checked']} pair(s): {stats['candidates_new']} new "
+        f"candidate(s), {stats['candidates_existing']} already known"
+    )
+    if stats["candidates_new"]:
+        print("[ontologylab] review them: `ontologylab merge-queue`")
+    return 0
+
+
+def cmd_merge_queue(args: argparse.Namespace) -> int:
+    store = _open_store(args)
+    try:
+        items = store.merge_candidates_pending(limit=args.limit)
+    finally:
+        store.close()
+    if not items:
+        print("[ontologylab] merge queue is empty (run `ontologylab merge-scan`)")
+        return 0
+    for item in items:
+        a, b = item["node_a"], item["node_b"]
+        print(f"candidate {item['id']}  score={item['score']:.2f}  "
+              f"reasons={', '.join(item['reasons'])}")
+        for side, node in (("A", a), ("B", b)):
+            aliases = ", ".join(node["aliases"]) or "-"
+            print(
+                f"  {side}: {node['name']} [{node['entity_type']}/"
+                f"{node['status']}] id={node['id']} "
+                f"citations={node['citation_count']} aliases={aliases}"
+            )
+        print(
+            f"  -> merge:   ontologylab merge --target {a['id']} "
+            f"--source {b['id']}"
+        )
+        print(f"  -> dismiss: ontologylab merge-dismiss --id {item['id']}")
+    print(f"\n[ontologylab] {len(items)} pending merge candidate(s)")
+    return 0
+
+
+def cmd_merge(args: argparse.Namespace) -> int:
+    store = _open_store(args)
+    try:
+        report = store.merge_nodes(
+            args.target, args.source, by=args.by, note=args.note
+        )
+    except KGStoreError as exc:
+        print(f"[ontologylab] error: {exc}", file=sys.stderr)
+        return 2
+    finally:
+        store.close()
+    print(
+        f"[ontologylab] merged {report['source_id']} -> {report['target_id']}: "
+        f"{report['edges_repointed']} edge(s) re-pointed, "
+        f"{report['edges_deduplicated']} deduplicated, "
+        f"{report['edges_self_loop_rejected']} self-loop(s) dropped"
+    )
+    print(
+        "[ontologylab] note: if this KG is embedded, re-run "
+        "`ontologylab embed` to refresh the merged node's vector"
+    )
+    return 0
+
+
+def cmd_merge_dismiss(args: argparse.Namespace) -> int:
+    store = _open_store(args)
+    try:
+        store.dismiss_merge_candidate(args.id, by=args.by, note=args.note)
+    except KGStoreError as exc:
+        print(f"[ontologylab] error: {exc}", file=sys.stderr)
+        return 2
+    finally:
+        store.close()
+    print(f"[ontologylab] dismissed merge candidate {args.id} "
+          "(this pair will not be re-proposed)")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # build-pack
 # ---------------------------------------------------------------------------
 
@@ -661,6 +753,46 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_reject.add_argument("--note", default=None)
     _add_data_dir(p_reject)
     p_reject.set_defaults(func=cmd_reject)
+
+    p_merge_scan = sub.add_parser(
+        "merge-scan",
+        help="Scan for fuzzy duplicate entities -> merge candidates "
+             "(proposals only; merging stays a human decision).",
+    )
+    p_merge_scan.add_argument(
+        "--min-similarity", type=float, default=0.82,
+        help="Minimum normalized-name similarity ratio (default 0.82).",
+    )
+    _add_data_dir(p_merge_scan)
+    p_merge_scan.set_defaults(func=cmd_merge_scan)
+
+    p_merge_queue = sub.add_parser(
+        "merge-queue", help="Print pending merge candidates side by side."
+    )
+    p_merge_queue.add_argument("--limit", type=int, default=50)
+    _add_data_dir(p_merge_queue)
+    p_merge_queue.set_defaults(func=cmd_merge_queue)
+
+    p_merge = sub.add_parser(
+        "merge",
+        help="Merge --source into --target (human gate; source becomes a "
+             "rejected tombstone, aliases/citations/edges follow the target).",
+    )
+    p_merge.add_argument("--target", required=True, help="Surviving node id.")
+    p_merge.add_argument("--source", required=True, help="Node id to merge away.")
+    p_merge.add_argument("--by", default="local-user")
+    p_merge.add_argument("--note", default=None)
+    _add_data_dir(p_merge)
+    p_merge.set_defaults(func=cmd_merge)
+
+    p_merge_dismiss = sub.add_parser(
+        "merge-dismiss", help="Dismiss a merge candidate (never re-proposed)."
+    )
+    p_merge_dismiss.add_argument("--id", required=True, help="Candidate id.")
+    p_merge_dismiss.add_argument("--by", default="local-user")
+    p_merge_dismiss.add_argument("--note", default=None)
+    _add_data_dir(p_merge_dismiss)
+    p_merge_dismiss.set_defaults(func=cmd_merge_dismiss)
 
     p_build = sub.add_parser("build-pack", help="Export verified subgraph as a pack.")
     p_build.add_argument("--name", required=True)

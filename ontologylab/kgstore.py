@@ -187,6 +187,27 @@ CREATE TABLE IF NOT EXISTS citations (
 );
 CREATE INDEX IF NOT EXISTS idx_citations_item ON citations (kind, item_id);
 
+-- W7 merge review: fuzzy duplicate PAIRS proposed by the scanner, decided
+-- only by a human. A candidate never mutates the graph by itself; the only
+-- mutation path is an explicit merge_nodes()/dismiss call. Pairs are stored
+-- canonically (node_a_id < node_b_id) so re-scans cannot duplicate a pair,
+-- and a dismissed pair is never re-proposed.
+CREATE TABLE IF NOT EXISTS merge_candidates (
+    id           TEXT PRIMARY KEY,
+    node_a_id    TEXT NOT NULL REFERENCES nodes(id),
+    node_b_id    TEXT NOT NULL REFERENCES nodes(id),
+    score        REAL NOT NULL,
+    reasons_json TEXT NOT NULL DEFAULT '[]',
+    status       TEXT NOT NULL DEFAULT 'proposed'
+                     CHECK (status IN ('proposed','merged','dismissed','stale')),
+    created_ts   REAL NOT NULL,
+    decided_ts   REAL,
+    decided_by   TEXT,
+    decision_note TEXT,
+    UNIQUE (node_a_id, node_b_id)
+);
+CREATE INDEX IF NOT EXISTS idx_merge_candidates_status ON merge_candidates (status);
+
 CREATE VIEW IF NOT EXISTS pending_review AS
 SELECT 'node' AS kind, id, entity_type AS type_name, name AS label,
        confidence, source_doc_id, created_ts
@@ -855,6 +876,278 @@ class KGStore:
             "edges_skipped": edges_skipped,
         }
 
+    # ------------------------------------------------------------------
+    # W7 entity-merge review (candidates proposed by scan, decided by human)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _canonical_pair(node_a_id: str, node_b_id: str) -> tuple[str, str]:
+        """Order a pair canonically so (a,b) and (b,a) are one candidate."""
+        return (node_a_id, node_b_id) if node_a_id < node_b_id else (node_b_id, node_a_id)
+
+    def record_merge_candidate(
+        self, node_a_id: str, node_b_id: str, *, score: float, reasons: list[str]
+    ) -> bool:
+        """Store one fuzzy-duplicate pair for human review.
+
+        Returns True if a new candidate row was created. A pair that already
+        has a row in ANY status is left untouched — in particular a dismissed
+        pair is never re-proposed (the human already said "not a duplicate").
+        """
+        self._assert_writable()
+        if node_a_id == node_b_id:
+            raise KGStoreError("a merge candidate needs two distinct nodes")
+        a, b = self._canonical_pair(node_a_id, node_b_id)
+        existing = self.conn.execute(
+            "SELECT id FROM merge_candidates WHERE node_a_id = ? AND node_b_id = ?",
+            (a, b),
+        ).fetchone()
+        if existing is not None:
+            return False
+        self.conn.execute(
+            "INSERT INTO merge_candidates "
+            "(id, node_a_id, node_b_id, score, reasons_json, status, created_ts) "
+            "VALUES (?, ?, ?, ?, ?, 'proposed', ?)",
+            (uuid.uuid4().hex, a, b, score, json.dumps(reasons), time.time()),
+        )
+        self.conn.commit()
+        return True
+
+    def _merge_candidate_row(self, candidate_id: str) -> sqlite3.Row:
+        row = self.conn.execute(
+            "SELECT * FROM merge_candidates WHERE id = ?", (candidate_id,)
+        ).fetchone()
+        if row is None:
+            raise UnknownItem(f"unknown merge candidate id {candidate_id!r}")
+        return row
+
+    def merge_candidates_pending(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        """Pending merge candidates, hydrated with both nodes side-by-side."""
+        rows = self.conn.execute(
+            "SELECT * FROM merge_candidates WHERE status = 'proposed' "
+            "ORDER BY score DESC, created_ts ASC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        out = []
+        for row in rows:
+            nodes = {}
+            for key in ("node_a_id", "node_b_id"):
+                node_row = self.conn.execute(
+                    "SELECT * FROM nodes WHERE id = ?", (row[key],)
+                ).fetchone()
+                if node_row is None:
+                    continue
+                item = _node_dict(node_row)
+                item["citation_count"] = len(self.citations("node", node_row["id"]))
+                nodes[key] = item
+            # A candidate whose node has since been rejected/merged away is
+            # noise: hide it (and mark it stale so it stops coming back).
+            hydrated = list(nodes.values())
+            if len(hydrated) != 2 or any(
+                n["status"] not in ("proposed", "verified") for n in hydrated
+            ):
+                if not self.read_only:
+                    self.conn.execute(
+                        "UPDATE merge_candidates SET status = 'stale', "
+                        "decided_ts = ?, decided_by = 'system:hydrate' WHERE id = ?",
+                        (time.time(), row["id"]),
+                    )
+                    self.conn.commit()
+                continue
+            out.append(
+                {
+                    "id": row["id"],
+                    "score": row["score"],
+                    "reasons": json.loads(row["reasons_json"]),
+                    "created_ts": row["created_ts"],
+                    "node_a": nodes["node_a_id"],
+                    "node_b": nodes["node_b_id"],
+                }
+            )
+        return out
+
+    def dismiss_merge_candidate(
+        self, candidate_id: str, *, by: str = "local-user", note: str | None = None
+    ) -> dict[str, Any]:
+        """Human decision: this pair is NOT a duplicate. Never re-proposed."""
+        self._assert_writable()
+        row = self._merge_candidate_row(candidate_id)
+        if row["status"] != "proposed":
+            raise KGStoreError(
+                f"merge candidate {candidate_id} already decided ({row['status']})"
+            )
+        self.conn.execute(
+            "UPDATE merge_candidates SET status = 'dismissed', decided_ts = ?, "
+            "decided_by = ?, decision_note = ? WHERE id = ?",
+            (time.time(), by, note, candidate_id),
+        )
+        self.conn.commit()
+        return {"id": candidate_id, "status": "dismissed"}
+
+    def merge_nodes(
+        self,
+        target_id: str,
+        source_id: str,
+        *,
+        by: str = "local-user",
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        """Merge ``source`` into ``target`` — an explicit human action.
+
+        Aliases/properties union non-destructively into the target, citations
+        and edges are re-pointed (duplicate triples collapse into a citation,
+        would-be self-loops are rejected), and the source row becomes a
+        ``rejected`` tombstone with ``review_note='merged-into:<target>'`` so
+        it can never be served (§9.1) while staying auditable. The source's
+        surfaces are registered as target aliases, so future extractions of
+        the old name resolve to the merged node.
+
+        Merging never verifies anything: the target keeps its own status.
+        A verified source cannot merge into a proposed target (that would
+        leave verified edges pointing at an unverified node) — merge in the
+        other direction, or approve the target first.
+        """
+        self._assert_writable()
+        if target_id == source_id:
+            raise KGStoreError("cannot merge a node into itself")
+        target_kind, target = self._find_kind(target_id)
+        source_kind, source = self._find_kind(source_id)
+        if target_kind != "node" or source_kind != "node":
+            raise KGStoreError("merge_nodes operates on nodes only")
+        for label, row in (("target", target), ("source", source)):
+            if row["status"] not in ("proposed", "verified"):
+                raise KGStoreError(
+                    f"{label} node {row['id']} is {row['status']!r}; "
+                    "only proposed/verified nodes can be merged"
+                )
+        if target["entity_type"] != source["entity_type"]:
+            raise KGStoreError(
+                f"cannot merge across entity types "
+                f"({source['entity_type']!r} -> {target['entity_type']!r})"
+            )
+        if source["status"] == "verified" and target["status"] != "verified":
+            raise KGStoreError(
+                "cannot merge a verified node into a proposed one — merge in "
+                "the other direction, or approve the target first"
+            )
+
+        now = time.time()
+        report: dict[str, Any] = {
+            "target_id": target_id,
+            "source_id": source_id,
+            "edges_repointed": 0,
+            "edges_deduplicated": 0,
+            "edges_self_loop_rejected": 0,
+        }
+
+        # 1) Alias/property union into the target (non-destructive).
+        aliases = json.loads(target["aliases_json"])
+        known = {normalize_name(a) for a in aliases}
+        known.add(target["normalized_name"])
+        source_surfaces = [source["name"], *json.loads(source["aliases_json"])]
+        source_surfaces.extend(
+            r["surface"]
+            for r in self.conn.execute(
+                "SELECT surface FROM node_aliases WHERE node_id = ?", (source_id,)
+            )
+        )
+        changed = False
+        for surface in source_surfaces:
+            key = normalize_name(surface)
+            if key and key not in known:
+                aliases.append(surface)
+                known.add(key)
+                changed = True
+            self._add_alias(target_id, surface)
+
+        properties = json.loads(target["properties_json"])
+        for prop_key, value in json.loads(source["properties_json"]).items():
+            if prop_key not in properties:
+                properties[prop_key] = value
+                changed = True
+
+        if changed:
+            # The embedding no longer matches the merged text: clear it so the
+            # next `ontologylab embed` refreshes it (never silently stale).
+            self.conn.execute(
+                "UPDATE nodes SET aliases_json = ?, properties_json = ?, "
+                "embedding = NULL, embedding_model = NULL WHERE id = ?",
+                (json.dumps(aliases), json.dumps(properties), target_id),
+            )
+
+        # 2) Citations follow the surviving node.
+        self.conn.execute(
+            "UPDATE citations SET item_id = ? WHERE kind = 'node' AND item_id = ?",
+            (target_id, source_id),
+        )
+
+        # 3) Re-point edges, collapsing duplicates and dropping self-loops.
+        sv_id = source["schema_version_id"]
+        edge_rows = self.conn.execute(
+            "SELECT * FROM edges WHERE (src_node_id = ? OR dst_node_id = ?) "
+            "AND status IN ('proposed','verified')",
+            (source_id, source_id),
+        ).fetchall()
+        for edge in edge_rows:
+            new_src = target_id if edge["src_node_id"] == source_id else edge["src_node_id"]
+            new_dst = target_id if edge["dst_node_id"] == source_id else edge["dst_node_id"]
+            if new_src == new_dst:
+                self._set_status(
+                    "edge", edge["id"], "rejected",
+                    by=by, note=f"self-loop after merge into {target_id}",
+                )
+                report["edges_self_loop_rejected"] += 1
+                continue
+            dup = self.conn.execute(
+                "SELECT id FROM edges WHERE schema_version_id = ? AND "
+                "relation_type = ? AND src_node_id = ? AND dst_node_id = ? AND "
+                "status IN ('proposed','verified') AND id != ?",
+                (sv_id, edge["relation_type"], new_src, new_dst, edge["id"]),
+            ).fetchone()
+            if dup is not None:
+                self.conn.execute(
+                    "UPDATE citations SET item_id = ? "
+                    "WHERE kind = 'edge' AND item_id = ?",
+                    (dup["id"], edge["id"]),
+                )
+                self._set_status(
+                    "edge", edge["id"], "rejected",
+                    by=by, note=f"duplicate of {dup['id']} after merge",
+                )
+                report["edges_deduplicated"] += 1
+            else:
+                self.conn.execute(
+                    "UPDATE edges SET src_node_id = ?, dst_node_id = ? WHERE id = ?",
+                    (new_src, new_dst, edge["id"]),
+                )
+                report["edges_repointed"] += 1
+
+        # 4) Tombstone the source (rejected = never served, kept for audit).
+        self._set_status(
+            "node", source_id, "rejected", by=by,
+            note=note or f"merged-into:{target_id}",
+        )
+        self.conn.execute("DELETE FROM node_aliases WHERE node_id = ?", (source_id,))
+
+        # 5) Bookkeeping on the candidate queue: the decided pair is 'merged';
+        #    other pending pairs referencing the tombstoned source are 'stale'
+        #    (bookkeeping only — no graph fact is auto-decided by this).
+        a, b = self._canonical_pair(target_id, source_id)
+        self.conn.execute(
+            "UPDATE merge_candidates SET status = 'merged', decided_ts = ?, "
+            "decided_by = ?, decision_note = ? "
+            "WHERE node_a_id = ? AND node_b_id = ? AND status = 'proposed'",
+            (now, by, note, a, b),
+        )
+        self.conn.execute(
+            "UPDATE merge_candidates SET status = 'stale', decided_ts = ?, "
+            "decided_by = ? WHERE status = 'proposed' "
+            "AND (node_a_id = ? OR node_b_id = ?)",
+            (now, f"system:merge-by:{by}", source_id, source_id),
+        )
+        self.conn.commit()
+        return report
+
     # Queue orderings for pending_review. Confidence orderings put NULLs
     # last; "confidence" (ascending) surfaces the least-certain extractions
     # first — the triage default recommended by the HITL literature.
@@ -910,6 +1203,9 @@ class KGStore:
             ).fetchone()["n"]
         out["documents"] = self.conn.execute(
             "SELECT COUNT(*) AS n FROM documents"
+        ).fetchone()["n"]
+        out["merge_candidates_pending"] = self.conn.execute(
+            "SELECT COUNT(*) AS n FROM merge_candidates WHERE status = 'proposed'"
         ).fetchone()["n"]
         return out
 

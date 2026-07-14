@@ -68,6 +68,32 @@ class ProposalAction(BaseModel):
     cascade: bool = False
 
 
+class MergeScanRequest(BaseModel):
+    """Run the fuzzy duplicate scan (proposals only, never merges)."""
+
+    min_similarity: float = Field(0.82, ge=0.5, le=1.0)
+
+
+class MergeAction(BaseModel):
+    """Human decision on one merge candidate (Merge screen).
+
+    ``target_id``/``source_id`` are explicit — the UI never pre-selects a
+    direction for the reviewer.
+    """
+
+    target_id: str
+    source_id: str
+    by: str = "local-user"
+    note: Optional[str] = None
+
+
+class MergeDismiss(BaseModel):
+    """Dismiss one merge candidate (never re-proposed)."""
+
+    by: str = "local-user"
+    note: Optional[str] = None
+
+
 class JobStatus(BaseModel):
     """Status snapshot of one background extraction job (Extraction Jobs screen)."""
 

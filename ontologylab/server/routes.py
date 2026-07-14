@@ -43,6 +43,9 @@ from ontologylab.server.schemas import (
     EngineInfo,
     ExtractRequest,
     JobStatus,
+    MergeAction,
+    MergeDismiss,
+    MergeScanRequest,
     PackBuildRequest,
     ProposalAction,
     Settings,
@@ -176,6 +179,77 @@ def reject_proposal(body: ProposalAction) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except KGStoreError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+# ---------------------------------------------------------------------------
+# Merge review (W7 — candidates from scan, decisions by human)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/merge/scan")
+def merge_scan(body: MergeScanRequest) -> dict[str, Any]:
+    from ontologylab.merge import scan_merge_candidates
+
+    store = _open_store()
+    try:
+        stats = scan_merge_candidates(store, name_threshold=body.min_similarity)
+        return {"ok": True, **stats}
+    finally:
+        store.close()
+
+
+@router.get("/merge/candidates")
+def merge_candidates(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+    store = _open_store()
+    try:
+        items = store.merge_candidates_pending(limit=limit)
+        return {"items": items, "count": len(items)}
+    finally:
+        store.close()
+
+
+@router.post("/merge/candidates/{candidate_id}/merge")
+def merge_candidate_merge(candidate_id: str, body: MergeAction) -> dict[str, Any]:
+    store = _open_store()
+    try:
+        candidate = store._merge_candidate_row(candidate_id)
+        pair = {candidate["node_a_id"], candidate["node_b_id"]}
+        if {body.target_id, body.source_id} != pair:
+            raise HTTPException(
+                status_code=400,
+                detail="target/source ids do not match this candidate's pair",
+            )
+        if candidate["status"] != "proposed":
+            raise HTTPException(
+                status_code=409,
+                detail=f"candidate already decided ({candidate['status']})",
+            )
+        report = store.merge_nodes(
+            body.target_id, body.source_id, by=body.by, note=body.note
+        )
+        return {"ok": True, **report}
+    except UnknownItem as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KGStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+@router.post("/merge/candidates/{candidate_id}/dismiss")
+def merge_candidate_dismiss(candidate_id: str, body: MergeDismiss) -> dict[str, Any]:
+    store = _open_store()
+    try:
+        result = store.dismiss_merge_candidate(
+            candidate_id, by=body.by, note=body.note
+        )
+        return {"ok": True, **result}
+    except UnknownItem as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KGStoreError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     finally:
         store.close()
 
