@@ -60,17 +60,30 @@
 - SaaS 레이어 구동: `python3.13 -m venv .venv && .venv/bin/pip install -e ".[server]"` → `.venv/bin/python -m ...serve` (pip은 샌드박스 밖에서 직접).
 - **모든 온디스크 아티팩트는 이미 중립 용어로 정리됨** — 새 세션은 다시 스크럽할 필요 없이 중립 용어만 유지하면 됨.
 
-## 구현 상태 (2026-07-13)
+## 구현 상태 (2026-07-14)
 
-MVP 컷라인 **코드 + 테스트 완료**. Ultragoal G001–G004 완료.
+MVP 컷라인 + post-MVP Wave 1 + Wave 2 핵심 **코드 + 테스트 완료**.
 
 | 영역 | 상태 |
 |---|---|
 | M0–M6 코어 (kgstore, connectors incl. paper_api, extractor, CLI, packbuilder) | ✅ |
 | M7 MCP (`mcp_server.py` PackSession + 8 tools) | ✅ |
-| M8 대시보드 (Review + Sources / Jobs / Packs / MCP 화면, polling 잡 러너) | ✅ |
-| pytest (128) | ✅ green |
+| M8 대시보드 (Review + Merge / Sources / Jobs / Packs / MCP 화면) | ✅ |
+| Wave 1 (W1 outputSchema · W2 provenance 필드 · W3 confidence 트리아지 · W4 키보드 리뷰 · W5 골드셋 P/R/F1) | ✅ (`6207b70`) |
+| W6 하이브리드 검색 (Embedder 프로토콜, embed 백필, BM25+cosine RRF, 정직한 tier 라벨) | ✅ + **실모델 검증 완료** (all-MiniLM-L6-v2 다운로드·백필·시맨틱 쿼리 확인, 2026-07-14) |
+| W7 엔티티 병합 리뷰 (merge_candidates + merge_nodes + Merge 탭/CLI, 사람만 병합) | ✅ (`1acfdaf`) |
+| W8 크리틱 트리아지 (critic_reviews, order=critic, 불일치 플래그 — 순수 자문, 자동승인 없음) | ✅ (`c304a20`) |
+| W10 .mcpb 팩 번들 (단일파일 배포, Claude Desktop 드래그앤드롭) | ✅ (`f56a68f`) |
+| pytest (191) | ✅ green |
 | E2E: collect → extract → approve → pack → MCP query (CLI + API 양쪽) | ✅ |
+
+### 환경 트랩 (재부팅 후 재발 가능)
+
+- macOS가 venv `site-packages`의 editable `.pth` 파일에 UF_HIDDEN 플래그를
+  붙여 Python 3.11.14+가 이를 무시함 (`Skipping hidden .pth file`) →
+  `ModuleNotFoundError: ontologylab`. `chflags nohidden`은 다시 hidden으로
+  되돌아가므로, `site-packages/sitecustomize.py`가 repo 경로를 sys.path에
+  주입하는 영구 우회를 적용해둠 (2026-07-14). 재발 시 그 파일 존재만 확인.
 
 ```bash
 cd ~/Documents/MUNI/ontologylab
@@ -87,11 +100,18 @@ python3.13 -m venv .venv && .venv/bin/pip install -e . pytest httpx fastapi 'uvi
 - ~~live `claude` 엔진 실문서 추출 데모~~ ✅ 완료 (2026-07-13): README.md 1건 → `claude-fable-5` 실추출 29노드/29엣지 proposed → 검증기가 환각 표면형 5건 거부(synthesized로만 편입) → conf≥0.65 벌크 승인 24/24 (미검증 엔드포인트 엣지 5건 자동 skip) → verified-only 팩 빌드 → PackSession으로 entity_lookup/FTS5/find_path(2-hop) 응답. 주의: 이 샌드박스는 python 자식 프로세스의 네트워크를 차단하므로 엔진 호출만 셸에서 실행 후 파이프라인에 주입함 — 일반 환경에선 `extract --engine claude` 한 방으로 동일.
 - ~~엔티티 tier-2 search~~ ✅ 완료 (2026-07-13): 임베딩 대신 **fail-open LLM 쿼리 확장** (gajae-code와 동일 노선 — BM25 lexical 유지 + LLM이 동의어/분절 변형 생성, 실패 시 plain lexical로 무해하게 폴백). `ontologylab search "<q>" --expand --engine <e>`, MCP `semantic_search(expand=true)` + `--expansion-engine`. 티어 라벨 정직: 변형이 실제 사용될 때만 `fts5+llm-expansion`. 라이브 검증: claude 확장으로 plain 0건이던 'rate limiter' → RateLimiter 검색 성공. 임베딩은 명시적 유보(opt-in 외부 백엔드, sqlite-vec이 최종 스케일 단계).
 
+## 남은 선택 작업 (Wave 2 잔여 + Wave 3)
+
+- **W9** MCP 2단 응답(컴팩트 기본 + 상세 후속) + `pack://` resources 노출
+- **W11** 엔티티 중심 리뷰 모드 (한 엔티티의 모든 멘션·관계 한 화면)
+- Wave 3 (W12 커뮤니티 요약 / W13 bitemporal / W14 팩 diff) — `docs/RESEARCH-post-mvp.md` 참조
+
 ## 새 세션 시작 프롬프트 (붙여넣기용)
 
 ```
 ~/Documents/MUNI/ontologylab/HANDOFF.md 를 읽고 이어서 작업해줘.
-MVP(M0–M8)+live claude 데모+tier-2 쿼리확장까지 완료. 계획된 잔여 작업 없음 (선택: 임베딩 외부 백엔드).
+MVP(M0–M8) + Wave 1 + W6 실모델 + W7/W8/W10까지 완료 (pytest 191 green).
+남은 선택 작업: W9 (MCP 2단 응답 + resources), W11 (엔티티 중심 리뷰), Wave 3.
 용어는 계속 중립(지식그래프/최적화 프레임워크)으로 유지.
 ```
 
