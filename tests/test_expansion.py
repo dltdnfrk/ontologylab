@@ -228,7 +228,7 @@ def test_pack_session_plain_semantic_search_shape_unchanged(workspace):
         # uniform envelope: expansion fields always present (empty when unused)
         assert set(result) == {
             "query", "search_tier", "expansion_terms", "expansion_error",
-            "results", "count", "pack",
+            "results", "count", "detail", "pack",
         }
         assert result["search_tier"] == "fts5"
         assert result["expansion_terms"] == []

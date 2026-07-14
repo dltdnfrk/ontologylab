@@ -33,6 +33,91 @@ class NoActivePack(Exception):
     """Raised when a query tool is called before any pack is loaded."""
 
 
+# ---------------------------------------------------------------------------
+# W9 two-tier responses: list-shaped tools return COMPACT rows by default
+# (id / label / score / snippet) — full records are one follow-up away via
+# the get_entity tool, detail=True, or the pack://.../entity/{id} resource.
+# Rationale: compact-first cuts per-result tokens roughly to a third while
+# keeping enough signal to decide what to fetch next.
+# ---------------------------------------------------------------------------
+
+SNIPPET_MAX_CHARS = 120
+
+
+def _node_snippet(item: dict[str, Any]) -> str:
+    """One short line summarizing aliases + properties for a compact row."""
+    parts: list[str] = []
+    aliases = item.get("aliases") or []
+    if aliases:
+        parts.append("aka " + ", ".join(str(a) for a in aliases[:3]))
+    properties = item.get("properties") or {}
+    if properties:
+        parts.append(
+            "; ".join(f"{k}={properties[k]}" for k in list(properties)[:3])
+        )
+    return " · ".join(parts)[:SNIPPET_MAX_CHARS]
+
+
+def compact_node(item: dict[str, Any]) -> dict[str, Any]:
+    """Compact row: identity, label, score/hop, snippet, doc provenance.
+
+    Drops aliases/properties/source_span (recoverable via get_entity), but
+    NEVER drops document-level provenance — the W2 invariant (every response
+    says where a fact came from) holds at both detail tiers.
+    """
+    out: dict[str, Any] = {
+        "id": item["id"],
+        "name": item["name"],
+        "entity_type": item["entity_type"],
+        "status": item["status"],
+        "snippet": _node_snippet(item),
+    }
+    for key in ("match_score", "hop"):
+        if key in item:
+            out[key] = item[key]
+    if "source_document_ids" in item:
+        out["source_document_ids"] = item["source_document_ids"]
+    elif "source_doc_id" in item:
+        out["source_doc_id"] = item["source_doc_id"]
+    return out
+
+
+def compact_edge(edge: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": edge["id"],
+        "relation_type": edge["relation_type"],
+        "source_id": edge["source_id"],
+        "target_id": edge["target_id"],
+        "status": edge["status"],
+        "source_doc_id": edge.get("source_doc_id"),
+    }
+
+
+def _entity_detail(store: KGStore, entity_id: str, *, include_proposed: bool) -> dict[str, Any]:
+    """Full record for one entity: node fields + citations + adjacent edges
+    (endpoint names resolved). Shared by the get_entity tool and the
+    pack://.../entity/{id} resource."""
+    matches = store.entity_lookup(
+        id=entity_id, fuzzy=False, include_proposed=include_proposed, limit=1
+    )
+    if not matches:
+        raise KGStoreError(f"no visible entity with id {entity_id!r}")
+    entity = matches[0]
+    entity["citations"] = store.citations("node", entity_id)
+    neighborhood = store.traverse_relations(
+        [entity_id], max_hops=1, include_proposed=include_proposed
+    )
+    names = {n["id"]: n["name"] for n in neighborhood["nodes"]}
+    edges = []
+    for edge in neighborhood["edges"]:
+        edge = dict(edge)
+        edge["source_name"] = names.get(edge["source_id"])
+        edge["target_name"] = names.get(edge["target_id"])
+        edges.append(edge)
+    entity["edges"] = edges
+    return entity
+
+
 class PackSession:
     """In-memory MCP session: packs-dir + one active read-only KGStore.
 
@@ -144,6 +229,7 @@ class PackSession:
         fuzzy: bool = True,
         include_proposed: bool = False,
         limit: int = 5,
+        detail: bool = False,
     ) -> dict[str, Any]:
         matches = self._require_store().entity_lookup(
             id=id,
@@ -153,7 +239,57 @@ class PackSession:
             include_proposed=include_proposed,
             limit=limit,
         )
-        return {"matches": matches, "count": len(matches), "pack": self._provenance()}
+        if not detail:
+            matches = [compact_node(m) for m in matches]
+        return {
+            "matches": matches,
+            "count": len(matches),
+            "detail": detail,
+            "pack": self._provenance(),
+        }
+
+    def get_entity(
+        self, id: str, *, include_proposed: bool = False
+    ) -> dict[str, Any]:
+        """Tier-2 follow-up: the full record behind one compact row."""
+        entity = _entity_detail(
+            self._require_store(), id, include_proposed=include_proposed
+        )
+        return {"entity": entity, "pack": self._provenance()}
+
+    # ------------------------------------------------------------------
+    # Resources (pack://... addressing; read-only, JSON payloads)
+    # ------------------------------------------------------------------
+
+    def _store_for(self, pack_id: str):
+        """(store, ephemeral) for the named pack — active store when it
+        matches, else a read-only ephemeral open that the caller closes."""
+        if pack_id == self.pack_id and self.store is not None:
+            return self.store, False
+        path = pack_sqlite_path(self.packs_dir, pack_id)
+        return KGStore.open(path, read_only=True), True
+
+    def resource_manifest(self, pack_id: str) -> dict[str, Any]:
+        manifest_path = self.packs_dir / pack_id / "manifest.json"
+        if not manifest_path.is_file():
+            raise KGStoreError(f"pack {pack_id!r} has no manifest")
+        return json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    def resource_schema(self, pack_id: str) -> dict[str, Any]:
+        store, ephemeral = self._store_for(pack_id)
+        try:
+            return store.get_schema()
+        finally:
+            if ephemeral:
+                store.close()
+
+    def resource_entity(self, pack_id: str, entity_id: str) -> dict[str, Any]:
+        store, ephemeral = self._store_for(pack_id)
+        try:
+            return _entity_detail(store, entity_id, include_proposed=False)
+        finally:
+            if ephemeral:
+                store.close()
 
     def _active_embedder(self):
         """The session embedder, but only when the ACTIVE pack was embedded
@@ -203,6 +339,7 @@ class PackSession:
         top_k: int = 10,
         min_score: float = 0.0,
         include_proposed: bool = False,
+        detail: bool = False,
     ) -> dict[str, Any]:
         """Lexical FTS5 search, or BM25+vector RRF when the active pack
         carries embeddings from the server's configured embedder."""
@@ -213,6 +350,8 @@ class PackSession:
             min_score=min_score,
             include_proposed=include_proposed,
         )
+        if not detail:
+            results = [compact_node(r) for r in results]
         return {
             "query": query,
             "search_tier": tier,
@@ -220,6 +359,7 @@ class PackSession:
             "expansion_error": None,
             "results": results,
             "count": len(results),
+            "detail": detail,
             "pack": self._provenance(),
         }
 
@@ -233,6 +373,7 @@ class PackSession:
         entity_type: str | None = None,
         min_score: float = 0.0,
         include_proposed: bool = False,
+        detail: bool = False,
     ) -> dict[str, Any]:
         """Lexical FTS5 search with optional fail-open LLM query expansion.
 
@@ -263,6 +404,8 @@ class PackSession:
         )
         if variants:
             tier += "+llm-expansion"
+        if not detail:
+            results = [compact_node(r) for r in results]
         return {
             "query": query,
             "search_tier": tier,
@@ -270,6 +413,7 @@ class PackSession:
             "expansion_error": expansion_error,
             "results": results,
             "count": len(results),
+            "detail": detail,
             "pack": self._provenance(),
         }
 
@@ -281,6 +425,7 @@ class PackSession:
         include_proposed: bool = False,
         limit: int = 100,
         offset: int = 0,
+        detail: bool = False,
     ) -> dict[str, Any]:
         result = self._require_store().graph_query(
             entity_type=entity_type,
@@ -290,6 +435,10 @@ class PackSession:
             limit=limit,
             offset=offset,
         )
+        if not detail:
+            result["nodes"] = [compact_node(n) for n in result["nodes"]]
+            result["edges"] = [compact_edge(e) for e in result["edges"]]
+        result["detail"] = detail
         result["pack"] = self._provenance()
         return result
 
@@ -301,6 +450,7 @@ class PackSession:
         max_hops: int = 2,
         include_proposed: bool = False,
         limit: int = 200,
+        detail: bool = False,
     ) -> dict[str, Any]:
         result = self._require_store().traverse_relations(
             start_ids,
@@ -310,6 +460,10 @@ class PackSession:
             include_proposed=include_proposed,
             limit=limit,
         )
+        if not detail:
+            result["nodes"] = [compact_node(n) for n in result["nodes"]]
+            result["edges"] = [compact_edge(e) for e in result["edges"]]
+        result["detail"] = detail
         result["pack"] = self._provenance()
         return result
 
@@ -365,6 +519,14 @@ class LoadPackResult(TypedDict):
 class LookupResult(TypedDict):
     matches: list[dict[str, Any]]
     count: int
+    detail: bool
+    pack: PackProvenance
+
+
+class EntityDetailResult(TypedDict):
+    """Full record for one entity (tier-2 follow-up to compact rows)."""
+
+    entity: dict[str, Any]
     pack: PackProvenance
 
 
@@ -378,12 +540,14 @@ class SearchResult(TypedDict):
     expansion_error: str | None
     results: list[dict[str, Any]]
     count: int
+    detail: bool
     pack: PackProvenance
 
 
 class SubgraphResult(TypedDict):
     nodes: list[dict[str, Any]]
     edges: list[dict[str, Any]]
+    detail: bool
     pack: PackProvenance
 
 
@@ -429,8 +593,11 @@ def build_mcp_app(session: PackSession) -> Any:
         fuzzy: bool = True,
         include_proposed: bool = False,
         limit: int = 5,
+        detail: bool = False,
     ) -> LookupResult:
-        """Resolve a node by id or name. Defaults to verified-only rows."""
+        """Resolve a node by id or name. Defaults to verified-only rows and
+        COMPACT matches (id/name/type/score/snippet); pass detail=true or
+        follow up with get_entity(id) for full records."""
         return session.entity_lookup(
             id=id,
             name=name,
@@ -438,7 +605,16 @@ def build_mcp_app(session: PackSession) -> Any:
             fuzzy=fuzzy,
             include_proposed=include_proposed,
             limit=limit,
+            detail=detail,
         )
+
+    @mcp.tool()
+    def get_entity(id: str, include_proposed: bool = False) -> EntityDetailResult:
+        """Full record for one entity id: aliases, properties, source-span
+        citations, and adjacent edges with endpoint names. The detail
+        follow-up for compact search/lookup rows; the same payload is
+        addressable as the resource pack://{pack_id}/entity/{id}."""
+        return session.get_entity(id, include_proposed=include_proposed)
 
     @mcp.tool()
     async def semantic_search(
@@ -448,11 +624,14 @@ def build_mcp_app(session: PackSession) -> Any:
         min_score: float = 0.0,
         include_proposed: bool = False,
         expand: bool = False,
+        detail: bool = False,
     ) -> SearchResult:
         """Lexical FTS5/BM25 search over node names/aliases/properties (0..1
         match_score). With expand=True, an LLM adds lexical query variants
         (fail-open; requires --expansion-engine at server start). NOT vector
-        search — no embeddings are involved."""
+        search — no embeddings are involved. Results are COMPACT rows
+        (id/name/type/score/snippet) unless detail=true; use get_entity(id)
+        for one full record."""
         if not expand:
             return session.semantic_search(
                 query,
@@ -460,6 +639,7 @@ def build_mcp_app(session: PackSession) -> Any:
                 top_k=top_k,
                 min_score=min_score,
                 include_proposed=include_proposed,
+                detail=detail,
             )
         result = await session.semantic_search_expanded(
             query,
@@ -469,6 +649,7 @@ def build_mcp_app(session: PackSession) -> Any:
             entity_type=entity_type,
             min_score=min_score,
             include_proposed=include_proposed,
+            detail=detail,
         )
         if session.expansion_engine is None:
             result["expansion_error"] = (
@@ -484,8 +665,10 @@ def build_mcp_app(session: PackSession) -> Any:
         include_proposed: bool = False,
         limit: int = 100,
         offset: int = 0,
+        detail: bool = False,
     ) -> SubgraphResult:
-        """Filtered subgraph query over the active pack."""
+        """Filtered subgraph query over the active pack. Compact rows by
+        default; detail=true for full node/edge records."""
         return session.graph_query(
             entity_type=entity_type,
             relation_type=relation_type,
@@ -493,6 +676,7 @@ def build_mcp_app(session: PackSession) -> Any:
             include_proposed=include_proposed,
             limit=limit,
             offset=offset,
+            detail=detail,
         )
 
     @mcp.tool()
@@ -503,8 +687,10 @@ def build_mcp_app(session: PackSession) -> Any:
         max_hops: int = 2,
         include_proposed: bool = False,
         limit: int = 200,
+        detail: bool = False,
     ) -> SubgraphResult:
-        """N-hop neighborhood from seed node ids (BFS)."""
+        """N-hop neighborhood from seed node ids (BFS). Compact rows by
+        default; detail=true for full node/edge records."""
         return session.traverse_relations(
             start_ids,
             relation_types=relation_types,
@@ -512,6 +698,7 @@ def build_mcp_app(session: PackSession) -> Any:
             max_hops=max_hops,
             include_proposed=include_proposed,
             limit=limit,
+            detail=detail,
         )
 
     @mcp.tool()
@@ -529,6 +716,27 @@ def build_mcp_app(session: PackSession) -> Any:
             max_hops=max_hops,
             relation_types=relation_types,
             include_proposed=include_proposed,
+        )
+
+    # -- Resources: stable pack:// addresses for entities and pack metadata.
+    # Read-only JSON; lets clients cite/refetch a fact by URI instead of
+    # re-running a query tool.
+
+    @mcp.resource("pack://{pack_id}/manifest")
+    def pack_manifest(pack_id: str) -> str:
+        """Pack manifest (identity, counts, search tier, content hash)."""
+        return json.dumps(session.resource_manifest(pack_id), indent=2)
+
+    @mcp.resource("pack://{pack_id}/schema")
+    def pack_schema(pack_id: str) -> str:
+        """Ontology schema (entity/relation types) of one pack."""
+        return json.dumps(session.resource_schema(pack_id), indent=2)
+
+    @mcp.resource("pack://{pack_id}/entity/{entity_id}")
+    def pack_entity(pack_id: str, entity_id: str) -> str:
+        """Full record of one verified entity, same payload as get_entity."""
+        return json.dumps(
+            session.resource_entity(pack_id, entity_id), indent=2
         )
 
     return mcp

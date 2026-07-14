@@ -941,6 +941,8 @@ class KGStore:
 
     def merge_candidates_pending(self, *, limit: int = 100) -> list[dict[str, Any]]:
         """Pending merge candidates, hydrated with both nodes side-by-side."""
+        if not self._table_exists("merge_candidates"):
+            return []  # pre-W7 read-only store: no queue, not an error
         rows = self.conn.execute(
             "SELECT * FROM merge_candidates WHERE status = 'proposed' "
             "ORDER BY score DESC, created_ts ASC LIMIT ?",
@@ -1213,15 +1215,26 @@ class KGStore:
             args.append(source_doc_id)
         args.append(limit)
         # Latest critic review per item (advisory columns only — approval
-        # paths never read this join).
+        # paths never read this join). Read-only stores built before W8 have
+        # no critic_reviews table: degrade to NULL critic columns.
+        if self._table_exists("critic_reviews"):
+            critic_join = (
+                "LEFT JOIN (SELECT kind, item_id, engine, score, rationale, "
+                "           MAX(created_ts) AS ts FROM critic_reviews "
+                "           GROUP BY kind, item_id) cr "
+                "ON cr.kind = pr.kind AND cr.item_id = pr.id "
+            )
+        else:
+            critic_join = (
+                "LEFT JOIN (SELECT NULL AS kind, NULL AS item_id, "
+                "           NULL AS engine, NULL AS score, NULL AS rationale) cr "
+                "ON cr.item_id = pr.id "
+            )
         cur = self.conn.execute(
             "SELECT pr.*, cr.score AS critic_score, "
             "cr.rationale AS critic_rationale, cr.engine AS critic_engine "
             "FROM pending_review pr "
-            "LEFT JOIN (SELECT kind, item_id, engine, score, rationale, "
-            "           MAX(created_ts) AS ts FROM critic_reviews "
-            "           GROUP BY kind, item_id) cr "
-            "ON cr.kind = pr.kind AND cr.item_id = pr.id "
+            f"{critic_join}"
             f"WHERE {' AND '.join(where)} ORDER BY {order_sql} LIMIT ?",
             args,
         )
@@ -1265,6 +1278,15 @@ class KGStore:
         )
         self.conn.commit()
 
+    def _table_exists(self, name: str) -> bool:
+        """True when ``name`` exists — read-only packs built before a table
+        was added to _SCHEMA cannot be migrated, so W7+ features degrade
+        gracefully on them instead of failing every open."""
+        return self.conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (name,),
+        ).fetchone() is not None
+
     def counts(self) -> dict[str, int]:
         out: dict[str, int] = {}
         for status in REVIEW_STATUSES:
@@ -1277,9 +1299,14 @@ class KGStore:
         out["documents"] = self.conn.execute(
             "SELECT COUNT(*) AS n FROM documents"
         ).fetchone()["n"]
-        out["merge_candidates_pending"] = self.conn.execute(
-            "SELECT COUNT(*) AS n FROM merge_candidates WHERE status = 'proposed'"
-        ).fetchone()["n"]
+        out["merge_candidates_pending"] = (
+            self.conn.execute(
+                "SELECT COUNT(*) AS n FROM merge_candidates "
+                "WHERE status = 'proposed'"
+            ).fetchone()["n"]
+            if self._table_exists("merge_candidates")
+            else 0
+        )
         return out
 
     # ------------------------------------------------------------------
