@@ -608,6 +608,8 @@
             "<td>" + escapeHtml(String(counts.edges_verified || 0)) + "</td>" +
             "<td>" + escapeHtml(pack.search_tier || "—") + "</td>" +
             "<td><code>" + escapeHtml(String(pack.content_hash || "").slice(0, 12)) + "</code></td>" +
+            "<td><button type='button' class='btn mcpb-btn' data-pack='" +
+            escapeHtml(pack.pack_id || "") + "'>.mcpb</button></td>" +
             "</tr>"
           );
         })
@@ -618,6 +620,32 @@
       err.classList.remove("hidden");
     }
   }
+
+  /* Bundle-and-download one pack as .mcpb (delegated: rows re-render). */
+  $("#packs-body").addEventListener("click", async function (ev) {
+    var btn = ev.target.closest ? ev.target.closest(".mcpb-btn") : null;
+    if (!btn) return;
+    var packId = btn.dataset.pack;
+    btn.disabled = true;
+    try {
+      var res = await apiSend(
+        "/api/packs/" + encodeURIComponent(packId) + "/mcpb", {}
+      );
+      if (res && res.ok) {
+        flashButton(btn, "Bundled!");
+        window.location.href = res.download_url;
+      } else {
+        flashButton(btn, "Failed");
+        var errEl = $("#packs-error");
+        errEl.textContent = (res && res.detail) || "mcpb bundling failed";
+        errEl.classList.remove("hidden");
+      }
+    } catch (e) {
+      flashButton(btn, "Failed");
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   $("#pack-build-form").addEventListener("submit", async function (ev) {
     ev.preventDefault();

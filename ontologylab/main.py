@@ -608,6 +608,25 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_build_mcpb(args: argparse.Namespace) -> int:
+    from ontologylab.mcpb import build_mcpb
+    from ontologylab.packbuilder import PackBuildError
+
+    try:
+        bundle = build_mcpb(args.packs_dir, args.pack, out_path=args.out)
+    except PackBuildError as exc:
+        print(f"[ontologylab] error: {exc}", file=sys.stderr)
+        return 2
+    size_kb = bundle.stat().st_size / 1024
+    print(f"[ontologylab] bundled {args.pack} -> {bundle} ({size_kb:.0f} KiB)")
+    print(
+        "[ontologylab] install: drag the .mcpb into Claude Desktop, or "
+        "unzip and use manifest.json's mcp_config for any MCP client "
+        "(host needs: pip install 'ontologylab[mcp]')"
+    )
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # search (tier-1 lexical, optional tier-2 fail-open LLM query expansion)
 # ---------------------------------------------------------------------------
@@ -862,6 +881,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_build.add_argument("--packs-dir", default=str(paths.default_packs_dir()))
     _add_data_dir(p_build)
     p_build.set_defaults(func=cmd_build_pack)
+
+    p_mcpb = sub.add_parser(
+        "build-mcpb",
+        help="Bundle a built pack as a single installable .mcpb file "
+             "(drag-and-drop into Claude Desktop).",
+    )
+    p_mcpb.add_argument("--pack", required=True, help="Pack id to bundle.")
+    p_mcpb.add_argument("--packs-dir", default=str(paths.default_packs_dir()))
+    p_mcpb.add_argument("--out", default=None,
+                        help="Output path (default: <packs-dir>/<pack>.mcpb).")
+    p_mcpb.set_defaults(func=cmd_build_mcpb)
 
     p_search = sub.add_parser(
         "search",

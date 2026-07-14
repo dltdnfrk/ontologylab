@@ -514,6 +514,43 @@ def packs_build(body: PackBuildRequest) -> dict[str, Any]:
     return {"ok": True, "manifest": dataclasses.asdict(manifest)}
 
 
+@router.post("/packs/{pack_id}/mcpb")
+def packs_build_mcpb(pack_id: str) -> dict[str, Any]:
+    """Bundle one built pack as a downloadable .mcpb file."""
+    from ontologylab.mcpb import build_mcpb
+
+    try:
+        bundle = build_mcpb(_packs_dir, pack_id)
+    except (PackBuildError, OSError) as exc:
+        return {"ok": False, "detail": str(exc)}
+    return {
+        "ok": True,
+        "pack_id": pack_id,
+        "path": str(bundle),
+        "size_bytes": bundle.stat().st_size,
+        "download_url": f"/api/packs/{pack_id}/mcpb/download",
+    }
+
+
+@router.get("/packs/{pack_id}/mcpb/download")
+def packs_download_mcpb(pack_id: str) -> Any:
+    from fastapi.responses import FileResponse
+
+    from ontologylab.mcpb import build_mcpb
+
+    bundle = Path(_packs_dir) / f"{pack_id}.mcpb"
+    if not bundle.is_file():
+        try:
+            bundle = build_mcpb(_packs_dir, pack_id)
+        except (PackBuildError, OSError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return FileResponse(
+        bundle,
+        media_type="application/zip",
+        filename=f"{pack_id}.mcpb",
+    )
+
+
 # ---------------------------------------------------------------------------
 # MCP status (MCP Status screen)
 # ---------------------------------------------------------------------------
