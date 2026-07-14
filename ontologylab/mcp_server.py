@@ -17,6 +17,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+try:  # pydantic (FastMCP schema generation) needs this variant on py<3.12
+    from typing_extensions import TypedDict
+except ImportError:  # pragma: no cover
+    from typing import TypedDict
+
 from ontologylab.kgstore import KGStore, KGStoreError
 from ontologylab.engines import EngineError, get_engine
 from ontologylab.expansion import expand_query
@@ -40,12 +45,20 @@ class PackSession:
         *,
         expansion_engine: str | None = None,
         expansion_model: str | None = None,
+        embedder=None,
     ) -> None:
         self.packs_dir = Path(packs_dir)
         self.store: KGStore | None = None
         self.pack_id: str | None = None
+        self.pack_hash: str | None = None
         self.expansion_engine = expansion_engine
         self.expansion_model = expansion_model
+        self.embedder = embedder
+
+    def _provenance(self) -> dict[str, Any]:
+        """Pack identity attached to every query response, so a caller can
+        always say WHICH immutable pack produced an answer."""
+        return {"pack_id": self.pack_id, "content_hash": self.pack_hash}
 
     def close(self) -> None:
         if self.store is not None:
@@ -79,12 +92,21 @@ class PackSession:
             self.store.close()
             self.store = None
             self.pack_id = None
+            self.pack_hash = None
         store = KGStore.open(sqlite_path, read_only=True)
         self.store = store
         self.pack_id = pack_id
+        self.pack_hash = None
+        manifest_path = sqlite_path.parent / "manifest.json"
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.pack_hash = manifest.get("content_hash")
+        except (OSError, json.JSONDecodeError):
+            pass  # provenance degrades to pack_id-only, never blocks loading
         counts = store.counts()
         return {
             "pack_id": pack_id,
+            "content_hash": self.pack_hash,
             "sqlite_path": str(sqlite_path),
             "counts": counts,
             "schema": store.get_schema(),
@@ -131,7 +153,48 @@ class PackSession:
             include_proposed=include_proposed,
             limit=limit,
         )
-        return {"matches": matches, "count": len(matches)}
+        return {"matches": matches, "count": len(matches), "pack": self._provenance()}
+
+    def _active_embedder(self):
+        """The session embedder, but only when the ACTIVE pack was embedded
+        by the same model — a model-A pack is never scored with model-B."""
+        if self.embedder is None or self.store is None:
+            return None
+        if self.store.embedding_model() != self.embedder.name():
+            return None
+        return self.embedder
+
+    def _run_search(
+        self,
+        fts_query: str,
+        *,
+        top_k: int,
+        entity_type: str | None,
+        min_score: float,
+        include_proposed: bool,
+    ) -> tuple[list[dict[str, Any]], str]:
+        """Route to hybrid (BM25+vector RRF) when embeddings line up, else
+        plain lexical; returns (results, tier_label) with honest labeling."""
+        store = self._require_store()
+        embedder = self._active_embedder()
+        if embedder is not None:
+            results = store.hybrid_search(
+                fts_query,
+                embedder,
+                top_k=top_k,
+                entity_type=entity_type,
+                min_score=min_score,
+                include_proposed=include_proposed,
+            )
+            return results, "fts5+vec-rrf"
+        results = store.semantic_search(
+            fts_query,
+            top_k=top_k,
+            entity_type=entity_type,
+            min_score=min_score,
+            include_proposed=include_proposed,
+        )
+        return results, "fts5"
 
     def semantic_search(
         self,
@@ -141,8 +204,9 @@ class PackSession:
         min_score: float = 0.0,
         include_proposed: bool = False,
     ) -> dict[str, Any]:
-        """Lexical FTS5 search (MVP tier). Not vector search."""
-        results = self._require_store().semantic_search(
+        """Lexical FTS5 search, or BM25+vector RRF when the active pack
+        carries embeddings from the server's configured embedder."""
+        results, tier = self._run_search(
             query,
             top_k=top_k,
             entity_type=entity_type,
@@ -151,9 +215,12 @@ class PackSession:
         )
         return {
             "query": query,
-            "search_tier": "fts5",
+            "search_tier": tier,
+            "expansion_terms": [],
+            "expansion_error": None,
             "results": results,
             "count": len(results),
+            "pack": self._provenance(),
         }
 
     async def semantic_search_expanded(
@@ -187,20 +254,23 @@ class PackSession:
                 variants, usage = await expand_query(query, engine, model=model)
                 expansion_error = usage.get("error")
         fts_query = " ".join([query, *variants]) if variants else query
-        results = store.semantic_search(
+        results, tier = self._run_search(
             fts_query,
             top_k=top_k,
             entity_type=entity_type,
             min_score=min_score,
             include_proposed=include_proposed,
         )
+        if variants:
+            tier += "+llm-expansion"
         return {
             "query": query,
-            "search_tier": "fts5+llm-expansion" if variants else "fts5",
+            "search_tier": tier,
             "expansion_terms": variants,
             "expansion_error": expansion_error,
             "results": results,
             "count": len(results),
+            "pack": self._provenance(),
         }
 
     def graph_query(
@@ -212,7 +282,7 @@ class PackSession:
         limit: int = 100,
         offset: int = 0,
     ) -> dict[str, Any]:
-        return self._require_store().graph_query(
+        result = self._require_store().graph_query(
             entity_type=entity_type,
             relation_type=relation_type,
             property_filters=property_filters,
@@ -220,6 +290,8 @@ class PackSession:
             limit=limit,
             offset=offset,
         )
+        result["pack"] = self._provenance()
+        return result
 
     def traverse_relations(
         self,
@@ -230,7 +302,7 @@ class PackSession:
         include_proposed: bool = False,
         limit: int = 200,
     ) -> dict[str, Any]:
-        return self._require_store().traverse_relations(
+        result = self._require_store().traverse_relations(
             start_ids,
             relation_types=relation_types,
             direction=direction,
@@ -238,6 +310,8 @@ class PackSession:
             include_proposed=include_proposed,
             limit=limit,
         )
+        result["pack"] = self._provenance()
+        return result
 
     def find_path(
         self,
@@ -247,13 +321,78 @@ class PackSession:
         relation_types: list[str] | None = None,
         include_proposed: bool = False,
     ) -> dict[str, Any]:
-        return self._require_store().find_path(
+        result = self._require_store().find_path(
             source_id,
             target_id,
             max_hops=max_hops,
             relation_types=relation_types,
             include_proposed=include_proposed,
         )
+        result["pack"] = self._provenance()
+        return result
+
+
+# ---------------------------------------------------------------------------
+# Structured tool result envelopes. FastMCP derives each tool's outputSchema
+# from these TypedDicts, so MCP clients know result shapes ahead of time.
+# Inner node/edge dicts stay dynamic (dict[str, Any]) — only the stable
+# envelope is typed, so schemas inform without over-constraining.
+# ---------------------------------------------------------------------------
+
+
+class PackProvenance(TypedDict):
+    """Which immutable pack produced a response (id + content hash)."""
+
+    pack_id: str | None
+    content_hash: str | None
+
+
+class PackListResult(TypedDict):
+    packs_dir: str
+    active_pack_id: str | None
+    packs: list[dict[str, Any]]
+    count: int
+
+
+class LoadPackResult(TypedDict):
+    pack_id: str
+    content_hash: str | None
+    sqlite_path: str
+    counts: dict[str, int]
+    schema: dict[str, Any]
+
+
+class LookupResult(TypedDict):
+    matches: list[dict[str, Any]]
+    count: int
+    pack: PackProvenance
+
+
+class SearchResult(TypedDict):
+    """Uniform search envelope: expansion fields are always present
+    (empty/None when expansion was not used) so the outputSchema is exact."""
+
+    query: str
+    search_tier: str
+    expansion_terms: list[str]
+    expansion_error: str | None
+    results: list[dict[str, Any]]
+    count: int
+    pack: PackProvenance
+
+
+class SubgraphResult(TypedDict):
+    nodes: list[dict[str, Any]]
+    edges: list[dict[str, Any]]
+    pack: PackProvenance
+
+
+class PathResult(TypedDict):
+    found: bool
+    hop_count: int | None
+    path: list[dict[str, Any]]
+    path_edges: list[dict[str, Any]]
+    pack: PackProvenance
 
 
 def build_mcp_app(session: PackSession) -> Any:
@@ -268,17 +407,17 @@ def build_mcp_app(session: PackSession) -> Any:
     mcp = FastMCP("ontologylab")
 
     @mcp.tool()
-    def list_packs() -> dict:
+    def list_packs() -> PackListResult:
         """Discover local knowledge packs (directory + manifest.json scan)."""
         return session.list_packs()
 
     @mcp.tool()
-    def load_pack(pack_id: str) -> dict:
+    def load_pack(pack_id: str) -> LoadPackResult:
         """Set/switch the active pack (read-only connection; never mutates KG)."""
         return session.load_pack(pack_id)
 
     @mcp.tool()
-    def get_schema(pack_id: str | None = None) -> dict:
+    def get_schema(pack_id: str | None = None) -> dict[str, Any]:
         """Return ontology (entity/relation types) for the active or named pack."""
         return session.get_schema(pack_id=pack_id)
 
@@ -290,7 +429,7 @@ def build_mcp_app(session: PackSession) -> Any:
         fuzzy: bool = True,
         include_proposed: bool = False,
         limit: int = 5,
-    ) -> dict:
+    ) -> LookupResult:
         """Resolve a node by id or name. Defaults to verified-only rows."""
         return session.entity_lookup(
             id=id,
@@ -309,7 +448,7 @@ def build_mcp_app(session: PackSession) -> Any:
         min_score: float = 0.0,
         include_proposed: bool = False,
         expand: bool = False,
-    ) -> dict:
+    ) -> SearchResult:
         """Lexical FTS5/BM25 search over node names/aliases/properties (0..1
         match_score). With expand=True, an LLM adds lexical query variants
         (fail-open; requires --expansion-engine at server start). NOT vector
@@ -345,7 +484,7 @@ def build_mcp_app(session: PackSession) -> Any:
         include_proposed: bool = False,
         limit: int = 100,
         offset: int = 0,
-    ) -> dict:
+    ) -> SubgraphResult:
         """Filtered subgraph query over the active pack."""
         return session.graph_query(
             entity_type=entity_type,
@@ -364,7 +503,7 @@ def build_mcp_app(session: PackSession) -> Any:
         max_hops: int = 2,
         include_proposed: bool = False,
         limit: int = 200,
-    ) -> dict:
+    ) -> SubgraphResult:
         """N-hop neighborhood from seed node ids (BFS)."""
         return session.traverse_relations(
             start_ids,
@@ -382,7 +521,7 @@ def build_mcp_app(session: PackSession) -> Any:
         max_hops: int = 6,
         relation_types: list[str] | None = None,
         include_proposed: bool = False,
-    ) -> dict:
+    ) -> PathResult:
         """Shortest relation path between two nodes."""
         return session.find_path(
             source_id,
@@ -426,12 +565,29 @@ def main(argv: list[str] | None = None) -> None:
         default=None,
         help="Optional model name for the expansion engine.",
     )
+    parser.add_argument(
+        "--embedder",
+        default=None,
+        help="Enable BM25+vector RRF search for packs that carry matching "
+             "embeddings: 'hash' (offline test embedder) or a "
+             "sentence-transformers model name. Default: lexical only.",
+    )
     args = parser.parse_args(argv)
 
+    embedder = None
+    if args.embedder:
+        from ontologylab.embeddings import get_embedder
+
+        try:
+            embedder = get_embedder(args.embedder)
+        except RuntimeError as exc:
+            print(f"[ontologylab.mcp] embedder unavailable: {exc}", file=sys.stderr)
+            raise SystemExit(2) from exc
     session = PackSession(
         args.packs_dir,
         expansion_engine=args.expansion_engine,
         expansion_model=args.expansion_model,
+        embedder=embedder,
     )
     if args.pack:
         try:

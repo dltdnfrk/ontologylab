@@ -20,6 +20,8 @@ test = ["pytest>=7", "httpx"]
 server = ["fastapi", "uvicorn[standard]"]
 # Optional MCP stdio server (FastMCP from the official python SDK).
 mcp = ["mcp>=1.2"]
+# Optional tier-2 semantic embeddings (real model; one-time download).
+embed = ["sentence-transformers>=3"]
 
 [project.scripts]
 ontologylab = "ontologylab.main:main"

@@ -91,13 +91,47 @@
     }
   }
 
+  // --- keyboard-first review state -----------------------------------
+  var reviewRows = []; // [{id, tr}] in render order
+  var reviewCursor = -1;
+  var reviewOrder = "confidence"; // least-certain first (triage default)
+
+  function focusRow(index) {
+    if (!reviewRows.length) return;
+    if (reviewCursor >= 0 && reviewRows[reviewCursor]) {
+      reviewRows[reviewCursor].tr.classList.remove("row-focused");
+    }
+    reviewCursor = Math.max(0, Math.min(index, reviewRows.length - 1));
+    var row = reviewRows[reviewCursor];
+    row.tr.classList.add("row-focused");
+    row.tr.scrollIntoView({ block: "nearest" });
+  }
+
+  document.addEventListener("keydown", function (ev) {
+    // never hijack typing in inputs
+    var tag = (ev.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") return;
+    if (!reviewRows.length) return;
+    if (ev.key === "j") focusRow(reviewCursor + 1);
+    else if (ev.key === "k") focusRow(reviewCursor - 1);
+    else if (ev.key === "a" && reviewCursor >= 0)
+      act("approve", reviewRows[reviewCursor].id);
+    else if (ev.key === "r" && reviewCursor >= 0)
+      act("reject", reviewRows[reviewCursor].id);
+    else if (ev.key === "s") focusRow(reviewCursor + 1); // skip
+    else return;
+    ev.preventDefault();
+  });
+
   async function loadProposals() {
     var tbody = $("#proposals-body");
     var empty = $("#review-empty");
     var err = $("#review-error");
     err.classList.add("hidden");
+    reviewRows = [];
+    reviewCursor = -1;
     try {
-      var data = await api("/api/proposals?limit=200");
+      var data = await api("/api/proposals?limit=200&order=" + reviewOrder);
       renderCounts(data.counts);
       tbody.innerHTML = "";
       var items = data.items || [];
@@ -146,7 +180,9 @@
         actions.appendChild(document.createTextNode(" "));
         actions.appendChild(rejectBtn);
         tbody.appendChild(tr);
+        reviewRows.push({ id: item.id, tr: tr });
       });
+      if (reviewRows.length) focusRow(0);
     } catch (e) {
       err.textContent = String(e.message || e);
       err.classList.remove("hidden");

@@ -124,16 +124,24 @@ def list_proposals(
     kind: str | None = Query(None, description="node | edge"),
     type_name: str | None = Query(None),
     source_doc_id: str | None = Query(None),
+    order: str = Query(
+        "created",
+        description="created | confidence (least-certain first) | confidence_desc",
+    ),
     limit: int = Query(100, ge=1, le=1000),
 ) -> dict[str, Any]:
     store = _open_store()
     try:
-        items = store.pending_review(
-            kind=kind,
-            type_name=type_name,
-            source_doc_id=source_doc_id,
-            limit=limit,
-        )
+        try:
+            items = store.pending_review(
+                kind=kind,
+                type_name=type_name,
+                source_doc_id=source_doc_id,
+                order=order,
+                limit=limit,
+            )
+        except KGStoreError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         counts = store.counts()
         return {"items": items, "counts": counts, "count": len(items)}
     finally:

@@ -619,3 +619,9 @@ main { padding: 1rem 1.25rem 2rem; }
 }
 .mcp-card p { margin: 0.35rem 0; }
 .mcp-card pre { margin: 0.5rem 0; }
+
+/* keyboard-first review: focused row highlight (j/k navigate, a/r act) */
+tr.row-focused {
+  outline: 2px solid var(--accent, #4f8cff);
+  outline-offset: -2px;
+}

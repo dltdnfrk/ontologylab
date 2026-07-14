@@ -225,8 +225,14 @@ def test_pack_session_plain_semantic_search_shape_unchanged(workspace):
     try:
         session.try_autoload()
         result = session.semantic_search("ratelimiter")
-        assert set(result) == {"query", "search_tier", "results", "count"}
+        # uniform envelope: expansion fields always present (empty when unused)
+        assert set(result) == {
+            "query", "search_tier", "expansion_terms", "expansion_error",
+            "results", "count", "pack",
+        }
         assert result["search_tier"] == "fts5"
+        assert result["expansion_terms"] == []
+        assert result["pack"]["pack_id"] == session.pack_id
     finally:
         session.close()
 

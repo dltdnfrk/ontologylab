@@ -143,6 +143,9 @@ def build_pack(
     pack_store = KGStore.open(pack_sqlite, read_only=True)
     try:
         schema = pack_store.get_schema()
+        # Honest tier labeling (§5.4): only claim the vector tier when the
+        # pack actually carries embeddings, and record which model made them.
+        pack_embedding_model = pack_store.embedding_model()
     finally:
         pack_store.close()
     (pack_dir / "schema.json").write_text(
@@ -156,8 +159,8 @@ def build_pack(
         schema_label=schema["schema_label"],
         source_job_id=source_job_id,
         counts=counts,
-        search_tier="fts5",
-        embedding_model=None,
+        search_tier="fts5+vec-rrf" if pack_embedding_model else "fts5",
+        embedding_model=pack_embedding_model,
         ontologylab_version=__version__,
         content_hash=content_hash,
     )

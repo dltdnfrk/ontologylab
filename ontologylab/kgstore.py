@@ -855,14 +855,31 @@ class KGStore:
             "edges_skipped": edges_skipped,
         }
 
+    # Queue orderings for pending_review. Confidence orderings put NULLs
+    # last; "confidence" (ascending) surfaces the least-certain extractions
+    # first — the triage default recommended by the HITL literature.
+    _REVIEW_ORDERINGS = {
+        "created": "created_ts ASC",
+        "confidence": "confidence IS NULL, confidence ASC, created_ts ASC",
+        "confidence_desc": "confidence IS NULL, confidence DESC, created_ts ASC",
+    }
+
     def pending_review(
         self,
         *,
         kind: str | None = None,
         type_name: str | None = None,
         source_doc_id: str | None = None,
+        order: str = "created",
         limit: int = 100,
     ) -> list[dict[str, Any]]:
+        try:
+            order_sql = self._REVIEW_ORDERINGS[order]
+        except KeyError:
+            raise KGStoreError(
+                f"unknown review order {order!r} "
+                f"(allowed: {sorted(self._REVIEW_ORDERINGS)})"
+            ) from None
         where = ["1=1"]
         args: list[Any] = []
         if kind:
@@ -876,7 +893,9 @@ class KGStore:
             args.append(source_doc_id)
         args.append(limit)
         cur = self.conn.execute(
-            f"SELECT * FROM pending_review WHERE {' AND '.join(where)} LIMIT ?", args
+            f"SELECT * FROM pending_review WHERE {' AND '.join(where)} "
+            f"ORDER BY {order_sql} LIMIT ?",
+            args,
         )
         return [dict(r) for r in cur.fetchall()]
 
@@ -1037,6 +1056,146 @@ class KGStore:
                 {c["source_doc_id"] for c in self.citations("node", row["id"])}
                 or {row["source_doc_id"]}
             )
+            results.append(item)
+            if len(results) >= top_k:
+                break
+        return results
+
+    # ------------------------------------------------------------------
+    # Tier-2 embeddings: backfill, cosine search, hybrid RRF fusion (§5.4)
+    # ------------------------------------------------------------------
+
+    def _embedding_text(self, row: sqlite3.Row) -> str:
+        """The text an embedder sees for a node: name + aliases + properties."""
+        aliases = json.loads(row["aliases_json"])
+        properties = json.loads(row["properties_json"])
+        parts = [row["name"], *aliases]
+        parts.extend(f"{k}: {v}" for k, v in properties.items())
+        return " | ".join(str(p) for p in parts)
+
+    def embed_nodes(self, embedder, *, batch_size: int = 64) -> dict[str, int]:
+        """Backfill embeddings for nodes missing one from this embedder.
+
+        Covers proposed + verified rows (so the review UI can search pending
+        items too); rejected rows are never embedded. Idempotent: rows whose
+        embedding_model already matches are skipped.
+        """
+        self._assert_writable()
+        from ontologylab.embeddings import pack_vector
+
+        rows = self.conn.execute(
+            "SELECT * FROM nodes WHERE status IN ('proposed','verified') "
+            "AND (embedding IS NULL OR embedding_model IS NOT ?)",
+            (embedder.name(),),
+        ).fetchall()
+        embedded = 0
+        for start in range(0, len(rows), batch_size):
+            batch = rows[start : start + batch_size]
+            texts = [self._embedding_text(r) for r in batch]
+            vectors = embedder.embed(texts)
+            for row, vec in zip(batch, vectors):
+                self.conn.execute(
+                    "UPDATE nodes SET embedding = ?, embedding_model = ? WHERE id = ?",
+                    (pack_vector(vec), embedder.name(), row["id"]),
+                )
+                embedded += 1
+        self.conn.commit()
+        return {"embedded": embedded, "skipped": self.conn.execute(
+            "SELECT COUNT(*) FROM nodes WHERE embedding_model = ?",
+            (embedder.name(),),
+        ).fetchone()[0] - embedded}
+
+    def embedding_model(self) -> str | None:
+        """The embedding model present on this store's nodes (if any)."""
+        row = self.conn.execute(
+            "SELECT embedding_model FROM nodes "
+            "WHERE embedding_model IS NOT NULL LIMIT 1"
+        ).fetchone()
+        return row["embedding_model"] if row else None
+
+    def vector_search(
+        self,
+        query: str,
+        embedder,
+        *,
+        top_k: int = 10,
+        entity_type: str | None = None,
+        include_proposed: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Brute-force cosine over stored embeddings (fine at local scale).
+
+        Only compares against vectors produced by the SAME embedder
+        (embedding_model match) — a model-A pack is never scored with a
+        model-B query. match_score = (cosine+1)/2 per the §5.4 contract.
+        """
+        from ontologylab.embeddings import cosine, unpack_vector
+
+        query_vec = embedder.embed([query])[0]
+        status_sql = _status_clause(include_proposed)
+        type_sql = " AND entity_type = ?" if entity_type else ""
+        args: list[Any] = [embedder.name()]
+        if entity_type:
+            args.append(entity_type)
+        rows = self.conn.execute(
+            f"SELECT * FROM nodes WHERE embedding_model = ? AND {status_sql}{type_sql}",
+            args,
+        ).fetchall()
+        scored = []
+        for row in rows:
+            sim = cosine(query_vec, unpack_vector(row["embedding"]))
+            scored.append((sim, row))
+        scored.sort(key=lambda pair: -pair[0])
+        results = []
+        for sim, row in scored[:top_k]:
+            item = _node_dict(row)
+            item["match_score"] = round((sim + 1.0) / 2.0, 4)
+            item["source_document_ids"] = sorted(
+                {c["source_doc_id"] for c in self.citations("node", row["id"])}
+                or {row["source_doc_id"]}
+            )
+            results.append(item)
+        return results
+
+    def hybrid_search(
+        self,
+        query: str,
+        embedder,
+        *,
+        top_k: int = 10,
+        entity_type: str | None = None,
+        min_score: float = 0.0,
+        include_proposed: bool = False,
+    ) -> list[dict[str, Any]]:
+        """BM25 + vector fused with Reciprocal Rank Fusion (§5.4 tier-2).
+
+        Both backends run status-filtered, their ranked id lists are fused
+        with RRF (k=60), and match_score carries the normalized 0..1 fused
+        score (rank-based relevance, higher is better — documented meaning
+        consistent across tiers).
+        """
+        from ontologylab.embeddings import rrf_fuse
+
+        lexical = self.semantic_search(
+            query,
+            top_k=top_k * 2,
+            entity_type=entity_type,
+            include_proposed=include_proposed,
+        )
+        vector = self.vector_search(
+            query,
+            embedder,
+            top_k=top_k * 2,
+            entity_type=entity_type,
+            include_proposed=include_proposed,
+        )
+        by_id = {item["id"]: item for item in [*vector, *lexical]}
+        fused = rrf_fuse([[i["id"] for i in lexical], [i["id"] for i in vector]])
+        results = []
+        for item_id, fused_score in fused:
+            if fused_score < min_score:
+                continue
+            item = dict(by_id[item_id])
+            item["match_score"] = round(fused_score, 4)
             results.append(item)
             if len(results) >= top_k:
                 break

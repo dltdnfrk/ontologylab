@@ -339,6 +339,7 @@ def cmd_review(args: argparse.Namespace) -> int:
             kind=args.kind,
             type_name=args.type,
             source_doc_id=args.doc,
+            order=args.order,
             limit=args.limit,
         )
         counts = store.counts()
@@ -498,23 +499,46 @@ def cmd_search(args: argparse.Namespace) -> int:
                 )
                 variants = []
         fts_query = " ".join([args.query, *variants]) if variants else args.query
+        embedder = None
+        if args.embedder:
+            from ontologylab.embeddings import get_embedder
+
+            embedder = get_embedder(args.embedder)
+            if embedder is not None and store.embedding_model() != embedder.name():
+                print(
+                    f"[ontologylab] no {embedder.name()!r} embeddings in this KG "
+                    "(run `ontologylab embed` first); falling back to lexical",
+                    file=sys.stderr,
+                )
+                embedder = None
         try:
-            results = store.semantic_search(
-                fts_query,
-                top_k=args.top_k,
-                entity_type=args.type,
-                include_proposed=args.include_proposed,
-            )
+            if embedder is not None:
+                results = store.hybrid_search(
+                    fts_query,
+                    embedder,
+                    top_k=args.top_k,
+                    entity_type=args.type,
+                    include_proposed=args.include_proposed,
+                )
+            else:
+                results = store.semantic_search(
+                    fts_query,
+                    top_k=args.top_k,
+                    entity_type=args.type,
+                    include_proposed=args.include_proposed,
+                )
         except KGStoreError as exc:
             print(f"[ontologylab] ERROR: {exc}", file=sys.stderr)
             return 2
+        tier = "fts5"
+        if embedder is not None:
+            tier += "+vec-rrf"
         if variants:
-            print(
-                "[ontologylab] tier: fts5+llm-expansion "
-                f"(terms: {', '.join(variants)})"
-            )
+            tier += "+llm-expansion"
+        if variants:
+            print(f"[ontologylab] tier: {tier} (terms: {', '.join(variants)})")
         else:
-            print("[ontologylab] tier: fts5")
+            print(f"[ontologylab] tier: {tier}")
         if not results:
             print(f"[ontologylab] 0 results for {args.query!r}")
         for row in results:
@@ -525,6 +549,36 @@ def cmd_search(args: argparse.Namespace) -> int:
         return 0
     finally:
         store.close()
+
+
+def cmd_embed(args: argparse.Namespace) -> int:
+    """Backfill embeddings (human-triggered; never runs inside extract)."""
+    from ontologylab.embeddings import get_embedder
+
+    try:
+        embedder = get_embedder(args.embedder)
+    except RuntimeError as exc:
+        print(f"[ontologylab] ERROR: {exc}", file=sys.stderr)
+        return 2
+    if embedder is None:
+        print("[ontologylab] no embedder selected", file=sys.stderr)
+        return 2
+    store = _open_store(args)
+    try:
+        stats = store.embed_nodes(embedder)
+    finally:
+        store.close()
+    print(
+        f"[ontologylab] embedded {stats['embedded']} node(s) with "
+        f"{embedder.name()} ({stats['skipped']} already current)"
+    )
+    if embedder.name() == "hash-v1":
+        print(
+            "[ontologylab] note: hash-v1 is a lexical-overlap embedder for "
+            "offline use — not semantic. Use a sentence-transformers model "
+            "for real tier-2 quality."
+        )
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -577,6 +631,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_review.add_argument("--type", default=None,
                           help="Entity/relation type name filter.")
     p_review.add_argument("--doc", default=None, help="Source document id filter.")
+    p_review.add_argument(
+        "--order", default="created",
+        choices=["created", "confidence", "confidence_desc"],
+        help="Queue order; 'confidence' triages least-certain items first.",
+    )
     p_review.add_argument("--limit", type=int, default=100)
     _add_data_dir(p_review)
     p_review.set_defaults(func=cmd_review)
@@ -625,8 +684,28 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_search.add_argument("--engine", default="mock",
                           choices=["mock", "claude", "codex", "gemini"])
     p_search.add_argument("--model", default=None)
+    p_search.add_argument(
+        "--embedder", default=None,
+        help="Enable tier-2 hybrid search (BM25+vector RRF): 'hash' for the "
+             "offline test embedder, or a sentence-transformers model name. "
+             "Requires embeddings backfilled via `ontologylab embed`.",
+    )
     _add_data_dir(p_search)
     p_search.set_defaults(func=cmd_search)
+
+    p_embed = sub.add_parser(
+        "embed",
+        help="Backfill node embeddings for tier-2 hybrid search. "
+             "'hash' is offline but lexical-only; real semantic quality "
+             "needs a sentence-transformers model (one-time download).",
+    )
+    p_embed.add_argument(
+        "--embedder", default="hash",
+        help="'hash' (offline, deterministic, NOT semantic) or a "
+             "sentence-transformers model name.",
+    )
+    _add_data_dir(p_embed)
+    p_embed.set_defaults(func=cmd_embed)
 
     return parser
 

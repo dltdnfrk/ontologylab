@@ -1,0 +1,4 @@
+- [ontologylab MCP server](ontologylab_mcp_server.md) — 8-tool read-only sqlite knowledge-pack server; 2026-07-14 research brief on resources/prompts/output-schemas/distribution roadmap
+- [ontologylab GraphRAG research direction](project_ontologylab_graphrag_direction.md) — 2026-07 brief on GraphRAG/LightRAG/HippoRAG2/Graphiti vs ontologylab's lexical+BFS system
+- [Local sqlite hybrid-search peer projects](reference_local_sqlite_hybrid_search_projects.md) — fidx, vstash: closest architectural peers for baseline comparison
+- [Review UX research for ontologylab](project_review_ux_research.md) — HITL curation/verification UX findings + ranked feature ideas (2026-07-14 snapshot)
