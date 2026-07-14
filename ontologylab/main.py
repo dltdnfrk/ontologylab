@@ -456,6 +456,90 @@ def cmd_reject(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# entity-centric review (W11: one entity's mentions + relations in one view)
+# ---------------------------------------------------------------------------
+
+
+def cmd_entity(args: argparse.Namespace) -> int:
+    store = _open_store(args)
+    try:
+        entity_id = args.ref
+        # Accept a name too: resolve to the best (proposed-inclusive) match.
+        try:
+            store._find_kind(entity_id)
+        except KGStoreError:
+            matches = store.entity_lookup(
+                name=args.ref, include_proposed=True, limit=2
+            )
+            if not matches:
+                print(f"[ontologylab] no entity matches {args.ref!r}",
+                      file=sys.stderr)
+                return 2
+            if len(matches) > 1 and matches[0]["name"] != args.ref:
+                print(
+                    "[ontologylab] ambiguous; candidates: "
+                    + ", ".join(f"{m['name']} ({m['id']})" for m in matches),
+                    file=sys.stderr,
+                )
+                return 2
+            entity_id = matches[0]["id"]
+        try:
+            ctx = store.entity_review_context(entity_id)
+        except KGStoreError as exc:
+            print(f"[ontologylab] error: {exc}", file=sys.stderr)
+            return 2
+    finally:
+        store.close()
+
+    ent = ctx["entity"]
+    conf = f"{ent['confidence']:.2f}" if ent["confidence"] is not None else "-"
+    print(f"{ent['name']}  [{ent['entity_type']}/{ent['status']}]  "
+          f"conf={conf}  id={ent['id']}")
+    if ent["aliases"]:
+        print(f"  aliases: {', '.join(ent['aliases'])}")
+    if ent["properties"]:
+        print(f"  properties: {json.dumps(ent['properties'], ensure_ascii=False)}")
+    if ctx["critic"]:
+        critic = ctx["critic"]
+        print(f"  critic: {critic['score']:.2f} ({critic['engine']}) "
+              f"— {critic['rationale'] or ''}")
+
+    print(f"\nMENTIONS ({ctx['counts']['mentions']}):")
+    for mention in ctx["mentions"]:
+        title = mention["doc_title"] or mention["source_doc_id"][:10]
+        excerpt = (mention["excerpt"] or "(no span)").replace("\n", " ")
+        print(f"  [{title}] …{excerpt}…")
+
+    print(f"\nRELATIONS ({ctx['counts']['relations_proposed']} proposed / "
+          f"{ctx['counts']['relations_verified']} verified):")
+    for rel in ctx["relations"]:
+        arrow = (
+            f"-[{rel['relation_type']}]-> {rel['other']['name']}"
+            if rel["direction"] == "out"
+            else f"<-[{rel['relation_type']}]- {rel['other']['name']}"
+        )
+        critic_txt = (
+            f" critic={rel['critic_score']:.2f}"
+            if rel["critic_score"] is not None
+            else ""
+        )
+        print(f"  [{rel['status']:<8}] {arrow} "
+              f"(other: {rel['other']['status']}){critic_txt}  id={rel['id']}")
+
+    if ctx["merge_candidates"]:
+        print(f"\nMERGE CANDIDATES ({len(ctx['merge_candidates'])}):")
+        for cand in ctx["merge_candidates"]:
+            print(f"  ~ {cand['other']['name']} ({cand['other']['status']}) "
+                  f"score={cand['score']:.2f} "
+                  f"[{', '.join(cand['reasons'])}]  candidate={cand['id']}")
+    print(
+        "\n[ontologylab] act per item: approve/reject --id <id>, "
+        "merge --target/--source"
+    )
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # critic triage (W8: a second model pre-scores the queue — advisory only)
 # ---------------------------------------------------------------------------
 
@@ -821,6 +905,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_reject.add_argument("--note", default=None)
     _add_data_dir(p_reject)
     p_reject.set_defaults(func=cmd_reject)
+
+    p_entity = sub.add_parser(
+        "entity",
+        help="Entity-centric review: one entity's mentions (in source "
+             "context), relations, critic score, and merge candidates.",
+    )
+    p_entity.add_argument("ref", help="Entity id or exact name.")
+    _add_data_dir(p_entity)
+    p_entity.set_defaults(func=cmd_entity)
 
     p_critic = sub.add_parser(
         "critic",

@@ -27,7 +27,7 @@ from ontologylab.engines import (
     EngineError,
     extract_fenced_block,
 )
-from ontologylab.kgstore import KGStore
+from ontologylab.kgstore import KGStore, span_excerpt
 
 CRITIC_PROMPT_VERSION = "critic-v1"
 
@@ -100,18 +100,12 @@ def parse_critic(raw_text: str, expected_ids: set[str]) -> dict[str, dict[str, A
 
 def _evidence_excerpt(raw_text: str, span: dict | None) -> str:
     """The cited span ± context, marked with >>> <<< around the span."""
-    if not span or not raw_text:
-        return ""
-    start = max(0, int(span.get("start", 0)))
-    end = min(len(raw_text), int(span.get("end", 0)))
-    if end <= start:
-        return ""
-    lo = max(0, start - EVIDENCE_CONTEXT_CHARS)
-    hi = min(len(raw_text), end + EVIDENCE_CONTEXT_CHARS)
-    excerpt = (
-        raw_text[lo:start] + ">>>" + raw_text[start:end] + "<<<" + raw_text[end:hi]
+    return span_excerpt(
+        raw_text,
+        span,
+        context_chars=EVIDENCE_CONTEXT_CHARS,
+        max_chars=MAX_EVIDENCE_CHARS,
     )
-    return excerpt[:MAX_EVIDENCE_CHARS]
 
 
 def _pending_items(store: KGStore, *, engine_name: str, limit: int) -> list[dict]:

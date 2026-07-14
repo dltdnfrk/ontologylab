@@ -51,6 +51,32 @@ class UnknownItem(KGStoreError):
     """Raised when an id matches neither a node nor an edge."""
 
 
+def span_excerpt(
+    raw_text: str,
+    span: dict | None,
+    *,
+    context_chars: int = 160,
+    max_chars: int = 600,
+) -> str:
+    """The cited span ± context, with >>> <<< marking the span itself.
+
+    Shared by critic evidence prompts and the entity-centric review view —
+    one definition of "what a mention looks like in context".
+    """
+    if not span or not raw_text:
+        return ""
+    start = max(0, int(span.get("start", 0)))
+    end = min(len(raw_text), int(span.get("end", 0)))
+    if end <= start:
+        return ""
+    lo = max(0, start - context_chars)
+    hi = min(len(raw_text), end + context_chars)
+    excerpt = (
+        raw_text[lo:start] + ">>>" + raw_text[start:end] + "<<<" + raw_text[end:hi]
+    )
+    return excerpt[:max_chars]
+
+
 def normalize_name(name: str) -> str:
     """Normalization key for entity resolution.
 
@@ -1310,6 +1336,158 @@ class KGStore:
         return out
 
     # ------------------------------------------------------------------
+    # W11 entity-centric review: everything about ONE entity in one payload
+    # ------------------------------------------------------------------
+
+    def entity_review_context(
+        self, entity_id: str, *, context_chars: int = 160
+    ) -> dict[str, Any]:
+        """One entity's full review context: every mention (span excerpt in
+        source context), every proposed/verified relation with the other
+        endpoint's name+status, the latest critic score, and any pending
+        merge candidates involving it.
+
+        Read-only aggregation — approving/rejecting stays per-item through
+        the existing gate. Rationale (RESEARCH W11): most of what a reviewer
+        needs to judge an entity lives outside the single row being staring
+        at — its other mentions and its relations.
+        """
+        kind, row = self._find_kind(entity_id)
+        if kind != "node":
+            raise KGStoreError("entity review is for nodes; got an edge id")
+        entity = _node_dict(row)
+
+        critic = None
+        if self._table_exists("critic_reviews"):
+            crow = self.conn.execute(
+                "SELECT engine, model, score, rationale, MAX(created_ts) AS ts "
+                "FROM critic_reviews WHERE kind = 'node' AND item_id = ? "
+                "GROUP BY item_id",
+                (entity_id,),
+            ).fetchone()
+            if crow is not None and crow["score"] is not None:
+                critic = {
+                    "engine": crow["engine"],
+                    "model": crow["model"],
+                    "score": crow["score"],
+                    "rationale": crow["rationale"],
+                }
+
+        mentions = []
+        doc_cache: dict[str, str] = {}
+        for citation in self.citations("node", entity_id):
+            doc_id = citation["source_doc_id"]
+            if doc_id not in doc_cache:
+                try:
+                    doc_cache[doc_id] = self.document_raw_text(doc_id)
+                except (KGStoreError, OSError):
+                    doc_cache[doc_id] = ""
+            try:
+                title = self.get_document(doc_id).title
+            except UnknownItem:
+                title = None
+            mentions.append(
+                {
+                    "source_doc_id": doc_id,
+                    "doc_title": title,
+                    "source_span": citation["source_span"],
+                    "excerpt": span_excerpt(
+                        doc_cache[doc_id],
+                        citation["source_span"],
+                        context_chars=context_chars,
+                    ),
+                }
+            )
+
+        edge_rows = self.conn.execute(
+            "SELECT e.*, s.name AS src_name, s.status AS src_status, "
+            "d.name AS dst_name, d.status AS dst_status FROM edges e "
+            "JOIN nodes s ON s.id = e.src_node_id "
+            "JOIN nodes d ON d.id = e.dst_node_id "
+            "WHERE (e.src_node_id = ? OR e.dst_node_id = ?) "
+            "AND e.status IN ('proposed','verified') "
+            "ORDER BY e.status DESC, e.created_ts ASC",
+            (entity_id, entity_id),
+        ).fetchall()
+        edge_critic: dict[str, float] = {}
+        if edge_rows and self._table_exists("critic_reviews"):
+            placeholders = ",".join("?" for _ in edge_rows)
+            for crow in self.conn.execute(
+                "SELECT item_id, score, MAX(created_ts) AS ts FROM critic_reviews "
+                f"WHERE kind = 'edge' AND item_id IN ({placeholders}) "
+                "GROUP BY item_id",
+                [e["id"] for e in edge_rows],
+            ):
+                edge_critic[crow["item_id"]] = crow["score"]
+        relations = []
+        for edge in edge_rows:
+            outgoing = edge["src_node_id"] == entity_id
+            relations.append(
+                {
+                    "id": edge["id"],
+                    "relation_type": edge["relation_type"],
+                    "direction": "out" if outgoing else "in",
+                    "other": {
+                        "id": edge["dst_node_id"] if outgoing else edge["src_node_id"],
+                        "name": edge["dst_name"] if outgoing else edge["src_name"],
+                        "status": (
+                            edge["dst_status"] if outgoing else edge["src_status"]
+                        ),
+                    },
+                    "status": edge["status"],
+                    "confidence": edge["confidence"],
+                    "critic_score": edge_critic.get(edge["id"]),
+                    "source_doc_id": edge["source_doc_id"],
+                }
+            )
+
+        merge_candidates = []
+        if self._table_exists("merge_candidates"):
+            for mrow in self.conn.execute(
+                "SELECT m.*, n.name AS other_name, n.status AS other_status "
+                "FROM merge_candidates m JOIN nodes n ON n.id = "
+                "  (CASE WHEN m.node_a_id = ? THEN m.node_b_id "
+                "        ELSE m.node_a_id END) "
+                "WHERE (m.node_a_id = ? OR m.node_b_id = ?) "
+                "AND m.status = 'proposed' ORDER BY m.score DESC",
+                (entity_id, entity_id, entity_id),
+            ):
+                merge_candidates.append(
+                    {
+                        "id": mrow["id"],
+                        "score": mrow["score"],
+                        "reasons": json.loads(mrow["reasons_json"]),
+                        "other": {
+                            "id": (
+                                mrow["node_b_id"]
+                                if mrow["node_a_id"] == entity_id
+                                else mrow["node_a_id"]
+                            ),
+                            "name": mrow["other_name"],
+                            "status": mrow["other_status"],
+                        },
+                    }
+                )
+
+        return {
+            "entity": entity,
+            "critic": critic,
+            "mentions": mentions,
+            "relations": relations,
+            "merge_candidates": merge_candidates,
+            "counts": {
+                "mentions": len(mentions),
+                "relations_proposed": sum(
+                    1 for r in relations if r["status"] == "proposed"
+                ),
+                "relations_verified": sum(
+                    1 for r in relations if r["status"] == "verified"
+                ),
+                "merge_candidates": len(merge_candidates),
+            },
+        }
+
+    # ------------------------------------------------------------------
     # Verified-only reads (pack build + ground-truth queries)
     # ------------------------------------------------------------------
 
@@ -1850,4 +2028,5 @@ __all__ = [
     "EndpointNotVerified",
     "UnknownItem",
     "normalize_name",
+    "span_excerpt",
 ]

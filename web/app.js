@@ -119,7 +119,12 @@
     else if (ev.key === "r" && reviewCursor >= 0)
       act("reject", reviewRows[reviewCursor].id);
     else if (ev.key === "s") focusRow(reviewCursor + 1); // skip
-    else return;
+    else if (ev.key === "e" && reviewCursor >= 0) {
+      var focused = reviewRows[reviewCursor];
+      // entity view applies to nodes; for an edge, no-op
+      if (focused.kind === "node") loadEntityPanel(focused.id);
+      else return;
+    } else return;
     ev.preventDefault();
   });
 
@@ -200,8 +205,19 @@
         actions.appendChild(approveBtn);
         actions.appendChild(document.createTextNode(" "));
         actions.appendChild(rejectBtn);
+        if (item.kind === "node") {
+          var focusBtn = document.createElement("button");
+          focusBtn.className = "btn";
+          focusBtn.textContent = "Entity";
+          focusBtn.title = "Entity-centric view: all mentions and relations";
+          focusBtn.addEventListener("click", function () {
+            loadEntityPanel(item.id);
+          });
+          actions.appendChild(document.createTextNode(" "));
+          actions.appendChild(focusBtn);
+        }
         tbody.appendChild(tr);
-        reviewRows.push({ id: item.id, tr: tr });
+        reviewRows.push({ id: item.id, kind: item.kind, tr: tr });
       });
       if (reviewRows.length) focusRow(0);
     } catch (e) {
@@ -737,6 +753,127 @@
     } catch (e) {
       err.textContent = String(e.message || e);
       err.classList.remove("hidden");
+    }
+  }
+
+  /* -- Entity-centric review panel (W11) -- */
+
+  async function entityAct(kind, id, entityId) {
+    await act(kind, id); // reuses the per-item gate + queue refresh
+    loadEntityPanel(entityId); // then re-render the panel in place
+  }
+
+  async function loadEntityPanel(entityId) {
+    var panel = $("#entity-panel");
+    var body = $("#entity-panel-body");
+    var err = $("#entity-panel-error");
+    err.classList.add("hidden");
+    panel.classList.remove("hidden");
+    body.innerHTML = "<p class='muted'>Loading…</p>";
+    var ctx;
+    try {
+      ctx = await api("/api/entity/" + encodeURIComponent(entityId) + "/review");
+    } catch (e) {
+      body.innerHTML = "";
+      err.textContent = String(e.message || e);
+      err.classList.remove("hidden");
+      return;
+    }
+    var ent = ctx.entity || {};
+    $("#entity-panel-title").textContent =
+      "Entity: " + (ent.name || entityId.slice(0, 12));
+
+    var html = "";
+    html +=
+      "<p><strong>" + escapeHtml(ent.name || "") + "</strong> " +
+      statusBadge(ent.status) +
+      " <small class='muted'>" + escapeHtml(ent.entity_type || "") +
+      " · conf " +
+      (ent.confidence == null ? "—" : Number(ent.confidence).toFixed(2)) +
+      (ctx.critic
+        ? " · critic " + Number(ctx.critic.score).toFixed(2) +
+          (ctx.critic.rationale
+            ? " (" + escapeHtml(ctx.critic.rationale) + ")"
+            : "")
+        : "") +
+      "</small></p>";
+    if ((ent.aliases || []).length) {
+      html += "<p><small>aliases: " +
+        ent.aliases.map(escapeHtml).join(", ") + "</small></p>";
+    }
+
+    var counts = ctx.counts || {};
+    html += "<h4>Mentions (" + escapeHtml(String(counts.mentions || 0)) + ")</h4>";
+    (ctx.mentions || []).forEach(function (m) {
+      html +=
+        "<div class='status-box'><small class='muted'>" +
+        escapeHtml(m.doc_title || (m.source_doc_id || "").slice(0, 10)) +
+        "</small><br><small>…" +
+        escapeHtml(m.excerpt || "(no span)") + "…</small></div>";
+    });
+
+    html += "<h4>Relations (" +
+      escapeHtml(String(counts.relations_proposed || 0)) + " proposed / " +
+      escapeHtml(String(counts.relations_verified || 0)) + " verified)</h4>";
+    body.innerHTML = html;
+
+    (ctx.relations || []).forEach(function (rel) {
+      var line = document.createElement("div");
+      line.className = "status-row";
+      var arrow =
+        rel.direction === "out"
+          ? "—[" + rel.relation_type + "]→ " + (rel.other || {}).name
+          : "←[" + rel.relation_type + "]— " + (rel.other || {}).name;
+      var label = document.createElement("span");
+      label.innerHTML =
+        statusBadge(rel.status) + " " + escapeHtml(arrow) +
+        " <small class='muted'>(other: " +
+        escapeHtml((rel.other || {}).status || "") + ")" +
+        (rel.critic_score != null
+          ? " critic " + Number(rel.critic_score).toFixed(2)
+          : "") +
+        "</small>";
+      line.appendChild(label);
+      if (rel.status === "proposed") {
+        var actions = document.createElement("span");
+        var ok = document.createElement("button");
+        ok.className = "btn btn-primary";
+        ok.textContent = "Approve";
+        ok.addEventListener("click", function () {
+          entityAct("approve", rel.id, entityId);
+        });
+        var no = document.createElement("button");
+        no.className = "btn btn-danger";
+        no.textContent = "Reject";
+        no.addEventListener("click", function () {
+          entityAct("reject", rel.id, entityId);
+        });
+        actions.appendChild(ok);
+        actions.appendChild(document.createTextNode(" "));
+        actions.appendChild(no);
+        line.appendChild(actions);
+      }
+      body.appendChild(line);
+    });
+
+    if ((ctx.merge_candidates || []).length) {
+      var h4 = document.createElement("h4");
+      h4.textContent = "Merge candidates (" + ctx.merge_candidates.length + ")";
+      body.appendChild(h4);
+      ctx.merge_candidates.forEach(function (cand) {
+        var line = document.createElement("div");
+        line.className = "status-row";
+        var span = document.createElement("span");
+        span.innerHTML =
+          "~ <strong>" + escapeHtml((cand.other || {}).name || "") +
+          "</strong> " + statusBadge((cand.other || {}).status) +
+          " <small class='muted'>score " +
+          Number(cand.score || 0).toFixed(2) + " · " +
+          (cand.reasons || []).map(escapeHtml).join(", ") +
+          " — decide in the Merge tab</small>";
+        line.appendChild(span);
+        body.appendChild(line);
+      });
     }
   }
 

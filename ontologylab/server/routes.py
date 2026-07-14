@@ -186,6 +186,24 @@ def reject_proposal(body: ProposalAction) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Entity-centric review (W11 — read-only aggregation for one entity)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/entity/{entity_id}/review")
+def entity_review(entity_id: str) -> dict[str, Any]:
+    store = _open_store()
+    try:
+        return store.entity_review_context(entity_id)
+    except UnknownItem as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KGStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+# ---------------------------------------------------------------------------
 # Critic triage (W8 — advisory scores; never a decision path)
 # ---------------------------------------------------------------------------
 
