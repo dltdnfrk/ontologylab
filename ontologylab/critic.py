@@ -27,13 +27,18 @@ from ontologylab.engines import (
     EngineError,
     extract_fenced_block,
 )
-from ontologylab.kgstore import KGStore, span_excerpt
+from ontologylab.kgstore import (
+    SPAN_EXCERPT_CONTEXT_CHARS,
+    SPAN_EXCERPT_MAX_CHARS,
+    KGStore,
+    span_excerpt,
+)
 
 CRITIC_PROMPT_VERSION = "critic-v1"
 
-# Evidence excerpt context on each side of the cited span.
-EVIDENCE_CONTEXT_CHARS = 160
-MAX_EVIDENCE_CHARS = 600
+# Evidence excerpt window: same definition the review views use.
+EVIDENCE_CONTEXT_CHARS = SPAN_EXCERPT_CONTEXT_CHARS
+MAX_EVIDENCE_CHARS = SPAN_EXCERPT_MAX_CHARS
 DEFAULT_BATCH_SIZE = 20
 
 

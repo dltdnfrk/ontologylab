@@ -9,6 +9,13 @@ side-effect-free apart from network I/O.
 from __future__ import annotations
 
 import hashlib
+
+from ontologylab import __version__
+
+# Shared outbound HTTP identity + timeout for ALL connectors (single
+# definition so the version tracks __version__ and the timeout can't drift).
+USER_AGENT = f"ontologylab/{__version__} (+local, single-user)"
+FETCH_TIMEOUT_S = 30.0
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 

@@ -14,10 +14,11 @@ from typing import Any
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from ontologylab.connectors.allowlist import check_url
-from ontologylab.connectors.base import RawDocument
-
-_USER_AGENT = "ontologylab/0.1 (+local, single-user)"
-_FETCH_TIMEOUT_S = 30.0
+from ontologylab.connectors.base import (
+    FETCH_TIMEOUT_S as _FETCH_TIMEOUT_S,
+    USER_AGENT as _USER_AGENT,
+    RawDocument,
+)
 
 _SKIPPED_ELEMENTS = {"script", "style", "noscript", "template", "svg", "head"}
 _BLOCK_ELEMENTS = {

@@ -6,6 +6,20 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+from ontologylab.connectors.paper_api import (
+    DEFAULT_LIMIT as PAPER_DEFAULT_LIMIT,
+    DEFAULT_PAPER_SOURCE,
+    MAX_LIMIT as PAPER_MAX_LIMIT,
+)
+from ontologylab.paths import (
+    DEFAULT_ACTOR,
+    DEFAULT_ENGINE,
+    DEFAULT_MAX_ENGINE_CALLS,
+    DEFAULT_MODEL,
+    DEFAULT_SEED,
+    DEFAULT_TIME_BUDGET_S,
+)
+
 
 class CollectRequest(BaseModel):
     """Trigger a collect run against allowlisted sources (Sources screen)."""
@@ -13,8 +27,8 @@ class CollectRequest(BaseModel):
     urls: list[str] = Field(default_factory=list)
     files: list[str] = Field(default_factory=list)
     paper_queries: list[str] = Field(default_factory=list)
-    paper_source: str = "arxiv"
-    limit: int = Field(5, ge=1, le=25)
+    paper_source: str = DEFAULT_PAPER_SOURCE
+    limit: int = Field(PAPER_DEFAULT_LIMIT, ge=1, le=PAPER_MAX_LIMIT)
 
 
 class ExtractRequest(BaseModel):
@@ -23,9 +37,9 @@ class ExtractRequest(BaseModel):
     engine: str = "mock"
     model: Optional[str] = None
     doc_ids: list[str] = Field(default_factory=list)
-    max_engine_calls: int = Field(200, ge=1)
-    time_budget: float = Field(1800.0, gt=0)
-    seed: int = 7
+    max_engine_calls: int = Field(DEFAULT_MAX_ENGINE_CALLS, ge=1)
+    time_budget: float = Field(DEFAULT_TIME_BUDGET_S, gt=0)
+    seed: int = DEFAULT_SEED
 
 
 class PackBuildRequest(BaseModel):
@@ -45,8 +59,8 @@ class EngineInfo(BaseModel):
 class Settings(BaseModel):
     """Persisted local defaults for extraction / review."""
 
-    default_engine: str = "claude"
-    default_model: Optional[str] = "claude-fable-5"
+    default_engine: str = DEFAULT_ENGINE
+    default_model: Optional[str] = DEFAULT_MODEL
     data_dir: Optional[str] = None
     packs_dir: Optional[str] = None
 
@@ -63,7 +77,7 @@ class ProposalAction(BaseModel):
     """Approve or reject a single proposed node/edge."""
 
     id: str
-    by: str = "local-user"
+    by: str = DEFAULT_ACTOR
     note: Optional[str] = None
     cascade: bool = False
 
@@ -92,14 +106,14 @@ class MergeAction(BaseModel):
 
     target_id: str
     source_id: str
-    by: str = "local-user"
+    by: str = DEFAULT_ACTOR
     note: Optional[str] = None
 
 
 class MergeDismiss(BaseModel):
     """Dismiss one merge candidate (never re-proposed)."""
 
-    by: str = "local-user"
+    by: str = DEFAULT_ACTOR
     note: Optional[str] = None
 
 

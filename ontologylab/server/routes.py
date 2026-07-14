@@ -32,6 +32,7 @@ from ontologylab.connectors.paper_api import (
 )
 from ontologylab.connectors.web_crawl import WebCrawlConnector
 from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError, UnknownItem
+from ontologylab.mcp_server import serve_args
 from ontologylab.packbuilder import PackBuildError, build_pack, list_packs
 from ontologylab.paths import default_data_dir, default_packs_dir, kg_db_path
 from ontologylab.provenance import Provenance
@@ -611,20 +612,12 @@ def mcp_status() -> dict[str, Any]:
                 "pack_id": pack_id,
                 "counts": manifest.get("counts") or {},
                 "created_ts": manifest.get("created_ts"),
-                "serve_command": (
-                    f"python -m ontologylab.mcp_server "
-                    f"--packs-dir {packs_abs} --pack {pack_id}"
+                "serve_command": "python " + " ".join(
+                    serve_args(packs_abs, pack_id)
                 ),
                 "stdio_config": {
                     "command": "python",
-                    "args": [
-                        "-m",
-                        "ontologylab.mcp_server",
-                        "--packs-dir",
-                        packs_abs,
-                        "--pack",
-                        pack_id,
-                    ],
+                    "args": serve_args(packs_abs, pack_id),
                 },
             }
         )

@@ -23,7 +23,7 @@ except ImportError:  # pragma: no cover
     from typing import TypedDict
 
 from ontologylab.kgstore import KGStore, KGStoreError
-from ontologylab.engines import EngineError, get_engine
+from ontologylab.engines import ENGINE_NAMES, EngineError, get_engine
 from ontologylab.expansion import expand_query
 from ontologylab.packbuilder import list_packs as discover_packs, pack_sqlite_path
 from ontologylab.paths import default_packs_dir
@@ -31,6 +31,24 @@ from ontologylab.paths import default_packs_dir
 
 class NoActivePack(Exception):
     """Raised when a query tool is called before any pack is loaded."""
+
+
+def serve_args(packs_dir: str | Path, pack_id: str) -> list[str]:
+    """argv (after the Python interpreter) that serves one pack over stdio.
+
+    Single authority for the launch invocation — the dashboard's MCP screen
+    and the CLI's build-pack hint both render from this, so an argparse flag
+    rename here can't silently strand them.
+    """
+    return [
+        "-m",
+        "ontologylab.mcp_server",
+        "--packs-dir",
+        str(packs_dir),
+        "--pack",
+        pack_id,
+    ]
+
 
 
 # ---------------------------------------------------------------------------
@@ -809,7 +827,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--expansion-engine",
         default=None,
-        choices=["mock", "claude", "codex", "gemini"],
+        choices=list(ENGINE_NAMES),
         help="Optional LLM engine for semantic_search query expansion "
         "(expand=True). Default: none (plain lexical search only).",
     )

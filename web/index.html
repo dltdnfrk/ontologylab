@@ -122,13 +122,15 @@
           <input type="text" id="collect-paper-query" placeholder="knowledge graph extraction" />
         </label>
         <label>Paper source
+          <!-- options mirror paper_api.IMPLEMENTED_SOURCES (crossref is
+               allowlisted but not implemented yet — don't offer it) -->
           <select id="collect-paper-source">
             <option value="arxiv" selected>arxiv</option>
-            <option value="crossref">crossref</option>
           </select>
         </label>
         <label>Limit
-          <input type="number" id="collect-limit" value="5" min="1" max="50" />
+          <!-- bounds mirror paper_api.DEFAULT_LIMIT / MAX_LIMIT -->
+          <input type="number" id="collect-limit" value="5" min="1" max="25" />
         </label>
         <div class="form-actions">
           <button type="submit" id="collect-submit" class="btn btn-primary">Collect</button>
@@ -148,6 +150,7 @@
           <input type="text" id="extract-model" placeholder="engine default" />
         </label>
         <label>Seed
+          <!-- mirrors paths.DEFAULT_SEED -->
           <input type="number" id="extract-seed" value="7" />
         </label>
         <div class="form-actions">

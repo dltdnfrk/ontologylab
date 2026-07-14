@@ -40,7 +40,7 @@ from ontologylab.connectors.paper_api import (
     check_source_implemented,
 )
 from ontologylab.connectors.web_crawl import WebCrawlConnector
-from ontologylab.engines import EngineError, get_engine
+from ontologylab.engines import ENGINE_NAMES, EngineError, get_engine
 from ontologylab.expansion import expand_query
 from ontologylab.extractor import (
     PROMPT_VERSION,
@@ -717,8 +717,10 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
     )
     print(f"[ontologylab] built pack {manifest.pack_id}")
     print(json.dumps(manifest.counts, indent=2))
-    print(f"[ontologylab] serve it: python -m ontologylab.mcp_server "
-          f"--packs-dir {args.packs_dir} --pack {manifest.pack_id}")
+    from ontologylab.mcp_server import serve_args
+
+    print("[ontologylab] serve it: python "
+          + " ".join(serve_args(args.packs_dir, manifest.pack_id)))
     return 0
 
 
@@ -919,7 +921,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     p_extract = sub.add_parser("extract", help="LLM-extract proposed entities/relations.")
     p_extract.add_argument("--engine", default=paths.DEFAULT_ENGINE,
-                           choices=["mock", "claude", "codex", "gemini"])
+                           choices=list(ENGINE_NAMES))
     p_extract.add_argument("--model", default=paths.DEFAULT_MODEL)
     p_extract.add_argument("--doc-ids", nargs="*", default=None,
                            help="Documents to extract (default: all unprocessed).")
@@ -957,14 +959,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     p_approve.add_argument("--cascade", action="store_true",
                            help="Approve an edge together with its endpoint nodes.")
-    p_approve.add_argument("--by", default="local-user")
+    p_approve.add_argument("--by", default=paths.DEFAULT_ACTOR)
     p_approve.add_argument("--note", default=None)
     _add_data_dir(p_approve)
     p_approve.set_defaults(func=cmd_approve)
 
     p_reject = sub.add_parser("reject", help="Reject a proposed item (kept for audit).")
     p_reject.add_argument("--id", required=True)
-    p_reject.add_argument("--by", default="local-user")
+    p_reject.add_argument("--by", default=paths.DEFAULT_ACTOR)
     p_reject.add_argument("--note", default=None)
     _add_data_dir(p_reject)
     p_reject.set_defaults(func=cmd_reject)
@@ -976,7 +978,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     p_invalidate.add_argument("--id", required=True, help="Edge id.")
     p_invalidate.add_argument("--reason", default=None)
-    p_invalidate.add_argument("--by", default="local-user")
+    p_invalidate.add_argument("--by", default=paths.DEFAULT_ACTOR)
     _add_data_dir(p_invalidate)
     p_invalidate.set_defaults(func=cmd_invalidate)
 
@@ -995,7 +997,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
              "only: sorts the queue and flags disagreements; never approves).",
     )
     p_critic.add_argument("--engine", default="mock",
-                          choices=["mock", "claude", "codex", "gemini"])
+                          choices=list(ENGINE_NAMES))
     p_critic.add_argument("--model", default=None)
     p_critic.add_argument("--limit", type=int, default=200,
                           help="Max pending items to score this run.")
@@ -1029,7 +1031,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     p_merge.add_argument("--target", required=True, help="Surviving node id.")
     p_merge.add_argument("--source", required=True, help="Node id to merge away.")
-    p_merge.add_argument("--by", default="local-user")
+    p_merge.add_argument("--by", default=paths.DEFAULT_ACTOR)
     p_merge.add_argument("--note", default=None)
     _add_data_dir(p_merge)
     p_merge.set_defaults(func=cmd_merge)
@@ -1038,7 +1040,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "merge-dismiss", help="Dismiss a merge candidate (never re-proposed)."
     )
     p_merge_dismiss.add_argument("--id", required=True, help="Candidate id.")
-    p_merge_dismiss.add_argument("--by", default="local-user")
+    p_merge_dismiss.add_argument("--by", default=paths.DEFAULT_ACTOR)
     p_merge_dismiss.add_argument("--note", default=None)
     _add_data_dir(p_merge_dismiss)
     p_merge_dismiss.set_defaults(func=cmd_merge_dismiss)
@@ -1048,7 +1050,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_build.add_argument("--packs-dir", default=str(paths.default_packs_dir()))
     p_build.add_argument(
         "--summarize-engine", default=None,
-        choices=["mock", "claude", "codex", "gemini"],
+        choices=list(ENGINE_NAMES),
         help="Optional LLM for community summaries (default: extractive, "
              "model-free). Any failure falls back to extractive per community.",
     )
@@ -1091,7 +1093,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
                           help="Expand the query with LLM lexical variants "
                                "(fails open to plain lexical search).")
     p_search.add_argument("--engine", default="mock",
-                          choices=["mock", "claude", "codex", "gemini"])
+                          choices=list(ENGINE_NAMES))
     p_search.add_argument("--model", default=None)
     p_search.add_argument(
         "--embedder", default=None,

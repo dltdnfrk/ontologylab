@@ -570,6 +570,8 @@
       engine: $("#extract-engine").value || "mock",
       model: model || null,
       doc_ids: [],
+      /* mirror paths.DEFAULT_MAX_ENGINE_CALLS / DEFAULT_TIME_BUDGET_S —
+         change there first, then here */
       max_engine_calls: 200,
       time_budget: 1800,
       seed: toInt($("#extract-seed").value, 7),

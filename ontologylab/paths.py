@@ -20,8 +20,14 @@ DEFAULT_MODEL: str = "claude-fable-5"
 DEFAULT_SEED: int = 7
 
 # Extraction-job safety defaults (consumed by safety.Caps via a config object).
+# The server layer (schemas.ExtractRequest) and the dashboard's extract form
+# mirror these — change them HERE, not at the call sites.
 DEFAULT_MAX_ENGINE_CALLS: int = 200
 DEFAULT_TIME_BUDGET_S: float = 1800.0
+
+# Audit-trail actor recorded on approve/reject/merge/invalidate when the
+# caller doesn't name one (single-user local deployment).
+DEFAULT_ACTOR: str = "local-user"
 
 
 def default_data_dir(root: Path | None = None) -> Path:

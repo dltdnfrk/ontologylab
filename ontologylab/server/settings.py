@@ -7,7 +7,13 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from ontologylab.paths import ROOT, default_data_dir
+from ontologylab.paths import (
+    DEFAULT_ENGINE,
+    DEFAULT_MODEL,
+    ROOT,
+    default_data_dir,
+    default_packs_dir,
+)
 from ontologylab.server.schemas import CostSummary, EngineInfo, Settings
 
 _ENGINE_CLI_NAMES: dict[str, str] = {
@@ -17,7 +23,7 @@ _ENGINE_CLI_NAMES: dict[str, str] = {
 }
 
 _DEFAULT_MODELS: dict[str, str | None] = {
-    "claude": "claude-fable-5",
+    "claude": DEFAULT_MODEL,
     "codex": None,
     "gemini": None,
     "mock": None,
@@ -32,10 +38,10 @@ def _settings_path(root: Path = ROOT) -> Path:
 
 def default_settings() -> Settings:
     return Settings(
-        default_engine="claude",
-        default_model="claude-fable-5",
+        default_engine=DEFAULT_ENGINE,
+        default_model=DEFAULT_MODEL,
         data_dir=str(default_data_dir()),
-        packs_dir=str(ROOT / "packs"),
+        packs_dir=str(default_packs_dir()),
     )
 
 

@@ -17,14 +17,21 @@ from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
 from ontologylab.connectors.allowlist import check_paper_query
-from ontologylab.connectors.base import RawDocument
-
-_USER_AGENT = "ontologylab/0.1 (+local, single-user)"
-_FETCH_TIMEOUT_S = 30.0
+from ontologylab.connectors.base import (
+    FETCH_TIMEOUT_S as _FETCH_TIMEOUT_S,
+    USER_AGENT as _USER_AGENT,
+    RawDocument,
+)
 
 _ATOM_NS = "{http://www.w3.org/2005/Atom}"
+
+# The one external endpoint this system ever fetches (keyless Atom API).
+ARXIV_API_URL = "https://export.arxiv.org/api/query"
 DEFAULT_LIMIT = 5
-_MAX_LIMIT = 25
+MAX_LIMIT = 25
+_MAX_LIMIT = MAX_LIMIT  # back-compat alias
+
+DEFAULT_PAPER_SOURCE = "arxiv"
 
 IMPLEMENTED_SOURCES: frozenset[str] = frozenset({"arxiv"})
 
@@ -53,7 +60,7 @@ def _fetch_atom(url: str) -> str:
 
 def _build_query_url(query: str, limit: int) -> str:
     return (
-        "https://export.arxiv.org/api/query"
+        f"{ARXIV_API_URL}"
         f"?search_query=all:{quote_plus(query)}"
         f"&start=0&max_results={limit}"
     )
@@ -98,7 +105,7 @@ class PaperApiConnector:
         return "paper_api"
 
     async def fetch(self, source_spec: dict[str, Any]) -> list[RawDocument]:
-        source: str = source_spec.get("source") or "arxiv"
+        source: str = source_spec.get("source") or DEFAULT_PAPER_SOURCE
         # Strip ONCE here so the allowlist check and the URL are built from
         # the same canonicalized query text.
         query: str = (source_spec.get("query") or "").strip()

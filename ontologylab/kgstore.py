@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 
 from ontologylab import ontology_schema as default_schema
+from ontologylab.paths import DEFAULT_ACTOR
 from ontologylab.models import Document, ProposedEntity, ProposedRelation
 
 REVIEW_STATUSES = ("proposed", "verified", "rejected")
@@ -51,12 +52,18 @@ class UnknownItem(KGStoreError):
     """Raised when an id matches neither a node nor an edge."""
 
 
+# One definition of "a mention in context": consumed by span_excerpt's
+# defaults, entity_review_context, and critic.py's evidence prompts.
+SPAN_EXCERPT_CONTEXT_CHARS = 160
+SPAN_EXCERPT_MAX_CHARS = 600
+
+
 def span_excerpt(
     raw_text: str,
     span: dict | None,
     *,
-    context_chars: int = 160,
-    max_chars: int = 600,
+    context_chars: int = SPAN_EXCERPT_CONTEXT_CHARS,
+    max_chars: int = SPAN_EXCERPT_MAX_CHARS,
 ) -> str:
     """The cited span ± context, with >>> <<< marking the span itself.
 
@@ -893,7 +900,7 @@ class KGStore:
         self,
         item_id: str,
         *,
-        by: str = "local-user",
+        by: str = DEFAULT_ACTOR,
         note: str | None = None,
         cascade: bool = False,
     ) -> dict[str, Any]:
@@ -927,7 +934,7 @@ class KGStore:
         return {"kind": kind, "approved_ids": approved}
 
     def reject(
-        self, item_id: str, *, by: str = "local-user", note: str | None = None
+        self, item_id: str, *, by: str = DEFAULT_ACTOR, note: str | None = None
     ) -> dict[str, Any]:
         """Flip one proposed row to rejected (kept for audit, never served)."""
         self._assert_writable()
@@ -950,7 +957,7 @@ class KGStore:
         self,
         edge_id: str,
         *,
-        by: str = "local-user",
+        by: str = DEFAULT_ACTOR,
         reason: str | None = None,
     ) -> dict[str, Any]:
         """W13: mark a VERIFIED edge as no-longer-current (human action).
@@ -994,7 +1001,7 @@ class KGStore:
         relation_type: str | None = None,
         source_doc_id: str | None = None,
         min_confidence: float | None = None,
-        by: str = "local-user",
+        by: str = DEFAULT_ACTOR,
         note: str | None = None,
     ) -> dict[str, Any]:
         """Approve a filtered batch: nodes first, then edges whose endpoints
@@ -1161,7 +1168,7 @@ class KGStore:
         return out
 
     def dismiss_merge_candidate(
-        self, candidate_id: str, *, by: str = "local-user", note: str | None = None
+        self, candidate_id: str, *, by: str = DEFAULT_ACTOR, note: str | None = None
     ) -> dict[str, Any]:
         """Human decision: this pair is NOT a duplicate. Never re-proposed."""
         self._assert_writable()
@@ -1183,7 +1190,7 @@ class KGStore:
         target_id: str,
         source_id: str,
         *,
-        by: str = "local-user",
+        by: str = DEFAULT_ACTOR,
         note: str | None = None,
     ) -> dict[str, Any]:
         """Merge ``source`` into ``target`` — an explicit human action.
@@ -1489,7 +1496,7 @@ class KGStore:
     # ------------------------------------------------------------------
 
     def entity_review_context(
-        self, entity_id: str, *, context_chars: int = 160
+        self, entity_id: str, *, context_chars: int = SPAN_EXCERPT_CONTEXT_CHARS
     ) -> dict[str, Any]:
         """One entity's full review context: every mention (span excerpt in
         source context), every proposed/verified relation with the other

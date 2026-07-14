@@ -13,7 +13,7 @@ boundary):
     whole pipeline (parsing, span rebasing, entity resolution, citation
     integrity) is exercisable in tests and CI with zero network/CLI use.
   - ClaudeEngine: shells out to `claude -p <prompt> --model <model>`
-    (default model "claude-fable-5").
+    (default model: paths.DEFAULT_MODEL).
   - CodexEngine: shells out to `codex exec <prompt>` (best-effort).
   - GeminiEngine: shells out to `gemini -p <prompt>` (best-effort).
 
@@ -28,6 +28,8 @@ import re
 import subprocess
 import time
 from typing import Optional
+
+from ontologylab.paths import DEFAULT_MODEL
 
 
 class EngineError(Exception):
@@ -347,15 +349,15 @@ class ClaudeEngine:
     """Engine backed by the `claude` CLI.
 
     Invokes: claude -p <prompt> --model <model>
-    Default model is "claude-fable-5" per project configuration.
+    Default model comes from paths.DEFAULT_MODEL.
     """
 
     def __init__(
         self,
-        model: Optional[str] = "claude-fable-5",
+        model: Optional[str] = DEFAULT_MODEL,
         timeout_s: float = _DEFAULT_TIMEOUT_S,
     ) -> None:
-        self._model = model or "claude-fable-5"
+        self._model = model or DEFAULT_MODEL
         self._timeout_s = timeout_s
 
     def name(self) -> str:
@@ -429,7 +431,10 @@ class GeminiEngine:
 # Factory
 # ---------------------------------------------------------------------------
 
-_ENGINE_NAMES = ("mock", "claude", "codex", "gemini")
+# Single source of truth for "which engines exist" — argparse choices
+# in main.py / mcp_server.py consume this instead of re-typing the list.
+ENGINE_NAMES = ("mock", "claude", "codex", "gemini")
+_ENGINE_NAMES = ENGINE_NAMES  # back-compat alias
 
 
 def get_engine(name: str, model: Optional[str] = None, seed: int = 7):
@@ -440,7 +445,7 @@ def get_engine(name: str, model: Optional[str] = None, seed: int = 7):
     if name == "mock":
         return MockEngine(seed=seed)
     if name == "claude":
-        return ClaudeEngine(model=model or "claude-fable-5")
+        return ClaudeEngine(model=model or DEFAULT_MODEL)
     if name == "codex":
         return CodexEngine(model=model)
     if name == "gemini":
