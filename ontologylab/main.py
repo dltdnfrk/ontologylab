@@ -722,6 +722,39 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_pack_diff(args: argparse.Namespace) -> int:
+    from ontologylab.packbuilder import PackBuildError
+    from ontologylab.packdiff import diff_packs
+
+    try:
+        diff = diff_packs(args.packs_dir, args.a, args.b)
+    except PackBuildError as exc:
+        print(f"[ontologylab] error: {exc}", file=sys.stderr)
+        return 2
+    print(f"[ontologylab] {args.a} -> {args.b}")
+    if diff["identical"]:
+        print("[ontologylab] packs are byte-identical (same content hash)")
+        return 0
+    for field, change in diff["manifest_changes"].items():
+        print(f"  manifest {field}: {change['a']!r} -> {change['b']!r}")
+    for kind in ("nodes", "edges"):
+        section = diff[kind]
+        for verb in ("added", "removed", "changed"):
+            for item in section[verb]:
+                suffix = (
+                    f" ({', '.join(item['fields'])})" if verb == "changed" else ""
+                )
+                print(f"  {verb} {kind[:-1]}: {item['label']}{suffix}")
+    summary = diff["summary"]
+    print(
+        f"[ontologylab] nodes +{summary['nodes_added']} "
+        f"-{summary['nodes_removed']} ~{summary['nodes_changed']} | "
+        f"edges +{summary['edges_added']} -{summary['edges_removed']} "
+        f"~{summary['edges_changed']}"
+    )
+    return 0
+
+
 def cmd_build_mcpb(args: argparse.Namespace) -> int:
     from ontologylab.mcpb import build_mcpb
     from ontologylab.packbuilder import PackBuildError
@@ -1022,6 +1055,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_build.add_argument("--summarize-model", default=None)
     _add_data_dir(p_build)
     p_build.set_defaults(func=cmd_build_pack)
+
+    p_pack_diff = sub.add_parser(
+        "pack-diff",
+        help="Diff two built packs: manifest deltas + added/removed/changed "
+             "nodes and edges (id-stable across rebuilds).",
+    )
+    p_pack_diff.add_argument("--a", required=True, help="Older pack id.")
+    p_pack_diff.add_argument("--b", required=True, help="Newer pack id.")
+    p_pack_diff.add_argument("--packs-dir", default=str(paths.default_packs_dir()))
+    p_pack_diff.set_defaults(func=cmd_pack_diff)
 
     p_mcpb = sub.add_parser(
         "build-mcpb",

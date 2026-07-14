@@ -547,6 +547,17 @@ def packs_build(body: PackBuildRequest) -> dict[str, Any]:
     return {"ok": True, "manifest": dataclasses.asdict(manifest)}
 
 
+@router.get("/packs/{pack_a_id}/diff/{pack_b_id}")
+def packs_diff(pack_a_id: str, pack_b_id: str) -> dict[str, Any]:
+    """W14: manifest + node/edge deltas between two built packs."""
+    from ontologylab.packdiff import diff_packs
+
+    try:
+        return diff_packs(_packs_dir, pack_a_id, pack_b_id)
+    except PackBuildError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.post("/packs/{pack_id}/mcpb")
 def packs_build_mcpb(pack_id: str) -> dict[str, Any]:
     """Bundle one built pack as a downloadable .mcpb file."""
