@@ -74,7 +74,8 @@ MVP 컷라인 + post-MVP Wave 1 + Wave 2 핵심 **코드 + 테스트 완료**.
 | W7 엔티티 병합 리뷰 (merge_candidates + merge_nodes + Merge 탭/CLI, 사람만 병합) | ✅ (`1acfdaf`) |
 | W8 크리틱 트리아지 (critic_reviews, order=critic, 불일치 플래그 — 순수 자문, 자동승인 없음) | ✅ (`c304a20`) |
 | W10 .mcpb 팩 번들 (단일파일 배포, Claude Desktop 드래그앤드롭) | ✅ (`f56a68f`) |
-| pytest (191) | ✅ green |
+| W9 MCP 2단 응답 (컴팩트 기본 + `get_entity` 상세 + `detail=` 옵트인) + `pack://` resources 3종 — 구버전 팩 하위호환 가드 포함, 실 stdio 왕복 검증 | ✅ (`6c8bb64`) |
+| pytest (203) | ✅ green |
 | E2E: collect → extract → approve → pack → MCP query (CLI + API 양쪽) | ✅ |
 
 ### 환경 트랩 (재부팅 후 재발 가능)
@@ -102,7 +103,6 @@ python3.13 -m venv .venv && .venv/bin/pip install -e . pytest httpx fastapi 'uvi
 
 ## 남은 선택 작업 (Wave 2 잔여 + Wave 3)
 
-- **W9** MCP 2단 응답(컴팩트 기본 + 상세 후속) + `pack://` resources 노출
 - **W11** 엔티티 중심 리뷰 모드 (한 엔티티의 모든 멘션·관계 한 화면)
 - Wave 3 (W12 커뮤니티 요약 / W13 bitemporal / W14 팩 diff) — `docs/RESEARCH-post-mvp.md` 참조
 
@@ -110,8 +110,8 @@ python3.13 -m venv .venv && .venv/bin/pip install -e . pytest httpx fastapi 'uvi
 
 ```
 ~/Documents/MUNI/ontologylab/HANDOFF.md 를 읽고 이어서 작업해줘.
-MVP(M0–M8) + Wave 1 + W6 실모델 + W7/W8/W10까지 완료 (pytest 191 green).
-남은 선택 작업: W9 (MCP 2단 응답 + resources), W11 (엔티티 중심 리뷰), Wave 3.
+MVP(M0–M8) + Wave 1 + W6 실모델 + W7/W8/W9/W10까지 완료 (pytest 203 green).
+남은 선택 작업: W11 (엔티티 중심 리뷰), Wave 3 (W12/W13/W14).
 용어는 계속 중립(지식그래프/최적화 프레임워크)으로 유지.
 ```
 
