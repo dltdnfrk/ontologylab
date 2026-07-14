@@ -257,6 +257,32 @@ class PackSession:
         )
         return {"entity": entity, "pack": self._provenance()}
 
+    def get_communities(
+        self, community_id: str | None = None, limit: int = 20
+    ) -> dict[str, Any]:
+        """W12 global view: build-time community summaries of the pack.
+
+        Without ``community_id``: the community list (largest first) —
+        enough to answer "what is this corpus about". With it: that
+        community's row plus its full member list for drill-down.
+        """
+        store = self._require_store()
+        if community_id is None:
+            communities = store.list_communities(limit=limit)
+            members: list[dict[str, Any]] = []
+        else:
+            communities = [
+                c for c in store.list_communities(limit=1000)
+                if c["id"] == community_id
+            ]
+            members = store.community_members(community_id)
+        return {
+            "communities": communities,
+            "members": members,
+            "count": len(communities),
+            "pack": self._provenance(),
+        }
+
     # ------------------------------------------------------------------
     # Resources (pack://... addressing; read-only, JSON payloads)
     # ------------------------------------------------------------------
@@ -530,6 +556,15 @@ class EntityDetailResult(TypedDict):
     pack: PackProvenance
 
 
+class CommunitiesResult(TypedDict):
+    """Build-time community summaries; members filled when one is named."""
+
+    communities: list[dict[str, Any]]
+    members: list[dict[str, Any]]
+    count: int
+    pack: PackProvenance
+
+
 class SearchResult(TypedDict):
     """Uniform search envelope: expansion fields are always present
     (empty/None when expansion was not used) so the outputSchema is exact."""
@@ -607,6 +642,16 @@ def build_mcp_app(session: PackSession) -> Any:
             limit=limit,
             detail=detail,
         )
+
+    @mcp.tool()
+    def get_communities(
+        community_id: str | None = None, limit: int = 20
+    ) -> CommunitiesResult:
+        """Corpus-level view of the pack: communities detected at build time
+        with per-community summaries (largest first). Use for "what are the
+        main themes?" questions BFS tools can't answer; pass community_id to
+        drill into one community's members."""
+        return session.get_communities(community_id=community_id, limit=limit)
 
     @mcp.tool()
     def get_entity(id: str, include_proposed: bool = False) -> EntityDetailResult:

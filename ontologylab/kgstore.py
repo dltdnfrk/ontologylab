@@ -213,6 +213,26 @@ CREATE TABLE IF NOT EXISTS citations (
 );
 CREATE INDEX IF NOT EXISTS idx_citations_item ON citations (kind, item_id);
 
+-- W12 communities: computed ONCE at pack build time over the verified
+-- subgraph (deterministic label propagation), then served read-only. The
+-- working DB normally leaves these empty — they answer corpus-level
+-- questions against an immutable pack, not a moving working set.
+CREATE TABLE IF NOT EXISTS communities (
+    id               TEXT PRIMARY KEY,
+    member_count     INTEGER NOT NULL,
+    top_members_json TEXT NOT NULL DEFAULT '[]',
+    summary          TEXT,
+    summary_method   TEXT NOT NULL DEFAULT 'extractive',
+    created_ts       REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS community_members (
+    community_id TEXT NOT NULL REFERENCES communities(id),
+    node_id      TEXT NOT NULL REFERENCES nodes(id),
+    PRIMARY KEY (community_id, node_id)
+);
+CREATE INDEX IF NOT EXISTS idx_community_members_node
+    ON community_members (node_id);
+
 -- W8 critic triage: a second model pre-scores proposed extractions so the
 -- review queue can be sorted and disagreements flagged. Scores are advisory
 -- ONLY: nothing in this table feeds approve()/bulk_approve(), no score ever
@@ -1486,6 +1506,74 @@ class KGStore:
                 "merge_candidates": len(merge_candidates),
             },
         }
+
+    # ------------------------------------------------------------------
+    # W12 communities (read side; rows are written by the pack builder)
+    # ------------------------------------------------------------------
+
+    def list_communities(self, *, limit: int = 20) -> list[dict[str, Any]]:
+        """Communities of this store, largest first. Empty when the store
+        predates W12 or no build has computed them (never an error)."""
+        if not self._table_exists("communities"):
+            return []
+        rows = self.conn.execute(
+            "SELECT * FROM communities ORDER BY member_count DESC, id LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "member_count": r["member_count"],
+                "top_members": json.loads(r["top_members_json"]),
+                "summary": r["summary"],
+                "summary_method": r["summary_method"],
+            }
+            for r in rows
+        ]
+
+    def community_members(self, community_id: str) -> list[dict[str, Any]]:
+        """Member nodes of one community (id/name/type/status)."""
+        if not self._table_exists("communities"):
+            raise UnknownItem(f"unknown community id {community_id!r}")
+        exists = self.conn.execute(
+            "SELECT 1 FROM communities WHERE id = ?", (community_id,)
+        ).fetchone()
+        if exists is None:
+            raise UnknownItem(f"unknown community id {community_id!r}")
+        rows = self.conn.execute(
+            "SELECT n.id, n.name, n.entity_type, n.status "
+            "FROM community_members m JOIN nodes n ON n.id = m.node_id "
+            "WHERE m.community_id = ? ORDER BY n.name",
+            (community_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def write_communities(self, rows: list[dict[str, Any]]) -> None:
+        """Replace this store's community rows (pack build time only)."""
+        self._assert_writable()
+        now = time.time()
+        self.conn.execute("DELETE FROM community_members")
+        self.conn.execute("DELETE FROM communities")
+        for row in rows:
+            self.conn.execute(
+                "INSERT INTO communities (id, member_count, top_members_json, "
+                "summary, summary_method, created_ts) VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    row["id"],
+                    len(row["members"]),
+                    json.dumps(row["top_members"]),
+                    row["summary"],
+                    row["summary_method"],
+                    now,
+                ),
+            )
+            for node_id in row["members"]:
+                self.conn.execute(
+                    "INSERT INTO community_members (community_id, node_id) "
+                    "VALUES (?, ?)",
+                    (row["id"], node_id),
+                )
+        self.conn.commit()
 
     # ------------------------------------------------------------------
     # Verified-only reads (pack build + ground-truth queries)

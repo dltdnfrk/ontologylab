@@ -43,8 +43,17 @@ def build_pack(
     *,
     source_job_id: str | None = None,
     provenance_jsonl: str | Path | None = None,
+    summarizer=None,
+    summary_method: str = "extractive",
 ) -> PackManifest:
-    """Snapshot the verified subgraph into a new immutable pack directory."""
+    """Snapshot the verified subgraph into a new immutable pack directory.
+
+    W12: communities are detected (deterministic label propagation) and
+    summarized ONCE here, so the shipped pack answers corpus-level "main
+    themes" questions without recomputation. ``summarizer`` optionally
+    replaces the extractive summaries (e.g. LLM-backed, fail-open); pass
+    ``summary_method`` to label how those summaries were made.
+    """
     kg_db_path = Path(kg_db_path)
     if not kg_db_path.is_file():
         raise PackBuildError(f"working KG not found: {kg_db_path}")
@@ -113,6 +122,46 @@ def build_pack(
         conn.commit()
         conn.execute("DETACH DATABASE live")
 
+        # W12: communities over the (verified-only) pack contents.
+        from ontologylab.communities import build_communities
+
+        community_nodes = [
+            {"id": r[0], "name": r[1]}
+            for r in conn.execute("SELECT id, name FROM nodes")
+        ]
+        community_edges = [
+            {"source_id": r[0], "target_id": r[1], "relation_type": r[2]}
+            for r in conn.execute(
+                "SELECT src_node_id, dst_node_id, relation_type FROM edges"
+            )
+        ]
+        community_rows = build_communities(
+            community_nodes,
+            community_edges,
+            summarizer=summarizer,
+            summary_method=summary_method,
+        )
+        now = time.time()
+        for row in community_rows:
+            conn.execute(
+                "INSERT INTO communities (id, member_count, top_members_json, "
+                "summary, summary_method, created_ts) VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    row["id"],
+                    len(row["members"]),
+                    json.dumps(row["top_members"]),
+                    row["summary"],
+                    row["summary_method"],
+                    now,
+                ),
+            )
+            conn.executemany(
+                "INSERT INTO community_members (community_id, node_id) "
+                "VALUES (?, ?)",
+                [(row["id"], node_id) for node_id in row["members"]],
+            )
+        conn.commit()
+
         # Finalize for read-only serving: WAL off, optimized, vacuumed.
         conn.execute("PRAGMA journal_mode=DELETE")
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -133,6 +182,7 @@ def build_pack(
             "edges_verified": _count(conn, "edges"),
             "entity_types": _count(conn, "entity_type"),
             "relation_types": _count(conn, "relation_type"),
+            "communities": _count(conn, "communities"),
         }
     finally:
         conn.close()

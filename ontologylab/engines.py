@@ -115,6 +115,17 @@ _QUERY_SECTION_RE = re.compile(
     re.DOTALL,
 )
 
+# Shared prompt-format contract with communities.build_summary_prompt: the
+# community context to summarize is wrapped in these markers as JSON.
+COMMUNITY_MARKER_OPEN = "<community-summary>"
+COMMUNITY_MARKER_CLOSE = "</community-summary>"
+
+_COMMUNITY_SECTION_RE = re.compile(
+    re.escape(COMMUNITY_MARKER_OPEN) + r"\n(.*?)\n"
+    + re.escape(COMMUNITY_MARKER_CLOSE),
+    re.DOTALL,
+)
+
 # Shared prompt-format contract with critic.build_critic_prompt: the items
 # to score are wrapped in these markers as a JSON array.
 CRITIC_MARKER_OPEN = "<critic-items>"
@@ -236,6 +247,21 @@ def _mock_critic(prompt: str) -> str:
     return "```json\n" + json.dumps(reviews, indent=2) + "\n```"
 
 
+def _mock_community_summary(prompt: str) -> str:
+    """Deterministic one-line summary of a <community-summary> payload."""
+    section = _COMMUNITY_SECTION_RE.search(prompt)
+    anchor = "this community"
+    if section is not None:
+        try:
+            payload = json.loads(section.group(1))
+            members = payload.get("members") or []
+            if members:
+                anchor = str(members[0])
+        except json.JSONDecodeError:
+            pass
+    return f"Mock summary: a cluster anchored by {anchor}."
+
+
 def _mock_expansion(prompt: str) -> str:
     """Deterministically derive an expansion JSON array from the prompt.
 
@@ -298,6 +324,8 @@ class MockEngine:
         start = time.monotonic()
         if CRITIC_MARKER_OPEN in prompt:
             text = _mock_critic(prompt)
+        elif COMMUNITY_MARKER_OPEN in prompt:
+            text = _mock_community_summary(prompt)
         elif QUERY_MARKER_OPEN in prompt:
             text = _mock_expansion(prompt)
         else:

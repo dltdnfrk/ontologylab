@@ -674,12 +674,24 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
     job_dir = paths.new_job_dir(data_dir, "build-pack")
     provenance = Provenance(str(job_dir), seed=0)
     provenance.log("build_pack.start", {"name": args.name})
+    summarizer = None
+    summary_method = "extractive"
+    if args.summarize_engine:
+        from ontologylab.communities import llm_summarizer
+
+        summarizer = llm_summarizer(
+            get_engine(args.summarize_engine, args.summarize_model),
+            model=args.summarize_model,
+        )
+        summary_method = f"llm:{args.summarize_engine}"
     manifest = build_pack(
         paths.kg_db_path(data_dir),
         args.packs_dir,
         args.name,
         source_job_id=job_dir.name,
         provenance_jsonl=provenance.jsonl_path,
+        summarizer=summarizer,
+        summary_method=summary_method,
     )
     provenance.log(
         "build_pack.end",
@@ -972,6 +984,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_build = sub.add_parser("build-pack", help="Export verified subgraph as a pack.")
     p_build.add_argument("--name", required=True)
     p_build.add_argument("--packs-dir", default=str(paths.default_packs_dir()))
+    p_build.add_argument(
+        "--summarize-engine", default=None,
+        choices=["mock", "claude", "codex", "gemini"],
+        help="Optional LLM for community summaries (default: extractive, "
+             "model-free). Any failure falls back to extractive per community.",
+    )
+    p_build.add_argument("--summarize-model", default=None)
     _add_data_dir(p_build)
     p_build.set_defaults(func=cmd_build_pack)
 

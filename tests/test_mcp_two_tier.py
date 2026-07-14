@@ -254,7 +254,8 @@ def test_fastmcp_exposes_two_tier_surface(pack_session):
     app = build_mcp_app(session)
     tools = {t.name: t for t in asyncio.run(app.list_tools())}
     assert "get_entity" in tools
-    assert len(tools) == 9  # 8 original + get_entity
+    assert "get_communities" in tools
+    assert len(tools) == 10  # 8 original + get_entity + get_communities
     for name in ("semantic_search", "entity_lookup", "graph_query",
                  "traverse_relations"):
         assert "detail" in tools[name].inputSchema["properties"], name
