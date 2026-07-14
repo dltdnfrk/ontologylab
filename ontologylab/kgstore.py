@@ -192,14 +192,25 @@ CREATE TABLE IF NOT EXISTS edges (
     created_ts        REAL NOT NULL,
     verified_ts       REAL,
     verified_by       TEXT,
-    review_note       TEXT
+    review_note       TEXT,
+    valid_from            REAL,
+    invalidated_ts        REAL,
+    invalidated_by        TEXT,
+    invalidation_reason   TEXT
 );
+-- (The last four edge columns are W13 bitemporal: event-time vs ingestion-
+-- time, and invalidation INSTEAD of deletion — a contradicted fact stays
+-- auditable but is never served as current truth. Kept out of the CREATE
+-- body: sqlite's ALTER TABLE DROP COLUMN chokes on in-parens comments.)
 CREATE INDEX IF NOT EXISTS idx_edges_src_status ON edges (src_node_id, status);
 CREATE INDEX IF NOT EXISTS idx_edges_dst_status ON edges (dst_node_id, status);
 CREATE INDEX IF NOT EXISTS idx_edges_type       ON edges (relation_type, status);
+-- Dedup covers CURRENT rows only: an invalidated edge frees its triple key,
+-- so a later re-assertion becomes a fresh proposed row coexisting with the
+-- invalidated one (bitemporal history, no unique-key collision).
 CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_dedup
     ON edges (schema_version_id, relation_type, src_node_id, dst_node_id)
-    WHERE status IN ('proposed','verified');
+    WHERE status IN ('proposed','verified') AND invalidated_ts IS NULL;
 
 -- Multi-source citations: every mention of a fact (including the first, and
 -- every resolution-merge afterwards) appends one row here. The inline
@@ -343,6 +354,7 @@ def _node_dict(row: sqlite3.Row) -> dict[str, Any]:
 
 
 def _edge_dict(row: sqlite3.Row) -> dict[str, Any]:
+    keys = row.keys()
     return {
         "id": row["id"],
         "relation_type": row["relation_type"],
@@ -352,6 +364,11 @@ def _edge_dict(row: sqlite3.Row) -> dict[str, Any]:
         "status": row["status"],
         "confidence": row["confidence"],
         "source_doc_id": row["source_doc_id"],
+        # W13 bitemporal fields; absent on pre-W13 read-only packs.
+        "valid_from": row["valid_from"] if "valid_from" in keys else None,
+        "invalidated_ts": (
+            row["invalidated_ts"] if "invalidated_ts" in keys else None
+        ),
     }
 
 
@@ -368,6 +385,28 @@ class KGStore:
         self.conn = conn
         self.db_path = db_path
         self.read_only = read_only
+        self._edges_bitemporal_cache: bool | None = None
+
+    def _edges_bitemporal(self) -> bool:
+        """Whether this store's edges carry the W13 bitemporal columns.
+
+        Writable stores always do (migrated on open); read-only packs built
+        before W13 do not, and their edge queries must not reference them.
+        """
+        if self._edges_bitemporal_cache is None:
+            columns = {
+                row["name"]
+                for row in self.conn.execute("PRAGMA table_info(edges)")
+            }
+            self._edges_bitemporal_cache = "invalidated_ts" in columns
+        return self._edges_bitemporal_cache
+
+    def _edge_current_sql(self, alias: str = "") -> str:
+        """WHERE fragment excluding invalidated edges from current truth."""
+        if not self._edges_bitemporal():
+            return "1=1"
+        column = f"{alias}.invalidated_ts" if alias else "invalidated_ts"
+        return f"{column} IS NULL"
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -389,10 +428,55 @@ class KGStore:
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA foreign_keys=ON;")
         conn.executescript(_SCHEMA)
+        cls._migrate(conn)
         conn.commit()
         store = cls(conn, db_path, read_only=False)
         store._seed_default_schema()
         return store
+
+    @staticmethod
+    def _migrate(conn: sqlite3.Connection) -> None:
+        """Bring a pre-existing writable DB up to the current schema.
+
+        ``executescript(_SCHEMA)`` only creates MISSING tables/indexes; it
+        never adds columns to an existing table or changes an existing
+        index's predicate — both are handled here. Read-only packs are
+        never migrated: query paths degrade instead (see _edge_current_sql
+        / _table_exists).
+        """
+        edge_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(edges)")
+        }
+        for column, ddl in (
+            ("valid_from", "ALTER TABLE edges ADD COLUMN valid_from REAL"),
+            ("invalidated_ts", "ALTER TABLE edges ADD COLUMN invalidated_ts REAL"),
+            ("invalidated_by", "ALTER TABLE edges ADD COLUMN invalidated_by TEXT"),
+            (
+                "invalidation_reason",
+                "ALTER TABLE edges ADD COLUMN invalidation_reason TEXT",
+            ),
+        ):
+            if column not in edge_columns:
+                conn.execute(ddl)
+        if "valid_from" not in edge_columns:
+            # Backfill: assertion time defaults to ingestion time.
+            conn.execute(
+                "UPDATE edges SET valid_from = created_ts WHERE valid_from IS NULL"
+            )
+        # The dedup index predicate gained "invalidated_ts IS NULL" in W13;
+        # IF NOT EXISTS keeps an old-predicate index alive, so rebuild it.
+        index_sql_row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE name = 'idx_edges_dedup'"
+        ).fetchone()
+        if index_sql_row and "invalidated_ts" not in (index_sql_row["sql"] or ""):
+            conn.execute("DROP INDEX idx_edges_dedup")
+            conn.execute(
+                "CREATE UNIQUE INDEX idx_edges_dedup "
+                "ON edges (schema_version_id, relation_type, src_node_id, "
+                "dst_node_id) "
+                "WHERE status IN ('proposed','verified') "
+                "AND invalidated_ts IS NULL"
+            )
 
     def close(self) -> None:
         self.conn.close()
@@ -657,7 +741,8 @@ class KGStore:
             cur = self.conn.execute(
                 "SELECT id FROM edges WHERE schema_version_id = ? AND "
                 "relation_type = ? AND src_node_id = ? AND dst_node_id = ? AND "
-                "status IN ('proposed','verified')",
+                "status IN ('proposed','verified') AND "
+                f"{self._edge_current_sql()}",
                 (sv_id, rel.relation_type, src, dst),
             )
             dup = cur.fetchone()
@@ -670,8 +755,9 @@ class KGStore:
                     "INSERT INTO edges "
                     "(id, schema_version_id, relation_type, src_node_id, dst_node_id, "
                     " properties_json, status, confidence, source_doc_id, source_span, "
-                    " extractor_engine, extractor_model, prompt_version, created_ts) "
-                    "VALUES (?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?)",
+                    " extractor_engine, extractor_model, prompt_version, created_ts, "
+                    " valid_from) "
+                    "VALUES (?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         edge_id,
                         sv_id,
@@ -686,6 +772,7 @@ class KGStore:
                         extractor_model,
                         prompt_version,
                         now,
+                        now,  # valid_from: assertion time defaults to ingestion
                     ),
                 )
                 stats["edges_new"] += 1
@@ -858,6 +945,47 @@ class KGStore:
             "review_note = COALESCE(?, review_note) WHERE id = ?",
             (status, time.time(), by, note, item_id),
         )
+
+    def invalidate_edge(
+        self,
+        edge_id: str,
+        *,
+        by: str = "local-user",
+        reason: str | None = None,
+    ) -> dict[str, Any]:
+        """W13: mark a VERIFIED edge as no-longer-current (human action).
+
+        Invalidation is the history-preserving alternative to deletion: the
+        row keeps its status and audit trail but stops being served as
+        current truth (queries, packs, traversals all exclude it), and its
+        triple key is freed so a later re-assertion becomes a fresh proposed
+        row coexisting with this one. A proposed edge has no history worth
+        preserving — reject it instead.
+        """
+        self._assert_writable()
+        kind, row = self._find_kind(edge_id)
+        if kind != "edge":
+            raise KGStoreError("invalidate_edge operates on edges only")
+        if row["status"] != "verified":
+            raise KGStoreError(
+                f"edge {edge_id} is {row['status']!r}; only verified edges "
+                "can be invalidated (reject proposed ones instead)"
+            )
+        if row["invalidated_ts"] is not None:
+            raise KGStoreError(f"edge {edge_id} is already invalidated")
+        now = time.time()
+        self.conn.execute(
+            "UPDATE edges SET invalidated_ts = ?, invalidated_by = ?, "
+            "invalidation_reason = ? WHERE id = ?",
+            (now, by, reason, edge_id),
+        )
+        self.conn.commit()
+        return {
+            "id": edge_id,
+            "invalidated_ts": now,
+            "invalidated_by": by,
+            "reason": reason,
+        }
 
     def bulk_approve(
         self,
@@ -1151,7 +1279,7 @@ class KGStore:
         sv_id = source["schema_version_id"]
         edge_rows = self.conn.execute(
             "SELECT * FROM edges WHERE (src_node_id = ? OR dst_node_id = ?) "
-            "AND status IN ('proposed','verified')",
+            f"AND status IN ('proposed','verified') AND {self._edge_current_sql()}",
             (source_id, source_id),
         ).fetchall()
         for edge in edge_rows:
@@ -1167,7 +1295,8 @@ class KGStore:
             dup = self.conn.execute(
                 "SELECT id FROM edges WHERE schema_version_id = ? AND "
                 "relation_type = ? AND src_node_id = ? AND dst_node_id = ? AND "
-                "status IN ('proposed','verified') AND id != ?",
+                "status IN ('proposed','verified') AND id != ? AND "
+                f"{self._edge_current_sql()}",
                 (sv_id, edge["relation_type"], new_src, new_dst, edge["id"]),
             ).fetchone()
             if dup is not None:
@@ -1426,6 +1555,7 @@ class KGStore:
             "JOIN nodes d ON d.id = e.dst_node_id "
             "WHERE (e.src_node_id = ? OR e.dst_node_id = ?) "
             "AND e.status IN ('proposed','verified') "
+            f"AND {self._edge_current_sql('e')} "
             "ORDER BY e.status DESC, e.created_ts ASC",
             (entity_id, entity_id),
         ).fetchall()
@@ -1592,7 +1722,7 @@ class KGStore:
                 "SELECT e.* FROM edges e "
                 "JOIN nodes s ON s.id = e.src_node_id AND s.status = 'verified' "
                 "JOIN nodes d ON d.id = e.dst_node_id AND d.status = 'verified' "
-                "WHERE e.status = 'verified'"
+                f"WHERE e.status = 'verified' AND {self._edge_current_sql('e')}"
             )
         ]
         return nodes, edges
@@ -1896,6 +2026,7 @@ class KGStore:
             placeholders = ",".join("?" for _ in node_ids)
             edge_where = [
                 status_sql,
+                self._edge_current_sql(),
                 f"src_node_id IN ({placeholders})",
                 f"dst_node_id IN ({placeholders})",
             ]
@@ -1935,12 +2066,14 @@ class KGStore:
             clauses.append(("e.dst_node_id = ?", "e.src_node_id"))
         rows: list[sqlite3.Row] = []
         node_status_sql = _status_clause(include_proposed, "n")
+        current_sql = self._edge_current_sql("e")
         for where_col, other_col in clauses:
             rows.extend(
                 self.conn.execute(
                     f"SELECT e.*, {other_col} AS other_id FROM edges e "
                     f"JOIN nodes n ON n.id = {other_col} "
-                    f"WHERE {where_col} AND {status_sql} AND {node_status_sql}{rel_sql}",
+                    f"WHERE {where_col} AND {status_sql} AND {current_sql} "
+                    f"AND {node_status_sql}{rel_sql}",
                     [node_id, *rel_args],
                 ).fetchall()
             )

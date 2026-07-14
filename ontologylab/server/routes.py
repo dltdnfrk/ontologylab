@@ -171,6 +171,21 @@ def approve_proposal(body: ProposalAction) -> dict[str, Any]:
         store.close()
 
 
+@router.post("/edges/{edge_id}/invalidate")
+def invalidate_edge(edge_id: str, body: ProposalAction) -> dict[str, Any]:
+    """W13: mark a verified edge as no-longer-current (kept as history)."""
+    store = _open_store()
+    try:
+        result = store.invalidate_edge(edge_id, by=body.by, reason=body.note)
+        return {"ok": True, **result}
+    except UnknownItem as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KGStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
 @router.post("/proposals/reject")
 def reject_proposal(body: ProposalAction) -> dict[str, Any]:
     store = _open_store()

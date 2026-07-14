@@ -455,6 +455,24 @@ def cmd_reject(args: argparse.Namespace) -> int:
         store.close()
 
 
+def cmd_invalidate(args: argparse.Namespace) -> int:
+    """W13: mark a verified edge as no-longer-current (kept as history)."""
+    store = _open_store(args)
+    try:
+        store.invalidate_edge(args.id, by=args.by, reason=args.reason)
+        print(
+            f"[ontologylab] invalidated edge {args.id} — kept as history, "
+            "no longer served as current truth; a re-extraction of the same "
+            "triple will arrive as a fresh proposed edge"
+        )
+        return 0
+    except KGStoreError as exc:
+        print(f"[ontologylab] error: {exc}", file=sys.stderr)
+        return 2
+    finally:
+        store.close()
+
+
 # ---------------------------------------------------------------------------
 # entity-centric review (W11: one entity's mentions + relations in one view)
 # ---------------------------------------------------------------------------
@@ -917,6 +935,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_reject.add_argument("--note", default=None)
     _add_data_dir(p_reject)
     p_reject.set_defaults(func=cmd_reject)
+
+    p_invalidate = sub.add_parser(
+        "invalidate",
+        help="Mark a verified edge as no-longer-current (history-preserving "
+             "alternative to deletion; reject proposed edges instead).",
+    )
+    p_invalidate.add_argument("--id", required=True, help="Edge id.")
+    p_invalidate.add_argument("--reason", default=None)
+    p_invalidate.add_argument("--by", default="local-user")
+    _add_data_dir(p_invalidate)
+    p_invalidate.set_defaults(func=cmd_invalidate)
 
     p_entity = sub.add_parser(
         "entity",

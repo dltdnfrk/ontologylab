@@ -57,6 +57,9 @@ def build_pack(
     kg_db_path = Path(kg_db_path)
     if not kg_db_path.is_file():
         raise PackBuildError(f"working KG not found: {kg_db_path}")
+    # Ensure the source DB carries the current schema (e.g. W13 bitemporal
+    # columns) before the column-order-sensitive INSERT..SELECT * below.
+    KGStore.open(kg_db_path).close()
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
     pack_id = f"{name}-{stamp}"
@@ -95,11 +98,13 @@ def build_pack(
         conn.execute(
             "INSERT INTO main.nodes SELECT * FROM live.nodes WHERE status='verified'"
         )
+        # W13: invalidated edges are history, not current truth — a pack
+        # ships only what is currently valid.
         conn.execute(
             "INSERT INTO main.edges SELECT e.* FROM live.edges e "
             "JOIN live.nodes s ON s.id = e.src_node_id AND s.status='verified' "
             "JOIN live.nodes d ON d.id = e.dst_node_id AND d.status='verified' "
-            "WHERE e.status='verified'"
+            "WHERE e.status='verified' AND e.invalidated_ts IS NULL"
         )
         conn.execute(
             "INSERT INTO main.node_aliases SELECT a.* FROM live.node_aliases a "
