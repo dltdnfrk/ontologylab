@@ -8,8 +8,10 @@ from ontologylab import paths
 from ontologylab.connectors.allowlist import NotAllowlisted
 from ontologylab.connectors.paper_api import (
     PaperApiConnector,
+    _build_crossref_url,
     _build_query_url,
     parse_atom,
+    parse_crossref,
 )
 from ontologylab.kgstore import KGStore
 from ontologylab.main import main
@@ -62,6 +64,85 @@ def test_parse_atom_extracts_entries_and_skips_degenerate():
     assert second.source_uri == "http://arxiv.org/abs/2402.00002v2"
 
 
+CROSSREF_FIXTURE = """{
+  "status": "ok",
+  "message": {
+    "items": [
+      {
+        "DOI": "10.1145/1327452.1327492",
+        "URL": "https://doi.org/10.1145/1327452.1327492",
+        "title": ["MapReduce: simplified data processing on large clusters"],
+        "abstract": "<jats:p>MapReduce is a <jats:italic>programming model</jats:italic> for processing large data sets.</jats:p>"
+      },
+      {
+        "DOI": "10.1109/tse.1976.233837",
+        "title": ["A Complexity Measure"],
+        "abstract": "Describes a graph-theoretic complexity measure for programs."
+      },
+      {
+        "DOI": "10.0/no-title-no-abstract"
+      }
+    ]
+  }
+}"""
+
+
+def test_parse_crossref_extracts_items_and_strips_markup():
+    docs = parse_crossref(CROSSREF_FIXTURE)
+    assert len(docs) == 2  # third item: no title AND no abstract -> skipped
+    first, second = docs
+    assert first.source_kind == "paper_api"
+    assert first.title == "MapReduce: simplified data processing on large clusters"
+    # JATS markup stripped to plain text
+    assert "<jats:" not in first.raw_text
+    assert "programming model for processing" in first.raw_text
+    assert first.source_uri == "https://doi.org/10.1145/1327452.1327492"
+    # second item has no URL -> source_uri synthesized from DOI
+    assert second.source_uri == "https://doi.org/10.1109/tse.1976.233837"
+
+
+def test_parse_crossref_rejects_bad_json():
+    with pytest.raises(ValueError):
+        parse_crossref("not json at all")
+
+
+def test_fetch_crossref_source_uses_json_endpoint(monkeypatch):
+    import ontologylab.connectors.paper_api as pa
+
+    seen_urls: list[str] = []
+
+    def fake_fetch(url):
+        seen_urls.append(url)
+        return CROSSREF_FIXTURE
+
+    monkeypatch.setattr(pa, "_http_get_text", fake_fetch)
+    docs = asyncio.run(
+        PaperApiConnector().fetch(
+            {"source": "crossref", "query": "databases", "limit": 3}
+        )
+    )
+    assert len(docs) == 2
+    (url,) = seen_urls
+    assert url == _build_crossref_url("databases", 3)
+    assert "api.crossref.org/works" in url
+    assert "rows=3" in url
+
+
+def test_fetch_crossref_still_allowlist_gated(monkeypatch):
+    import ontologylab.connectors.paper_api as pa
+
+    def boom(url):  # pragma: no cover
+        raise AssertionError("network I/O attempted for non-allowlisted query")
+
+    monkeypatch.setattr(pa, "_http_get_text", boom)
+    with pytest.raises(NotAllowlisted):
+        asyncio.run(
+            PaperApiConnector().fetch(
+                {"source": "crossref", "query": "quantum finance"}
+            )
+        )
+
+
 def test_fetch_checks_allowlist_before_any_io(monkeypatch):
     """fetch() must raise NotAllowlisted without ever touching the network."""
     import ontologylab.connectors.paper_api as pa
@@ -69,7 +150,7 @@ def test_fetch_checks_allowlist_before_any_io(monkeypatch):
     def boom(url):  # pragma: no cover - must not be reached
         raise AssertionError("network I/O attempted for non-allowlisted query")
 
-    monkeypatch.setattr(pa, "_fetch_atom", boom)
+    monkeypatch.setattr(pa, "_http_get_text", boom)
     connector = PaperApiConnector()
 
     with pytest.raises(NotAllowlisted):
@@ -89,7 +170,7 @@ def test_fetch_allowlisted_query_parses_and_clamps_limit(monkeypatch):
         seen_urls.append(url)
         return ATOM_FIXTURE
 
-    monkeypatch.setattr(pa, "_fetch_atom", fake_fetch)
+    monkeypatch.setattr(pa, "_http_get_text", fake_fetch)
     connector = PaperApiConnector()
     assert connector.name() == "paper_api"
 
@@ -112,7 +193,7 @@ def test_fetch_allowlisted_query_parses_and_clamps_limit(monkeypatch):
 def test_cli_collect_paper_query_inserts_and_dedups(tmp_path, monkeypatch):
     import ontologylab.connectors.paper_api as pa
 
-    monkeypatch.setattr(pa, "_fetch_atom", lambda url: ATOM_FIXTURE)
+    monkeypatch.setattr(pa, "_http_get_text", lambda url: ATOM_FIXTURE)
     data = str(tmp_path / "data")
 
     assert run_cli("collect", "--data-dir", data, "--paper-query", "databases") == 0
@@ -134,7 +215,7 @@ def test_cli_collect_rejects_non_allowlisted_paper_query(tmp_path, capsys, monke
     def boom(url):  # pragma: no cover - must not be reached
         raise AssertionError("network I/O attempted for non-allowlisted query")
 
-    monkeypatch.setattr(pa, "_fetch_atom", boom)
+    monkeypatch.setattr(pa, "_http_get_text", boom)
     code = run_cli(
         "collect", "--data-dir", str(tmp_path / "data"),
         "--paper-query", "quantum finance",
@@ -143,22 +224,40 @@ def test_cli_collect_rejects_non_allowlisted_paper_query(tmp_path, capsys, monke
     assert "REJECTED" in capsys.readouterr().err
 
 
-def test_cli_collect_unimplemented_allowlisted_source_exits_cleanly(
+def test_cli_collect_crossref_source_inserts_documents(
     tmp_path, capsys, monkeypatch
 ):
-    """Allowlisted-but-unimplemented source (crossref) must exit 2, not traceback."""
+    """crossref is now a real fetcher: an allowlisted query ingests rows."""
     import ontologylab.connectors.paper_api as pa
 
-    def boom(url):  # pragma: no cover - must not be reached
-        raise AssertionError("network I/O attempted for unimplemented source")
-
-    monkeypatch.setattr(pa, "_fetch_atom", boom)
+    monkeypatch.setattr(pa, "_http_get_text", lambda url: CROSSREF_FIXTURE)
+    data = str(tmp_path / "data")
     code = run_cli(
-        "collect", "--data-dir", str(tmp_path / "data"),
+        "collect", "--data-dir", data,
         "--paper-source", "crossref", "--paper-query", "databases",
     )
-    assert code == 2
-    assert "UNSUPPORTED" in capsys.readouterr().err
+    assert code == 0
+    store = KGStore.open(paths.kg_db_path(tmp_path / "data"))
+    try:
+        docs = store.list_documents()
+        assert len(docs) == 2
+        assert all(d.source_kind == "paper_api" for d in docs)
+    finally:
+        store.close()
+
+
+def test_check_source_implemented_still_guards_unimplemented():
+    """The UNSUPPORTED guard remains for any future source added to the
+    allowlist before a fetcher exists (both current sources are implemented)."""
+    from ontologylab.connectors.paper_api import (
+        IMPLEMENTED_SOURCES,
+        UnsupportedPaperSource,
+        check_source_implemented,
+    )
+
+    assert IMPLEMENTED_SOURCES == frozenset({"arxiv", "crossref"})
+    with pytest.raises(UnsupportedPaperSource):
+        check_source_implemented("semantic-scholar")
 
 
 NO_ID_ENTRY_FIXTURE = """<?xml version="1.0" encoding="UTF-8"?>
@@ -206,7 +305,7 @@ def test_fetch_strips_query_before_allowlist_and_url(monkeypatch):
         seen_urls.append(url)
         return ATOM_FIXTURE
 
-    monkeypatch.setattr(pa, "_fetch_atom", fake_fetch)
+    monkeypatch.setattr(pa, "_http_get_text", fake_fetch)
     asyncio.run(PaperApiConnector().fetch({"query": "  databases  "}))
     (url,) = seen_urls
     assert url == _build_query_url("databases", 5)  # stripped, not padded
@@ -218,7 +317,7 @@ def test_cli_collect_inputs_supplied_zero_documents_exits_zero(
     """Allowlisted query + degenerate-only feed: informative message, exit 0."""
     import ontologylab.connectors.paper_api as pa
 
-    monkeypatch.setattr(pa, "_fetch_atom", lambda url: DEGENERATE_ONLY_FIXTURE)
+    monkeypatch.setattr(pa, "_http_get_text", lambda url: DEGENERATE_ONLY_FIXTURE)
     data = str(tmp_path / "data")
     code = run_cli("collect", "--data-dir", data, "--paper-query", "databases")
     assert code == 0
@@ -241,7 +340,7 @@ def test_cli_collect_mixed_run_validates_all_gates_before_any_fetch(
     def boom(url):  # pragma: no cover - must not be reached
         raise AssertionError("network I/O attempted despite failed pre-validation")
 
-    monkeypatch.setattr(pa, "_fetch_atom", boom)
+    monkeypatch.setattr(pa, "_http_get_text", boom)
     monkeypatch.setattr(wc, "_fetch_url", boom)
 
     # allowlisted URL first + non-allowlisted paper query second -> REJECTED
@@ -253,14 +352,15 @@ def test_cli_collect_mixed_run_validates_all_gates_before_any_fetch(
     assert code == 2
     assert "REJECTED" in capsys.readouterr().err
 
-    # allowlisted query first + unimplemented source -> UNSUPPORTED, no fetch
+    # allowlisted URL first + non-allowlisted SOURCE second -> REJECTED,
+    # no fetch (the source gate also runs before any network I/O)
     code = run_cli(
         "collect", "--data-dir", str(tmp_path / "d2"),
         "--url", "https://docs.python.org/3/library/sqlite3.html",
-        "--paper-source", "crossref", "--paper-query", "databases",
+        "--paper-source", "semantic-scholar", "--paper-query", "databases",
     )
     assert code == 2
-    assert "UNSUPPORTED" in capsys.readouterr().err
+    assert "REJECTED" in capsys.readouterr().err
 
 
 def test_cli_collect_fetch_failures_exit_cleanly(tmp_path, capsys, monkeypatch):
@@ -271,7 +371,7 @@ def test_cli_collect_fetch_failures_exit_cleanly(tmp_path, capsys, monkeypatch):
     def network_down(url):
         raise URLError("connection refused")
 
-    monkeypatch.setattr(pa, "_fetch_atom", network_down)
+    monkeypatch.setattr(pa, "_http_get_text", network_down)
     code = run_cli(
         "collect", "--data-dir", str(tmp_path / "d1"),
         "--paper-query", "databases",
@@ -279,7 +379,7 @@ def test_cli_collect_fetch_failures_exit_cleanly(tmp_path, capsys, monkeypatch):
     assert code == 2
     assert "FETCH FAILED" in capsys.readouterr().err
 
-    monkeypatch.setattr(pa, "_fetch_atom", lambda url: "<feed>truncated")
+    monkeypatch.setattr(pa, "_http_get_text", lambda url: "<feed>truncated")
     code = run_cli(
         "collect", "--data-dir", str(tmp_path / "d2"),
         "--paper-query", "databases",
