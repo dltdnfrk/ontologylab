@@ -80,7 +80,10 @@ MVP 컷라인 + post-MVP Wave 1 + Wave 2 핵심 **코드 + 테스트 완료**.
 | W13 bitemporal 엣지 (valid_from/invalidated_ts, ALTER 마이그레이션+dedup 인덱스 재구축, `invalidate` CLI/API, 팩은 현행 진실만) | ✅ (`742116b`) |
 | W14 팩 diff (`pack-diff` CLI + API, id 기준 added/removed/changed) + 재추출 조화 테스트 고정 | ✅ (`154a554`) |
 | 하드코딩 전수 검수 (모델명/엔진목록/예산/actor/UA/타임아웃/arXiv URL/serve 커맨드 중앙화, 웹 crossref·limit 불일치 수정) | ✅ (`798ad5e`) |
-| pytest (238) | ✅ green |
+| crossref 커넥터 실구현 (keyless JSON, JATS 마크업 스트립, 라이브 API 검증) | ✅ (`0ec2df6`) |
+| sqlite-vec 옵트인 KNN 가속 (브루트포스와 결과 동일 검증, 팩 미포함으로 이식성 유지, 확장 부재 시 폴백) | ✅ (`2a88e37`) |
+| 실LLM 커뮤니티 요약 운용 검증 (claude로 `build-pack --summarize-engine`, `llm:claude` 라벨로 저장·MCP 노출 end-to-end 확인, 2026-07-15) | ✅ |
+| pytest (251) | ✅ green |
 | E2E: collect → extract → approve → pack → MCP query (CLI + API 양쪽) | ✅ |
 
 ### 환경 트랩 (재부팅 후 재발 가능)
@@ -108,16 +111,16 @@ python3.13 -m venv .venv && .venv/bin/pip install -e . pytest httpx fastapi 'uvi
 
 ## 남은 선택 작업
 
-**리서치 로드맵(RESEARCH-post-mvp.md)의 W1–W14 전체 완료.** 계획된 잔여 작업 없음.
-선택적 후속: crossref 커넥터 실구현, 임베딩 sqlite-vec 스케일업(현재 명시적 유보),
-커뮤니티 요약의 실LLM 운용 검증.
+**리서치 로드맵(W1–W14) + 하드코딩 검수 + 선택 후속 3종(crossref·sqlite-vec·실LLM 요약)
+전부 완료. 계획된 잔여 작업 없음.** 아이디어 수준의 추가 방향만 남음: 추가 paper 소스
+(Semantic Scholar 등), 임베딩 모델 벤치, 대시보드에 커뮤니티/무효화 화면 노출.
 
 ## 새 세션 시작 프롬프트 (붙여넣기용)
 
 ```
 ~/Documents/MUNI/ontologylab/HANDOFF.md 를 읽고 이어서 작업해줘.
-MVP(M0–M8) + Wave 1/2/3 전체(W1–W14) + 하드코딩 검수 완료 (pytest 238 green).
-계획된 잔여 작업 없음 (선택: crossref 커넥터, sqlite-vec, 실LLM 커뮤니티 요약).
+MVP(M0–M8) + Wave 1/2/3 전체(W1–W14) + 하드코딩 검수 + 선택 후속 3종 완료 (pytest 251 green).
+계획된 잔여 작업 없음.
 용어는 계속 중립(지식그래프/최적화 프레임워크)으로 유지.
 ```
 
