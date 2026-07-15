@@ -393,6 +393,20 @@ class KGStore:
         self.db_path = db_path
         self.read_only = read_only
         self._edges_bitemporal_cache: bool | None = None
+        self._vec_loaded: bool | None = None
+
+    def _vec_available(self) -> bool:
+        """Whether sqlite-vec is loaded on this connection (probed once).
+
+        Opt-in acceleration: absent extension -> brute-force cosine, same
+        results. Loading is attempted lazily so a store never pays for it
+        unless a vector query actually needs it.
+        """
+        if self._vec_loaded is None:
+            from ontologylab.embeddings import load_sqlite_vec
+
+            self._vec_loaded = load_sqlite_vec(self.conn)
+        return self._vec_loaded
 
     def _edges_bitemporal(self) -> bool:
         """Whether this store's edges carry the W13 bitemporal columns.
@@ -1899,10 +1913,38 @@ class KGStore:
                 )
                 embedded += 1
         self.conn.commit()
+        # Keep the optional sqlite-vec index in step with the embeddings it
+        # accelerates (no-op when the extension isn't available).
+        if embedded and self._vec_available():
+            self._rebuild_vec_index(embedder)
         return {"embedded": embedded, "skipped": self.conn.execute(
             "SELECT COUNT(*) FROM nodes WHERE embedding_model = ?",
             (embedder.name(),),
         ).fetchone()[0] - embedded}
+
+    def _rebuild_vec_index(self, embedder) -> None:
+        """(Re)build the vec0 KNN index over this store's embeddings.
+
+        Sized to the embedder's dimension and populated from the existing
+        ``embedding`` BLOBs (byte-identical to sqlite-vec's own encoding).
+        Working-DB only — packs stay portable (no extension needed to serve
+        them), so a pack simply has no vec index and uses brute force.
+        """
+        self._assert_writable()
+        dim = embedder.dim
+        self.conn.execute("DROP TABLE IF EXISTS vec_nodes")
+        self.conn.execute(
+            f"CREATE VIRTUAL TABLE vec_nodes USING vec0("
+            f"node_id TEXT PRIMARY KEY, embedding float[{dim}])"
+        )
+        self.conn.execute(
+            "INSERT INTO vec_nodes(node_id, embedding) "
+            "SELECT id, embedding FROM nodes "
+            "WHERE embedding_model = ? AND embedding IS NOT NULL "
+            "AND status IN ('proposed','verified')",
+            (embedder.name(),),
+        )
+        self.conn.commit()
 
     def embedding_model(self) -> str | None:
         """The embedding model present on this store's nodes (if any)."""
@@ -1921,29 +1963,83 @@ class KGStore:
         entity_type: str | None = None,
         include_proposed: bool = False,
     ) -> list[dict[str, Any]]:
-        """Brute-force cosine over stored embeddings (fine at local scale).
+        """Cosine over stored embeddings, sqlite-vec-accelerated when present.
 
         Only compares against vectors produced by the SAME embedder
         (embedding_model match) — a model-A pack is never scored with a
         model-B query. match_score = (cosine+1)/2 per the §5.4 contract.
-        """
-        from ontologylab.embeddings import cosine, unpack_vector
 
+        When sqlite-vec is loaded and a vec index exists for this embedder,
+        a KNN prefilter narrows the candidate set; every candidate is then
+        rescored with the exact cosine, so the accelerated path returns the
+        SAME results as brute force — it just examines fewer rows.
+        """
         query_vec = embedder.embed([query])[0]
+        candidates = self._vector_candidates(
+            query_vec, embedder, top_k, entity_type, include_proposed
+        )
+        return self._score_vector_candidates(query_vec, candidates, top_k)
+
+    def _vector_candidates(
+        self, query_vec, embedder, top_k, entity_type, include_proposed
+    ) -> list[sqlite3.Row]:
+        """Node rows to cosine-rank: a KNN shortlist when vec0 is available
+        (over-fetched so status/type filtering can't starve the top_k), else
+        every embedded row for this embedder (brute force)."""
         status_sql = _status_clause(include_proposed)
         type_sql = " AND entity_type = ?" if entity_type else ""
+        use_vec = (
+            self._vec_available()
+            and self._table_exists("vec_nodes")
+            and self.embedding_model() == embedder.name()
+        )
+        if use_vec:
+            from ontologylab.embeddings import pack_vector
+
+            # Over-fetch generously: KNN is global, so status/type filters are
+            # applied after; a wide shortlist keeps results identical to brute
+            # force at local scale.
+            shortlist = max(top_k * 8, top_k + 64)
+            try:
+                knn = self.conn.execute(
+                    "SELECT node_id FROM vec_nodes WHERE embedding MATCH ? "
+                    "ORDER BY distance LIMIT ?",
+                    (pack_vector(query_vec), shortlist),
+                ).fetchall()
+            except sqlite3.OperationalError:
+                use_vec = False  # index shape mismatch etc. -> brute force
+            else:
+                ids = [r["node_id"] for r in knn]
+                if not ids:
+                    return []
+                placeholders = ",".join("?" for _ in ids)
+                rows = self.conn.execute(
+                    f"SELECT * FROM nodes WHERE id IN ({placeholders}) "
+                    f"AND embedding_model = ? AND {status_sql}{type_sql}",
+                    [*ids, embedder.name(), *([entity_type] if entity_type else [])],
+                ).fetchall()
+                # preserve KNN order isn't needed — we rescore exactly below.
+                return rows
         args: list[Any] = [embedder.name()]
         if entity_type:
             args.append(entity_type)
-        rows = self.conn.execute(
+        return self.conn.execute(
             f"SELECT * FROM nodes WHERE embedding_model = ? AND {status_sql}{type_sql}",
             args,
         ).fetchall()
-        scored = []
-        for row in rows:
-            sim = cosine(query_vec, unpack_vector(row["embedding"]))
-            scored.append((sim, row))
-        scored.sort(key=lambda pair: -pair[0])
+
+    def _score_vector_candidates(
+        self, query_vec, rows, top_k
+    ) -> list[dict[str, Any]]:
+        from ontologylab.embeddings import cosine, unpack_vector
+
+        scored = [
+            (cosine(query_vec, unpack_vector(row["embedding"])), row) for row in rows
+        ]
+        # Deterministic tie-break by id so the ranking is identical whether the
+        # candidate rows arrived in rowid order (brute force) or PK-index order
+        # (the sqlite-vec KNN shortlist) — equal-cosine ties can't reorder.
+        scored.sort(key=lambda pair: (-pair[0], pair[1]["id"]))
         results = []
         for sim, row in scored[:top_k]:
             item = _node_dict(row)

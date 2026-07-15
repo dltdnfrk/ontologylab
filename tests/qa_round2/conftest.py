@@ -21,7 +21,7 @@ def _no_real_network(monkeypatch):
     import ontologylab.connectors.web_crawl as wc
 
     monkeypatch.setattr(pa, "urlopen", _boom)
-    monkeypatch.setattr(pa, "_fetch_atom", _boom)
+    monkeypatch.setattr(pa, "_http_get_text", _boom)
     monkeypatch.setattr(wc, "_fetch_url", _boom)
 
 
@@ -35,13 +35,13 @@ def net_trap(monkeypatch):
 
     def _paper_trap(url):
         trips["paper"] += 1
-        raise AssertionError(f"paper_api._fetch_atom reached: {url!r}")
+        raise AssertionError(f"paper_api._http_get_text reached: {url!r}")
 
     def _web_trap(url):
         trips["web"] += 1
         raise AssertionError(f"web_crawl._fetch_url reached: {url!r}")
 
-    monkeypatch.setattr(pa, "_fetch_atom", _paper_trap)
+    monkeypatch.setattr(pa, "_http_get_text", _paper_trap)
     monkeypatch.setattr(wc, "_fetch_url", _web_trap)
     return trips
 

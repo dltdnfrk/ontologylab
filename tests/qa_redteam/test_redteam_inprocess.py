@@ -1,6 +1,6 @@
 """Adversarial in-process CLI/red-team cases for the paper_api change set.
 
-Every fetch-dependent path monkeypatches paper_api._fetch_atom (the sole
+Every fetch-dependent path monkeypatches paper_api._http_get_text (the sole
 network touchpoint); the autouse conftest guard makes any real socket
 attempt an immediate failure.
 """
@@ -31,14 +31,14 @@ def _patch_feed(monkeypatch, body, seen=None):
             seen.append(url)
         return body
 
-    monkeypatch.setattr(pa, "_fetch_atom", fake_fetch)
+    monkeypatch.setattr(pa, "_http_get_text", fake_fetch)
 
 
 def _boom_fetch(monkeypatch):
     def boom(url):  # pragma: no cover - must never be reached
         raise AssertionError(f"network touchpoint reached for {url!r}")
 
-    monkeypatch.setattr(pa, "_fetch_atom", boom)
+    monkeypatch.setattr(pa, "_http_get_text", boom)
 
 
 # ---------------------------------------------------------------------------

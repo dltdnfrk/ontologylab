@@ -152,17 +152,51 @@ def test_collect_non_allowlisted_url_rejected(tmp_path: Path) -> None:
     assert client.get("/api/documents").json()["count"] == 0
 
 
-def test_collect_crossref_allowlisted_query_unsupported(tmp_path: Path) -> None:
+CROSSREF_FIXTURE = """{
+  "message": {
+    "items": [
+      {
+        "DOI": "10.1145/1327452.1327492",
+        "URL": "https://doi.org/10.1145/1327452.1327492",
+        "title": ["MapReduce: simplified data processing on large clusters"],
+        "abstract": "<jats:p>A programming model for large data sets.</jats:p>"
+      }
+    ]
+  }
+}"""
+
+
+def test_collect_crossref_allowlisted_query_ingests(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """crossref is a real source now: an allowlisted query ingests rows."""
     client, _, _ = _make_client(tmp_path)
+    monkeypatch.setattr(
+        "ontologylab.connectors.paper_api._http_get_text",
+        lambda url: CROSSREF_FIXTURE,
+    )
     resp = client.post(
         "/api/collect",
         json={"paper_queries": ["databases"], "paper_source": "crossref"},
     )
     assert resp.status_code == 200
+    assert resp.json() == {"ok": True, "documents": 1, "created": 1, "duplicates": 0}
+    listed = client.get("/api/documents").json()
+    assert listed["count"] == 1
+    assert listed["documents"][0]["source_kind"] == "paper_api"
+
+
+def test_collect_non_allowlisted_source_rejected(tmp_path: Path) -> None:
+    """A source outside the allowlist is rejected before any fetch."""
+    client, _, _ = _make_client(tmp_path)
+    resp = client.post(
+        "/api/collect",
+        json={"paper_queries": ["databases"], "paper_source": "semantic-scholar"},
+    )
+    assert resp.status_code == 200
     body = resp.json()
     assert body["ok"] is False
-    assert body["error_kind"] == "unsupported"
-    assert "crossref" in body["detail"]
+    assert body["error_kind"] == "rejected"
 
 
 def test_collect_no_inputs_is_ok_false(tmp_path: Path) -> None:
@@ -184,7 +218,7 @@ def test_collect_no_inputs_is_ok_false(tmp_path: Path) -> None:
 def test_collect_paper_query_with_canned_atom(tmp_path: Path, monkeypatch) -> None:
     client, _, _ = _make_client(tmp_path)
     monkeypatch.setattr(
-        "ontologylab.connectors.paper_api._fetch_atom", lambda url: ATOM_FIXTURE
+        "ontologylab.connectors.paper_api._http_get_text", lambda url: ATOM_FIXTURE
     )
     resp = client.post("/api/collect", json={"paper_queries": ["databases"]})
     assert resp.status_code == 200

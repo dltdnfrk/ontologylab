@@ -86,17 +86,20 @@ def test_e2e_03_rejected_paper_query(tmp_path):
     assert list_documents(tmp_path / "d") == []
 
 
-def test_e2e_04_unsupported_crossref(tmp_path):
+def test_e2e_04_non_allowlisted_source_rejected(tmp_path):
+    # crossref is now a real fetcher; the "bad source caught before fetch"
+    # invariant is exercised with a source that is NOT on the allowlist, so
+    # the subprocess still does zero network I/O.
     r = run_cli(
         "E2E-04", "collect", "--data-dir", str(tmp_path / "d"),
-        "--paper-source", "crossref", "--paper-query", "databases",
+        "--paper-source", "semantic-scholar", "--paper-query", "databases",
     )
-    ok = r["exit_code"] == 2 and "UNSUPPORTED" in r["stderr"]
+    ok = r["exit_code"] == 2 and "REJECTED" in r["stderr"]
     record_case(
         id="E2E-04",
         contractRef="C4",
-        scenario="subprocess: allowlisted-but-unimplemented source crossref",
-        expected="exit 2, UNSUPPORTED on stderr (UnsupportedPaperSource raised before fetch)",
+        scenario="subprocess: non-allowlisted source semantic-scholar",
+        expected="exit 2, REJECTED on stderr (NotAllowlisted raised before fetch)",
         actual=f"exit={r['exit_code']} stderr={r['stderr'].strip()!r}",
         verdict="passed" if ok else "failed",
     )

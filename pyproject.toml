@@ -22,6 +22,9 @@ server = ["fastapi", "uvicorn[standard]"]
 mcp = ["mcp>=1.2"]
 # Optional tier-2 semantic embeddings (real model; one-time download).
 embed = ["sentence-transformers>=3"]
+# Optional sqlite-vec KNN acceleration for tier-2 vector search (opt-in;
+# falls back to brute-force cosine when absent).
+vec = ["sqlite-vec>=0.1"]
 
 [project.scripts]
 ontologylab = "ontologylab.main:main"

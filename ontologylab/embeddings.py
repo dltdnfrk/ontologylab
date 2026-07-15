@@ -60,6 +60,38 @@ def unpack_vector(blob: bytes) -> list[float]:
     return list(struct.unpack(f"<{count}f", blob))
 
 
+# ---------------------------------------------------------------------------
+# Optional sqlite-vec acceleration (opt-in; graceful degradation)
+# ---------------------------------------------------------------------------
+#
+# sqlite-vec's serialize_float32 emits the SAME little-endian float32 bytes as
+# pack_vector above, so the ``embedding`` BLOB already stored on nodes drops
+# straight into a vec0 table with no re-encoding. The extension only ever
+# ACCELERATES the identical cosine ranking (KNN prefilter) — every result is
+# rescored exactly, and any failure falls back to brute force — so a machine
+# without the extension gets the same answers, just slower.
+
+
+def load_sqlite_vec(conn) -> bool:
+    """Best-effort load of the sqlite-vec extension onto ``conn``.
+
+    Returns True only when the ``sqlite_vec`` package is installed AND this
+    Python's sqlite3 permits loadable extensions AND the load succeeds. Any
+    failure returns False (never raises) — the caller then uses brute force.
+    """
+    try:
+        import sqlite_vec
+    except ImportError:
+        return False
+    try:
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+        conn.enable_load_extension(False)
+        return True
+    except Exception:
+        return False
+
+
 def cosine(a: list[float], b: list[float]) -> float:
     """Cosine similarity; assumes same dim, tolerates zero vectors."""
     dot = sum(x * y for x, y in zip(a, b))

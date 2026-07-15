@@ -1,7 +1,7 @@
 """Round-2 adversarial probes for the FIXED paper_api contract (F1-F6).
 
 Independent of round 1 (tests/qa_redteam). Every fetch-dependent path
-monkeypatches the two seams (paper_api._fetch_atom, web_crawl._fetch_url);
+monkeypatches the two seams (paper_api._http_get_text, web_crawl._fetch_url);
 subprocess runs use dead proxies and only exercise network-free paths.
 """
 
@@ -43,7 +43,7 @@ def _patch_feed(monkeypatch, body, seen=None):
             seen.append(url)
         return body
 
-    monkeypatch.setattr(pa, "_fetch_atom", fake_fetch)
+    monkeypatch.setattr(pa, "_http_get_text", fake_fetch)
 
 
 def _clean(r):
@@ -105,26 +105,26 @@ def test_r2_f2_02_denied_url_allowed_query_zero_io(tmp_path, net_trap):
         assert _clean(r)
 
 
-def test_r2_f2_03_unimplemented_source_zero_io(tmp_path, net_trap):
+def test_r2_f2_03_non_allowlisted_source_zero_io(tmp_path, net_trap):
     with check_case(
         "R2-F2-03",
         "F2",
-        "mixed run: --url <allowlisted> --paper-source crossref (allowlisted "
-        "but unimplemented) --paper-query <allowlisted>; seams trapped",
-        "exit 2 UNSUPPORTED, zero trap trips (pre-validation catches the "
-        "unimplemented source before ANY network I/O)",
+        "mixed run: --url <allowlisted> --paper-source semantic-scholar "
+        "(NOT allowlisted) --paper-query <allowlisted>; seams trapped",
+        "exit 2 REJECTED, zero trap trips (pre-validation catches the "
+        "non-allowlisted source before ANY network I/O)",
     ) as obs:
         r = _collect(
             "R2-F2-03", tmp_path / "d",
             "--url", ALLOWED_URL,
-            "--paper-source", "crossref", "--paper-query", ALLOWED_QUERY,
+            "--paper-source", "semantic-scholar", "--paper-query", ALLOWED_QUERY,
         )
         obs["actual"] = (
             f"exit={r['exit_code']} trips={net_trap} "
             f"stderr={r['stderr'].strip()!r}"
         )
         assert r["exit_code"] == 2
-        assert "UNSUPPORTED" in r["stderr"]
+        assert "REJECTED" in r["stderr"]
         assert net_trap == {"paper": 0, "web": 0}
         assert _clean(r)
 
@@ -187,17 +187,17 @@ def test_r2_f2_04_identical_values_at_both_check_sites(tmp_path, monkeypatch):
                 "https://export.arxiv.org/api/query", 503,
                 "Service Unavailable", None, None,
             ),
-            "_fetch_atom raises HTTPError 503 (URLError subclass)",
+            "_http_get_text raises HTTPError 503 (URLError subclass)",
         ),
         (
             "R2-F3-02",
             lambda: URLError("connection refused"),
-            "_fetch_atom raises bare URLError",
+            "_http_get_text raises bare URLError",
         ),
         (
             "R2-F3-03",
             lambda: URLError(TimeoutError("timed out")),
-            "_fetch_atom raises URLError wrapping TimeoutError",
+            "_http_get_text raises URLError wrapping TimeoutError",
         ),
     ],
 )
@@ -206,7 +206,7 @@ def test_r2_f3_fetch_errors_clean(tmp_path, monkeypatch, case_id, exc_factory,
     def raising_fetch(url):
         raise exc_factory()
 
-    monkeypatch.setattr(pa, "_fetch_atom", raising_fetch)
+    monkeypatch.setattr(pa, "_http_get_text", raising_fetch)
     with check_case(
         case_id,
         "F3",
@@ -281,11 +281,11 @@ def test_r2_f3_06_oserror_not_urlerror_hits_collect_failed(tmp_path,
     def raising_fetch(url):
         raise PermissionError("operation not permitted")
 
-    monkeypatch.setattr(pa, "_fetch_atom", raising_fetch)
+    monkeypatch.setattr(pa, "_http_get_text", raising_fetch)
     with check_case(
         "R2-F3-06",
         "F3",
-        "exception-ordering probe: _fetch_atom raises PermissionError "
+        "exception-ordering probe: _http_get_text raises PermissionError "
         "(OSError but NOT URLError)",
         "hits the 'collect failed' branch (collect.failed provenance), NOT "
         "'FETCH FAILED', exit 2, never a traceback",
