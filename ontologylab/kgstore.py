@@ -39,6 +39,17 @@ from ontologylab.models import Document, ProposedEntity, ProposedRelation
 
 REVIEW_STATUSES = ("proposed", "verified", "rejected")
 
+# match_score display precision, shared by every ranking surface (lexical,
+# vector, hybrid, lookup) so all tiers round identically.
+MATCH_SCORE_PRECISION = 4
+
+# sqlite-vec KNN prefilter over-fetch: the shortlist must stay wide enough
+# that post-KNN status/type filtering can't starve top_k — with these knobs
+# the accelerated path returns results identical to brute force at local
+# scale (asserted by the parity tests).
+VEC_SHORTLIST_FACTOR = 8
+VEC_SHORTLIST_MIN_MARGIN = 64
+
 
 class KGStoreError(Exception):
     """Generic store-level error (unknown item, bad filter, misuse)."""
@@ -1772,7 +1783,7 @@ class KGStore:
                 return
             seen.add(row["id"])
             item = _node_dict(row)
-            item["match_score"] = round(score, 4)
+            item["match_score"] = round(score, MATCH_SCORE_PRECISION)
             item["source_document_ids"] = sorted(
                 {c["source_doc_id"] for c in self.citations("node", row["id"])}
                 or {row["source_doc_id"]}
@@ -1864,7 +1875,7 @@ class KGStore:
             if score < min_score:
                 continue
             item = _node_dict(row)
-            item["match_score"] = round(score, 4)
+            item["match_score"] = round(score, MATCH_SCORE_PRECISION)
             item["source_document_ids"] = sorted(
                 {c["source_doc_id"] for c in self.citations("node", row["id"])}
                 or {row["source_doc_id"]}
@@ -1999,7 +2010,9 @@ class KGStore:
             # Over-fetch generously: KNN is global, so status/type filters are
             # applied after; a wide shortlist keeps results identical to brute
             # force at local scale.
-            shortlist = max(top_k * 8, top_k + 64)
+            shortlist = max(
+                top_k * VEC_SHORTLIST_FACTOR, top_k + VEC_SHORTLIST_MIN_MARGIN
+            )
             try:
                 knn = self.conn.execute(
                     "SELECT node_id FROM vec_nodes WHERE embedding MATCH ? "
@@ -2043,7 +2056,7 @@ class KGStore:
         results = []
         for sim, row in scored[:top_k]:
             item = _node_dict(row)
-            item["match_score"] = round((sim + 1.0) / 2.0, 4)
+            item["match_score"] = round((sim + 1.0) / 2.0, MATCH_SCORE_PRECISION)
             item["source_document_ids"] = sorted(
                 {c["source_doc_id"] for c in self.citations("node", row["id"])}
                 or {row["source_doc_id"]}
@@ -2090,7 +2103,7 @@ class KGStore:
             if fused_score < min_score:
                 continue
             item = dict(by_id[item_id])
-            item["match_score"] = round(fused_score, 4)
+            item["match_score"] = round(fused_score, MATCH_SCORE_PRECISION)
             results.append(item)
             if len(results) >= top_k:
                 break

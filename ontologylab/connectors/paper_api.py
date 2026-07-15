@@ -29,13 +29,24 @@ _ATOM_NS = "{http://www.w3.org/2005/Atom}"
 # The only external endpoints this system ever fetches (both keyless).
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 CROSSREF_API_URL = "https://api.crossref.org/works"
+# DOI resolver base for Crossref items that carry a DOI but no URL field.
+DOI_BASE_URL = "https://doi.org/"
 DEFAULT_LIMIT = 5
 MAX_LIMIT = 25
 _MAX_LIMIT = MAX_LIMIT  # back-compat alias
 
-DEFAULT_PAPER_SOURCE = "arxiv"
+# Canonical source names: the fetch dispatch, IMPLEMENTED_SOURCES, and the
+# default all reference these — never re-type the strings.
+ARXIV_SOURCE = "arxiv"
+CROSSREF_SOURCE = "crossref"
+DEFAULT_PAPER_SOURCE = ARXIV_SOURCE
 
-IMPLEMENTED_SOURCES: frozenset[str] = frozenset({"arxiv", "crossref"})
+IMPLEMENTED_SOURCES: frozenset[str] = frozenset({ARXIV_SOURCE, CROSSREF_SOURCE})
+
+# Crossref fields we request AND the exact keys parse_crossref reads —
+# dropping one here silently empties the corresponding parsed value, so the
+# two stay coupled through this tuple.
+_CROSSREF_SELECT_FIELDS = ("DOI", "URL", "title", "abstract")
 
 
 class UnsupportedPaperSource(NotImplementedError):
@@ -77,7 +88,7 @@ def _build_crossref_url(query: str, limit: int) -> str:
         f"{CROSSREF_API_URL}"
         f"?query={quote_plus(query)}"
         f"&rows={limit}"
-        f"&select=DOI,URL,title,abstract"
+        "&select=" + ",".join(_CROSSREF_SELECT_FIELDS)
     )
 
 
@@ -141,7 +152,7 @@ def parse_crossref(json_text: str) -> list[RawDocument]:
             continue
         doi = _normalize(item.get("DOI"))
         source_uri = _normalize(item.get("URL")) or (
-            f"https://doi.org/{doi}" if doi else ""
+            f"{DOI_BASE_URL}{doi}" if doi else ""
         )
         if not source_uri:
             continue
@@ -173,7 +184,7 @@ class PaperApiConnector:
         # Allowlist BEFORE building a URL or touching the network.
         check_paper_query(source, query)
         check_source_implemented(source)
-        if source == "crossref":
+        if source == CROSSREF_SOURCE:
             body = _http_get_text(_build_crossref_url(query, limit))
             return parse_crossref(body)
         body = _http_get_text(_build_query_url(query, limit))
