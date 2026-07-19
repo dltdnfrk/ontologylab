@@ -61,9 +61,10 @@
 
 ## 설계 철학의 학술적 근거 (외부 문헌 dossier)
 
-ontologylab의 핵심 명제 — **"AI가 제안하고, 사람이 검증하며, verified-only만 출고한다"** — 를 Nature·Science·SCI급 저널 **36편**으로 뒷받침한 근거 노트가 별도로 정리되어 있다 (Obsidian vault, 이 저장소 밖):
+ontologylab의 핵심 명제 — **"AI가 제안하고, 사람이 검증하며, verified-only만 출고한다"** — 를 Nature·Science·SCI급 저널 **36편**으로 뒷받침한 근거 문헌 dossier가 저장소에 정리되어 있다:
 
-> `~/Documents/Hyunjun/Idea Note/decisions/2026-07-19-ontologylab-human-verification-설계근거-문헌.md`
+> **정본: [`docs/DESIGN-RATIONALE.md`](./DESIGN-RATIONALE.md)** (36편 전문 + 기둥별 구현 매핑)
+> (미러: Obsidian vault `~/Documents/Hyunjun/Idea Note/decisions/2026-07-19-ontologylab-human-verification-설계근거-문헌.md`)
 
 계기: Nature 사설 "Why AI cannot do good science without humans" (*Nature* 653, 650, 2026; doi:10.1038/d41586-026-01551-3)와 동시 게재된 두 자율 AI-과학자 논문(Google Co-Scientist doi:10.1038/s41586-026-10644-y, FutureHouse Robin doi:10.1038/s41586-026-10652-y). 사설의 결론 — *"AI scientists can and should empower human researchers. They cannot and should not replace them."* — 이 ontologylab 설계와 동형.
 
