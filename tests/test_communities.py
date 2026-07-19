@@ -225,3 +225,78 @@ def test_cli_build_pack_with_mock_summaries(community_pack, tmp_path, capsys):
         (pack_dirs[0] / "manifest.json").read_text()
     )
     assert manifest_json["counts"]["communities"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Dashboard API surface (/api/communities reads the working store)
+# ---------------------------------------------------------------------------
+
+
+def _community_client(tmp_path: Path):
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from ontologylab.server.app import create_app
+
+    return TestClient(create_app(data_dir=tmp_path / "data",
+                                 packs_dir=tmp_path / "packs"))
+
+
+def _seed_working_store_community(tmp_path: Path) -> None:
+    """Write two verified nodes + one community into the dashboard's working
+    DB. Communities normally live only inside built packs, but the dashboard
+    reads the working store, so we populate it directly here."""
+    from ontologylab.paths import kg_db_path
+
+    store = KGStore.open(kg_db_path(tmp_path / "data"))
+    doc, _ = store.insert_document(
+        source_kind="upload", source_uri="file:///c.txt", title="c",
+        raw_text="community text", content_hash="w12-api-h1",
+    )
+    ents = [
+        ProposedEntity(id="n_A", entity_type="Component", name="Alpha"),
+        ProposedEntity(id="n_B", entity_type="Component", name="Beta"),
+    ]
+    store.insert_proposed(ents, [], source_doc_id=doc.id,
+                          extractor_engine="mock")
+    store.bulk_approve(by="tester")
+    store.write_communities([
+        {
+            "id": "c1",
+            "members": ["n_A", "n_B"],
+            "top_members": ["Alpha"],
+            "summary": "Alpha and Beta cluster",
+            "summary_method": "extractive",
+        }
+    ])
+    store.close()
+
+
+def test_api_communities_empty_on_working_store(tmp_path):
+    client = _community_client(tmp_path)
+    res = client.get("/api/communities")
+    assert res.status_code == 200
+    assert res.json() == {"communities": [], "count": 0}
+
+
+def test_api_communities_list_detail_and_404(tmp_path):
+    _seed_working_store_community(tmp_path)
+    client = _community_client(tmp_path)
+
+    listing = client.get("/api/communities")
+    assert listing.status_code == 200
+    body = listing.json()
+    assert body["count"] == 1
+    community = body["communities"][0]
+    assert community["id"] == "c1"
+    assert community["member_count"] == 2
+    assert community["summary_method"] == "extractive"
+
+    detail = client.get(f"/api/communities/{community['id']}")
+    assert detail.status_code == 200
+    dbody = detail.json()
+    assert dbody["community"]["id"] == "c1"
+    assert {m["name"] for m in dbody["members"]} == {"Alpha", "Beta"}
+
+    missing = client.get("/api/communities/nope")
+    assert missing.status_code == 404

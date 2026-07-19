@@ -220,6 +220,43 @@ def entity_review(entity_id: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Communities (W12 — read-only; rows exist only inside built packs, so the
+# working-DB store returns an empty list rather than an error)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/communities")
+def get_communities(limit: int = Query(20, ge=1, le=200)) -> dict[str, Any]:
+    store = _open_store()
+    try:
+        communities = store.list_communities(limit=limit)
+        return {"communities": communities, "count": len(communities)}
+    finally:
+        store.close()
+
+
+@router.get("/communities/{community_id}")
+def get_community(community_id: str) -> dict[str, Any]:
+    store = _open_store()
+    try:
+        # community_members 404s on an unknown id (UnknownItem); on success
+        # we attach the community's own summary/metadata row for the header.
+        members = store.community_members(community_id)
+        community = next(
+            (c for c in store.list_communities(limit=1000)
+             if c["id"] == community_id),
+            None,
+        )
+        return {"community": community, "members": members}
+    except UnknownItem as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KGStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+# ---------------------------------------------------------------------------
 # Critic triage (W8 — advisory scores; never a decision path)
 # ---------------------------------------------------------------------------
 
