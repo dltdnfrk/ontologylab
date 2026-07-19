@@ -58,3 +58,24 @@
 - sqlite-vec vs sqlite-vector 유지보수 상황 — 채택 전 직접 벤치 필요
 - GraphRAG `graphrag.append` 증분 커맨드 출시 여부 재확인
 - 임베딩 모델 수치는 애그리게이터 출처 — MTEB 리더보드 직접 확인 권장
+
+## 설계 철학의 학술적 근거 (외부 문헌 dossier)
+
+ontologylab의 핵심 명제 — **"AI가 제안하고, 사람이 검증하며, verified-only만 출고한다"** — 를 Nature·Science·SCI급 저널 **36편**으로 뒷받침한 근거 노트가 별도로 정리되어 있다 (Obsidian vault, 이 저장소 밖):
+
+> `~/Documents/Hyunjun/Idea Note/decisions/2026-07-19-ontologylab-human-verification-설계근거-문헌.md`
+
+계기: Nature 사설 "Why AI cannot do good science without humans" (*Nature* 653, 650, 2026; doi:10.1038/d41586-026-01551-3)와 동시 게재된 두 자율 AI-과학자 논문(Google Co-Scientist doi:10.1038/s41586-026-10644-y, FutureHouse Robin doi:10.1038/s41586-026-10652-y). 사설의 결론 — *"AI scientists can and should empower human researchers. They cannot and should not replace them."* — 이 ontologylab 설계와 동형.
+
+6개 기둥 ↔ 구현 매핑 (각 기둥별 검증 논문은 dossier 참조):
+
+| 기둥 | 근거 요지 | 구현 |
+|---|---|---|
+| 1. 사람 검증 필수 | AI "이해 착각"(Messeri&Crockett *Nature* 2024), human+AI 메타분석(*Nat Hum Behav* 2024) | verified-only 게이트 (ARCHITECTURE §1.2/1.3) |
+| 2. 자동화·앵커링 편향 | 자문 점수가 전문가를 앵커링(Dratsch *Radiology* 2023, Jabbour *JAMA* RCT 2023) | **W8 크리틱 anti-anchoring** (자문 전용, 점수→상태전이 경로 없음) |
+| 3. LLM 환각·provenance | 조작된 인용 정량화(Chelli *JMIR* 2024), Med-PaLM(*Nature* 2023) | **W2 char-span provenance** |
+| 4. 학술 기록 무결성 (AI slop) | Nature 저자성 정책(2023), fake-paper 규모(2023) | verified-only 불변 pack + deny-by-default 인제스트 |
+| 5. 자율 AI 과학자 | A-Lab도 모호 결과엔 사람 필요(*Nature* 2023), GNoME 후보는 검증 요구 | ontologylab = the **verify stage** |
+| 6. KG 사람 큐레이션 | PrimeKG/Hetionet/CKG의 provenance·큐레이션 전제 | **W7 엔티티 병합 리뷰** (사람만 병합) |
+
+검증 방법: dossier의 36개 DOI는 전량 Crossref REST API로 독립 재검증(제목·저널·연도·volume/page·저자수 대조, 모두 `journal-article` resolve)했다. arXiv/프리프린트·컨퍼런스 전용 논문은 엄격 기준에서 제외. 이 서지 자체가 "AI 제안 → 검증 게이트 → verified-only 등재" 파이프라인의 산물이다.
