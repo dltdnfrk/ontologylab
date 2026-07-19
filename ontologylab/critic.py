@@ -31,6 +31,7 @@ from ontologylab.kgstore import (
     SPAN_EXCERPT_CONTEXT_CHARS,
     SPAN_EXCERPT_MAX_CHARS,
     KGStore,
+    KGStoreError,
     span_excerpt,
 )
 
@@ -113,16 +114,35 @@ def _evidence_excerpt(raw_text: str, span: dict | None) -> str:
     )
 
 
-def _pending_items(store: KGStore, *, engine_name: str, limit: int) -> list[dict]:
-    """Proposed nodes/edges that this critic has not scored yet."""
+def _pending_items(
+    store: KGStore,
+    *,
+    engine_name: str,
+    limit: int,
+    docs_unloadable: Optional[set[str]] = None,
+) -> list[dict]:
+    """Proposed nodes/edges that this critic has not scored yet.
+
+    ``docs_unloadable`` (optional out-parameter): any doc_id whose source
+    text could not be loaded is added to this set. Such items still get an
+    item with **empty** evidence (fail-open — a document read failure must
+    not crash the run), but the caller can surface the degradation instead
+    of silently scoring against blank context.
+    """
     doc_text_cache: dict[str, str] = {}
 
     def doc_text(doc_id: str) -> str:
         if doc_id not in doc_text_cache:
             try:
                 doc_text_cache[doc_id] = store.document_raw_text(doc_id)
-            except Exception:
+            except (KGStoreError, OSError):
+                # Narrow to the real failure modes of document_raw_text:
+                # UnknownItem (a KGStoreError) for a missing row, OSError for
+                # an unreadable/missing raw-text file. Record the doc_id so
+                # the empty-evidence fallback is visible, not silent.
                 doc_text_cache[doc_id] = ""
+                if docs_unloadable is not None:
+                    docs_unloadable.add(doc_id)
         return doc_text_cache[doc_id]
 
     items: list[dict] = []
@@ -191,12 +211,18 @@ async def critic_review(
     in the returned stats) and never raises out of the loop.
     """
     engine_name = engine.name() if hasattr(engine, "name") else str(engine)
-    items = _pending_items(store, engine_name=engine_name, limit=limit)
+    docs_unloadable: set[str] = set()
+    items = _pending_items(
+        store, engine_name=engine_name, limit=limit, docs_unloadable=docs_unloadable
+    )
     stats: dict[str, Any] = {
         "candidates": len(items),
         "scored": 0,
         "disagreements": 0,
         "batches_failed": 0,
+        # doc_ids whose source text failed to load: their items were scored
+        # against empty evidence (fail-open). Non-empty = degraded run.
+        "docs_unloadable": sorted(docs_unloadable),
         "errors": [],
     }
     for start in range(0, len(items), batch_size):

@@ -134,6 +134,30 @@ def test_critic_fails_open_on_engine_error(store, doc):
     assert all(r["critic_score"] is None for r in rows)
 
 
+def test_critic_surfaces_unloadable_docs(store, doc, monkeypatch):
+    """A failed document-text load must be visible in stats, not silent."""
+    _seed(store, doc)
+
+    def boom(_doc_id):
+        raise OSError("raw-text file missing")
+
+    monkeypatch.setattr(store, "document_raw_text", boom)
+
+    stats = run(critic_review(store, MockEngine()))
+    # fail-open: the run still completes and scores items despite empty evidence
+    assert stats["candidates"] == 4
+    assert stats["scored"] == 4
+    assert stats["batches_failed"] == 0
+    # ...but the degradation is surfaced, not swallowed
+    assert stats["docs_unloadable"] == [doc.id]
+
+
+def test_docs_unloadable_empty_when_all_docs_load(store, doc):
+    _seed(store, doc)
+    stats = run(critic_review(store, MockEngine()))
+    assert stats["docs_unloadable"] == []
+
+
 def test_unscored_items_sort_last_in_critic_order(store, doc):
     _seed(store, doc)
     run(critic_review(store, MockEngine(), limit=1))  # score only first node
