@@ -625,3 +625,121 @@ tr.row-focused {
   outline: 2px solid var(--accent, #4f8cff);
   outline-offset: -2px;
 }
+
+/* ---------- 워크플로 재설계: 홈 스텝퍼 / 안내 / 배지 ---------- */
+
+.tab-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 0.45rem 0.35rem;
+  background: var(--border);
+}
+
+.tab-badge {
+  display: inline-block;
+  min-width: 1.2em;
+  padding: 0 0.35em;
+  margin-left: 0.15rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.tab-intro {
+  margin: 0.25rem 0 1rem 0;
+  padding: 0.6rem 0.8rem;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--bg-muted);
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
+.pipeline {
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+
+.step {
+  flex: 1 1 140px;
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+
+.step:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.step-key {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.step-no {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.step-name {
+  font-weight: 600;
+}
+
+.step-desc {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  min-height: 2.2em;
+}
+
+.step-stat {
+  margin-top: 0.2rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ok);
+}
+
+.step-arrow {
+  align-self: center;
+  color: var(--text-muted);
+}
+
+.next-action {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+}
+
+.btn-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}

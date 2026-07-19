@@ -42,6 +42,7 @@
 
   function renderCounts(counts) {
     var box = $("#counts-box");
+    updateReviewBadge(counts);
     if (!counts) {
       box.innerHTML = "<div class='status-row'><span>집계 없음</span></div>";
       return;
@@ -482,7 +483,7 @@
       engines.forEach(function (eng) {
         var opt = document.createElement("option");
         opt.value = eng.name;
-        opt.textContent = eng.name + (eng.available ? "" : " (missing)");
+        opt.textContent = eng.name + (eng.available ? "" : " (미설치)");
         opt.disabled = !eng.available;
         sel.appendChild(opt);
       });
@@ -1270,10 +1271,93 @@
   var loadedTabs = {};
 
   function maybeLoadTab(name) {
+    if (name === "home") return loadHome(); // 홈은 항상 최신 상태로
     if (loadedTabs[name] || !tabLoaders[name]) return;
     loadedTabs[name] = true;
     tabLoaders[name]();
   }
+
+  /* -- 홈(시작하기): 파이프라인 현황 + 다음 할 일 추천 ---------------- */
+
+  function updateReviewBadge(counts) {
+    var badge = $("#review-badge");
+    if (!badge) return;
+    var pending = counts
+      ? (counts.nodes_proposed || 0) + (counts.edges_proposed || 0)
+      : 0;
+    badge.textContent = String(pending);
+    badge.classList.toggle("hidden", pending === 0);
+  }
+
+  function setNextAction(text, gotoTab, btnLabel) {
+    var box = $("#next-action");
+    $("#next-action-text").textContent = text;
+    var btn = $("#next-action-btn");
+    btn.textContent = btnLabel;
+    btn.dataset.goto = gotoTab;
+    box.classList.remove("hidden");
+  }
+
+  async function loadHome() {
+    try {
+      var data = await api("/api/proposals?limit=1");
+      var c = data.counts || {};
+      var packs = [];
+      try {
+        packs = ((await api("/api/packs")) || {}).packs || [];
+      } catch (_) { /* 팩 목록 실패는 홈 표시를 막지 않음 */ }
+
+      var docs = c.documents || 0;
+      var pending = (c.nodes_proposed || 0) + (c.edges_proposed || 0);
+      var verified = (c.nodes_verified || 0) + (c.edges_verified || 0);
+
+      updateReviewBadge(c);
+      $("#stat-sources").textContent = "문서 " + docs + "개";
+      $("#stat-jobs").textContent =
+        pending || verified ? "추출 결과 있음" : "아직 없음";
+      $("#stat-review").textContent = pending
+        ? "대기 " + pending + "건"
+        : "대기 없음";
+      $("#stat-packs").textContent =
+        "승인 " + verified + "건 · 팩 " + packs.length + "개";
+      $("#stat-mcp").textContent = packs.length
+        ? "연결 가능"
+        : "팩 필요";
+
+      // 다음 할 일 추천 (파이프라인 상태 기반)
+      if (docs === 0) {
+        setNextAction("먼저 문서를 넣으세요.", "sources", "① 수집으로 가기");
+      } else if (pending > 0) {
+        setNextAction(
+          "AI 제안 " + pending + "건이 검토를 기다립니다.",
+          "review", "③ 검토로 가기"
+        );
+      } else if (verified === 0) {
+        setNextAction("문서에서 지식을 추출해 보세요.", "jobs", "② 추출로 가기");
+      } else if (packs.length === 0) {
+        setNextAction(
+          "승인된 지식 " + verified + "건을 팩으로 내보내세요.",
+          "packs", "④ 팩 빌드하러 가기"
+        );
+      } else {
+        setNextAction(
+          "팩이 준비됐습니다. AI에 연결하거나 새 문서를 수집하세요.",
+          "mcp", "⑤ 연결로 가기"
+        );
+      }
+    } catch (_) {
+      $("#next-action").classList.add("hidden");
+    }
+  }
+
+  // 홈 스텝 카드·"다음 단계" 링크·빈 상태 버튼의 탭 점프 (이벤트 위임)
+  document.addEventListener("click", function (ev) {
+    var target = ev.target.closest("[data-goto]");
+    if (!target) return;
+    var tab = target.dataset.goto;
+    showTab(tab);
+    maybeLoadTab(tab);
+  });
 
   $("#sources-refresh-btn").addEventListener("click", loadDocuments);
   $("#jobs-refresh-btn").addEventListener("click", loadJobs);
@@ -1302,7 +1386,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      showResult(box, "<span class='ok-msg'>Settings saved.</span>");
+      showResult(box, "<span class='ok-msg'>설정을 저장했습니다.</span>");
     } catch (e) {
       showResult(box, escapeHtml(String(e.message || e)), true);
     } finally {
@@ -1325,7 +1409,7 @@
       engines.forEach(function (eng) {
         var opt = document.createElement("option");
         opt.value = eng.name;
-        opt.textContent = eng.name + (eng.available ? "" : " (missing)");
+        opt.textContent = eng.name + (eng.available ? "" : " (미설치)");
         opt.disabled = !eng.available;
         sel.appendChild(opt);
       });
@@ -1338,7 +1422,7 @@
     var box = $("#critic-result");
     var btn = $("#critic-run-btn");
     btn.disabled = true;
-    showResult(box, "<span class='muted'>Critic scoring… (advisory only — approval stays yours)</span>");
+    showResult(box, "<span class='muted'>크리틱 채점 중… (참고용 점수 — 승인은 항상 사용자 몫)</span>");
     try {
       var res = await apiSend("/api/critic/run", {
         engine: $("#critic-engine").value || "mock",
@@ -1348,7 +1432,7 @@
           box,
           "크리틱 채점 <code>" + escapeHtml(String(res.scored || 0)) +
             "</code>/<code>" + escapeHtml(String(res.candidates || 0)) +
-            "</code> pending item(s) · disagreements: <code>" +
+            "</code>건 채점 · 불일치: <code>" +
             escapeHtml(String(res.disagreements || 0)) + "</code>"
         );
         $("#review-order").value = "critic";
@@ -1365,6 +1449,7 @@
   });
   populateCriticEngines();
 
+  loadHome();
   loadProposals();
   loadEngines();
   loadSettings();
