@@ -48,6 +48,10 @@ python -m ontologylab.serve --host 127.0.0.1 --port 8765
 # open http://127.0.0.1:8765  → Review queue (approve/reject)
 ```
 
+**One-click launch (macOS):** build a double-clickable app that starts the
+dashboard and opens the browser for you — `bash launcher/build-macos-app.sh`
+puts `ontologylab.app` in `~/Applications`. 한글 실행 가이드: [`launcher/README.md`](launcher/README.md).
+
 ## MCP server
 
 ```bash

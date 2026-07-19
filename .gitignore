@@ -5,3 +5,7 @@ packs/
 __pycache__/
 *.egg-info/
 *.pyc
+
+# launcher runtime state (machine-specific)
+.launcher.port
+.launcher.log
