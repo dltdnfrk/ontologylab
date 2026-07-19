@@ -48,16 +48,16 @@
       return;
     }
     box.innerHTML =
-      "<div class='status-row'><span>노드 검토대기:</span> <code>" +
+      "<div class='status-row'><span>개념(노드) 검토 대기:</span> <code>" +
       (counts.nodes_proposed || 0) +
       "</code></div>" +
-      "<div class='status-row'><span>엣지 검토대기:</span> <code>" +
+      "<div class='status-row'><span>관계(엣지) 검토 대기:</span> <code>" +
       (counts.edges_proposed || 0) +
       "</code></div>" +
-      "<div class='status-row'><span>노드 승인됨:</span> <code>" +
+      "<div class='status-row'><span>개념 승인됨:</span> <code>" +
       (counts.nodes_verified || 0) +
       "</code></div>" +
-      "<div class='status-row'><span>엣지 승인됨:</span> <code>" +
+      "<div class='status-row'><span>관계 승인됨:</span> <code>" +
       (counts.edges_verified || 0) +
       "</code></div>" +
       "<div class='status-row'><span>문서:</span> <code>" +
@@ -74,9 +74,23 @@
     return item.id ? item.id.slice(0, 12) : "—";
   }
 
+  // 승인/거부는 요청이 겹치면 이중 POST가 되므로 전역 1건씩만 처리
+  var actPending = false;
+
+  function setLastAction(text) {
+    var el = $("#review-last-action");
+    if (!el) return;
+    el.textContent = text;
+    el.classList.remove("hidden");
+  }
+
   async function act(kind, id) {
+    if (actPending) return;
+    actPending = true;
     var path =
       kind === "approve" ? "/api/proposals/approve" : "/api/proposals/reject";
+    var row = reviewRows.filter(function (r) { return r.id === id; })[0];
+    var keepIdx = reviewCursor;
     try {
       await api(path, {
         method: "POST",
@@ -84,11 +98,17 @@
         body: JSON.stringify({ id: id, cascade: kind === "approve" }),
       });
       $("#review-error").classList.add("hidden");
-      await loadProposals();
+      setLastAction(
+        (kind === "approve" ? "승인됨: " : "거부됨: ") +
+          ((row && row.label) || id.slice(0, 12))
+      );
+      await loadProposals(keepIdx);
     } catch (err) {
       var el = $("#review-error");
-      el.textContent = String(err.message || err);
+      el.textContent = friendlyError(err);
       el.classList.remove("hidden");
+    } finally {
+      actPending = false;
     }
   }
 
@@ -112,6 +132,10 @@
     // never hijack typing in inputs
     var tag = (ev.target.tagName || "").toLowerCase();
     if (tag === "input" || tag === "textarea" || tag === "select") return;
+    // ③ 검토 탭이 보일 때만 동작 — 다른 탭에서 보이지 않는 행이
+    // 조용히 승인/거부되는 사고 방지 (승인은 눈으로 보고 하는 행위)
+    var reviewPanel = document.getElementById("tab-review");
+    if (!reviewPanel || !reviewPanel.classList.contains("active")) return;
     if (!reviewRows.length) return;
     if (ev.key === "j") focusRow(reviewCursor + 1);
     else if (ev.key === "k") focusRow(reviewCursor - 1);
@@ -129,11 +153,13 @@
     ev.preventDefault();
   });
 
-  async function loadProposals() {
+  async function loadProposals(keepIndex) {
     var tbody = $("#proposals-body");
     var empty = $("#review-empty");
     var err = $("#review-error");
     err.classList.add("hidden");
+    empty.classList.add("hidden");
+    showTableLoading(tbody, 8);
     reviewRows = [];
     reviewCursor = -1;
     try {
@@ -157,37 +183,36 @@
           critic = Number(item.critic_score).toFixed(2);
           if (item.critic_disagreement) {
             critic +=
-              " <span class='badge' title='추출기/크리틱 불일치" +
-              (item.critic_rationale
-                ? ": " + escapeHtml(item.critic_rationale)
-                : "") +
-              "'>⚠</span>";
-          } else if (item.critic_rationale) {
-            critic =
-              "<span title='" + escapeHtml(item.critic_rationale) + "'>" +
-              critic + "</span>";
+              " <span class='badge' role='img'" +
+              " aria-label='추출기·크리틱 판단 불일치'>⚠</span>";
+          }
+          if (item.critic_rationale) {
+            var rationale = String(item.critic_rationale);
+            if (rationale.length > 80) rationale = rationale.slice(0, 80) + "…";
+            critic += "<br><small class='muted'>" + escapeHtml(rationale) + "</small>";
           }
         }
         tr.innerHTML =
+          "<td><input type='checkbox' class='row-check' data-id='" +
+          escapeHtml(item.id || "") +
+          "' aria-label='선택'></td>" +
           "<td>" +
           kindKo(item.kind) +
           "</td>" +
           "<td>" +
-          (item.type_name || item.entity_type || item.relation_type || "") +
+          escapeHtml(item.type_name || item.entity_type || item.relation_type || "") +
           "</td>" +
-          "<td><code>" +
-          itemLabel(item) +
-          "</code><br><small class='muted'>" +
-          (item.id || "").slice(0, 12) +
-          "</small></td>" +
+          "<td title='" + escapeHtml(item.id || "") + "'><strong>" +
+          escapeHtml(itemLabel(item)) +
+          "</strong></td>" +
           "<td>" +
           conf +
           "</td>" +
           "<td>" +
           critic +
           "</td>" +
-          "<td><small>" +
-          (item.source_doc_id || "").slice(0, 10) +
+          "<td title='" + escapeHtml(item.source_doc_id || "") + "'><small>" +
+          escapeHtml(item.doc_title || (item.source_doc_id || "").slice(0, 10)) +
           "</small></td>" +
           "<td class='actions'></td>";
         var actions = tr.querySelector(".actions");
@@ -218,12 +243,76 @@
           actions.appendChild(focusBtn);
         }
         tbody.appendChild(tr);
-        reviewRows.push({ id: item.id, kind: item.kind, tr: tr });
+        reviewRows.push({
+          id: item.id, kind: item.kind, tr: tr, label: itemLabel(item),
+        });
       });
-      if (reviewRows.length) focusRow(0);
+      var idx = typeof keepIndex === "number" ? keepIndex : 0;
+      if (reviewRows.length) focusRow(Math.min(idx, reviewRows.length - 1));
     } catch (e) {
-      err.textContent = String(e.message || e);
+      err.textContent = friendlyError(e);
       err.classList.remove("hidden");
+      tbody.innerHTML = "";
+    } finally {
+      var checkAll = $("#review-check-all");
+      if (checkAll) checkAll.checked = false;
+      updateBulkButtons();
+    }
+  }
+
+  /* -- 일괄 승인/거부: 체크박스 + 명시적 확인창 (자동 승인 없음) -- */
+
+  function updateBulkButtons() {
+    var n = document.querySelectorAll(
+      "#proposals-body .row-check:checked"
+    ).length;
+    var ok = $("#bulk-approve-btn");
+    var no = $("#bulk-reject-btn");
+    if (!ok || !no) return;
+    ok.disabled = n === 0;
+    no.disabled = n === 0;
+    ok.textContent = n ? "선택 승인 (" + n + ")" : "선택 승인";
+    no.textContent = n ? "선택 거부 (" + n + ")" : "선택 거부";
+  }
+
+  async function bulkAct(kind) {
+    var ids = [].map.call(
+      document.querySelectorAll("#proposals-body .row-check:checked"),
+      function (cb) { return cb.dataset.id; }
+    );
+    if (!ids.length) return;
+    var question =
+      kind === "approve"
+        ? ids.length + "건을 모두 승인할까요? 승인된 항목은 팩에 들어갑니다."
+        : ids.length + "건을 모두 거부할까요?";
+    if (!window.confirm(question)) return;
+    if (actPending) return;
+    actPending = true;
+    $("#bulk-approve-btn").disabled = true;
+    $("#bulk-reject-btn").disabled = true;
+    var path =
+      kind === "approve" ? "/api/proposals/approve" : "/api/proposals/reject";
+    var done = 0;
+    try {
+      for (var i = 0; i < ids.length; i++) {
+        await api(path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: ids[i], cascade: kind === "approve" }),
+        });
+        done++;
+      }
+      $("#review-error").classList.add("hidden");
+      setLastAction(
+        (kind === "approve" ? "승인됨: " : "거부됨: ") + done + "건"
+      );
+    } catch (e) {
+      var el = $("#review-error");
+      el.textContent = done + "건 처리 후 오류: " + friendlyError(e);
+      el.classList.remove("hidden");
+    } finally {
+      actPending = false;
+      await loadProposals();
     }
   }
 
@@ -237,8 +326,8 @@
         li.textContent =
           eng.name +
           " — " +
-          (eng.available ? "available" : "missing") +
-          (eng.default_model ? " (default: " + eng.default_model + ")" : "");
+          (eng.available ? "사용 가능" : "미설치") +
+          (eng.default_model ? " (기본 모델: " + eng.default_model + ")" : "");
         list.appendChild(li);
       });
       var cost = await api("/api/cost");
@@ -257,7 +346,7 @@
       $("#settings-data-dir").value = s.data_dir || "";
       $("#settings-packs-dir").value = s.packs_dir || "";
     } catch (e) {
-      showResult(box, escapeHtml(String(e.message || e)), true);
+      showResult(box, escapeHtml(friendlyError(e)), true);
     }
   }
 
@@ -318,7 +407,7 @@
   // and any logic; only the visible text is localized. Unknown values fall
   // back to the raw string so data never breaks.
   var STATUS_KO = {
-    proposed: "검토대기", verified: "승인됨", rejected: "거부됨",
+    proposed: "검토 대기", verified: "승인됨", rejected: "거부됨",
     invalidated: "무효화됨", merged: "병합됨", dismissed: "기각",
     stale: "만료", running: "실행 중", complete: "완료", failed: "실패",
   };
@@ -327,7 +416,7 @@
     return STATUS_KO[k] || s || "—";
   }
   function kindKo(k) {
-    return k === "node" ? "노드" : k === "edge" ? "엣지" : k || "";
+    return k === "node" ? "개념" : k === "edge" ? "관계" : k || "";
   }
 
   function statusBadge(status) {
@@ -356,6 +445,21 @@
     el.innerHTML = html;
     el.classList.toggle("result-error", !!isError);
     el.classList.remove("hidden");
+  }
+
+  // 첫 로드 중 빈 테이블이 "데이터 없음"으로 오독되지 않게 placeholder 행
+  function showTableLoading(tbody, cols) {
+    tbody.innerHTML =
+      "<tr><td colspan='" + cols + "' class='muted'>불러오는 중…</td></tr>";
+  }
+
+  // fetch 계열 네트워크 오류를 사람이 읽을 수 있는 안내로 (최빈 장애: 서버 꺼짐)
+  function friendlyError(e) {
+    var m = String((e && e.message) || e);
+    if (/failed to fetch|networkerror|load failed/i.test(m)) {
+      return "서버에 연결할 수 없습니다. ontologylab 서버가 실행 중인지 확인한 뒤 다시 시도하세요.";
+    }
+    return m;
   }
 
   function copyText(text) {
@@ -400,6 +504,8 @@
     var empty = $("#sources-empty");
     var err = $("#sources-error");
     err.classList.add("hidden");
+    empty.classList.add("hidden");
+    showTableLoading(tbody, 4);
     try {
       var data = await api("/api/documents");
       var docs = (data && data.documents) || [];
@@ -417,7 +523,8 @@
         .join("");
       empty.classList.toggle("hidden", docs.length > 0);
     } catch (e) {
-      err.textContent = String(e.message || e);
+      tbody.innerHTML = "";
+      err.textContent = friendlyError(e);
       err.classList.remove("hidden");
     }
   }
@@ -444,13 +551,14 @@
       if (res && res.ok) {
         showResult(
           box,
-          "<span class='ok-msg'>수집 완료.</span> 문서: <code>" +
+          "<span class='ok-msg'>수집 완료.</span> 전체 문서 <code>" +
             escapeHtml(String(res.documents != null ? res.documents : "?")) +
-            "</code> · created: <code>" +
+            "</code>개 · 새로 추가 <code>" +
             escapeHtml(String(res.created != null ? res.created : "?")) +
-            "</code> · 중복: <code>" +
+            "</code>개 · 중복 건너뜀 <code>" +
             escapeHtml(String(res.duplicates != null ? res.duplicates : "?")) +
-            "</code>"
+            "</code>개 <button type='button' class='btn btn-primary'" +
+            " data-goto='jobs'>다음: ② 추출 실행 →</button>"
         );
         await loadDocuments();
       } else {
@@ -463,7 +571,7 @@
         );
       }
     } catch (e) {
-      showResult(box, escapeHtml(String(e.message || e)), true);
+      showResult(box, escapeHtml(friendlyError(e)), true);
     } finally {
       btn.disabled = false;
     }
@@ -474,6 +582,8 @@
   var jobsPollTimer = null;
   var selectedJobId = null;
   var extractEnginesLoaded = false;
+  // running→complete/failed 전환 감지용 (완료 순간 안내를 띄우기 위해)
+  var prevJobStatuses = {};
 
   async function populateEngineSelect() {
     var sel = $("#extract-engine");
@@ -499,8 +609,8 @@
   function totalsSummary(totals) {
     var t = totals || {};
     return (
-      "노드 +" + (t.nodes_new || 0) + "/~" + (t.nodes_merged || 0) +
-      " · 엣지 +" + (t.edges_new || 0) + "/~" + (t.edges_merged || 0)
+      "개념 +" + (t.nodes_new || 0) + "/~" + (t.nodes_merged || 0) +
+      " · 관계 +" + (t.edges_new || 0) + "/~" + (t.edges_merged || 0)
     );
   }
 
@@ -521,7 +631,7 @@
       if (job) renderJobDetail(job);
     } catch (e) {
       $("#job-detail").classList.remove("hidden");
-      $("#job-detail-title").textContent = "Job " + String(jobId).slice(0, 12);
+      $("#job-detail-title").textContent = "작업 " + String(jobId).slice(0, 12);
       $("#job-progress").textContent = String(e.message || e);
     }
     await loadJobs();
@@ -561,10 +671,33 @@
   async function loadJobs() {
     var err = $("#jobs-error");
     err.classList.add("hidden");
+    var jobsBody = $("#jobs-body");
+    if (!jobsBody.children.length) showTableLoading(jobsBody, 6);
     try {
       var data = await api("/api/jobs");
       var jobs = (data && data.jobs) || [];
       renderJobs(jobs);
+      // running → 종료 전환 감지: 완료 순간에 다음 단계 안내 + 검토 배지 갱신
+      jobs.forEach(function (job) {
+        var prev = prevJobStatuses[job.job_id];
+        if (prev === "running" && job.status === "complete") {
+          showResult(
+            $("#extract-result"),
+            "<span class='ok-msg'>추출 완료!</span> " +
+              escapeHtml(totalsSummary(job.totals)) +
+              " <button type='button' class='btn btn-primary'" +
+              " data-goto='review'>③ 검토하러 가기 →</button>"
+          );
+          loadProposals();
+        } else if (prev === "running" && job.status === "failed") {
+          showResult(
+            $("#extract-result"),
+            statusBadge("failed") + " " + escapeHtml(job.error || "추출 실패"),
+            true
+          );
+        }
+        prevJobStatuses[job.job_id] = job.status;
+      });
       if (selectedJobId) {
         var sel = jobs.filter(function (j) {
           return j.job_id === selectedJobId;
@@ -576,7 +709,8 @@
       });
       scheduleJobsPoll(anyRunning);
     } catch (e) {
-      err.textContent = String(e.message || e);
+      if (jobsBody.querySelector("td[colspan]")) jobsBody.innerHTML = "";
+      err.textContent = friendlyError(e);
       err.classList.remove("hidden");
       scheduleJobsPoll(false);
     }
@@ -619,7 +753,7 @@
         );
       }
     } catch (e) {
-      showResult(box, escapeHtml(String(e.message || e)), true);
+      showResult(box, escapeHtml(friendlyError(e)), true);
     } finally {
       btn.disabled = false;
     }
@@ -632,6 +766,8 @@
     var empty = $("#packs-empty");
     var err = $("#packs-error");
     err.classList.add("hidden");
+    empty.classList.add("hidden");
+    showTableLoading(tbody, 8);
     try {
       var data = await api("/api/packs");
       var packs = (data && data.packs) || [];
@@ -656,7 +792,8 @@
       empty.classList.toggle("hidden", packs.length > 0);
       populateDiffSelects(packs);
     } catch (e) {
-      err.textContent = String(e.message || e);
+      tbody.innerHTML = "";
+      err.textContent = friendlyError(e);
       err.classList.remove("hidden");
     }
   }
@@ -722,10 +859,10 @@
     }
     var s = d.summary || {};
     var html =
-      "<p><strong>요약</strong> — 노드 +" +
+      "<p><strong>요약</strong> — 개념 +" +
       escapeHtml(String(s.nodes_added || 0)) + "/−" +
       escapeHtml(String(s.nodes_removed || 0)) + "/~" +
-      escapeHtml(String(s.nodes_changed || 0)) + " · 엣지 +" +
+      escapeHtml(String(s.nodes_changed || 0)) + " · 관계 +" +
       escapeHtml(String(s.edges_added || 0)) + "/−" +
       escapeHtml(String(s.edges_removed || 0)) + "/~" +
       escapeHtml(String(s.edges_changed || 0)) + "</p>";
@@ -740,8 +877,8 @@
           escapeHtml(String(mc[k].b)) + "</span></div>";
       });
     }
-    html += diffGroupHtml("노드", d.nodes);
-    html += diffGroupHtml("엣지", d.edges);
+    html += diffGroupHtml("개념", d.nodes);
+    html += diffGroupHtml("관계", d.edges);
     showResult(box, html);
   }
 
@@ -755,14 +892,14 @@
       return;
     }
     btn.disabled = true;
-    showResult(box, "<span class='muted'>Diffing…</span>");
+    showResult(box, "<span class='muted'>비교 중…</span>");
     try {
       var d = await api(
         "/api/packs/" + encodeURIComponent(a) + "/diff/" + encodeURIComponent(b)
       );
       renderPackDiff(box, d);
     } catch (e) {
-      showResult(box, escapeHtml(String(e.message || e)), true);
+      showResult(box, escapeHtml(friendlyError(e)), true);
     } finally {
       btn.disabled = false;
     }
@@ -789,8 +926,6 @@
       }
     } catch (e) {
       flashButton(btn, "실패");
-    } finally {
-      btn.disabled = false;
     }
   });
 
@@ -814,21 +949,23 @@
           box,
           "<span class='ok-msg'>팩 빌드 완료.</span> <code>" +
             escapeHtml(manifest.pack_id || name) +
-            "</code> · 문서: <code>" +
+            "</code> · 문서 <code>" +
             escapeHtml(String(counts.documents || 0)) +
-            "</code> · 노드: <code>" +
+            "</code> · 개념 <code>" +
             escapeHtml(String(counts.nodes_verified || 0)) +
-            "</code> · 엣지: <code>" +
+            "</code> · 관계 <code>" +
             escapeHtml(String(counts.edges_verified || 0)) +
-            "</code>"
+            "</code> <button type='button' class='btn btn-primary'" +
+            " data-goto='mcp'>다음: ⑤ AI에 연결 →</button>"
         );
+        $("#pack-name").value = "";
         await loadPacks();
         await loadMcp();
       } else {
         showResult(box, escapeHtml((res && res.detail) || "팩 빌드 실패."), true);
       }
     } catch (e) {
-      showResult(box, escapeHtml(String(e.message || e)), true);
+      showResult(box, escapeHtml(friendlyError(e)), true);
     } finally {
       btn.disabled = false;
     }
@@ -841,6 +978,8 @@
     var empty = $("#mcp-empty");
     var err = $("#mcp-error");
     err.classList.add("hidden");
+    empty.classList.add("hidden");
+    cards.innerHTML = "<p class='muted'>불러오는 중…</p>";
     try {
       var data = await api("/api/mcp/status");
       $("#mcp-packs-dir").textContent = (data && data.packs_dir) || "—";
@@ -855,9 +994,9 @@
           "<strong><code>" + escapeHtml(pack.pack_id || "") + "</code></strong>" +
           "<span class='muted'>" + escapeHtml(fmtTs(pack.created_ts)) + "</span>" +
           "</div>" +
-          "<p class='muted'>문서: " + escapeHtml(String(counts.documents || 0)) +
-          " · 노드: " + escapeHtml(String(counts.nodes_verified || 0)) +
-          " · 엣지: " + escapeHtml(String(counts.edges_verified || 0)) +
+          "<p class='muted'>문서 " + escapeHtml(String(counts.documents || 0)) +
+          " · 개념 " + escapeHtml(String(counts.nodes_verified || 0)) +
+          " · 관계 " + escapeHtml(String(counts.edges_verified || 0)) +
           "</p>";
         var pre = document.createElement("pre");
         pre.className = "code-block";
@@ -866,7 +1005,7 @@
         var copyBtn = document.createElement("button");
         copyBtn.type = "button";
         copyBtn.className = "btn";
-        copyBtn.textContent = "stdio 설정 복사";
+        copyBtn.textContent = "연결 설정 복사 (JSON)";
         copyBtn.addEventListener("click", function () {
           copyText(JSON.stringify(pack.stdio_config || {}, null, 2)).then(
             function () {
@@ -882,7 +1021,7 @@
       });
       empty.classList.toggle("hidden", packs.length > 0);
     } catch (e) {
-      err.textContent = String(e.message || e);
+      err.textContent = friendlyError(e);
       err.classList.remove("hidden");
     }
   }
@@ -894,6 +1033,8 @@
     var empty = $("#communities-empty");
     var err = $("#communities-error");
     err.classList.add("hidden");
+    empty.classList.add("hidden");
+    showTableLoading(tbody, 4);
     try {
       var data = await api("/api/communities");
       var communities = (data && data.communities) || [];
@@ -912,7 +1053,8 @@
       });
       empty.classList.toggle("hidden", communities.length > 0);
     } catch (e) {
-      err.textContent = String(e.message || e);
+      tbody.innerHTML = "";
+      err.textContent = friendlyError(e);
       err.classList.remove("hidden");
     }
   }
@@ -932,7 +1074,7 @@
       var members = data.members || [];
       $("#community-detail-title").textContent =
         "커뮤니티 " + String(communityId).slice(0, 12) +
-        " (" + members.length + "명)";
+        " (구성원 " + members.length + "개)";
       var html = "";
       if (community.summary) {
         html += "<p>" + escapeHtml(community.summary) + "</p>";
@@ -951,7 +1093,7 @@
       body.innerHTML = html;
     } catch (e) {
       body.innerHTML = "";
-      err.textContent = String(e.message || e);
+      err.textContent = friendlyError(e);
       err.classList.remove("hidden");
     }
   }
@@ -969,8 +1111,8 @@
   async function invalidateEdge(edgeId, entityId) {
     if (
       !window.confirm(
-        "이 승인된 엣지를 무효화할까요? 이력(툼스톤)으로 보존되며, " +
-          "not deleted."
+        "이 승인된 관계를 무효화할까요?\n삭제되는 것이 아니라 " +
+          "'더 이상 유효하지 않음'으로 표시되고 이력은 보존됩니다."
       )
     ) {
       return;
@@ -985,7 +1127,7 @@
       if (res && res.ok === undefined && res.detail) throw new Error(res.detail);
       loadEntityPanel(entityId);
     } catch (e) {
-      err.textContent = String(e.message || e);
+      err.textContent = friendlyError(e);
       err.classList.remove("hidden");
     }
   }
@@ -1002,7 +1144,7 @@
       ctx = await api("/api/entity/" + encodeURIComponent(entityId) + "/review");
     } catch (e) {
       body.innerHTML = "";
-      err.textContent = String(e.message || e);
+      err.textContent = friendlyError(e);
       err.classList.remove("hidden");
       return;
     }
@@ -1015,7 +1157,7 @@
       "<p><strong>" + escapeHtml(ent.name || "") + "</strong> " +
       statusBadge(ent.status) +
       " <small class='muted'>" + escapeHtml(ent.entity_type || "") +
-      " · conf " +
+      " · 확신도 " +
       (ent.confidence == null ? "—" : Number(ent.confidence).toFixed(2)) +
       (ctx.critic
         ? " · 크리틱 " + Number(ctx.critic.score).toFixed(2) +
@@ -1039,9 +1181,9 @@
         escapeHtml(m.excerpt || "(스팬 없음)") + "…</small></div>";
     });
 
-    html += "<h4>관계 (" +
-      escapeHtml(String(counts.relations_proposed || 0)) + " 검토대기 / " +
-      escapeHtml(String(counts.relations_verified || 0)) + " 승인됨)</h4>";
+    html += "<h4>관계 (검토 대기 " +
+      escapeHtml(String(counts.relations_proposed || 0)) + "건 · 승인 " +
+      escapeHtml(String(counts.relations_verified || 0)) + "건)</h4>";
     body.innerHTML = html;
 
     (ctx.relations || []).forEach(function (rel) {
@@ -1085,7 +1227,7 @@
         invalidate.className = "btn btn-danger";
         invalidate.textContent = "무효화";
         invalidate.title =
-          "이 승인된 엣지를 더 이상 현행 아님으로 표시 (이력 보존)";
+          "승인을 취소하지 않고 '지금은 유효하지 않음'으로 표시합니다 (이력 보존)";
         invalidate.addEventListener("click", function () {
           invalidateEdge(rel.id, entityId);
         });
@@ -1138,6 +1280,8 @@
   }
 
   async function mergeAct(candidateId, targetId, sourceId) {
+    if (actPending) return;
+    actPending = true;
     var err = $("#merge-error");
     err.classList.add("hidden");
     try {
@@ -1149,12 +1293,16 @@
       await loadMergeCandidates();
       await loadProposals();
     } catch (e) {
-      err.textContent = String(e.message || e);
+      err.textContent = friendlyError(e);
       err.classList.remove("hidden");
+    } finally {
+      actPending = false;
     }
   }
 
   async function mergeDismiss(candidateId) {
+    if (actPending) return;
+    actPending = true;
     var err = $("#merge-error");
     err.classList.add("hidden");
     try {
@@ -1165,8 +1313,10 @@
       if (res && res.ok === undefined && res.detail) throw new Error(res.detail);
       await loadMergeCandidates();
     } catch (e) {
-      err.textContent = String(e.message || e);
+      err.textContent = friendlyError(e);
       err.classList.remove("hidden");
+    } finally {
+      actPending = false;
     }
   }
 
@@ -1175,6 +1325,8 @@
     var empty = $("#merge-empty");
     var err = $("#merge-error");
     err.classList.add("hidden");
+    empty.classList.add("hidden");
+    cards.innerHTML = "<p class='muted'>불러오는 중…</p>";
     try {
       var data = await api("/api/merge/candidates?limit=100");
       var items = (data && data.items) || [];
@@ -1221,7 +1373,7 @@
       });
       empty.classList.toggle("hidden", items.length > 0);
     } catch (e) {
-      err.textContent = String(e.message || e);
+      err.textContent = friendlyError(e);
       err.classList.remove("hidden");
     }
   }
@@ -1230,22 +1382,22 @@
     var box = $("#merge-scan-result");
     var btn = $("#merge-scan-btn");
     btn.disabled = true;
-    showResult(box, "<span class='muted'>Scanning…</span>");
+    showResult(box, "<span class='muted'>스캔 중…</span>");
     try {
       var res = await apiSend("/api/merge/scan", {});
       if (res && res.ok) {
         showResult(
           box,
-          "스캔 <code>" + escapeHtml(String(res.nodes || 0)) +
-            "</code> nodes · new candidates: <code>" +
-            escapeHtml(String(res.candidates_new || 0)) + "</code>"
+          "노드 <code>" + escapeHtml(String(res.nodes || 0)) +
+            "</code>개 스캔 · 새 후보 <code>" +
+            escapeHtml(String(res.candidates_new || 0)) + "</code>건"
         );
         await loadMergeCandidates();
       } else {
         showResult(box, escapeHtml((res && res.detail) || "스캔 실패."), true);
       }
     } catch (e) {
-      showResult(box, escapeHtml(String(e.message || e)), true);
+      showResult(box, escapeHtml(friendlyError(e)), true);
     } finally {
       btn.disabled = false;
     }
@@ -1255,6 +1407,7 @@
   /* -- Lazy loading + refresh wiring -- */
 
   var tabLoaders = {
+    review: loadProposals,
     merge: loadMergeCandidates,
     sources: loadDocuments,
     jobs: function () {
@@ -1267,14 +1420,15 @@
     packs: loadPacks,
     mcp: loadMcp,
     communities: loadCommunities,
+    engines: loadEngines,
   };
-  var loadedTabs = {};
 
+  // 탭을 열 때마다 새로 로드 — 로컬 API라 비용이 없고, 다른 탭에서
+  // 바꾼 데이터가 낡은 화면으로 남는 것(거짓 상태)을 막는다.
+  // (settings는 입력 중 값이 GET으로 덮이지 않게 제외)
   function maybeLoadTab(name) {
-    if (name === "home") return loadHome(); // 홈은 항상 최신 상태로
-    if (loadedTabs[name] || !tabLoaders[name]) return;
-    loadedTabs[name] = true;
-    tabLoaders[name]();
+    if (name === "home") return loadHome();
+    if (tabLoaders[name]) tabLoaders[name]();
   }
 
   /* -- 홈(시작하기): 파이프라인 현황 + 다음 할 일 추천 ---------------- */
@@ -1298,7 +1452,20 @@
     box.classList.remove("hidden");
   }
 
+  var HOME_STATS = [
+    "#stat-sources", "#stat-jobs", "#stat-review", "#stat-packs", "#stat-mcp",
+  ];
+
+  function setStat(sel, text, state) {
+    var el = $(sel);
+    if (!el) return;
+    el.textContent = text;
+    el.className = "step-stat" + (state ? " " + state : "");
+  }
+
   async function loadHome() {
+    var homeErr = $("#home-error");
+    if (homeErr) homeErr.classList.add("hidden");
     try {
       var data = await api("/api/proposals?limit=1");
       var c = data.counts || {};
@@ -1306,23 +1473,34 @@
       try {
         packs = ((await api("/api/packs")) || {}).packs || [];
       } catch (_) { /* 팩 목록 실패는 홈 표시를 막지 않음 */ }
+      var jobs = [];
+      try {
+        jobs = ((await api("/api/jobs")) || {}).jobs || [];
+      } catch (_) { /* 작업 목록 실패도 홈 표시를 막지 않음 */ }
+      var running = jobs.some(function (j) { return j.status === "running"; });
 
       var docs = c.documents || 0;
       var pending = (c.nodes_proposed || 0) + (c.edges_proposed || 0);
       var verified = (c.nodes_verified || 0) + (c.edges_verified || 0);
 
       updateReviewBadge(c);
-      $("#stat-sources").textContent = "문서 " + docs + "개";
-      $("#stat-jobs").textContent =
-        pending || verified ? "추출 결과 있음" : "아직 없음";
-      $("#stat-review").textContent = pending
-        ? "대기 " + pending + "건"
-        : "대기 없음";
-      $("#stat-packs").textContent =
-        "승인 " + verified + "건 · 팩 " + packs.length + "개";
-      $("#stat-mcp").textContent = packs.length
-        ? "연결 가능"
-        : "팩 필요";
+      setStat("#stat-sources", "문서 " + docs + "개",
+        docs ? "is-ok" : "is-todo");
+      setStat(
+        "#stat-jobs",
+        running ? "추출 진행 중…"
+          : jobs.length ? "실행 " + jobs.length + "회" : "아직 없음",
+        running || !jobs.length ? "is-todo" : "is-ok"
+      );
+      setStat(
+        "#stat-review",
+        "대기 " + pending + "건 · 승인 " + verified + "건",
+        pending > 0 ? "is-todo" : "is-ok"
+      );
+      setStat("#stat-packs", "팩 " + packs.length + "개",
+        packs.length ? "is-ok" : "is-todo");
+      setStat("#stat-mcp", packs.length ? "연결 가능" : "팩 필요",
+        packs.length ? "is-ok" : "is-todo");
 
       // 다음 할 일 추천 (파이프라인 상태 기반)
       if (docs === 0) {
@@ -1331,6 +1509,16 @@
         setNextAction(
           "AI 제안 " + pending + "건이 검토를 기다립니다.",
           "review", "③ 검토로 가기"
+        );
+      } else if (running) {
+        setNextAction(
+          "추출이 진행 중입니다. 끝나면 ③ 검토에 제안이 올라옵니다.",
+          "jobs", "② 추출 상태 보기"
+        );
+      } else if (verified === 0 && jobs.length > 0) {
+        setNextAction(
+          "제안이 모두 처리됐습니다. 새 문서를 수집하거나 다시 추출해 보세요.",
+          "sources", "① 수집으로 가기"
         );
       } else if (verified === 0) {
         setNextAction("문서에서 지식을 추출해 보세요.", "jobs", "② 추출로 가기");
@@ -1341,12 +1529,15 @@
         );
       } else {
         setNextAction(
-          "팩이 준비됐습니다. AI에 연결하거나 새 문서를 수집하세요.",
+          "팩이 준비됐습니다. 새로 승인한 내용이 있다면 ④에서 팩을 다시 빌드하고, " +
+            "아니면 ⑤에서 AI에 연결하세요.",
           "mcp", "⑤ 연결로 가기"
         );
       }
     } catch (_) {
       $("#next-action").classList.add("hidden");
+      if (homeErr) homeErr.classList.remove("hidden");
+      HOME_STATS.forEach(function (sel) { setStat(sel, "확인 불가"); });
     }
   }
 
@@ -1364,6 +1555,27 @@
   $("#packs-refresh-btn").addEventListener("click", loadPacks);
   $("#mcp-refresh-btn").addEventListener("click", loadMcp);
   $("#communities-refresh-btn").addEventListener("click", loadCommunities);
+
+  /* 일괄 선택 배선 + 홈 오류 재시도 */
+  $("#proposals-body").addEventListener("change", function (ev) {
+    if (ev.target && ev.target.classList.contains("row-check")) {
+      updateBulkButtons();
+    }
+  });
+  $("#review-check-all").addEventListener("change", function () {
+    var on = $("#review-check-all").checked;
+    document
+      .querySelectorAll("#proposals-body .row-check")
+      .forEach(function (cb) { cb.checked = on; });
+    updateBulkButtons();
+  });
+  $("#bulk-approve-btn").addEventListener("click", function () {
+    bulkAct("approve");
+  });
+  $("#bulk-reject-btn").addEventListener("click", function () {
+    bulkAct("reject");
+  });
+  $("#home-retry-btn").addEventListener("click", loadHome);
 
   /* Settings: editable form (GET populates, PUT saves) */
   $("#settings-form").addEventListener("submit", async function (ev) {
@@ -1388,7 +1600,7 @@
       });
       showResult(box, "<span class='ok-msg'>설정을 저장했습니다.</span>");
     } catch (e) {
-      showResult(box, escapeHtml(String(e.message || e)), true);
+      showResult(box, escapeHtml(friendlyError(e)), true);
     } finally {
       btn.disabled = false;
     }
@@ -1430,10 +1642,10 @@
       if (res && res.ok) {
         showResult(
           box,
-          "크리틱 채점 <code>" + escapeHtml(String(res.scored || 0)) +
-            "</code>/<code>" + escapeHtml(String(res.candidates || 0)) +
-            "</code>건 채점 · 불일치: <code>" +
-            escapeHtml(String(res.disagreements || 0)) + "</code>"
+          "크리틱 채점 완료 — 후보 <code>" + escapeHtml(String(res.candidates || 0)) +
+            "</code>건 중 <code>" + escapeHtml(String(res.scored || 0)) +
+            "</code>건 채점 · 불일치 <code>" +
+            escapeHtml(String(res.disagreements || 0)) + "</code>건"
         );
         $("#review-order").value = "critic";
         reviewOrder = "critic";
@@ -1442,7 +1654,7 @@
         showResult(box, escapeHtml((res && res.detail) || "크리틱 실행 실패."), true);
       }
     } catch (e) {
-      showResult(box, escapeHtml(String(e.message || e)), true);
+      showResult(box, escapeHtml(friendlyError(e)), true);
     } finally {
       btn.disabled = false;
     }

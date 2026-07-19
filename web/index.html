@@ -75,7 +75,13 @@
         <strong>지금 할 일:</strong> <span id="next-action-text"></span>
         <button type="button" id="next-action-btn" class="btn btn-primary"></button>
       </div>
+      <p id="home-error" class="err-msg hidden">서버에 연결하지 못했습니다.
+        서버가 켜져 있는지 확인한 뒤
+        <button type="button" id="home-retry-btn" class="btn btn-link">다시 시도</button>해 주세요.</p>
 
+      <p class="muted"><small>모든 데이터는 이 컴퓨터에만 저장됩니다.
+        mock(오프라인 데모) 엔진으로 만든 연습용 데이터라면 승인·거부·팩 빌드를
+        마음껏 눌러 보세요 — 언제든 다시 추출하면 됩니다.</small></p>
       <p class="muted"><small>보조 도구 — <strong>병합</strong>: 중복 엔티티 정리 ·
         <strong>커뮤니티</strong>: 그래프 클러스터 보기 ·
         <strong>엔진</strong>: 사용 가능한 AI 확인 · <strong>설정</strong>: 기본값 변경</small></p>
@@ -116,7 +122,7 @@
       <div id="collect-result" class="status-box result-box hidden"></div>
 
       <h3>수집된 문서</h3>
-      <div class="form-actions" style="margin: 0.75rem 0;">
+      <div class="form-actions">
         <button type="button" id="sources-refresh-btn" class="btn">새로고침</button>
       </div>
       <div class="table-wrap table-scroll">
@@ -152,13 +158,16 @@
         <label>엔진
           <select id="extract-engine"></select>
         </label>
-        <label>모델 (선택)
-          <input type="text" id="extract-model" placeholder="엔진 기본값" />
-        </label>
-        <label>시드
-          <!-- mirrors paths.DEFAULT_SEED -->
-          <input type="number" id="extract-seed" value="7" />
-        </label>
+        <details class="adv-opts">
+          <summary>고급 옵션 (보통은 그대로 두세요)</summary>
+          <label>모델 (선택)
+            <input type="text" id="extract-model" placeholder="엔진 기본값" />
+          </label>
+          <label>시드 (같은 숫자면 같은 결과 재현)
+            <!-- mirrors paths.DEFAULT_SEED -->
+            <input type="number" id="extract-seed" value="7" />
+          </label>
+        </details>
         <div class="form-actions">
           <button type="submit" id="extract-submit" class="btn btn-primary">추출 실행</button>
         </div>
@@ -166,7 +175,7 @@
       <div id="extract-result" class="status-box result-box hidden"></div>
 
       <h3>실행 이력</h3>
-      <div class="form-actions" style="margin: 0.75rem 0;">
+      <div class="form-actions">
         <button type="button" id="jobs-refresh-btn" class="btn">새로고침</button>
       </div>
       <div class="table-wrap table-scroll">
@@ -176,7 +185,7 @@
               <th>작업</th>
               <th>엔진</th>
               <th>상태</th>
-              <th>합계</th>
+              <th title="+ 새로 추가 / ~ 기존과 병합">결과</th>
               <th>시작</th>
               <th>종료</th>
             </tr>
@@ -199,14 +208,16 @@
     <!-- ================= ③ 검토 ================= -->
     <section id="tab-review" class="tab-panel" data-tab-panel="review">
       <h2>③ 검토 — 사람이 결정하는 관문</h2>
-      <p class="tab-intro">AI가 제안한 노드·엣지를 하나씩 <strong>승인</strong> 또는
-        <strong>거부</strong>합니다. 승인된 것만 팩에 들어갑니다. 크리틱 점수는
-        참고용일 뿐, 결정은 항상 사용자 몫입니다.</p>
+      <p class="tab-intro">AI가 제안한 개념(노드)과 관계(엣지)를 하나씩
+        <strong>승인</strong> 또는 <strong>거부</strong>합니다. 승인된 것만 팩에
+        들어갑니다. <strong>크리틱</strong>은 다른 AI가 제안을 한 번 더 채점한
+        참고 점수일 뿐, 결정은 항상 사용자 몫입니다. 확신도가 낮은 항목부터
+        보여드립니다 — 낮다고 틀린 게 아니라, 사람 눈이 더 필요한 순서입니다.</p>
 
       <div class="status-box" id="counts-box">
         <div class="status-row"><span>집계 불러오는 중…</span></div>
       </div>
-      <div class="form-actions" style="margin: 0.75rem 0;">
+      <div class="form-actions">
         <button type="button" id="refresh-btn" class="btn btn-primary">새로고침</button>
         <label style="margin-left:0.5rem;">정렬
           <select id="review-order">
@@ -218,18 +229,26 @@
         <label style="margin-left:0.5rem;">크리틱 엔진
           <select id="critic-engine"></select>
         </label>
-        <button type="button" id="critic-run-btn" class="btn">크리틱 실행</button>
+        <button type="button" id="critic-run-btn" class="btn"
+          title="다른 AI 엔진으로 대기 항목을 다시 채점해 참고 점수를 채웁니다 (자동 승인 아님)">크리틱 실행</button>
+        <button type="button" id="bulk-approve-btn" class="btn btn-primary" disabled>선택 승인</button>
+        <button type="button" id="bulk-reject-btn" class="btn btn-danger" disabled>선택 거부</button>
       </div>
       <div id="critic-result" class="status-box result-box hidden"></div>
+      <p id="review-last-action" class="muted hidden"></p>
+      <p class="muted"><small>키보드로 빠르게 (③ 검토 탭에서만):
+        <kbd>j</kbd>/<kbd>k</kbd> 이동 · <kbd>a</kbd> 승인 · <kbd>r</kbd> 거부 ·
+        <kbd>s</kbd> 건너뛰기 · <kbd>e</kbd> 엔티티 보기</small></p>
       <div class="table-wrap table-scroll">
         <table id="proposals-table">
           <thead>
             <tr>
+              <th><input type="checkbox" id="review-check-all" aria-label="전체 선택"></th>
               <th>종류</th>
               <th>타입</th>
               <th>이름 / 엔드포인트</th>
-              <th>확신도</th>
-              <th>크리틱</th>
+              <th title="AI가 스스로 매긴 확신도(0~1). 낮을수록 사람 확인이 더 필요하다는 뜻이지, 틀렸다는 뜻이 아닙니다">확신도</th>
+              <th title="다른 AI가 다시 채점한 참고 점수. 결정은 항상 사용자가 합니다">크리틱</th>
               <th>문서</th>
               <th>작업</th>
             </tr>
@@ -241,9 +260,6 @@
         <button type="button" class="btn btn-link" data-goto="jobs">② 추출을 실행</button>하거나,
         이미 승인을 마쳤다면 <button type="button" class="btn btn-link" data-goto="packs">④ 팩을 빌드</button>하세요.</p>
       <p id="review-error" class="err-msg hidden"></p>
-      <p class="muted"><small>단축키: <kbd>j</kbd>/<kbd>k</kbd> 이동 ·
-        <kbd>a</kbd> 승인 · <kbd>r</kbd> 거부 · <kbd>s</kbd> 건너뛰기 ·
-        <kbd>e</kbd> 엔티티 보기</small></p>
 
       <div id="entity-panel" class="hidden">
         <h3 id="entity-panel-title">엔티티</h3>
@@ -255,8 +271,10 @@
     <!-- ================= ④ 팩 ================= -->
     <section id="tab-packs" class="tab-panel" data-tab-panel="packs">
       <h2>④ 팩 — 승인된 지식만 내보내기</h2>
-      <p class="tab-intro">③에서 승인된 노드·엣지만 모아 변경 불가능한
-        <strong>팩</strong>으로 만듭니다. AI(MCP)는 이 팩만 읽을 수 있어서,
+      <p class="tab-intro">③에서 승인된 개념·관계만 모아 변경 불가능한
+        <strong>팩</strong>으로 만듭니다. 팩은 빌드한 순간의 스냅샷이라, 이후에
+        승인한 내용은 기존 팩에 자동 반영되지 않습니다 — 새 승인분이 생기면
+        새 이름으로 다시 빌드하세요. AI(MCP)는 이 팩만 읽을 수 있어서,
         검증 안 된 내용이 새어 나가지 않습니다.</p>
 
       <h3>팩 빌드</h3>
@@ -271,7 +289,7 @@
       <div id="pack-build-result" class="status-box result-box hidden"></div>
 
       <h3>빌드된 팩</h3>
-      <div class="form-actions" style="margin: 0.75rem 0;">
+      <div class="form-actions">
         <button type="button" id="packs-refresh-btn" class="btn">새로고침</button>
       </div>
       <div class="table-wrap table-scroll">
@@ -281,10 +299,10 @@
               <th>팩</th>
               <th>생성</th>
               <th>문서</th>
-              <th>노드</th>
-              <th>엣지</th>
-              <th>검색 티어</th>
-              <th>해시</th>
+              <th>개념</th>
+              <th>관계</th>
+              <th title="팩 안에서 쓰는 검색 방식 (자동 선택됨)">검색 방식</th>
+              <th title="팩 내용의 지문 — 값이 같으면 내용이 완전히 같은 팩">지문</th>
               <th>번들</th>
             </tr>
           </thead>
@@ -318,9 +336,18 @@
     <section id="tab-mcp" class="tab-panel" data-tab-panel="mcp">
       <h2>⑤ 연결 — AI에서 팩 사용하기 (MCP)</h2>
       <p class="tab-intro">빌드된 팩을 Claude Desktop / Claude Code 같은 AI 도구에
-        연결합니다. 각 팩 카드의 <strong>stdio 설정 복사</strong>를 눌러 나온 JSON을
-        해당 도구의 MCP 설정에 붙여넣으면 끝입니다. AI는 팩을 읽기만 할 수 있습니다.</p>
-      <div class="form-actions" style="margin: 0.75rem 0;">
+        연결합니다. 각 팩 카드의 <strong>연결 설정 복사</strong>를 눌러 나온 내용을
+        도구 설정에 붙여넣으면 끝입니다. AI는 팩을 읽기만 할 수 있습니다.</p>
+      <details class="help-details">
+        <summary>Claude Desktop에 붙여넣는 방법</summary>
+        <ol>
+          <li>아래 팩 카드에서 <strong>연결 설정 복사 (JSON)</strong> 클릭</li>
+          <li>Claude Desktop → 설정 → 개발자 → <strong>설정 편집</strong>으로 설정 파일 열기</li>
+          <li>"mcpServers" 항목 안에 복사한 내용을 붙여넣고 저장</li>
+          <li>Claude Desktop 재시작 — 대화에서 팩 내용을 물어보면 확인됩니다</li>
+        </ol>
+      </details>
+      <div class="form-actions">
         <button type="button" id="mcp-refresh-btn" class="btn">새로고침</button>
       </div>
       <div class="status-box">
@@ -339,7 +366,7 @@
         (예: "RateLimiter"와 "Rate Limiter") 하나로 합칩니다. 스캐너는 후보를
         <em>제안</em>만 하고, 병합/기각은 항상 사용자의 결정입니다.
         기각된 쌍은 다시 제안되지 않습니다.</p>
-      <div class="form-actions" style="margin: 0.75rem 0;">
+      <div class="form-actions">
         <button type="button" id="merge-scan-btn" class="btn btn-primary">중복 스캔</button>
         <button type="button" id="merge-refresh-btn" class="btn">새로고침</button>
       </div>
@@ -353,10 +380,10 @@
     <!-- ================= 커뮤니티 (보조) ================= -->
     <section id="tab-communities" class="tab-panel" data-tab-panel="communities">
       <h2>커뮤니티 — 그래프 클러스터 보기</h2>
-      <p class="tab-intro">서로 촘촘히 연결된 노드 묶음(클러스터)을 보여줍니다.
+      <p class="tab-intro">서로 촘촘히 연결된 개념 묶음(클러스터)을 보여줍니다.
         팩을 빌드할 때 승인된 데이터로 한 번 계산되며, 팩을 빌드하기 전에는
         비어 있는 게 정상입니다.</p>
-      <div class="form-actions" style="margin: 0.75rem 0;">
+      <div class="form-actions">
         <button type="button" id="communities-refresh-btn" class="btn">새로고침</button>
       </div>
       <div class="table-wrap table-scroll">

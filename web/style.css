@@ -13,6 +13,7 @@
   --warn: #9a6700;
   --err: #cf222e;
   --radius: 8px;
+  --accent-soft: #e9f0fd;
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
@@ -30,6 +31,7 @@
     --ok: #3fb950;
     --warn: #d29922;
     --err: #f85149;
+    --accent-soft: #1a2740;
   }
 }
 
@@ -179,7 +181,7 @@ button {
   background: var(--bg-muted);
   color: var(--text);
   border-radius: 6px;
-  padding: 0.5rem 0.9rem;
+  padding: 0.45rem 0.8rem;
   cursor: pointer;
 }
 
@@ -237,11 +239,13 @@ th {
   letter-spacing: 0.03em;
 }
 
-tbody tr {
+#jobs-table tbody tr,
+#communities-table tbody tr {
   cursor: pointer;
 }
 
-tbody tr:hover {
+#jobs-table tbody tr:hover,
+#communities-table tbody tr:hover {
   background: var(--bg-muted);
 }
 
@@ -558,8 +562,8 @@ footer.app-footer {
   border: 1px solid var(--border);
   background: var(--bg-panel);
   color: var(--text);
-  border-radius: var(--radius);
-  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  padding: 0.45rem 0.8rem;
   font: inherit;
   cursor: pointer;
 }
@@ -569,8 +573,12 @@ footer.app-footer {
   color: var(--accent-contrast);
 }
 .btn-danger, .btn.danger {
-  background: var(--err);
+  background: transparent;
   border-color: var(--err);
+  color: var(--err);
+}
+.btn-danger:hover, .btn.danger:hover {
+  background: var(--err);
   color: #fff;
 }
 .muted { color: var(--text-muted); font-size: 0.85rem; }
@@ -713,8 +721,11 @@ tr.row-focused {
   margin-top: 0.2rem;
   font-family: var(--mono);
   font-size: 0.78rem;
-  color: var(--ok);
+  color: var(--text-muted);
 }
+
+.step-stat.is-ok { color: var(--ok); }
+.step-stat.is-todo { color: var(--warn); }
 
 .step-arrow {
   align-self: center;
@@ -743,3 +754,95 @@ tr.row-focused {
   cursor: pointer;
   text-decoration: underline;
 }
+
+/* ---------- UX 라운드 2: 컨트롤·표면·강조 정비 ---------- */
+
+/* 테이블 안 <code>(id·해시)는 음소거 칩으로 — 이름이 주인공 (item 7) */
+td code {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--bg-muted);
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+}
+
+/* 스크롤해도 열 이름(확신도/크리틱)이 보이게 헤더 고정 (item 13) */
+.table-scroll thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel);
+  z-index: 1;
+  box-shadow: 0 1px 0 var(--border);
+}
+
+/* '지금 할 일' 콜아웃과 핵심 스텝 강조 (item 13) */
+.next-action {
+  background: var(--accent-soft);
+  border-left: 4px solid var(--accent);
+}
+.next-action strong { color: var(--accent); }
+.step-key { background: var(--accent-soft); }
+
+/* 좁은 창: 스텝퍼 세로 전환, 화살표는 ↓ (item 13) */
+@media (max-width: 760px) {
+  .pipeline { flex-direction: column; align-items: stretch; }
+  .step { min-width: 0; }
+  .step-arrow { align-self: center; transform: rotate(90deg); }
+}
+
+/* 키보드 포커스 가시성 (item 13) */
+button:focus-visible,
+.btn:focus-visible,
+.btn-link:focus-visible,
+.step:focus-visible,
+.tab-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  padding: 0 0.35em;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg-muted);
+}
+
+/* 추출 고급 옵션 접기 (item 12) */
+.adv-opts { grid-column: 1 / -1; }
+.adv-opts summary { cursor: pointer; color: var(--text-muted); font-size: 0.85rem; }
+.adv-opts label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  max-width: 320px;
+}
+
+/* MCP 붙여넣기 도움말 (item 10) */
+.help-details { margin: 0.5rem 0 1rem; }
+.help-details summary { cursor: pointer; color: var(--accent); font-size: 0.88rem; }
+.help-details ol { margin: 0.5rem 0 0.25rem 1.25rem; color: var(--text-muted); font-size: 0.86rem; }
+
+/* 섹션 리듬: 하위 과업마다 헤어라인 (item 14) */
+.tab-panel h3 {
+  margin: 1.75rem 0 0.6rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.95rem;
+}
+.tab-panel h3:first-of-type { border-top: none; padding-top: 0; }
+
+/* 테이블을 카드 표면 위로 (item 14) */
+.table-wrap {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.table-wrap tbody tr:last-child td { border-bottom: none; }
+
+/* 인라인 마진 대체 (item 14) */
+.tab-panel > .form-actions { margin: 0.75rem 0; }
