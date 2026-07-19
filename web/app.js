@@ -248,11 +248,15 @@
   }
 
   async function loadSettings() {
+    var box = $("#settings-result");
     try {
       var s = await api("/api/settings");
-      $("#settings-pre").textContent = JSON.stringify(s, null, 2);
+      $("#settings-default-engine").value = s.default_engine || "";
+      $("#settings-default-model").value = s.default_model || "";
+      $("#settings-data-dir").value = s.data_dir || "";
+      $("#settings-packs-dir").value = s.packs_dir || "";
     } catch (e) {
-      $("#settings-pre").textContent = String(e.message || e);
+      showResult(box, escapeHtml(String(e.message || e)), true);
     }
   }
 
@@ -633,11 +637,119 @@
         })
         .join("");
       empty.classList.toggle("hidden", packs.length > 0);
+      populateDiffSelects(packs);
     } catch (e) {
       err.textContent = String(e.message || e);
       err.classList.remove("hidden");
     }
   }
+
+  /* -- Pack diff (W14): compare two built packs -- */
+
+  function populateDiffSelects(packs) {
+    var selA = $("#diff-pack-a");
+    var selB = $("#diff-pack-b");
+    var prevA = selA.value;
+    var prevB = selB.value;
+    var opts = (packs || [])
+      .map(function (p) {
+        var id = escapeHtml(p.pack_id || "");
+        return "<option value='" + id + "'>" + id + "</option>";
+      })
+      .join("");
+    selA.innerHTML = opts;
+    selB.innerHTML = opts;
+    if (prevA) selA.value = prevA;
+    if (prevB) selB.value = prevB;
+    /* default the two dropdowns to distinct packs so a diff is meaningful */
+    if (!prevB && (packs || []).length > 1) selB.value = packs[1].pack_id;
+  }
+
+  function diffGroupHtml(title, group) {
+    group = group || {};
+    function labelRow(items, sign) {
+      if (!items || !items.length) return "";
+      var body = items
+        .map(function (it) {
+          var label = escapeHtml(it.label || it.id || "");
+          if (it.fields && it.fields.length) {
+            label +=
+              " <small class='muted'>(" +
+              it.fields.map(escapeHtml).join(", ") +
+              ")</small>";
+          }
+          return label;
+        })
+        .join("<br>");
+      return (
+        "<div class='status-row'><span>" + sign + "</span><span>" + body +
+        "</span></div>"
+      );
+    }
+    var out = "<p><strong>" + escapeHtml(title) + "</strong></p>";
+    var rows =
+      labelRow(group.added, "+") +
+      labelRow(group.removed, "−") +
+      labelRow(group.changed, "~");
+    return out + (rows || "<p class='muted'>no changes</p>");
+  }
+
+  function renderPackDiff(box, d) {
+    if (d.identical) {
+      showResult(
+        box,
+        "<span class='ok-msg'>Packs are identical.</span> " +
+          "<small class='muted'>Same content hash — nothing changed.</small>"
+      );
+      return;
+    }
+    var s = d.summary || {};
+    var html =
+      "<p><strong>Summary</strong> — nodes +" +
+      escapeHtml(String(s.nodes_added || 0)) + "/−" +
+      escapeHtml(String(s.nodes_removed || 0)) + "/~" +
+      escapeHtml(String(s.nodes_changed || 0)) + " · edges +" +
+      escapeHtml(String(s.edges_added || 0)) + "/−" +
+      escapeHtml(String(s.edges_removed || 0)) + "/~" +
+      escapeHtml(String(s.edges_changed || 0)) + "</p>";
+    var mc = d.manifest_changes || {};
+    var mkeys = Object.keys(mc);
+    if (mkeys.length) {
+      html += "<p><strong>Manifest changes</strong></p>";
+      mkeys.forEach(function (k) {
+        html +=
+          "<div class='status-row'><span><code>" + escapeHtml(k) +
+          "</code></span><span>" + escapeHtml(String(mc[k].a)) + " → " +
+          escapeHtml(String(mc[k].b)) + "</span></div>";
+      });
+    }
+    html += diffGroupHtml("Nodes", d.nodes);
+    html += diffGroupHtml("Edges", d.edges);
+    showResult(box, html);
+  }
+
+  $("#pack-diff-btn").addEventListener("click", async function () {
+    var box = $("#pack-diff-result");
+    var btn = $("#pack-diff-btn");
+    var a = $("#diff-pack-a").value;
+    var b = $("#diff-pack-b").value;
+    if (!a || !b) {
+      showResult(box, "Pick two packs to compare.", true);
+      return;
+    }
+    btn.disabled = true;
+    showResult(box, "<span class='muted'>Diffing…</span>");
+    try {
+      var d = await api(
+        "/api/packs/" + encodeURIComponent(a) + "/diff/" + encodeURIComponent(b)
+      );
+      renderPackDiff(box, d);
+    } catch (e) {
+      showResult(box, escapeHtml(String(e.message || e)), true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   /* Bundle-and-download one pack as .mcpb (delegated: rows re-render). */
   $("#packs-body").addEventListener("click", async function (ev) {
@@ -758,11 +870,107 @@
     }
   }
 
+  /* -- Communities (W12): read-only; populated only from built packs -- */
+
+  async function loadCommunities() {
+    var tbody = $("#communities-body");
+    var empty = $("#communities-empty");
+    var err = $("#communities-error");
+    err.classList.add("hidden");
+    try {
+      var data = await api("/api/communities");
+      var communities = (data && data.communities) || [];
+      tbody.innerHTML = "";
+      communities.forEach(function (c) {
+        var tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td><code>" + escapeHtml(String(c.id || "").slice(0, 12)) + "</code></td>" +
+          "<td>" + escapeHtml(String(c.member_count || 0)) + "</td>" +
+          "<td>" + escapeHtml(c.summary || "—") + "</td>" +
+          "<td><small class='muted'>" + escapeHtml(c.summary_method || "—") + "</small></td>";
+        tr.addEventListener("click", function () {
+          loadCommunityMembers(c.id);
+        });
+        tbody.appendChild(tr);
+      });
+      empty.classList.toggle("hidden", communities.length > 0);
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.classList.remove("hidden");
+    }
+  }
+
+  async function loadCommunityMembers(communityId) {
+    var panel = $("#community-detail");
+    var body = $("#community-detail-body");
+    var err = $("#community-detail-error");
+    err.classList.add("hidden");
+    panel.classList.remove("hidden");
+    body.innerHTML = "<p class='muted'>Loading…</p>";
+    try {
+      var data = await api(
+        "/api/communities/" + encodeURIComponent(communityId)
+      );
+      var community = data.community || {};
+      var members = data.members || [];
+      $("#community-detail-title").textContent =
+        "Community " + String(communityId).slice(0, 12) +
+        " (" + members.length + " members)";
+      var html = "";
+      if (community.summary) {
+        html += "<p>" + escapeHtml(community.summary) + "</p>";
+      }
+      html +=
+        "<div class='table-wrap'><table><thead><tr>" +
+        "<th>Name</th><th>Type</th><th>Status</th>" +
+        "</tr></thead><tbody>";
+      members.forEach(function (m) {
+        html +=
+          "<tr><td>" + escapeHtml(m.name || "") + "</td>" +
+          "<td>" + escapeHtml(m.entity_type || "") + "</td>" +
+          "<td>" + statusBadge(m.status) + "</td></tr>";
+      });
+      html += "</tbody></table></div>";
+      body.innerHTML = html;
+    } catch (e) {
+      body.innerHTML = "";
+      err.textContent = String(e.message || e);
+      err.classList.remove("hidden");
+    }
+  }
+
   /* -- Entity-centric review panel (W11) -- */
 
   async function entityAct(kind, id, entityId) {
     await act(kind, id); // reuses the per-item gate + queue refresh
     loadEntityPanel(entityId); // then re-render the panel in place
+  }
+
+  /* W13: invalidate a VERIFIED edge — history-preserving (tombstone), never
+     a delete. Confirmed because it is a state change; the panel re-renders,
+     dropping the now-non-current edge as the visible outcome. */
+  async function invalidateEdge(edgeId, entityId) {
+    if (
+      !window.confirm(
+        "Invalidate this verified edge? It is kept as history (a tombstone), " +
+          "not deleted."
+      )
+    ) {
+      return;
+    }
+    var err = $("#entity-panel-error");
+    err.classList.add("hidden");
+    try {
+      var res = await apiSend(
+        "/api/edges/" + encodeURIComponent(edgeId) + "/invalidate",
+        { note: "invalidated via dashboard" }
+      );
+      if (res && res.ok === undefined && res.detail) throw new Error(res.detail);
+      loadEntityPanel(entityId);
+    } catch (e) {
+      err.textContent = String(e.message || e);
+      err.classList.remove("hidden");
+    }
   }
 
   async function loadEntityPanel(entityId) {
@@ -854,6 +1062,18 @@
         actions.appendChild(document.createTextNode(" "));
         actions.appendChild(no);
         line.appendChild(actions);
+      } else if (rel.status === "verified") {
+        var vActions = document.createElement("span");
+        var invalidate = document.createElement("button");
+        invalidate.className = "btn btn-danger";
+        invalidate.textContent = "Invalidate";
+        invalidate.title =
+          "Mark this verified edge as no-longer-current (kept as history)";
+        invalidate.addEventListener("click", function () {
+          invalidateEdge(rel.id, entityId);
+        });
+        vActions.appendChild(invalidate);
+        line.appendChild(vActions);
       }
       body.appendChild(line);
     });
@@ -1029,6 +1249,7 @@
     },
     packs: loadPacks,
     mcp: loadMcp,
+    communities: loadCommunities,
   };
   var loadedTabs = {};
 
@@ -1042,6 +1263,36 @@
   $("#jobs-refresh-btn").addEventListener("click", loadJobs);
   $("#packs-refresh-btn").addEventListener("click", loadPacks);
   $("#mcp-refresh-btn").addEventListener("click", loadMcp);
+  $("#communities-refresh-btn").addEventListener("click", loadCommunities);
+
+  /* Settings: editable form (GET populates, PUT saves) */
+  $("#settings-form").addEventListener("submit", async function (ev) {
+    ev.preventDefault();
+    var box = $("#settings-result");
+    var btn = $("#settings-save-btn");
+    var model = $("#settings-default-model").value.trim();
+    var dataDir = $("#settings-data-dir").value.trim();
+    var packsDir = $("#settings-packs-dir").value.trim();
+    var payload = {
+      default_engine: $("#settings-default-engine").value.trim() || "mock",
+      default_model: model || null,
+      data_dir: dataDir || null,
+      packs_dir: packsDir || null,
+    };
+    btn.disabled = true;
+    try {
+      await api("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      showResult(box, "<span class='ok-msg'>Settings saved.</span>");
+    } catch (e) {
+      showResult(box, escapeHtml(String(e.message || e)), true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   $("#refresh-btn").addEventListener("click", loadProposals);
 

@@ -19,6 +19,7 @@
     <button class="tab-btn" data-tab="jobs" role="tab" aria-selected="false">Jobs</button>
     <button class="tab-btn" data-tab="packs" role="tab" aria-selected="false">Packs</button>
     <button class="tab-btn" data-tab="mcp" role="tab" aria-selected="false">MCP</button>
+    <button class="tab-btn" data-tab="communities" role="tab" aria-selected="false">Communities</button>
     <button class="tab-btn" data-tab="engines" role="tab" aria-selected="false">Engines</button>
     <button class="tab-btn" data-tab="settings" role="tab" aria-selected="false">Settings</button>
   </nav>
@@ -211,6 +212,22 @@
       <p id="packs-empty" class="muted hidden">No packs built yet.</p>
       <p id="packs-error" class="err-msg hidden"></p>
 
+      <h3>Compare packs</h3>
+      <p class="muted">Diff two built packs — what a client pinned to pack A
+        would gain or lose by upgrading to pack B.</p>
+      <div class="form-grid">
+        <label>Pack A
+          <select id="diff-pack-a"></select>
+        </label>
+        <label>Pack B
+          <select id="diff-pack-b"></select>
+        </label>
+        <div class="form-actions">
+          <button type="button" id="pack-diff-btn" class="btn btn-primary">Diff</button>
+        </div>
+      </div>
+      <div id="pack-diff-result" class="status-box result-box hidden"></div>
+
       <h3>Build pack</h3>
       <form id="pack-build-form" class="form-grid">
         <label>Name
@@ -236,6 +253,36 @@
       <p id="mcp-error" class="err-msg hidden"></p>
     </section>
 
+    <section id="tab-communities" class="tab-panel" data-tab-panel="communities">
+      <h2>Communities</h2>
+      <p class="muted">Communities are computed once at pack-build time over
+        verified data. The working database has none until you build a pack.</p>
+      <div class="form-actions" style="margin: 0.75rem 0;">
+        <button type="button" id="communities-refresh-btn" class="btn">Refresh</button>
+      </div>
+      <div class="table-wrap table-scroll">
+        <table id="communities-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Members</th>
+              <th>Summary</th>
+              <th>Method</th>
+            </tr>
+          </thead>
+          <tbody id="communities-body"></tbody>
+        </table>
+      </div>
+      <p id="communities-empty" class="muted hidden">No communities — build a pack to compute them.</p>
+      <p id="communities-error" class="err-msg hidden"></p>
+
+      <div id="community-detail" class="hidden">
+        <h3 id="community-detail-title">Community</h3>
+        <div id="community-detail-body"></div>
+        <p id="community-detail-error" class="err-msg hidden"></p>
+      </div>
+    </section>
+
     <section id="tab-engines" class="tab-panel" data-tab-panel="engines">
       <h2>Engines</h2>
       <ul id="engines-list"></ul>
@@ -245,7 +292,25 @@
 
     <section id="tab-settings" class="tab-panel" data-tab-panel="settings">
       <h2>Settings</h2>
-      <pre id="settings-pre" class="code-block">—</pre>
+      <p class="muted">Local defaults for extraction and review.</p>
+      <form id="settings-form" class="form-grid">
+        <label>Default engine
+          <input type="text" id="settings-default-engine" placeholder="mock" />
+        </label>
+        <label>Default model
+          <input type="text" id="settings-default-model" placeholder="engine default" />
+        </label>
+        <label>Data dir
+          <input type="text" id="settings-data-dir" placeholder="(default)" />
+        </label>
+        <label>Packs dir
+          <input type="text" id="settings-packs-dir" placeholder="(default)" />
+        </label>
+        <div class="form-actions">
+          <button type="submit" id="settings-save-btn" class="btn btn-primary">Save settings</button>
+        </div>
+      </form>
+      <div id="settings-result" class="status-box result-box hidden"></div>
     </section>
   </main>
 

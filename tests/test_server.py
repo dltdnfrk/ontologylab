@@ -59,6 +59,34 @@ def test_settings_and_cost(tmp_path: Path) -> None:
     assert client.get("/api/cost").status_code == 200
 
 
+def test_settings_put_roundtrips(tmp_path: Path, monkeypatch) -> None:
+    # save_settings/load_settings persist to a module-level ROOT path; isolate
+    # it to tmp so the PUT roundtrip never touches the real settings file.
+    from ontologylab.server import settings as settings_mod
+
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(
+        settings_mod, "_settings_path", lambda root=None: settings_file
+    )
+
+    client = _client(tmp_path)
+    payload = {
+        "default_engine": "claude",
+        "default_model": "claude-sonnet-4-5",
+        "data_dir": str(tmp_path / "data"),
+        "packs_dir": str(tmp_path / "packs"),
+    }
+    put = client.put("/api/settings", json=payload)
+    assert put.status_code == 200
+    assert put.json()["default_engine"] == "claude"
+
+    # persisted: a fresh GET reflects the saved values
+    got = client.get("/api/settings").json()
+    assert got["default_engine"] == "claude"
+    assert got["default_model"] == "claude-sonnet-4-5"
+    assert got["packs_dir"] == str(tmp_path / "packs")
+
+
 def test_proposals_list_approve_reject(tmp_path: Path) -> None:
     client = _client(tmp_path)
     listed = client.get("/api/proposals")
