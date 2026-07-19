@@ -83,7 +83,10 @@ MVP 컷라인 + post-MVP Wave 1 + Wave 2 핵심 **코드 + 테스트 완료**.
 | crossref 커넥터 실구현 (keyless JSON, JATS 마크업 스트립, 라이브 API 검증) | ✅ (`0ec2df6`) |
 | sqlite-vec 옵트인 KNN 가속 (브루트포스와 결과 동일 검증, 팩 미포함으로 이식성 유지, 확장 부재 시 폴백) | ✅ (`2a88e37`) |
 | 실LLM 커뮤니티 요약 운용 검증 (claude로 `build-pack --summarize-engine`, `llm:claude` 라벨로 저장·MCP 노출 end-to-end 확인, 2026-07-15) | ✅ |
-| pytest (251) | ✅ green |
+| **안전 하드닝** (2026-07-19): safety.py `Caps`/`KillSwitch` 테스트 17개(유일 미검증 안전 가드 해소) + 워킹DB 동시성 방어(락 경합→503+Retry-After, 그 외→리댁션 500; 실2스레드 테스트) | ✅ (`0df9b8a`) |
+| **대시보드 UI 갭 4종** (2026-07-19): W14 pack-diff 패널 · Settings 편집·저장 폼 · Communities 탭(+`/api/communities` 라우트 2개) · 엔티티 패널 verified 엣지 무효화 버튼. + critic.py 조용한 폴백 가시화(`docs_unloadable`) | ✅ (`4305816`·`6adbbe8`·`575acb0`) |
+| **문서 드리프트 정리** (2026-07-19): ARCHITECTURE MCP 도구 표 8→10(`get_entity` W9·`get_communities` W12), §8 대시보드 "실제 출고 형태" reconciliation(Graph Browser 미구축 정직화, SSE 아닌 폴링) | ✅ (`ad8299b`) |
+| pytest (277) | ✅ green |
 | E2E: collect → extract → approve → pack → MCP query (CLI + API 양쪽) | ✅ |
 
 ### 환경 트랩 (재부팅 후 재발 가능)
@@ -111,16 +114,21 @@ python3.13 -m venv .venv && .venv/bin/pip install -e . pytest httpx fastapi 'uvi
 
 ## 남은 선택 작업
 
-**리서치 로드맵(W1–W14) + 하드코딩 검수 + 선택 후속 3종(crossref·sqlite-vec·실LLM 요약)
-전부 완료. 계획된 잔여 작업 없음.** 아이디어 수준의 추가 방향만 남음: 추가 paper 소스
-(Semantic Scholar 등), 임베딩 모델 벤치, 대시보드에 커뮤니티/무효화 화면 노출.
+**리서치 로드맵(W1–W14) + 하드코딩 검수 2회 + 선택 후속 3종(crossref·sqlite-vec·실LLM 요약)
++ 안전 하드닝 + UI 갭 4종 + 문서 드리프트 정리, 전부 완료. 실질 잔여 갭 없음.**
+
+2026-07-19 fresh-context 코드베이스 감사로 실질 갭은 소진됨. 남은 건 전부 **의도적 보류** 또는
+**규모 큰 선택지**뿐:
+- (보류, RESEARCH에 명시) MCP prompts · 외부 그래프/벡터 DB · 멀티테넌시 · sampling/elicitation
+- (아이디어) 추가 paper 소스(Semantic Scholar) · 실임베딩 모델 벤치(현재 hash+sqlite-vec 옵트인)
+- (규모 L) 자유 탐색 Graph Browser 별도 화면 — 현재는 W11 엔티티 리뷰 패널이 per-entity 그래프 점검을 대신함
 
 ## 새 세션 시작 프롬프트 (붙여넣기용)
 
 ```
 ~/Documents/MUNI/ontologylab/HANDOFF.md 를 읽고 이어서 작업해줘.
-MVP(M0–M8) + Wave 1/2/3 전체(W1–W14) + 하드코딩 검수 + 선택 후속 3종 완료 (pytest 251 green).
-계획된 잔여 작업 없음.
+MVP(M0–M8) + Wave 1/2/3(W1–W14) + 하드코딩검수 + 후속3종 + 안전하드닝 + UI갭4종 + 문서드리프트 완료 (pytest 277 green).
+실질 잔여 갭 없음 (남은 건 의도적 보류 또는 규모 큰 선택지뿐).
 용어는 계속 중립(지식그래프/최적화 프레임워크)으로 유지.
 ```
 
