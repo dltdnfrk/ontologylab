@@ -88,8 +88,9 @@ All examples and shipped connectors use **neutral domains only**: software, tech
                           │   FastMCP over stdio                │
                           │   tools: list_packs, load_pack,     │
                           │    get_schema, entity_lookup,       │
-                          │    semantic_search, graph_query,    │
-                          │    traverse_relations, find_path    │
+                          │    get_entity, semantic_search,     │
+                          │    graph_query, traverse_relations, │
+                          │    find_path, get_communities       │
                           └────────────────┬──────────────────────┘
                                            │ MCP (stdio)
                                            ▼
@@ -524,7 +525,9 @@ The extraction prompt is built by a small new module, `extractor.build_extractio
 | **MCP Server Status** | `/mcp` | `/api/mcp/status`, `/start`, `/stop` | Which pack a dashboard-managed instance is bound to; lists externally-spawned stdio servers read-only (PID/lockfile convention); surfaces a copy-pasteable client config snippet. |
 | **Engines / Settings / Cost** | `/settings` | `/api/engines`, `/settings`, `/cost` | Reused as-is (`shutil.which` availability, `Settings` JSON, `cost_summary()` now aggregating collect/extract/build-pack jobs). |
 
-Frontend stays dependency-free vanilla JS/HTML/CSS, each new screen adding one JS module + one API namespace — consistent with drylab's shape, no frontend framework introduced.
+Frontend stays dependency-free vanilla JS/HTML/CSS, no frontend framework introduced.
+
+**[Reconciled — as shipped.]** The table above is the original per-route design sketch. The shipped dashboard is a **single-page tabbed SPA** (`web/index.html` + one `web/app.js`), not one route per screen, and job progress is **polled** (`GET /api/jobs`) rather than SSE — SSE is noted in the ROADMAP as an optional later upgrade. Shipped tabs: **Review** (HITL queue + critic triage order + per-entity review panel, W8/W11), **Merge** (entity-merge candidate review, W7), **Sources**, **Jobs**, **Packs** (build + `.mcpb` bundle + pack diff), **MCP**, **Engines**, **Settings**. Two design-table promises were reconciled rather than built as separate pages: the **Graph Browser** (`/graph`) was **not built as a standalone screen** — per-entity graph inspection (neighbors, relations, source-span mentions) is delivered by the W11 entity-centric review panel inside Review, and the same queries are available to a human via the CLI (`ontologylab entity`, `graph_query`) and to any MCP client; a full free-navigation graph browser remains an optional future screen. The Packs row's "manifest diff vs. previous version" ships as W14 pack-diff (CLI `pack-diff` + `GET /api/packs/{a}/diff/{b}` + a Packs-tab panel).
 
 ---
 
@@ -565,13 +568,15 @@ The **only** tool that writes anything is `load_pack`, and it writes only in-mem
 | `list_packs` | Discover local packs + stats | — | yes | no | no |
 | `load_pack` | Set/switch active pack | `pack_id` | yes (opens conn) | no | yes (active-pack pointer) |
 | `get_schema` | Return ontology (entity/relation types) | `pack_id?` | yes | no | no |
-| `entity_lookup` | Resolve a node by id or name | `id?`, `name?`, `entity_type?`, `fuzzy`, `include_proposed`, `limit` | yes | no | no |
-| `semantic_search` | NL search over nodes (FTS5 → embeddings); returns a normalized 0..1 `match_score`, same meaning across tiers (§5.4) | `query`, `entity_type?`, `top_k`, `min_score`, `include_proposed` | yes | no | no |
-| `graph_query` | Filtered subgraph query | `entity_type?`, `relation_type?`, `property_filters?`, `include_proposed`, `limit`, `offset` | yes | no | no |
-| `traverse_relations` | N-hop neighborhood from seed nodes | `start_ids`, `relation_types?`, `direction`, `max_hops`, `include_proposed`, `limit` | yes | no | no |
+| `entity_lookup` | Resolve a node by id or name (compact rows by default, W9) | `id?`, `name?`, `entity_type?`, `fuzzy`, `include_proposed`, `limit`, `detail` | yes | no | no |
+| `get_entity` | Full record for one entity — aliases, properties, span citations, adjacent edges (W9 tier-2 follow-up) | `id`, `include_proposed` | yes | no | no |
+| `semantic_search` | NL search over nodes (FTS5 → embeddings; optional fail-open LLM query expansion); normalized 0..1 `match_score`, same meaning across tiers (§5.4). Compact rows by default (W9) | `query`, `entity_type?`, `top_k`, `min_score`, `include_proposed`, `expand`, `detail` | yes | no | no |
+| `graph_query` | Filtered subgraph query | `entity_type?`, `relation_type?`, `property_filters?`, `include_proposed`, `limit`, `offset`, `detail` | yes | no | no |
+| `traverse_relations` | N-hop neighborhood from seed nodes | `start_ids`, `relation_types?`, `direction`, `max_hops`, `include_proposed`, `limit`, `detail` | yes | no | no |
 | `find_path` | Shortest relation path between two nodes | `source_id`, `target_id`, `max_hops`, `relation_types?`, `include_proposed` | yes | no | no |
+| `get_communities` | Build-time community summaries — corpus-level "main themes" a BFS can't answer (W12); drill into one community's members with `community_id` | `community_id?`, `limit` | yes | no | no |
 
-All inputs/outputs are typed JSON-Schema contracts (no free-form kwargs). Traversal/path use naive BFS over `edges`, sufficient at local single-pack scale. Each tool's full input/output schema is the FastMCP type signature of its handler (Pydantic-derived JSON Schema); §9.3 gives representative worked examples, and every `semantic_search`/`entity_lookup` result carries the §5.4 normalized `match_score`.
+All inputs/outputs are typed JSON-Schema contracts (no free-form kwargs). Traversal/path use naive BFS over `edges`, sufficient at local single-pack scale. Each tool's full input/output schema is the FastMCP type signature of its handler (Pydantic-derived JSON Schema); §9.3 gives representative worked examples, and every `semantic_search`/`entity_lookup` result carries the §5.4 normalized `match_score`. **[Shipped: 10 tools.]** The 8-tool set above the fold was the MVP surface; W9 added `get_entity` (two-tier compact→detail responses) and W12 added `get_communities`. The server also exposes read-only **resources** (`pack://{id}/manifest`, `/schema`, `/entity/{id}`) addressing the same data by URI.
 
 ### 9.3 Representative tool contracts
 
