@@ -43,23 +43,23 @@
   function renderCounts(counts) {
     var box = $("#counts-box");
     if (!counts) {
-      box.innerHTML = "<div class='status-row'><span>No counts</span></div>";
+      box.innerHTML = "<div class='status-row'><span>집계 없음</span></div>";
       return;
     }
     box.innerHTML =
-      "<div class='status-row'><span>nodes proposed:</span> <code>" +
+      "<div class='status-row'><span>노드 검토대기:</span> <code>" +
       (counts.nodes_proposed || 0) +
       "</code></div>" +
-      "<div class='status-row'><span>edges proposed:</span> <code>" +
+      "<div class='status-row'><span>엣지 검토대기:</span> <code>" +
       (counts.edges_proposed || 0) +
       "</code></div>" +
-      "<div class='status-row'><span>nodes verified:</span> <code>" +
+      "<div class='status-row'><span>노드 승인됨:</span> <code>" +
       (counts.nodes_verified || 0) +
       "</code></div>" +
-      "<div class='status-row'><span>edges verified:</span> <code>" +
+      "<div class='status-row'><span>엣지 승인됨:</span> <code>" +
       (counts.edges_verified || 0) +
       "</code></div>" +
-      "<div class='status-row'><span>documents:</span> <code>" +
+      "<div class='status-row'><span>문서:</span> <code>" +
       (counts.documents || 0) +
       "</code></div>";
   }
@@ -156,7 +156,7 @@
           critic = Number(item.critic_score).toFixed(2);
           if (item.critic_disagreement) {
             critic +=
-              " <span class='badge' title='extractor/critic disagreement" +
+              " <span class='badge' title='추출기/크리틱 불일치" +
               (item.critic_rationale
                 ? ": " + escapeHtml(item.critic_rationale)
                 : "") +
@@ -169,7 +169,7 @@
         }
         tr.innerHTML =
           "<td>" +
-          (item.kind || "") +
+          kindKo(item.kind) +
           "</td>" +
           "<td>" +
           (item.type_name || item.entity_type || item.relation_type || "") +
@@ -192,13 +192,13 @@
         var actions = tr.querySelector(".actions");
         var approveBtn = document.createElement("button");
         approveBtn.className = "btn btn-primary";
-        approveBtn.textContent = "Approve";
+        approveBtn.textContent = "승인";
         approveBtn.addEventListener("click", function () {
           act("approve", item.id);
         });
         var rejectBtn = document.createElement("button");
         rejectBtn.className = "btn btn-danger";
-        rejectBtn.textContent = "Reject";
+        rejectBtn.textContent = "거부";
         rejectBtn.addEventListener("click", function () {
           act("reject", item.id);
         });
@@ -208,8 +208,8 @@
         if (item.kind === "node") {
           var focusBtn = document.createElement("button");
           focusBtn.className = "btn";
-          focusBtn.textContent = "Entity";
-          focusBtn.title = "Entity-centric view: all mentions and relations";
+          focusBtn.textContent = "엔티티";
+          focusBtn.title = "엔티티 중심 보기: 모든 멘션과 관계";
           focusBtn.addEventListener("click", function () {
             loadEntityPanel(item.id);
           });
@@ -313,13 +313,29 @@
     return isNaN(d.getTime()) ? String(ts) : d.toLocaleString();
   }
 
+  // Fixed-enum display labels (Korean). The raw value is kept for CSS class
+  // and any logic; only the visible text is localized. Unknown values fall
+  // back to the raw string so data never breaks.
+  var STATUS_KO = {
+    proposed: "검토대기", verified: "승인됨", rejected: "거부됨",
+    invalidated: "무효화됨", merged: "병합됨", dismissed: "기각",
+    stale: "만료", running: "실행 중", complete: "완료", failed: "실패",
+  };
+  function statusKo(s) {
+    var k = String(s || "").toLowerCase();
+    return STATUS_KO[k] || s || "—";
+  }
+  function kindKo(k) {
+    return k === "node" ? "노드" : k === "edge" ? "엣지" : k || "";
+  }
+
   function statusBadge(status) {
     var s = String(status || "").toLowerCase();
     return (
       "<span class='badge st-" +
       escapeHtml(s) +
       "'>" +
-      escapeHtml(s || "—") +
+      escapeHtml(statusKo(s)) +
       "</span>"
     );
   }
@@ -362,7 +378,7 @@
       }
       document.body.removeChild(ta);
       if (ok) resolve();
-      else reject(new Error("copy failed"));
+      else reject(new Error("복사 실패"));
     });
   }
 
@@ -391,7 +407,7 @@
           return (
             "<tr>" +
             "<td>" + escapeHtml(doc.source_kind || "") + "</td>" +
-            "<td>" + escapeHtml(doc.title || "(untitled)") + "</td>" +
+            "<td>" + escapeHtml(doc.title || "(제목 없음)") + "</td>" +
             "<td><code>" + escapeHtml(doc.source_uri || "") + "</code></td>" +
             "<td><small>" + escapeHtml(fmtTs(doc.fetched_ts)) + "</small></td>" +
             "</tr>"
@@ -417,21 +433,21 @@
       limit: toInt($("#collect-limit").value, 5),
     };
     if (!payload.urls.length && !payload.files.length && !payload.paper_queries.length) {
-      showResult(box, "Nothing to collect — provide URLs, file paths, or a paper query.", true);
+      showResult(box, "수집할 대상이 없습니다 — URL, 파일 경로, 또는 논문 검색어를 입력하세요.", true);
       return;
     }
     btn.disabled = true;
-    showResult(box, "<span class='muted'>Collecting…</span>");
+    showResult(box, "<span class='muted'>수집 중…</span>");
     try {
       var res = await apiSend("/api/collect", payload);
       if (res && res.ok) {
         showResult(
           box,
-          "<span class='ok-msg'>Collected.</span> documents: <code>" +
+          "<span class='ok-msg'>수집 완료.</span> 문서: <code>" +
             escapeHtml(String(res.documents != null ? res.documents : "?")) +
             "</code> · created: <code>" +
             escapeHtml(String(res.created != null ? res.created : "?")) +
-            "</code> · duplicates: <code>" +
+            "</code> · 중복: <code>" +
             escapeHtml(String(res.duplicates != null ? res.duplicates : "?")) +
             "</code>"
         );
@@ -441,7 +457,7 @@
           box,
           errorKindBadge(res && res.error_kind) +
             " " +
-            escapeHtml((res && res.detail) || "Collect failed."),
+            escapeHtml((res && res.detail) || "수집 실패."),
           true
         );
       }
@@ -482,19 +498,19 @@
   function totalsSummary(totals) {
     var t = totals || {};
     return (
-      "nodes +" + (t.nodes_new || 0) + "/~" + (t.nodes_merged || 0) +
-      " · edges +" + (t.edges_new || 0) + "/~" + (t.edges_merged || 0)
+      "노드 +" + (t.nodes_new || 0) + "/~" + (t.nodes_merged || 0) +
+      " · 엣지 +" + (t.edges_new || 0) + "/~" + (t.edges_merged || 0)
     );
   }
 
   function renderJobDetail(job) {
     $("#job-detail").classList.remove("hidden");
     $("#job-detail-title").textContent =
-      "Job " + String(job.job_id || "").slice(0, 12) + " — " + (job.status || "");
+      "작업 " + String(job.job_id || "").slice(0, 12) + " — " + statusKo(job.status);
     var lines = (job.progress || []).slice();
-    if (job.error) lines.push("error: " + job.error);
+    if (job.error) lines.push("오류: " + job.error);
     /* textContent: progress lines are server/crawl-derived, never innerHTML */
-    $("#job-progress").textContent = lines.length ? lines.join("\n") : "(no progress yet)";
+    $("#job-progress").textContent = lines.length ? lines.join("\n") : "(진행 내역 없음)";
   }
 
   async function selectJob(jobId) {
@@ -581,14 +597,14 @@
       seed: toInt($("#extract-seed").value, 7),
     };
     btn.disabled = true;
-    showResult(box, "<span class='muted'>Starting extraction…</span>");
+    showResult(box, "<span class='muted'>추출 시작 중…</span>");
     try {
       var res = await apiSend("/api/extract", payload);
       if (res && res.job_id) {
         selectedJobId = res.job_id;
         showResult(
           box,
-          "Started job <code>" +
+          "작업 시작 <code>" +
             escapeHtml(String(res.job_id).slice(0, 12)) +
             "</code> " +
             statusBadge(res.status || "running")
@@ -597,7 +613,7 @@
       } else {
         showResult(
           box,
-          escapeHtml((res && (res.detail || res.error)) || "Failed to start extraction."),
+          escapeHtml((res && (res.detail || res.error)) || "추출 시작 실패."),
           true
         );
       }
@@ -691,31 +707,31 @@
       labelRow(group.added, "+") +
       labelRow(group.removed, "−") +
       labelRow(group.changed, "~");
-    return out + (rows || "<p class='muted'>no changes</p>");
+    return out + (rows || "<p class='muted'>변경 없음</p>");
   }
 
   function renderPackDiff(box, d) {
     if (d.identical) {
       showResult(
         box,
-        "<span class='ok-msg'>Packs are identical.</span> " +
-          "<small class='muted'>Same content hash — nothing changed.</small>"
+        "<span class='ok-msg'>두 팩이 동일합니다.</span> " +
+          "<small class='muted'>콘텐츠 해시 동일 — 변경 없음.</small>"
       );
       return;
     }
     var s = d.summary || {};
     var html =
-      "<p><strong>Summary</strong> — nodes +" +
+      "<p><strong>요약</strong> — 노드 +" +
       escapeHtml(String(s.nodes_added || 0)) + "/−" +
       escapeHtml(String(s.nodes_removed || 0)) + "/~" +
-      escapeHtml(String(s.nodes_changed || 0)) + " · edges +" +
+      escapeHtml(String(s.nodes_changed || 0)) + " · 엣지 +" +
       escapeHtml(String(s.edges_added || 0)) + "/−" +
       escapeHtml(String(s.edges_removed || 0)) + "/~" +
       escapeHtml(String(s.edges_changed || 0)) + "</p>";
     var mc = d.manifest_changes || {};
     var mkeys = Object.keys(mc);
     if (mkeys.length) {
-      html += "<p><strong>Manifest changes</strong></p>";
+      html += "<p><strong>매니페스트 변경</strong></p>";
       mkeys.forEach(function (k) {
         html +=
           "<div class='status-row'><span><code>" + escapeHtml(k) +
@@ -723,8 +739,8 @@
           escapeHtml(String(mc[k].b)) + "</span></div>";
       });
     }
-    html += diffGroupHtml("Nodes", d.nodes);
-    html += diffGroupHtml("Edges", d.edges);
+    html += diffGroupHtml("노드", d.nodes);
+    html += diffGroupHtml("엣지", d.edges);
     showResult(box, html);
   }
 
@@ -734,7 +750,7 @@
     var a = $("#diff-pack-a").value;
     var b = $("#diff-pack-b").value;
     if (!a || !b) {
-      showResult(box, "Pick two packs to compare.", true);
+      showResult(box, "비교할 팩 두 개를 고르세요.", true);
       return;
     }
     btn.disabled = true;
@@ -762,16 +778,16 @@
         "/api/packs/" + encodeURIComponent(packId) + "/mcpb", {}
       );
       if (res && res.ok) {
-        flashButton(btn, "Bundled!");
+        flashButton(btn, "번들 완료!");
         window.location.href = res.download_url;
       } else {
-        flashButton(btn, "Failed");
+        flashButton(btn, "실패");
         var errEl = $("#packs-error");
-        errEl.textContent = (res && res.detail) || "mcpb bundling failed";
+        errEl.textContent = (res && res.detail) || "mcpb 번들 생성 실패";
         errEl.classList.remove("hidden");
       }
     } catch (e) {
-      flashButton(btn, "Failed");
+      flashButton(btn, "실패");
     } finally {
       btn.disabled = false;
     }
@@ -783,11 +799,11 @@
     var btn = $("#pack-build-submit");
     var name = $("#pack-name").value.trim();
     if (!name) {
-      showResult(box, "Pack name is required.", true);
+      showResult(box, "팩 이름을 입력하세요.", true);
       return;
     }
     btn.disabled = true;
-    showResult(box, "<span class='muted'>Building pack…</span>");
+    showResult(box, "<span class='muted'>팩 빌드 중…</span>");
     try {
       var res = await apiSend("/api/packs/build", { name: name });
       if (res && res.ok) {
@@ -795,20 +811,20 @@
         var counts = manifest.counts || {};
         showResult(
           box,
-          "<span class='ok-msg'>Pack built.</span> <code>" +
+          "<span class='ok-msg'>팩 빌드 완료.</span> <code>" +
             escapeHtml(manifest.pack_id || name) +
-            "</code> · documents: <code>" +
+            "</code> · 문서: <code>" +
             escapeHtml(String(counts.documents || 0)) +
-            "</code> · nodes: <code>" +
+            "</code> · 노드: <code>" +
             escapeHtml(String(counts.nodes_verified || 0)) +
-            "</code> · edges: <code>" +
+            "</code> · 엣지: <code>" +
             escapeHtml(String(counts.edges_verified || 0)) +
             "</code>"
         );
         await loadPacks();
         await loadMcp();
       } else {
-        showResult(box, escapeHtml((res && res.detail) || "Pack build failed."), true);
+        showResult(box, escapeHtml((res && res.detail) || "팩 빌드 실패."), true);
       }
     } catch (e) {
       showResult(box, escapeHtml(String(e.message || e)), true);
@@ -838,9 +854,9 @@
           "<strong><code>" + escapeHtml(pack.pack_id || "") + "</code></strong>" +
           "<span class='muted'>" + escapeHtml(fmtTs(pack.created_ts)) + "</span>" +
           "</div>" +
-          "<p class='muted'>documents: " + escapeHtml(String(counts.documents || 0)) +
-          " · nodes: " + escapeHtml(String(counts.nodes_verified || 0)) +
-          " · edges: " + escapeHtml(String(counts.edges_verified || 0)) +
+          "<p class='muted'>문서: " + escapeHtml(String(counts.documents || 0)) +
+          " · 노드: " + escapeHtml(String(counts.nodes_verified || 0)) +
+          " · 엣지: " + escapeHtml(String(counts.edges_verified || 0)) +
           "</p>";
         var pre = document.createElement("pre");
         pre.className = "code-block";
@@ -849,14 +865,14 @@
         var copyBtn = document.createElement("button");
         copyBtn.type = "button";
         copyBtn.className = "btn";
-        copyBtn.textContent = "Copy stdio config";
+        copyBtn.textContent = "stdio 설정 복사";
         copyBtn.addEventListener("click", function () {
           copyText(JSON.stringify(pack.stdio_config || {}, null, 2)).then(
             function () {
-              flashButton(copyBtn, "Copied!");
+              flashButton(copyBtn, "복사됨!");
             },
             function () {
-              flashButton(copyBtn, "Copy failed");
+              flashButton(copyBtn, "복사 실패");
             }
           );
         });
@@ -906,7 +922,7 @@
     var err = $("#community-detail-error");
     err.classList.add("hidden");
     panel.classList.remove("hidden");
-    body.innerHTML = "<p class='muted'>Loading…</p>";
+    body.innerHTML = "<p class='muted'>불러오는 중…</p>";
     try {
       var data = await api(
         "/api/communities/" + encodeURIComponent(communityId)
@@ -914,15 +930,15 @@
       var community = data.community || {};
       var members = data.members || [];
       $("#community-detail-title").textContent =
-        "Community " + String(communityId).slice(0, 12) +
-        " (" + members.length + " members)";
+        "커뮤니티 " + String(communityId).slice(0, 12) +
+        " (" + members.length + "명)";
       var html = "";
       if (community.summary) {
         html += "<p>" + escapeHtml(community.summary) + "</p>";
       }
       html +=
         "<div class='table-wrap'><table><thead><tr>" +
-        "<th>Name</th><th>Type</th><th>Status</th>" +
+        "<th>이름</th><th>타입</th><th>상태</th>" +
         "</tr></thead><tbody>";
       members.forEach(function (m) {
         html +=
@@ -952,7 +968,7 @@
   async function invalidateEdge(edgeId, entityId) {
     if (
       !window.confirm(
-        "Invalidate this verified edge? It is kept as history (a tombstone), " +
+        "이 승인된 엣지를 무효화할까요? 이력(툼스톤)으로 보존되며, " +
           "not deleted."
       )
     ) {
@@ -979,7 +995,7 @@
     var err = $("#entity-panel-error");
     err.classList.add("hidden");
     panel.classList.remove("hidden");
-    body.innerHTML = "<p class='muted'>Loading…</p>";
+    body.innerHTML = "<p class='muted'>불러오는 중…</p>";
     var ctx;
     try {
       ctx = await api("/api/entity/" + encodeURIComponent(entityId) + "/review");
@@ -991,7 +1007,7 @@
     }
     var ent = ctx.entity || {};
     $("#entity-panel-title").textContent =
-      "Entity: " + (ent.name || entityId.slice(0, 12));
+      "엔티티: " + (ent.name || entityId.slice(0, 12));
 
     var html = "";
     html +=
@@ -1001,30 +1017,30 @@
       " · conf " +
       (ent.confidence == null ? "—" : Number(ent.confidence).toFixed(2)) +
       (ctx.critic
-        ? " · critic " + Number(ctx.critic.score).toFixed(2) +
+        ? " · 크리틱 " + Number(ctx.critic.score).toFixed(2) +
           (ctx.critic.rationale
             ? " (" + escapeHtml(ctx.critic.rationale) + ")"
             : "")
         : "") +
       "</small></p>";
     if ((ent.aliases || []).length) {
-      html += "<p><small>aliases: " +
+      html += "<p><small>별칭: " +
         ent.aliases.map(escapeHtml).join(", ") + "</small></p>";
     }
 
     var counts = ctx.counts || {};
-    html += "<h4>Mentions (" + escapeHtml(String(counts.mentions || 0)) + ")</h4>";
+    html += "<h4>멘션 (" + escapeHtml(String(counts.mentions || 0)) + ")</h4>";
     (ctx.mentions || []).forEach(function (m) {
       html +=
         "<div class='status-box'><small class='muted'>" +
         escapeHtml(m.doc_title || (m.source_doc_id || "").slice(0, 10)) +
         "</small><br><small>…" +
-        escapeHtml(m.excerpt || "(no span)") + "…</small></div>";
+        escapeHtml(m.excerpt || "(스팬 없음)") + "…</small></div>";
     });
 
-    html += "<h4>Relations (" +
-      escapeHtml(String(counts.relations_proposed || 0)) + " proposed / " +
-      escapeHtml(String(counts.relations_verified || 0)) + " verified)</h4>";
+    html += "<h4>관계 (" +
+      escapeHtml(String(counts.relations_proposed || 0)) + " 검토대기 / " +
+      escapeHtml(String(counts.relations_verified || 0)) + " 승인됨)</h4>";
     body.innerHTML = html;
 
     (ctx.relations || []).forEach(function (rel) {
@@ -1037,10 +1053,10 @@
       var label = document.createElement("span");
       label.innerHTML =
         statusBadge(rel.status) + " " + escapeHtml(arrow) +
-        " <small class='muted'>(other: " +
-        escapeHtml((rel.other || {}).status || "") + ")" +
+        " <small class='muted'>(상대: " +
+        escapeHtml(statusKo((rel.other || {}).status)) + ")" +
         (rel.critic_score != null
-          ? " critic " + Number(rel.critic_score).toFixed(2)
+          ? " 크리틱 " + Number(rel.critic_score).toFixed(2)
           : "") +
         "</small>";
       line.appendChild(label);
@@ -1048,13 +1064,13 @@
         var actions = document.createElement("span");
         var ok = document.createElement("button");
         ok.className = "btn btn-primary";
-        ok.textContent = "Approve";
+        ok.textContent = "승인";
         ok.addEventListener("click", function () {
           entityAct("approve", rel.id, entityId);
         });
         var no = document.createElement("button");
         no.className = "btn btn-danger";
-        no.textContent = "Reject";
+        no.textContent = "거부";
         no.addEventListener("click", function () {
           entityAct("reject", rel.id, entityId);
         });
@@ -1066,9 +1082,9 @@
         var vActions = document.createElement("span");
         var invalidate = document.createElement("button");
         invalidate.className = "btn btn-danger";
-        invalidate.textContent = "Invalidate";
+        invalidate.textContent = "무효화";
         invalidate.title =
-          "Mark this verified edge as no-longer-current (kept as history)";
+          "이 승인된 엣지를 더 이상 현행 아님으로 표시 (이력 보존)";
         invalidate.addEventListener("click", function () {
           invalidateEdge(rel.id, entityId);
         });
@@ -1080,7 +1096,7 @@
 
     if ((ctx.merge_candidates || []).length) {
       var h4 = document.createElement("h4");
-      h4.textContent = "Merge candidates (" + ctx.merge_candidates.length + ")";
+      h4.textContent = "병합 후보 (" + ctx.merge_candidates.length + ")";
       body.appendChild(h4);
       ctx.merge_candidates.forEach(function (cand) {
         var line = document.createElement("div");
@@ -1089,10 +1105,10 @@
         span.innerHTML =
           "~ <strong>" + escapeHtml((cand.other || {}).name || "") +
           "</strong> " + statusBadge((cand.other || {}).status) +
-          " <small class='muted'>score " +
+          " <small class='muted'>점수 " +
           Number(cand.score || 0).toFixed(2) + " · " +
           (cand.reasons || []).map(escapeHtml).join(", ") +
-          " — decide in the Merge tab</small>";
+          " — 병합 탭에서 결정</small>";
         line.appendChild(span);
         body.appendChild(line);
       });
@@ -1110,11 +1126,11 @@
       "<td class='merge-node'>" +
       "<strong>" + escapeHtml(node.name || "") + "</strong> " +
       statusBadge(node.status) +
-      "<br><small class='muted'>type: " + escapeHtml(node.entity_type || "") +
-      " · conf: " + (node.confidence == null ? "—" : Number(node.confidence).toFixed(2)) +
-      " · citations: " + escapeHtml(String(node.citation_count || 0)) + "</small>" +
-      "<br><small>aliases: " + aliases + "</small>" +
-      "<br><small>props: " + props + "</small>" +
+      "<br><small class='muted'>타입: " + escapeHtml(node.entity_type || "") +
+      " · 확신도: " + (node.confidence == null ? "—" : Number(node.confidence).toFixed(2)) +
+      " · 인용: " + escapeHtml(String(node.citation_count || 0)) + "</small>" +
+      "<br><small>별칭: " + aliases + "</small>" +
+      "<br><small>속성: " + props + "</small>" +
       "<br><small class='muted'><code>" + escapeHtml((node.id || "").slice(0, 12)) + "</code></small>" +
       "</td>"
     );
@@ -1174,7 +1190,7 @@
           .join(" ");
         card.innerHTML =
           "<div class='row space-between'>" +
-          "<strong>score " + escapeHtml(Number(item.score || 0).toFixed(2)) + "</strong>" +
+          "<strong>점수 " + escapeHtml(Number(item.score || 0).toFixed(2)) + "</strong>" +
           "<span>" + reasons + "</span>" +
           "</div>" +
           "<div class='table-wrap'><table class='merge-table'><tbody><tr>" +
@@ -1191,13 +1207,13 @@
           actions.appendChild(btn);
           actions.appendChild(document.createTextNode(" "));
         }
-        addBtn("◀ Keep “" + (a.name || "A") + "”", "btn-primary", function () {
+        addBtn("◀ “" + (a.name || "A") + "” 유지", "btn-primary", function () {
           mergeAct(item.id, a.id, b.id);
         });
-        addBtn("Keep “" + (b.name || "B") + "” ▶", "btn-primary", function () {
+        addBtn("“" + (b.name || "B") + "” 유지 ▶", "btn-primary", function () {
           mergeAct(item.id, b.id, a.id);
         });
-        addBtn("Not a duplicate", "", function () {
+        addBtn("중복 아님", "", function () {
           mergeDismiss(item.id);
         });
         cards.appendChild(card);
@@ -1219,13 +1235,13 @@
       if (res && res.ok) {
         showResult(
           box,
-          "Scanned <code>" + escapeHtml(String(res.nodes || 0)) +
+          "스캔 <code>" + escapeHtml(String(res.nodes || 0)) +
             "</code> nodes · new candidates: <code>" +
             escapeHtml(String(res.candidates_new || 0)) + "</code>"
         );
         await loadMergeCandidates();
       } else {
-        showResult(box, escapeHtml((res && res.detail) || "Scan failed."), true);
+        showResult(box, escapeHtml((res && res.detail) || "스캔 실패."), true);
       }
     } catch (e) {
       showResult(box, escapeHtml(String(e.message || e)), true);
@@ -1330,7 +1346,7 @@
       if (res && res.ok) {
         showResult(
           box,
-          "Critic scored <code>" + escapeHtml(String(res.scored || 0)) +
+          "크리틱 채점 <code>" + escapeHtml(String(res.scored || 0)) +
             "</code>/<code>" + escapeHtml(String(res.candidates || 0)) +
             "</code> pending item(s) · disagreements: <code>" +
             escapeHtml(String(res.disagreements || 0)) + "</code>"
@@ -1339,7 +1355,7 @@
         reviewOrder = "critic";
         await loadProposals();
       } else {
-        showResult(box, escapeHtml((res && res.detail) || "Critic run failed."), true);
+        showResult(box, escapeHtml((res && res.detail) || "크리틱 실행 실패."), true);
       }
     } catch (e) {
       showResult(box, escapeHtml(String(e.message || e)), true);
