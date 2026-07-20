@@ -16,6 +16,8 @@
     document.querySelectorAll(".tab-panel").forEach(function (panel) {
       panel.classList.toggle("active", panel.dataset.tabPanel === name);
     });
+    // 파이프라인 스트립의 현재 단계 마커 (CSS가 body[data-active-tab]로 그림)
+    document.body.dataset.activeTab = name;
   }
 
   document.querySelectorAll(".tab-btn").forEach(function (btn) {
@@ -205,7 +207,9 @@
           "<td title='" + escapeHtml(item.id || "") + "'><strong>" +
           escapeHtml(itemLabel(item)) +
           "</strong></td>" +
-          "<td>" +
+          "<td class='conf-cell' style='--v:" +
+          (item.confidence == null ? 0 : Number(item.confidence)) +
+          "'>" +
           conf +
           "</td>" +
           "<td>" +
@@ -727,8 +731,8 @@
       doc_ids: [],
       /* mirror paths.DEFAULT_MAX_ENGINE_CALLS / DEFAULT_TIME_BUDGET_S —
          change there first, then here */
-      max_engine_calls: 200,
-      time_budget: 1800,
+      max_engine_calls: 500,
+      time_budget: 7200,
       seed: toInt($("#extract-seed").value, 7),
     };
     btn.disabled = true;
@@ -1138,6 +1142,8 @@
     var err = $("#entity-panel-error");
     err.classList.add("hidden");
     panel.classList.remove("hidden");
+    // 검토 그리드를 2열로 확장해 큐 옆에 근거 패널을 도킹
+    document.getElementById("tab-review").classList.add("inspector-open");
     body.innerHTML = "<p class='muted'>불러오는 중…</p>";
     var ctx;
     try {
@@ -1426,9 +1432,12 @@
   // 탭을 열 때마다 새로 로드 — 로컬 API라 비용이 없고, 다른 탭에서
   // 바꾼 데이터가 낡은 화면으로 남는 것(거짓 상태)을 막는다.
   // (settings는 입력 중 값이 GET으로 덮이지 않게 제외)
+  // loadHome()은 매 전환마다 호출해 상단 크롬(스트립·지금 할 일·배지)을
+  // 신선하게 유지한다 — 자체 catch가 있어 서버 다운도 내비를 깨지 않음.
   function maybeLoadTab(name) {
     if (name === "home") return loadHome();
     if (tabLoaders[name]) tabLoaders[name]();
+    loadHome();
   }
 
   /* -- 홈(시작하기): 파이프라인 현황 + 다음 할 일 추천 ---------------- */
@@ -1576,6 +1585,10 @@
     bulkAct("reject");
   });
   $("#home-retry-btn").addEventListener("click", loadHome);
+  $("#entity-panel-close").addEventListener("click", function () {
+    $("#entity-panel").classList.add("hidden");
+    document.getElementById("tab-review").classList.remove("inspector-open");
+  });
 
   /* Settings: editable form (GET populates, PUT saves) */
   $("#settings-form").addEventListener("submit", async function (ev) {
@@ -1662,6 +1675,7 @@
   populateCriticEngines();
 
   loadHome();
+  setInterval(loadHome, 30000); // 상단 크롬(스트립·지금 할 일·배지) 주기 갱신
   loadProposals();
   loadEngines();
   loadSettings();

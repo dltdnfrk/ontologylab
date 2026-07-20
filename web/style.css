@@ -636,12 +636,6 @@ tr.row-focused {
 
 /* ---------- 워크플로 재설계: 홈 스텝퍼 / 안내 / 배지 ---------- */
 
-.tab-sep {
-  width: 1px;
-  align-self: stretch;
-  margin: 0.45rem 0.35rem;
-  background: var(--border);
-}
 
 .tab-badge {
   display: inline-block;
@@ -784,12 +778,6 @@ td code {
 .next-action strong { color: var(--accent); }
 .step-key { background: var(--accent-soft); }
 
-/* 좁은 창: 스텝퍼 세로 전환, 화살표는 ↓ (item 13) */
-@media (max-width: 760px) {
-  .pipeline { flex-direction: column; align-items: stretch; }
-  .step { min-width: 0; }
-  .step-arrow { align-self: center; transform: rotate(90deg); }
-}
 
 /* 키보드 포커스 가시성 (item 13) */
 button:focus-visible,
@@ -846,3 +834,253 @@ kbd {
 
 /* 인라인 마진 대체 (item 14) */
 .tab-panel > .form-actions { margin: 0.75rem 0; }
+
+/* ================================================================
+   연구 도구형 셸 (Elicit형 워크벤치): 앱 바 + 세로 레일 +
+   상시 파이프라인 스트립 + 스크롤 캔버스.
+   기존 id·클래스·JS 렌더 문자열은 그대로 두고 CSS로만 재배치한다.
+   ================================================================ */
+
+body {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+header.app-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1.25rem;
+}
+.brand { display: flex; align-items: baseline; gap: 0.6rem; }
+.brand h1 { margin: 0; font-size: 1rem; }
+.brand p { margin: 0; font-size: 0.78rem; }
+.header-status { display: flex; align-items: center; gap: 0.5rem; min-height: 2rem; }
+
+/* --- 좌측 레일 --- */
+nav.tabs {
+  grid-column: 1;
+  grid-row: 2 / 4;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 2px;
+  padding: 0.75rem 0.5rem;
+  border-right: 1px solid var(--border);
+  border-bottom: none;
+  overflow-y: auto;
+}
+nav.tabs .tab-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  box-shadow: inset 3px 0 0 transparent;
+}
+nav.tabs .tab-btn.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+  border-bottom: none;
+}
+.nav-group-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0.85rem 0.65rem 0.25rem;
+}
+.tab-btn-aux { font-size: 0.82rem; }
+.nav-rail-footer {
+  margin-top: auto;
+  padding: 0.75rem 0.65rem 0.25rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* --- 파이프라인 스트립 (상시 크롬) --- */
+.pipeline-bar {
+  grid-column: 2;
+  grid-row: 2;
+  overflow-x: auto;
+  padding: 0.45rem 1.5rem;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+.pipeline {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+}
+.step {
+  flex: 0 0 auto;
+  min-width: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.7rem;
+}
+.step:hover { transform: none; }
+.step-desc { display: none; }
+.pipeline .step-arrow { color: var(--border); }
+.step-stat { margin-top: 0; }
+body[data-active-tab="sources"] .step[data-goto="sources"],
+body[data-active-tab="jobs"] .step[data-goto="jobs"],
+body[data-active-tab="review"] .step[data-goto="review"],
+body[data-active-tab="packs"] .step[data-goto="packs"],
+body[data-active-tab="mcp"] .step[data-goto="mcp"] {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* --- 캔버스 --- */
+main {
+  grid-column: 2;
+  grid-row: 3;
+  max-width: none;
+  margin: 0;
+  overflow-y: auto;
+  padding: 1.5rem 2rem 2.5rem;
+}
+.tab-panel { max-width: 1040px; margin: 0 auto; }
+
+/* --- 헤더 필: 지금 할 일 / 서버 오류 --- */
+.next-action {
+  margin: 0;
+  padding: 0.3rem 0.4rem 0.3rem 0.75rem;
+  font-size: 0.82rem;
+  border-radius: 999px;
+}
+.next-action .btn { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
+#home-error { margin: 0; font-size: 0.82rem; }
+
+/* --- 홈 카드 --- */
+.home-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+}
+.home-card ol { margin: 0.5rem 0 0 1.1rem; padding: 0; }
+.home-card li { margin: 0.3rem 0; }
+
+/* --- 검토 워크벤치 --- */
+#tab-review { max-width: 1240px; }
+#tab-review.active {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+#tab-review.active.inspector-open {
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+#entity-panel {
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 12rem);
+  overflow: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+#tab-review .table-scroll { max-height: calc(100vh - 400px); }
+.hitl-subtitle {
+  margin: -0.25rem 0 0.75rem;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+#counts-box {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0.75rem 0;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+#counts-box .status-row {
+  display: inline-flex;
+  gap: 0.35rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+}
+#counts-box .status-row > span:first-child { min-width: 0; }
+.critic-band {
+  background: var(--bg-muted);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+  font-size: 0.85rem;
+}
+.critic-band-label { font-weight: 600; color: var(--text-muted); }
+.critic-band label { display: flex; align-items: center; gap: 0.35rem; }
+.review-main > .form-actions { margin: 0.75rem 0; }
+.kbd-hint { text-align: right; margin: 0.25rem 0; }
+tr.row-focused {
+  outline: none;
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: var(--accent-soft);
+}
+#proposals-table td { padding: 0.65rem 0.6rem; }
+#proposals-body .actions .btn { opacity: 0.45; }
+#proposals-body tr:hover .actions .btn,
+#proposals-body tr.row-focused .actions .btn { opacity: 1; }
+.conf-cell {
+  background: linear-gradient(
+    90deg,
+    var(--accent-soft) calc(var(--v, 0) * 100%),
+    transparent calc(var(--v, 0) * 100%)
+  );
+  border-radius: 4px;
+}
+
+/* --- 안내형 빈 상태 --- */
+.empty-state-card {
+  display: block;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  text-align: center;
+}
+.empty-state-card.hidden { display: none; }
+
+/* --- 반응형 --- */
+@media (max-width: 1100px) {
+  #tab-review.active.inspector-open { grid-template-columns: minmax(0, 1fr) 320px; }
+}
+@media (max-width: 900px) {
+  body { display: block; height: auto; overflow: visible; }
+  header.app-header { flex-wrap: wrap; }
+  nav.tabs {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 0.25rem 0.5rem;
+  }
+  nav.tabs .tab-btn { width: auto; flex: 0 0 auto; }
+  .nav-group-label, .nav-rail-footer { display: none; }
+  #tab-review.active.inspector-open { grid-template-columns: minmax(0, 1fr); }
+  #entity-panel { position: static; max-height: none; }
+}

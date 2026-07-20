@@ -6,78 +6,96 @@
   <title>ontologylab</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
-<body>
+<body data-active-tab="home">
   <header class="app-header">
-    <h1>ontologylab</h1>
-    <p>문서를 넣으면 AI가 지식 그래프 초안을 뽑고, 사람이 승인한 것만 팩으로 내보냅니다.</p>
+    <div class="brand">
+      <h1>ontologylab</h1>
+      <p>문서 → AI 초안 → 사람 승인 → 검증된 팩</p>
+    </div>
+    <div class="header-status">
+      <div id="next-action" class="next-action hidden">
+        <strong>지금 할 일:</strong> <span id="next-action-text"></span>
+        <button type="button" id="next-action-btn" class="btn btn-primary"></button>
+      </div>
+      <p id="home-error" class="err-msg hidden">서버 연결 안 됨 ·
+        <button type="button" id="home-retry-btn" class="btn btn-link">다시 시도</button></p>
+    </div>
   </header>
 
   <nav class="tabs" role="tablist" aria-label="주요 탐색">
     <button class="tab-btn active" data-tab="home" role="tab" aria-selected="true">홈</button>
-    <span class="tab-sep" aria-hidden="true"></span>
+    <div class="nav-group-label" aria-hidden="true">파이프라인</div>
     <button class="tab-btn" data-tab="sources" role="tab" aria-selected="false">① 수집</button>
     <button class="tab-btn" data-tab="jobs" role="tab" aria-selected="false">② 추출</button>
     <button class="tab-btn" data-tab="review" role="tab" aria-selected="false">③ 검토 <span id="review-badge" class="tab-badge hidden">0</span></button>
     <button class="tab-btn" data-tab="packs" role="tab" aria-selected="false">④ 팩</button>
     <button class="tab-btn" data-tab="mcp" role="tab" aria-selected="false">⑤ 연결</button>
-    <span class="tab-sep" aria-hidden="true"></span>
-    <button class="tab-btn" data-tab="merge" role="tab" aria-selected="false">병합</button>
-    <button class="tab-btn" data-tab="communities" role="tab" aria-selected="false">커뮤니티</button>
-    <button class="tab-btn" data-tab="engines" role="tab" aria-selected="false">엔진</button>
-    <button class="tab-btn" data-tab="settings" role="tab" aria-selected="false">설정</button>
+    <div class="nav-group-label" aria-hidden="true">도구</div>
+    <button class="tab-btn tab-btn-aux" data-tab="merge" role="tab" aria-selected="false">병합</button>
+    <button class="tab-btn tab-btn-aux" data-tab="communities" role="tab" aria-selected="false">커뮤니티</button>
+    <button class="tab-btn tab-btn-aux" data-tab="engines" role="tab" aria-selected="false">엔진</button>
+    <button class="tab-btn tab-btn-aux" data-tab="settings" role="tab" aria-selected="false">설정</button>
+    <div class="nav-rail-footer">로컬 전용 · 모든 데이터는 이 컴퓨터에만 저장됩니다</div>
   </nav>
+
+  <div class="pipeline-bar">
+    <div class="pipeline" id="pipeline">
+      <button type="button" class="step" data-goto="sources" title="URL·파일·논문을 문서로 저장">
+        <span class="step-no">①</span>
+        <span class="step-name">수집</span>
+        <span class="step-desc">URL·파일·논문을 문서로 저장</span>
+        <span class="step-stat" id="stat-sources">불러오는 중…</span>
+      </button>
+      <span class="step-arrow" aria-hidden="true">→</span>
+      <button type="button" class="step" data-goto="jobs" title="AI가 개념·관계 초안 제안">
+        <span class="step-no">②</span>
+        <span class="step-name">추출</span>
+        <span class="step-desc">AI가 개념·관계 초안 제안</span>
+        <span class="step-stat" id="stat-jobs">불러오는 중…</span>
+      </button>
+      <span class="step-arrow" aria-hidden="true">→</span>
+      <button type="button" class="step step-key" data-goto="review" title="사람이 승인/거부 (핵심!)">
+        <span class="step-no">③</span>
+        <span class="step-name">검토</span>
+        <span class="step-desc">사람이 승인/거부 (핵심!)</span>
+        <span class="step-stat" id="stat-review">불러오는 중…</span>
+      </button>
+      <span class="step-arrow" aria-hidden="true">→</span>
+      <button type="button" class="step" data-goto="packs" title="승인된 것만 묶어 내보내기">
+        <span class="step-no">④</span>
+        <span class="step-name">팩</span>
+        <span class="step-desc">승인된 것만 묶어 내보내기</span>
+        <span class="step-stat" id="stat-packs">불러오는 중…</span>
+      </button>
+      <span class="step-arrow" aria-hidden="true">→</span>
+      <button type="button" class="step" data-goto="mcp" title="Claude 등 AI에서 팩 사용">
+        <span class="step-no">⑤</span>
+        <span class="step-name">연결</span>
+        <span class="step-desc">Claude 등 AI에서 팩 사용</span>
+        <span class="step-stat" id="stat-mcp">불러오는 중…</span>
+      </button>
+    </div>
+  </div>
 
   <main>
     <!-- ================= 홈 (시작하기) ================= -->
     <section id="tab-home" class="tab-panel active" data-tab-panel="home">
       <h2>어떻게 쓰나요?</h2>
-      <p class="muted">아래 5단계가 전부입니다. 왼쪽에서 오른쪽으로 흐르고,
-        <strong>③ 검토</strong>에서 사람이 승인한 것만 팩에 들어갑니다.</p>
+      <p class="tab-intro">위의 파이프라인 바가 이 도구의 전부입니다 — 데이터가
+        어느 단계에 있는지 항상 보여주고, 오른쪽 위 <strong>지금 할 일</strong>이
+        다음 클릭을 알려줍니다. <strong>③ 검토</strong>에서 사람이 승인한 것만
+        팩에 들어갑니다.</p>
 
-      <div class="pipeline" id="pipeline">
-        <button type="button" class="step" data-goto="sources">
-          <span class="step-no">①</span>
-          <span class="step-name">수집</span>
-          <span class="step-desc">URL·파일·논문을 문서로 저장</span>
-          <span class="step-stat" id="stat-sources">—</span>
-        </button>
-        <span class="step-arrow" aria-hidden="true">→</span>
-        <button type="button" class="step" data-goto="jobs">
-          <span class="step-no">②</span>
-          <span class="step-name">추출</span>
-          <span class="step-desc">AI가 개념·관계 초안 제안</span>
-          <span class="step-stat" id="stat-jobs">—</span>
-        </button>
-        <span class="step-arrow" aria-hidden="true">→</span>
-        <button type="button" class="step step-key" data-goto="review">
-          <span class="step-no">③</span>
-          <span class="step-name">검토</span>
-          <span class="step-desc">사람이 승인/거부 (핵심!)</span>
-          <span class="step-stat" id="stat-review">—</span>
-        </button>
-        <span class="step-arrow" aria-hidden="true">→</span>
-        <button type="button" class="step" data-goto="packs">
-          <span class="step-no">④</span>
-          <span class="step-name">팩</span>
-          <span class="step-desc">승인된 것만 묶어 내보내기</span>
-          <span class="step-stat" id="stat-packs">—</span>
-        </button>
-        <span class="step-arrow" aria-hidden="true">→</span>
-        <button type="button" class="step" data-goto="mcp">
-          <span class="step-no">⑤</span>
-          <span class="step-name">연결</span>
-          <span class="step-desc">Claude 등 AI에서 팩 사용</span>
-          <span class="step-stat" id="stat-mcp">—</span>
-        </button>
+      <div class="home-card">
+        <h3>다섯 단계</h3>
+        <ol>
+          <li><strong>① 수집</strong> — URL·파일·논문을 문서로 저장합니다.</li>
+          <li><strong>② 추출</strong> — AI가 개념과 관계의 초안을 제안합니다.</li>
+          <li><strong>③ 검토</strong> — 사람이 하나씩 승인/거부합니다 (핵심).</li>
+          <li><strong>④ 팩</strong> — 승인된 것만 묶어 스냅샷으로 내보냅니다.</li>
+          <li><strong>⑤ 연결</strong> — Claude 같은 AI가 그 팩을 읽습니다.</li>
+        </ol>
       </div>
-
-      <div id="next-action" class="next-action hidden">
-        <strong>지금 할 일:</strong> <span id="next-action-text"></span>
-        <button type="button" id="next-action-btn" class="btn btn-primary"></button>
-      </div>
-      <p id="home-error" class="err-msg hidden">서버에 연결하지 못했습니다.
-        서버가 켜져 있는지 확인한 뒤
-        <button type="button" id="home-retry-btn" class="btn btn-link">다시 시도</button>해 주세요.</p>
 
       <p class="muted"><small>모든 데이터는 이 컴퓨터에만 저장됩니다.
         mock(오프라인 데모) 엔진으로 만든 연습용 데이터라면 승인·거부·팩 빌드를
@@ -138,8 +156,9 @@
           <tbody id="documents-body"></tbody>
         </table>
       </div>
-      <p id="sources-empty" class="muted hidden">아직 수집된 문서가 없습니다.
-        위 폼에 URL이나 파일 경로를 넣고 <strong>수집</strong>을 눌러보세요.</p>
+      <p id="sources-empty" class="muted hidden empty-state-card">아직 문서가 없습니다 —
+        URL 하나면 시작됩니다. 위 폼에 URL이나 파일 경로를 넣고
+        <strong>수집</strong>을 눌러보세요.</p>
       <p id="sources-error" class="err-msg hidden"></p>
       <p class="muted"><small>다음 단계: 문서를 넣었다면
         <button type="button" class="btn btn-link" data-goto="jobs">② 추출로 이동 →</button></small></p>
@@ -193,7 +212,7 @@
           <tbody id="jobs-body"></tbody>
         </table>
       </div>
-      <p id="jobs-empty" class="muted hidden">아직 실행한 추출이 없습니다.
+      <p id="jobs-empty" class="muted hidden empty-state-card">아직 실행한 추출이 없습니다.
         위에서 엔진을 고르고 <strong>추출 실행</strong>을 눌러보세요.</p>
       <p id="jobs-error" class="err-msg hidden"></p>
 
@@ -205,64 +224,75 @@
         <button type="button" class="btn btn-link" data-goto="review">③ 검토로 이동 →</button></small></p>
     </section>
 
-    <!-- ================= ③ 검토 ================= -->
+    <!-- ================= ③ 검토 (워크벤치) ================= -->
     <section id="tab-review" class="tab-panel" data-tab-panel="review">
-      <h2>③ 검토 — 사람이 결정하는 관문</h2>
-      <p class="tab-intro">AI가 제안한 개념(노드)과 관계(엣지)를 하나씩
-        <strong>승인</strong> 또는 <strong>거부</strong>합니다. 승인된 것만 팩에
-        들어갑니다. <strong>크리틱</strong>은 다른 AI가 제안을 한 번 더 채점한
-        참고 점수일 뿐, 결정은 항상 사용자 몫입니다. 확신도가 낮은 항목부터
-        보여드립니다 — 낮다고 틀린 게 아니라, 사람 눈이 더 필요한 순서입니다.</p>
+      <div class="review-main">
+        <h2>③ 검토 — 검토 큐</h2>
+        <p class="hitl-subtitle">여기서 승인한 것만 팩에 들어갑니다 ·
+          크리틱 점수는 참고용, 결정은 항상 사용자 몫입니다</p>
+        <p class="tab-intro">AI가 제안한 개념(노드)과 관계(엣지)를 하나씩
+          <strong>승인</strong> 또는 <strong>거부</strong>합니다. 확신도가 낮은
+          항목부터 보여드립니다 — 낮다고 틀린 게 아니라, 사람 눈이 더 필요한
+          순서입니다.</p>
 
-      <div class="status-box" id="counts-box">
-        <div class="status-row"><span>집계 불러오는 중…</span></div>
+        <div class="status-box" id="counts-box">
+          <div class="status-row"><span>집계 불러오는 중…</span></div>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="refresh-btn" class="btn btn-primary">새로고침</button>
+          <label style="margin-left:0.5rem;">정렬
+            <select id="review-order">
+              <option value="confidence" selected>확신도 낮은 순</option>
+              <option value="critic">크리틱 점수 낮은 순</option>
+              <option value="created">오래된 순</option>
+            </select>
+          </label>
+          <button type="button" id="bulk-approve-btn" class="btn btn-primary" disabled>선택 승인</button>
+          <button type="button" id="bulk-reject-btn" class="btn btn-danger" disabled>선택 거부</button>
+        </div>
+        <div class="critic-band">
+          <span class="critic-band-label">크리틱 — 참고 채점</span>
+          <label>엔진
+            <select id="critic-engine"></select>
+          </label>
+          <button type="button" id="critic-run-btn" class="btn"
+            title="다른 AI 엔진으로 대기 항목을 다시 채점해 참고 점수를 채웁니다 (자동 승인 아님)">크리틱 실행</button>
+          <span class="muted"><small>자동 승인되지 않습니다 · 결정은 항상 사용자가 합니다</small></span>
+        </div>
+        <div id="critic-result" class="status-box result-box hidden"></div>
+        <p id="review-last-action" class="muted hidden"></p>
+        <p class="muted kbd-hint"><small>키보드로 빠르게 (③ 검토 탭에서만):
+          <kbd>j</kbd>/<kbd>k</kbd> 이동 · <kbd>a</kbd> 승인 · <kbd>r</kbd> 거부 ·
+          <kbd>s</kbd> 건너뛰기 · <kbd>e</kbd> 엔티티 보기</small></p>
+        <div class="table-wrap table-scroll">
+          <table id="proposals-table">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="review-check-all" aria-label="전체 선택"></th>
+                <th>종류</th>
+                <th>타입</th>
+                <th>이름 / 엔드포인트</th>
+                <th title="AI가 스스로 매긴 확신도(0~1). 낮을수록 사람 확인이 더 필요하다는 뜻이지, 틀렸다는 뜻이 아닙니다">확신도</th>
+                <th title="다른 AI가 다시 채점한 참고 점수. 결정은 항상 사용자가 합니다">크리틱</th>
+                <th>문서</th>
+                <th>작업</th>
+              </tr>
+            </thead>
+            <tbody id="proposals-body"></tbody>
+          </table>
+        </div>
+        <p id="review-empty" class="muted hidden empty-state-card">검토할 항목이 없습니다 —
+          큐를 비웠습니다!
+          <button type="button" class="btn btn-link" data-goto="jobs">② 추출을 실행</button>하거나
+          <button type="button" class="btn btn-link" data-goto="packs">④ 팩을 빌드</button>하세요.</p>
+        <p id="review-error" class="err-msg hidden"></p>
       </div>
-      <div class="form-actions">
-        <button type="button" id="refresh-btn" class="btn btn-primary">새로고침</button>
-        <label style="margin-left:0.5rem;">정렬
-          <select id="review-order">
-            <option value="confidence" selected>확신도 낮은 순</option>
-            <option value="critic">크리틱 점수 낮은 순</option>
-            <option value="created">오래된 순</option>
-          </select>
-        </label>
-        <label style="margin-left:0.5rem;">크리틱 엔진
-          <select id="critic-engine"></select>
-        </label>
-        <button type="button" id="critic-run-btn" class="btn"
-          title="다른 AI 엔진으로 대기 항목을 다시 채점해 참고 점수를 채웁니다 (자동 승인 아님)">크리틱 실행</button>
-        <button type="button" id="bulk-approve-btn" class="btn btn-primary" disabled>선택 승인</button>
-        <button type="button" id="bulk-reject-btn" class="btn btn-danger" disabled>선택 거부</button>
-      </div>
-      <div id="critic-result" class="status-box result-box hidden"></div>
-      <p id="review-last-action" class="muted hidden"></p>
-      <p class="muted"><small>키보드로 빠르게 (③ 검토 탭에서만):
-        <kbd>j</kbd>/<kbd>k</kbd> 이동 · <kbd>a</kbd> 승인 · <kbd>r</kbd> 거부 ·
-        <kbd>s</kbd> 건너뛰기 · <kbd>e</kbd> 엔티티 보기</small></p>
-      <div class="table-wrap table-scroll">
-        <table id="proposals-table">
-          <thead>
-            <tr>
-              <th><input type="checkbox" id="review-check-all" aria-label="전체 선택"></th>
-              <th>종류</th>
-              <th>타입</th>
-              <th>이름 / 엔드포인트</th>
-              <th title="AI가 스스로 매긴 확신도(0~1). 낮을수록 사람 확인이 더 필요하다는 뜻이지, 틀렸다는 뜻이 아닙니다">확신도</th>
-              <th title="다른 AI가 다시 채점한 참고 점수. 결정은 항상 사용자가 합니다">크리틱</th>
-              <th>문서</th>
-              <th>작업</th>
-            </tr>
-          </thead>
-          <tbody id="proposals-body"></tbody>
-        </table>
-      </div>
-      <p id="review-empty" class="muted hidden">검토 대기 항목이 없습니다.
-        <button type="button" class="btn btn-link" data-goto="jobs">② 추출을 실행</button>하거나,
-        이미 승인을 마쳤다면 <button type="button" class="btn btn-link" data-goto="packs">④ 팩을 빌드</button>하세요.</p>
-      <p id="review-error" class="err-msg hidden"></p>
 
       <div id="entity-panel" class="hidden">
-        <h3 id="entity-panel-title">엔티티</h3>
+        <div class="row space-between">
+          <h3 id="entity-panel-title">엔티티</h3>
+          <button type="button" id="entity-panel-close" class="btn">닫기</button>
+        </div>
         <div id="entity-panel-body"></div>
         <p id="entity-panel-error" class="err-msg hidden"></p>
       </div>
@@ -278,6 +308,7 @@
         검증 안 된 내용이 새어 나가지 않습니다.</p>
 
       <h3>팩 빌드</h3>
+      <p class="muted"><small>이 팩에는 사람이 승인한 항목만 들어갑니다.</small></p>
       <form id="pack-build-form" class="form-grid">
         <label>이름
           <input type="text" id="pack-name" placeholder="my-pack" required />
@@ -309,8 +340,9 @@
           <tbody id="packs-body"></tbody>
         </table>
       </div>
-      <p id="packs-empty" class="muted hidden">아직 빌드된 팩이 없습니다.
-        ③ 검토에서 승인한 뒤 위에서 이름을 넣고 <strong>팩 빌드</strong>를 눌러보세요.</p>
+      <p id="packs-empty" class="muted hidden empty-state-card">아직 팩이 없습니다 —
+        승인된 지식만 스냅샷으로 묶입니다. ③ 검토에서 승인한 뒤 위에서 이름을 넣고
+        <strong>팩 빌드</strong>를 눌러보세요.</p>
       <p id="packs-error" class="err-msg hidden"></p>
 
       <h3>팩 비교</h3>
@@ -354,7 +386,7 @@
         <div class="status-row"><span>팩 디렉터리:</span> <code id="mcp-packs-dir">—</code></div>
       </div>
       <div id="mcp-cards"></div>
-      <p id="mcp-empty" class="muted hidden">서빙할 수 있는 팩이 없습니다.
+      <p id="mcp-empty" class="muted hidden empty-state-card">서빙할 수 있는 팩이 없습니다.
         먼저 <button type="button" class="btn btn-link" data-goto="packs">④ 팩을 빌드</button>하세요.</p>
       <p id="mcp-error" class="err-msg hidden"></p>
     </section>
@@ -372,7 +404,7 @@
       </div>
       <div id="merge-scan-result" class="status-box result-box hidden"></div>
       <div id="merge-cards"></div>
-      <p id="merge-empty" class="muted hidden">대기 중인 병합 후보가 없습니다.
+      <p id="merge-empty" class="muted hidden empty-state-card">대기 중인 병합 후보가 없습니다.
         <strong>중복 스캔</strong>을 눌러 후보를 찾아보세요.</p>
       <p id="merge-error" class="err-msg hidden"></p>
     </section>
@@ -399,7 +431,7 @@
           <tbody id="communities-body"></tbody>
         </table>
       </div>
-      <p id="communities-empty" class="muted hidden">커뮤니티가 없습니다 —
+      <p id="communities-empty" class="muted hidden empty-state-card">커뮤니티가 없습니다 —
         <button type="button" class="btn btn-link" data-goto="packs">④ 팩을 빌드</button>하면 계산됩니다.</p>
       <p id="communities-error" class="err-msg hidden"></p>
 
