@@ -287,7 +287,7 @@
     if (!ids.length) return;
     var question =
       kind === "approve"
-        ? ids.length + "건을 모두 승인할까요? 승인된 항목은 팩에 들어갑니다."
+        ? ids.length + "건을 모두 승인할까요? 승인한 항목은 팩에 들어가요."
         : ids.length + "건을 모두 거부할까요?";
     if (!window.confirm(question)) return;
     if (actPending) return;
@@ -461,7 +461,7 @@
   function friendlyError(e) {
     var m = String((e && e.message) || e);
     if (/failed to fetch|networkerror|load failed/i.test(m)) {
-      return "서버에 연결할 수 없습니다. ontologylab 서버가 실행 중인지 확인한 뒤 다시 시도하세요.";
+      return "서버에 연결할 수 없어요. ontologylab 서버가 켜져 있는지 확인하고 다시 시도해주세요.";
     }
     return m;
   }
@@ -545,7 +545,7 @@
       limit: toInt($("#collect-limit").value, 5),
     };
     if (!payload.urls.length && !payload.files.length && !payload.paper_queries.length) {
-      showResult(box, "수집할 대상이 없습니다 — URL, 파일 경로, 또는 논문 검색어를 입력하세요.", true);
+      showResult(box, "넣을 게 없어요 — URL, 파일 경로, 논문 검색어 중 하나를 입력해주세요.", true);
       return;
     }
     btn.disabled = true;
@@ -555,7 +555,7 @@
       if (res && res.ok) {
         showResult(
           box,
-          "<span class='ok-msg'>수집 완료.</span> 전체 문서 <code>" +
+          "<span class='ok-msg'>문서가 들어왔어요!</span> 전체 문서 <code>" +
             escapeHtml(String(res.documents != null ? res.documents : "?")) +
             "</code>개 · 새로 추가 <code>" +
             escapeHtml(String(res.created != null ? res.created : "?")) +
@@ -856,7 +856,7 @@
     if (d.identical) {
       showResult(
         box,
-        "<span class='ok-msg'>두 팩이 동일합니다.</span> " +
+        "<span class='ok-msg'>두 팩이 완전히 같아요.</span> " +
           "<small class='muted'>콘텐츠 해시 동일 — 변경 없음.</small>"
       );
       return;
@@ -892,7 +892,7 @@
     var a = $("#diff-pack-a").value;
     var b = $("#diff-pack-b").value;
     if (!a || !b) {
-      showResult(box, "비교할 팩 두 개를 고르세요.", true);
+      showResult(box, "비교할 팩 두 개를 골라주세요.", true);
       return;
     }
     btn.disabled = true;
@@ -939,7 +939,7 @@
     var btn = $("#pack-build-submit");
     var name = $("#pack-name").value.trim();
     if (!name) {
-      showResult(box, "팩 이름을 입력하세요.", true);
+      showResult(box, "팩 이름을 지어주세요.", true);
       return;
     }
     btn.disabled = true;
@@ -951,7 +951,7 @@
         var counts = manifest.counts || {};
         showResult(
           box,
-          "<span class='ok-msg'>팩 빌드 완료.</span> <code>" +
+          "<span class='ok-msg'>팩이 만들어졌어요!</span> <code>" +
             escapeHtml(manifest.pack_id || name) +
             "</code> · 문서 <code>" +
             escapeHtml(String(counts.documents || 0)) +
@@ -1116,7 +1116,7 @@
     if (
       !window.confirm(
         "이 승인된 관계를 무효화할까요?\n삭제되는 것이 아니라 " +
-          "'더 이상 유효하지 않음'으로 표시되고 이력은 보존됩니다."
+          "'더 이상 유효하지 않음'으로 표시되고 이력은 남아요."
       )
     ) {
       return;
@@ -1472,6 +1472,27 @@
     el.className = "step-stat" + (state ? " " + state : "");
   }
 
+  /* -- 홈 따라하기 여정: 완료 상태는 전부 실데이터에서 파생 (저장 없음).
+        수집·추출은 온보딩 버튼으로 자동화해도 되지만 승인은 절대 자동화하지
+        않는다 — 3·4단계 버튼은 해당 화면으로 이동만 한다. -- */
+  function renderJourney(docs, pending, verified, packsCount) {
+    var states = {
+      "jstep-collect": docs > 0,
+      "jstep-extract": pending + verified > 0,
+      "jstep-review": verified > 0,
+      "jstep-pack": packsCount > 0,
+    };
+    var allDone = true;
+    Object.keys(states).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle("journey-done", states[id]);
+      if (!states[id]) allDone = false;
+    });
+    var doneMsg = $("#journey-done");
+    if (doneMsg) doneMsg.classList.toggle("hidden", !allDone);
+  }
+
   async function loadHome() {
     var homeErr = $("#home-error");
     if (homeErr) homeErr.classList.add("hidden");
@@ -1493,6 +1514,7 @@
       var verified = (c.nodes_verified || 0) + (c.edges_verified || 0);
 
       updateReviewBadge(c);
+      renderJourney(docs, pending, verified, packs.length);
       setStat("#stat-sources", "문서 " + docs + "개",
         docs ? "is-ok" : "is-todo");
       setStat(
@@ -1513,33 +1535,33 @@
 
       // 다음 할 일 추천 (파이프라인 상태 기반)
       if (docs === 0) {
-        setNextAction("먼저 문서를 넣으세요.", "sources", "① 수집으로 가기");
+        setNextAction("먼저 문서를 하나 넣어보세요.", "sources", "① 수집으로 가기");
       } else if (pending > 0) {
         setNextAction(
-          "AI 제안 " + pending + "건이 검토를 기다립니다.",
+          "AI 제안 " + pending + "건이 기다리고 있어요.",
           "review", "③ 검토로 가기"
         );
       } else if (running) {
         setNextAction(
-          "추출이 진행 중입니다. 끝나면 ③ 검토에 제안이 올라옵니다.",
+          "추출이 돌아가는 중이에요. 끝나면 ③ 검토에 올라와요.",
           "jobs", "② 추출 상태 보기"
         );
       } else if (verified === 0 && jobs.length > 0) {
         setNextAction(
-          "제안이 모두 처리됐습니다. 새 문서를 수집하거나 다시 추출해 보세요.",
+          "제안을 모두 처리했어요! 새 문서를 넣거나 다시 추출해보세요.",
           "sources", "① 수집으로 가기"
         );
       } else if (verified === 0) {
-        setNextAction("문서에서 지식을 추출해 보세요.", "jobs", "② 추출로 가기");
+        setNextAction("이제 AI에게 초안을 맡겨볼까요?", "jobs", "② 추출로 가기");
       } else if (packs.length === 0) {
         setNextAction(
-          "승인된 지식 " + verified + "건을 팩으로 내보내세요.",
+          "승인한 지식 " + verified + "건을 팩으로 묶어보세요.",
           "packs", "④ 팩 빌드하러 가기"
         );
       } else {
         setNextAction(
-          "팩이 준비됐습니다. 새로 승인한 내용이 있다면 ④에서 팩을 다시 빌드하고, " +
-            "아니면 ⑤에서 AI에 연결하세요.",
+          "팩이 준비됐어요! 새로 승인한 게 있으면 ④에서 다시 만들고, " +
+            "아니면 ⑤에서 연결해요.",
           "mcp", "⑤ 연결로 가기"
         );
       }
@@ -1590,6 +1612,76 @@
     document.getElementById("tab-review").classList.remove("inspector-open");
   });
 
+  /* 따라하기 1단계: 번들 샘플 문서 넣기 (오프라인·멱등) */
+  $("#journey-sample-btn").addEventListener("click", async function () {
+    var btn = $("#journey-sample-btn");
+    var out = $("#journey-sample-result");
+    btn.disabled = true;
+    out.classList.remove("hidden");
+    out.textContent = "샘플 문서를 넣는 중이에요…";
+    try {
+      var res = await apiSend("/api/collect/sample", {});
+      if (res && res.ok) {
+        out.textContent = res.created
+          ? "「" + (res.title || "샘플") + "」 문서가 들어왔어요! 이제 2번으로 가볼까요?"
+          : "샘플은 이미 들어와 있어요 — 바로 2번으로 가면 돼요!";
+      } else {
+        out.textContent = (res && res.detail) || "샘플을 넣지 못했어요.";
+      }
+      loadHome();
+    } catch (e) {
+      out.textContent = friendlyError(e);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  /* 따라하기 2단계: mock 추출 실행 + 완료까지 폴링 (제안 생성일 뿐,
+     승인은 3단계에서 사람이 직접 한다) */
+  $("#journey-extract-btn").addEventListener("click", async function () {
+    var btn = $("#journey-extract-btn");
+    var out = $("#journey-extract-result");
+    btn.disabled = true;
+    out.classList.remove("hidden");
+    out.textContent = "AI가 문서를 읽는 중이에요… (데모 엔진이라 금방 끝나요)";
+    try {
+      var res = await apiSend("/api/extract", {
+        engine: "mock", model: null, doc_ids: [],
+        max_engine_calls: 500, time_budget: 7200, seed: 7,
+      });
+      if (!res || !res.job_id) {
+        out.textContent =
+          (res && (res.detail || res.error)) || "추출을 시작하지 못했어요.";
+        return;
+      }
+      for (var i = 0; i < 40; i++) {
+        await new Promise(function (r) { setTimeout(r, 500); });
+        var job = await api("/api/jobs/" + encodeURIComponent(res.job_id));
+        if (job && job.status === "complete") {
+          var t = job.totals || {};
+          var fresh = (t.nodes_new || 0) + (t.edges_new || 0);
+          out.innerHTML =
+            "제안 <strong>" + fresh + "건</strong>이 도착했어요! 이제 3번 — " +
+            "직접 골라줄 차례예요. <button type='button' class='btn btn-primary'" +
+            " data-goto='review'>검토하러 가기 →</button>";
+          loadHome();
+          loadProposals();
+          return;
+        }
+        if (job && job.status === "failed") {
+          out.textContent = "추출이 실패했어요: " + (job.error || "원인 미상");
+          return;
+        }
+      }
+      out.textContent =
+        "추출이 오래 걸리네요 — ② 추출 화면에서 진행 상황을 볼 수 있어요.";
+    } catch (e) {
+      out.textContent = friendlyError(e);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   /* Settings: editable form (GET populates, PUT saves) */
   $("#settings-form").addEventListener("submit", async function (ev) {
     ev.preventDefault();
@@ -1611,7 +1703,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      showResult(box, "<span class='ok-msg'>설정을 저장했습니다.</span>");
+      showResult(box, "<span class='ok-msg'>설정을 저장했어요.</span>");
     } catch (e) {
       showResult(box, escapeHtml(friendlyError(e)), true);
     } finally {

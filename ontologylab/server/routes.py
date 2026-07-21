@@ -517,6 +517,52 @@ def collect(body: CollectRequest) -> dict[str, Any]:
     }
 
 
+# Onboarding sample for the dashboard "따라하기" journey: a bundled static
+# document, no network, no filesystem path. Idempotent — re-posting dedupes
+# on content_hash exactly like any other collect. Collect/extract may be
+# automated for onboarding; APPROVAL never is (HITL).
+SAMPLE_DOC_TITLE = "샘플 — 우리 가게 주문 시스템"
+SAMPLE_DOC_TEXT = """\
+# 우리 가게 주문 시스템 이야기
+
+손님이 주문하면 OrderApp 이 주문을 받아서 KitchenDisplay 로 전달해요.
+KitchenDisplay 는 조리 순서를 정하려고 PriorityQueue 를 사용해요.
+결제는 PaymentGateway 가 처리하고, 영수증은 ReceiptPrinter 가 출력해요.
+단골 관리는 MemberDatabase 가 담당하고, OrderApp 은 주문 내역을
+MemberDatabase 에 기록해요. 쿠폰 발급은 CouponEngine 이 맡는데,
+CouponEngine 은 MemberDatabase 의 방문 기록을 참고해요.
+매출 집계는 SalesReport 가 매일 밤 정리해요.
+"""
+
+
+@router.post("/collect/sample")
+def collect_sample() -> dict[str, Any]:
+    """Ingest the bundled onboarding sample document (offline, idempotent)."""
+    raw = RawDocument(
+        source_kind="upload",
+        source_uri="sample://onboarding/order-system",
+        title=SAMPLE_DOC_TITLE,
+        raw_text=SAMPLE_DOC_TEXT,
+    )
+    store = _open_store()
+    try:
+        doc, created = store.insert_document(
+            source_kind=raw.source_kind,
+            source_uri=raw.source_uri,
+            title=raw.title,
+            raw_text=raw.raw_text,
+            content_hash=raw.content_hash,
+        )
+    finally:
+        store.close()
+    return {
+        "ok": True,
+        "created": created,
+        "document_id": doc.id,
+        "title": doc.title,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Extraction jobs (Extraction Jobs screen — polled, tui.py-style)
 # ---------------------------------------------------------------------------

@@ -35,7 +35,7 @@
     <button class="tab-btn tab-btn-aux" data-tab="communities" role="tab" aria-selected="false">커뮤니티</button>
     <button class="tab-btn tab-btn-aux" data-tab="engines" role="tab" aria-selected="false">엔진</button>
     <button class="tab-btn tab-btn-aux" data-tab="settings" role="tab" aria-selected="false">설정</button>
-    <div class="nav-rail-footer">로컬 전용 · 모든 데이터는 이 컴퓨터에만 저장됩니다</div>
+    <div class="nav-rail-footer">로컬 전용 · 모든 데이터는 이 컴퓨터에만 저장돼요</div>
   </nav>
 
   <div class="pipeline-bar">
@@ -78,38 +78,80 @@
   </div>
 
   <main>
-    <!-- ================= 홈 (시작하기) ================= -->
+    <!-- ================= 홈 (따라하기) ================= -->
     <section id="tab-home" class="tab-panel active" data-tab-panel="home">
-      <h2>어떻게 쓰나요?</h2>
-      <p class="tab-intro">위의 파이프라인 바가 이 도구의 전부입니다 — 데이터가
-        어느 단계에 있는지 항상 보여주고, 오른쪽 위 <strong>지금 할 일</strong>이
-        다음 클릭을 알려줍니다. <strong>③ 검토</strong>에서 사람이 승인한 것만
-        팩에 들어갑니다.</p>
+      <h2>안녕하세요! 👋</h2>
+      <p class="tab-intro">ontologylab은 문서를 읽혀서 <strong>믿을 수 있는
+        지식</strong>으로 바꾸는 도구예요. AI가 초안을 만들고, 여기서 직접 승인한
+        것만 지식이 돼요. 아래 네 걸음이면 한 바퀴 다 돌아요 — 진행되는 만큼
+        체크가 켜져요.</p>
 
-      <div class="home-card">
-        <h3>다섯 단계</h3>
-        <ol>
-          <li><strong>① 수집</strong> — URL·파일·논문을 문서로 저장합니다.</li>
-          <li><strong>② 추출</strong> — AI가 개념과 관계의 초안을 제안합니다.</li>
-          <li><strong>③ 검토</strong> — 사람이 하나씩 승인/거부합니다 (핵심).</li>
-          <li><strong>④ 팩</strong> — 승인된 것만 묶어 스냅샷으로 내보냅니다.</li>
-          <li><strong>⑤ 연결</strong> — Claude 같은 AI가 그 팩을 읽습니다.</li>
-        </ol>
+      <div class="journey">
+        <div class="journey-step" id="jstep-collect">
+          <span class="journey-no" aria-hidden="true">1</span>
+          <div class="journey-body">
+            <strong>문서 하나 넣어보기</strong>
+            <p class="muted">뭐든 좋아요. 처음이면 준비된 샘플(우리 가게 주문
+              시스템 이야기)로 가볍게 시작해보세요.</p>
+            <div class="journey-actions">
+              <button type="button" id="journey-sample-btn" class="btn btn-primary">샘플 문서로 해볼래요</button>
+              <button type="button" class="btn btn-link" data-goto="sources">내 문서를 넣을래요 →</button>
+            </div>
+            <p id="journey-sample-result" class="muted hidden"></p>
+          </div>
+        </div>
+        <div class="journey-step" id="jstep-extract">
+          <span class="journey-no" aria-hidden="true">2</span>
+          <div class="journey-body">
+            <strong>AI에게 초안 맡기기</strong>
+            <p class="muted">넣은 문서에서 개념과 관계를 뽑아 와요. 여기서 나온 건
+              아직 <em>제안</em>일 뿐이라 지식이 아니에요.</p>
+            <div class="journey-actions">
+              <button type="button" id="journey-extract-btn" class="btn btn-primary">지금 추출해볼래요</button>
+              <button type="button" class="btn btn-link" data-goto="jobs">추출 화면으로 →</button>
+            </div>
+            <p id="journey-extract-result" class="muted hidden"></p>
+          </div>
+        </div>
+        <div class="journey-step" id="jstep-review">
+          <span class="journey-no" aria-hidden="true">3</span>
+          <div class="journey-body">
+            <strong>맞으면 승인, 아니면 거부</strong>
+            <p class="muted">여기가 이 도구의 심장이에요. 직접 승인한 것만
+              지식으로 남아요 — AI는 절대 대신 결정하지 않아요.</p>
+            <div class="journey-actions">
+              <button type="button" class="btn btn-primary" data-goto="review">검토하러 갈래요</button>
+            </div>
+          </div>
+        </div>
+        <div class="journey-step" id="jstep-pack">
+          <span class="journey-no" aria-hidden="true">4</span>
+          <div class="journey-body">
+            <strong>승인한 지식을 팩으로 묶기</strong>
+            <p class="muted">팩은 Claude 같은 AI에게 물려줄 수 있는
+              <em>검증된 지식 상자</em>예요.</p>
+            <div class="journey-actions">
+              <button type="button" class="btn btn-primary" data-goto="packs">팩 만들러 갈래요</button>
+            </div>
+          </div>
+        </div>
       </div>
+      <p id="journey-done" class="ok-msg hidden">🎉 한 바퀴 완주! 이제
+        <button type="button" class="btn btn-link" data-goto="mcp">⑤ 연결</button>에서
+        Claude에 물려주거나, 새 문서로 지식을 더 쌓아보세요.</p>
 
-      <p class="muted"><small>모든 데이터는 이 컴퓨터에만 저장됩니다.
-        mock(오프라인 데모) 엔진으로 만든 연습용 데이터라면 승인·거부·팩 빌드를
-        마음껏 눌러 보세요 — 언제든 다시 추출하면 됩니다.</small></p>
-      <p class="muted"><small>보조 도구 — <strong>병합</strong>: 중복 엔티티 정리 ·
-        <strong>커뮤니티</strong>: 그래프 클러스터 보기 ·
-        <strong>엔진</strong>: 사용 가능한 AI 확인 · <strong>설정</strong>: 기본값 변경</small></p>
+      <p class="muted"><small>모든 데이터는 이 컴퓨터에만 저장돼요. 연습용
+        데이터는 마음껏 만졌다가 언제든 지우고 다시 시작할 수 있어요.</small></p>
+      <p class="muted"><small>보조 도구 — <strong>병합</strong>: 중복 정리 ·
+        <strong>커뮤니티</strong>: 개념 묶음 보기 ·
+        <strong>엔진</strong>: 쓸 수 있는 AI 확인 · <strong>설정</strong>: 기본값</small></p>
     </section>
 
     <!-- ================= ① 수집 (소스) ================= -->
     <section id="tab-sources" class="tab-panel" data-tab-panel="sources">
-      <h2>① 수집 — 문서 넣기</h2>
-      <p class="tab-intro">웹 페이지 URL, 로컬 파일 경로, 또는 논문 검색어를 넣으면
-        원문이 로컬 DB에 저장됩니다. 저장된 문서가 다음 단계(추출)의 재료입니다.</p>
+      <h2>① 수집 — 어떤 문서를 읽혀볼까요?</h2>
+      <p class="tab-intro">웹 페이지 URL, 파일 경로, 논문 검색어 — 뭐든 넣으면
+        원문이 이 컴퓨터에 저장돼요. 이 문서가 다음 단계(추출)의 재료가 돼요.</p>
 
       <h3>새 문서 수집</h3>
       <form id="collect-form" class="form-grid">
@@ -156,9 +198,9 @@
           <tbody id="documents-body"></tbody>
         </table>
       </div>
-      <p id="sources-empty" class="muted hidden empty-state-card">아직 문서가 없습니다 —
-        URL 하나면 시작됩니다. 위 폼에 URL이나 파일 경로를 넣고
-        <strong>수집</strong>을 눌러보세요.</p>
+      <p id="sources-empty" class="muted hidden empty-state-card">아직 문서가 없어요 —
+        URL 하나면 시작돼요. 위 폼에 URL이나 파일 경로를 넣고
+        <strong>수집</strong>을 눌러보세요. (홈의 샘플 버튼도 있어요!)</p>
       <p id="sources-error" class="err-msg hidden"></p>
       <p class="muted"><small>다음 단계: 문서를 넣었다면
         <button type="button" class="btn btn-link" data-goto="jobs">② 추출로 이동 →</button></small></p>
@@ -166,11 +208,11 @@
 
     <!-- ================= ② 추출 (작업) ================= -->
     <section id="tab-jobs" class="tab-panel" data-tab-panel="jobs">
-      <h2>② 추출 — AI에게 초안 맡기기</h2>
-      <p class="tab-intro">수집된 문서에서 AI가 개념(노드)과 관계(엣지)를 뽑아
-        <strong>제안</strong>으로 올립니다. 여기서 나온 결과는 아직 확정이 아니고,
-        ③ 검토에서 사람이 승인해야 확정됩니다. 엔진 <code>mock</code>은
-        네트워크 없이 동작하는 데모용입니다.</p>
+      <h2>② 추출 — AI에게 초안을 맡겨요</h2>
+      <p class="tab-intro">수집한 문서에서 AI가 개념(노드)과 관계(엣지)를 뽑아
+        <strong>제안</strong>으로 올려요. 아직 확정이 아니라, ③ 검토에서 직접
+        승인해야 지식이 돼요. 엔진 <code>mock</code>은 인터넷 없이 도는
+        연습용이에요.</p>
 
       <h3>추출 실행</h3>
       <form id="extract-form" class="form-grid">
@@ -212,7 +254,7 @@
           <tbody id="jobs-body"></tbody>
         </table>
       </div>
-      <p id="jobs-empty" class="muted hidden empty-state-card">아직 실행한 추출이 없습니다.
+      <p id="jobs-empty" class="muted hidden empty-state-card">아직 추출한 적이 없어요.
         위에서 엔진을 고르고 <strong>추출 실행</strong>을 눌러보세요.</p>
       <p id="jobs-error" class="err-msg hidden"></p>
 
@@ -227,13 +269,13 @@
     <!-- ================= ③ 검토 (워크벤치) ================= -->
     <section id="tab-review" class="tab-panel" data-tab-panel="review">
       <div class="review-main">
-        <h2>③ 검토 — 검토 큐</h2>
-        <p class="hitl-subtitle">여기서 승인한 것만 팩에 들어갑니다 ·
-          크리틱 점수는 참고용, 결정은 항상 사용자 몫입니다</p>
+        <h2>③ 검토 — 직접 결정할 차례예요</h2>
+        <p class="hitl-subtitle">여기서 승인한 것만 팩에 들어가요 ·
+          크리틱 점수는 참고용, 결정은 항상 사용자 몫이에요</p>
         <p class="tab-intro">AI가 제안한 개념(노드)과 관계(엣지)를 하나씩
-          <strong>승인</strong> 또는 <strong>거부</strong>합니다. 확신도가 낮은
-          항목부터 보여드립니다 — 낮다고 틀린 게 아니라, 사람 눈이 더 필요한
-          순서입니다.</p>
+          <strong>승인</strong> 또는 <strong>거부</strong>해요. 확신도가 낮은
+          항목부터 보여드려요 — 낮다고 틀린 게 아니라, 눈이 한 번 더 필요한
+          순서예요.</p>
 
         <div class="status-box" id="counts-box">
           <div class="status-row"><span>집계 불러오는 중…</span></div>
@@ -281,8 +323,8 @@
             <tbody id="proposals-body"></tbody>
           </table>
         </div>
-        <p id="review-empty" class="muted hidden empty-state-card">검토할 항목이 없습니다 —
-          큐를 비웠습니다!
+        <p id="review-empty" class="muted hidden empty-state-card">검토할 게 없어요 —
+          큐를 다 비웠어요!
           <button type="button" class="btn btn-link" data-goto="jobs">② 추출을 실행</button>하거나
           <button type="button" class="btn btn-link" data-goto="packs">④ 팩을 빌드</button>하세요.</p>
         <p id="review-error" class="err-msg hidden"></p>
@@ -300,15 +342,15 @@
 
     <!-- ================= ④ 팩 ================= -->
     <section id="tab-packs" class="tab-panel" data-tab-panel="packs">
-      <h2>④ 팩 — 승인된 지식만 내보내기</h2>
-      <p class="tab-intro">③에서 승인된 개념·관계만 모아 변경 불가능한
-        <strong>팩</strong>으로 만듭니다. 팩은 빌드한 순간의 스냅샷이라, 이후에
-        승인한 내용은 기존 팩에 자동 반영되지 않습니다 — 새 승인분이 생기면
-        새 이름으로 다시 빌드하세요. AI(MCP)는 이 팩만 읽을 수 있어서,
-        검증 안 된 내용이 새어 나가지 않습니다.</p>
+      <h2>④ 팩 — 승인한 지식을 상자에 담아요</h2>
+      <p class="tab-intro">③에서 승인한 개념·관계만 모아
+        <strong>팩</strong>으로 만들어요. 팩은 만든 순간의 스냅샷이라, 나중에
+        승인한 건 자동으로 안 들어가요 — 새 승인분이 생기면 새 이름으로 다시
+        만들면 돼요. AI(MCP)는 이 팩만 읽을 수 있어서, 검증 안 된 내용은
+        절대 새어 나가지 않아요.</p>
 
       <h3>팩 빌드</h3>
-      <p class="muted"><small>이 팩에는 사람이 승인한 항목만 들어갑니다.</small></p>
+      <p class="muted"><small>이 팩에는 직접 승인한 항목만 들어가요.</small></p>
       <form id="pack-build-form" class="form-grid">
         <label>이름
           <input type="text" id="pack-name" placeholder="my-pack" required />
@@ -340,14 +382,14 @@
           <tbody id="packs-body"></tbody>
         </table>
       </div>
-      <p id="packs-empty" class="muted hidden empty-state-card">아직 팩이 없습니다 —
-        승인된 지식만 스냅샷으로 묶입니다. ③ 검토에서 승인한 뒤 위에서 이름을 넣고
+      <p id="packs-empty" class="muted hidden empty-state-card">아직 팩이 없어요 —
+        ③ 검토에서 승인한 뒤 위에서 이름을 짓고
         <strong>팩 빌드</strong>를 눌러보세요.</p>
       <p id="packs-error" class="err-msg hidden"></p>
 
       <h3>팩 비교</h3>
-      <p class="muted">두 팩의 차이를 봅니다 — 팩 A를 쓰던 클라이언트가
-        팩 B로 올리면 무엇이 늘고 줄어드는지.</p>
+      <p class="muted">두 팩의 차이를 보여줘요 — 팩 A를 쓰다가 팩 B로 바꾸면
+        뭐가 늘고 줄어드는지.</p>
       <div class="form-grid">
         <label>팩 A
           <select id="diff-pack-a"></select>
@@ -366,10 +408,10 @@
 
     <!-- ================= ⑤ 연결 (MCP) ================= -->
     <section id="tab-mcp" class="tab-panel" data-tab-panel="mcp">
-      <h2>⑤ 연결 — AI에서 팩 사용하기 (MCP)</h2>
-      <p class="tab-intro">빌드된 팩을 Claude Desktop / Claude Code 같은 AI 도구에
-        연결합니다. 각 팩 카드의 <strong>연결 설정 복사</strong>를 눌러 나온 내용을
-        도구 설정에 붙여넣으면 끝입니다. AI는 팩을 읽기만 할 수 있습니다.</p>
+      <h2>⑤ 연결 — Claude에게 지식을 물려줘요</h2>
+      <p class="tab-intro">만든 팩을 Claude Desktop / Claude Code 같은 AI 도구에
+        연결해요. 팩 카드의 <strong>연결 설정 복사</strong>를 눌러 나온 내용을
+        도구 설정에 붙여넣으면 끝이에요. AI는 팩을 읽기만 할 수 있어요.</p>
       <details class="help-details">
         <summary>Claude Desktop에 붙여넣는 방법</summary>
         <ol>
@@ -386,35 +428,35 @@
         <div class="status-row"><span>팩 디렉터리:</span> <code id="mcp-packs-dir">—</code></div>
       </div>
       <div id="mcp-cards"></div>
-      <p id="mcp-empty" class="muted hidden empty-state-card">서빙할 수 있는 팩이 없습니다.
+      <p id="mcp-empty" class="muted hidden empty-state-card">연결할 팩이 아직 없어요.
         먼저 <button type="button" class="btn btn-link" data-goto="packs">④ 팩을 빌드</button>하세요.</p>
       <p id="mcp-error" class="err-msg hidden"></p>
     </section>
 
     <!-- ================= 병합 (보조) ================= -->
     <section id="tab-merge" class="tab-panel" data-tab-panel="merge">
-      <h2>병합 — 중복 엔티티 정리</h2>
+      <h2>병합 — 같은 개념 합치기</h2>
       <p class="tab-intro">같은 개념이 다른 이름으로 두 번 들어왔을 때
-        (예: "RateLimiter"와 "Rate Limiter") 하나로 합칩니다. 스캐너는 후보를
-        <em>제안</em>만 하고, 병합/기각은 항상 사용자의 결정입니다.
-        기각된 쌍은 다시 제안되지 않습니다.</p>
+        (예: "RateLimiter"와 "Rate Limiter") 하나로 합쳐요. 스캐너는 후보를
+        <em>제안</em>만 하고, 합칠지 말지는 항상 직접 정해요.
+        아니라고 한 쌍은 다시 물어보지 않아요.</p>
       <div class="form-actions">
         <button type="button" id="merge-scan-btn" class="btn btn-primary">중복 스캔</button>
         <button type="button" id="merge-refresh-btn" class="btn">새로고침</button>
       </div>
       <div id="merge-scan-result" class="status-box result-box hidden"></div>
       <div id="merge-cards"></div>
-      <p id="merge-empty" class="muted hidden empty-state-card">대기 중인 병합 후보가 없습니다.
-        <strong>중복 스캔</strong>을 눌러 후보를 찾아보세요.</p>
+      <p id="merge-empty" class="muted hidden empty-state-card">대기 중인 병합 후보가 없어요.
+        <strong>중복 스캔</strong>을 눌러 찾아보세요.</p>
       <p id="merge-error" class="err-msg hidden"></p>
     </section>
 
     <!-- ================= 커뮤니티 (보조) ================= -->
     <section id="tab-communities" class="tab-panel" data-tab-panel="communities">
       <h2>커뮤니티 — 그래프 클러스터 보기</h2>
-      <p class="tab-intro">서로 촘촘히 연결된 개념 묶음(클러스터)을 보여줍니다.
-        팩을 빌드할 때 승인된 데이터로 한 번 계산되며, 팩을 빌드하기 전에는
-        비어 있는 게 정상입니다.</p>
+      <p class="tab-intro">서로 촘촘히 연결된 개념 묶음(클러스터)을 보여줘요.
+        팩을 만들 때 한 번 계산되니까, 팩을 만들기 전에는 비어 있는 게
+        정상이에요.</p>
       <div class="form-actions">
         <button type="button" id="communities-refresh-btn" class="btn">새로고침</button>
       </div>
@@ -431,8 +473,8 @@
           <tbody id="communities-body"></tbody>
         </table>
       </div>
-      <p id="communities-empty" class="muted hidden empty-state-card">커뮤니티가 없습니다 —
-        <button type="button" class="btn btn-link" data-goto="packs">④ 팩을 빌드</button>하면 계산됩니다.</p>
+      <p id="communities-empty" class="muted hidden empty-state-card">아직 커뮤니티가 없어요 —
+        <button type="button" class="btn btn-link" data-goto="packs">④ 팩을 빌드</button>하면 계산돼요.</p>
       <p id="communities-error" class="err-msg hidden"></p>
 
       <div id="community-detail" class="hidden">
@@ -445,10 +487,10 @@
     <!-- ================= 엔진 (보조) ================= -->
     <section id="tab-engines" class="tab-panel" data-tab-panel="engines">
       <h2>엔진 — 사용 가능한 AI</h2>
-      <p class="tab-intro">추출·크리틱에 쓸 수 있는 AI 엔진 목록입니다.
-        <code>mock</code>은 항상 사용 가능한 오프라인 데모 엔진이고,
+      <p class="tab-intro">추출·크리틱에 쓸 수 있는 AI 엔진들이에요.
+        <code>mock</code>은 항상 되는 오프라인 연습용이고,
         <code>claude</code>·<code>codex</code>·<code>gemini</code>는 해당 CLI가
-        설치되어 있어야 합니다.</p>
+        깔려 있어야 해요.</p>
       <ul id="engines-list"></ul>
       <h3>비용 요약</h3>
       <pre id="cost-pre" class="code-block">—</pre>
@@ -457,7 +499,7 @@
     <!-- ================= 설정 (보조) ================= -->
     <section id="tab-settings" class="tab-panel" data-tab-panel="settings">
       <h2>설정</h2>
-      <p class="tab-intro">추출·검토의 로컬 기본값입니다. 잘 모르겠으면 그대로 두세요.</p>
+      <p class="tab-intro">추출·검토의 기본값이에요. 잘 모르겠으면 그대로 두면 돼요.</p>
       <form id="settings-form" class="form-grid">
         <label>기본 엔진
           <input type="text" id="settings-default-engine" placeholder="mock" />

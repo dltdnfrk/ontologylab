@@ -1084,3 +1084,41 @@ tr.row-focused {
   #tab-review.active.inspector-open { grid-template-columns: minmax(0, 1fr); }
   #entity-panel { position: static; max-height: none; }
 }
+
+/* ---------- 홈 따라하기 여정 ---------- */
+.journey { display: flex; flex-direction: column; gap: 0.6rem; margin: 1rem 0; }
+.journey-step {
+  display: flex;
+  gap: 0.9rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+}
+.journey-no {
+  flex: 0 0 auto;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-muted);
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.journey-done { border-color: var(--ok); }
+.journey-done .journey-no { background: var(--ok); color: #fff; font-size: 0; }
+.journey-done .journey-no::after { content: "✓"; font-size: 0.95rem; }
+.journey-body { flex: 1; min-width: 0; }
+.journey-body > strong { font-size: 0.95rem; }
+.journey-body p { margin: 0.25rem 0 0.6rem; }
+.journey-actions { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+.journey-done .journey-actions .btn-primary { opacity: 0.55; }
+#journey-done {
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--ok);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+}
+.tab-panel h2 { font-size: 1.15rem; }
