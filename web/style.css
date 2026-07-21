@@ -1,11 +1,22 @@
 /* ==========================================================================
-   ontologylab — Apple-style glass UI (floating frosted panels).
-   Offline, no CDN, no images: backgrounds are pure CSS gradients.
-   Full rewrite; every functional selector the JS toggles is preserved:
+   ontologylab — flat neutral UI, Pretendard, one restrained accent
+   (visual language studied from vibedesignlab.net). Offline, no CDN.
+   Every functional selector the JS toggles is preserved:
    .hidden  .active  .tab-panel  .inspector-open  .row-focused  .selected
    .journey-done  .empty-state-card  .conf-cell(--v)  .is-ok/.is-todo
    .st-* / .kind-*  body[data-active-tab]  — do not rename these.
    ========================================================================== */
+
+/* ---------- 0. Bundled font (Pretendard, OFL) ----------
+   설치 여부와 무관하게 항상 Pretendard가 뜨도록 저장소에 번들해 서빙한다. */
+
+@font-face {
+  font-family: "Pretendard Variable";
+  src: url("/static/fonts/PretendardVariable.woff2") format("woff2-variations");
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* ---------- 1. Design tokens ---------- */
 
