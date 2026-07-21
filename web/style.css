@@ -59,9 +59,12 @@
                                                 헤어라인으로 표현 */
   --shadow-soft: none;
 
-  --radius-lg: 14px;
+  --ink: #17161a;                            /* 주 버튼: 잉크 (Vercel/Attio) */
+  --ink-contrast: #ffffff;
+
+  --radius-lg: 12px;
   --radius-md: 10px;
-  --radius-sm: 8px;
+  --radius-sm: 7px;
 
   /* legacy aliases (rules below and JS-rendered markup rely on these names) */
   --bg: transparent;
@@ -99,7 +102,10 @@
     --shadow-float: none;
     --shadow-soft: none;
 
-    --accent-contrast: #0a090c;   /* 밝은 인디고 버튼 위엔 잉크색 */
+    --ink: #f2f1f4;               /* 다크에선 화이트 버튼 + 잉크 글자 */
+    --ink-contrast: #131217;
+
+    --accent-contrast: #0a090c;   /* 밝은 인디고 위엔 잉크색 */
   }
 }
 
@@ -116,11 +122,11 @@ body {
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
-  background: #efeef1;
+  background: #fafafa;
 }
 
 @media (prefers-color-scheme: dark) {
-  body { background: #0a090c; }
+  body { background: #0e0d11; }
 }
 
 a { color: var(--accent); }
@@ -139,10 +145,8 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
 
 body {
   display: grid;
-  grid-template-columns: 236px minmax(0, 1fr);
+  grid-template-columns: 232px minmax(0, 1fr);
   grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 12px;
-  padding: 12px;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
@@ -154,9 +158,10 @@ nav.tabs,
 .pipeline-bar,
 main {
   background: var(--glass);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
 }
+header.app-header { border-bottom: 1px solid var(--border); }
+nav.tabs { border-right: 1px solid var(--border); }
+.pipeline-bar { border-bottom: 1px solid var(--border); }
 
 header.app-header {
   grid-column: 1 / -1;
@@ -164,7 +169,7 @@ header.app-header {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.65rem 1.25rem;
+  padding: 0.5rem 1.1rem;
 }
 
 .brand { display: flex; align-items: baseline; gap: 0.65rem; }
@@ -190,30 +195,32 @@ nav.tabs .tab-btn {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  justify-content: space-between;
+  gap: 0.55rem;
   text-align: left;
   font: inherit;
-  font-size: 0.9rem;
-  color: var(--text);
+  font-size: 0.855rem;
+  font-weight: 500;
+  color: var(--text-muted);
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
-  padding: 0.52rem 0.7rem;
+  padding: 0.42rem 0.6rem;
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
+.nav-ic { width: 15px; height: 15px; flex: 0 0 auto; opacity: 0.75; }
+.nav-label { flex: 1; }
 
-nav.tabs .tab-btn:hover { background: var(--bg-muted); }
+nav.tabs .tab-btn:hover { background: var(--bg-muted); color: var(--text); }
 
 nav.tabs .tab-btn.active {
   color: var(--text);
   background: var(--bg-muted);
-  box-shadow: inset 3px 0 0 var(--accent);
-  font-weight: 700;
+  font-weight: 600;
 }
+nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--accent); }
 
-.tab-btn-aux { font-size: 0.84rem; color: var(--text-muted); }
+.tab-btn-aux { font-size: 0.83rem; }
 
 .nav-group-label {
   font-size: 0.68rem;
@@ -285,11 +292,11 @@ nav.tabs .tab-btn.active {
   font-weight: 700;
 }
 
-.step-name { font-weight: 600; font-size: 0.88rem; }
+.step-name { font-weight: 500; font-size: 0.84rem; }
 .step-desc { display: none; }
 
 .step-stat {
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -324,9 +331,9 @@ main {
 .tab-panel.active { display: block; }
 
 .tab-panel h2 {
-  margin: 0 0 0.35rem;
-  font-size: 1.32rem;
-  font-weight: 800;
+  margin: 0 0 0.3rem;
+  font-size: 1.3rem;
+  font-weight: 700;
 }
 
 .tab-panel h3 {
@@ -397,9 +404,9 @@ button.mcpb-btn {
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.44rem 0.95rem;
+  padding: 0.38rem 0.85rem;
   font: inherit;
-  font-size: 0.86rem;
+  font-size: 0.83rem;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease,
@@ -410,15 +417,12 @@ button.mcpb-btn {
 .btn:active { opacity: 0.85; }
 
 .btn-primary, .btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-contrast);
-  font-weight: 600;
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--ink-contrast);
+  font-weight: 500;
 }
-.btn-primary:hover, .btn.primary:hover {
-  background: var(--accent-strong);
-  border-color: var(--accent-strong);
-}
+.btn-primary:hover, .btn.primary:hover { opacity: 0.88; }
 
 .btn-danger, .btn.danger {
   background: transparent;
@@ -562,7 +566,7 @@ kbd {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.83rem;
 }
 
 th, td {
@@ -576,10 +580,10 @@ th, td {
 
 th {
   color: var(--text-muted);
-  font-weight: 600;
-  font-size: 0.72rem;
+  font-weight: 500;
+  font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 .table-scroll thead th {
@@ -766,15 +770,16 @@ tr.row-focused {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 1.05rem 1.2rem;
+  padding: 0.95rem 1.1rem;
   transition: border-color 0.18s ease;
 }
 .journey-step:hover { border-color: var(--text-muted); }
 
 .journey-no {
   flex: 0 0 auto;
-  width: 2rem;
-  height: 2rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  font-size: 0.85rem;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -857,10 +862,9 @@ tr.row-focused {
 }
 
 @media (max-width: 900px) {
-  body { display: block; height: auto; overflow: visible; padding: 10px; }
+  body { display: block; height: auto; overflow: visible; }
   th, td { white-space: normal; }
   td.actions { white-space: nowrap; }
-  header.app-header, nav.tabs, .pipeline-bar { margin-bottom: 10px; }
   header.app-header { flex-wrap: wrap; }
   nav.tabs { flex-direction: row; overflow-x: auto; padding: 0.4rem 0.5rem; }
   nav.tabs .tab-btn { width: auto; flex: 0 0 auto; }
