@@ -11,6 +11,7 @@ ingested; full-text retrieval is out of scope.
 from __future__ import annotations
 
 import json
+import os
 import re
 import xml.etree.ElementTree as ET
 from typing import Any
@@ -108,13 +109,27 @@ def _build_crossref_url(query: str, limit: int) -> str:
     )
 
 
+# OpenAlex routes requests carrying a contact `mailto` into a faster,
+# more lenient "polite pool". The address is read from the environment at
+# request time (never hard-coded / committed); absent -> the common pool.
+OPENALEX_MAILTO_ENV = "OPENALEX_MAILTO"
+
+
+def _openalex_mailto() -> str:
+    return os.environ.get(OPENALEX_MAILTO_ENV, "").strip()
+
+
 def _build_openalex_url(query: str, limit: int) -> str:
-    return (
+    url = (
         f"{OPENALEX_API_URL}"
         f"?search={quote_plus(query)}"
         f"&per-page={limit}"
         "&select=id,doi,display_name,abstract_inverted_index"
     )
+    mailto = _openalex_mailto()
+    if mailto:
+        url += f"&mailto={quote_plus(mailto)}"
+    return url
 
 
 def _build_semanticscholar_url(query: str, limit: int) -> str:

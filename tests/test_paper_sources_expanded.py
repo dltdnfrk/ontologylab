@@ -164,6 +164,17 @@ def test_fetch_dispatch_hits_right_endpoint(
     assert url.startswith("https://")
 
 
+def test_openalex_polite_pool_mailto_from_env(monkeypatch):
+    """mailto is added only when the env var is set, and always percent-
+    encoded; absent -> no mailto param (common pool)."""
+    monkeypatch.delenv("OPENALEX_MAILTO", raising=False)
+    assert "mailto" not in _build_openalex_url("x", 3)
+
+    monkeypatch.setenv("OPENALEX_MAILTO", "me@example.com")
+    url = _build_openalex_url("x", 3)
+    assert "&mailto=me%40example.com" in url
+
+
 def test_new_sources_still_gated_before_io(monkeypatch):
     import ontologylab.connectors.paper_api as pa
 
