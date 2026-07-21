@@ -18,6 +18,17 @@
   font-display: swap;
 }
 
+/* 라틴·숫자·ASCII 부호만 Outfit(YC의 서체, OFL) — 한글과 문장 속
+   특수부호(— · …)는 unicode-range 밖이라 Pretendard가 그대로 담당한다. */
+@font-face {
+  font-family: "Outfit";
+  src: url("/static/fonts/OutfitVariable.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0020-007E;
+}
+
 /* ---------- 1. Design tokens ---------- */
 
 :root {
@@ -58,7 +69,7 @@
   --radius: var(--radius-md);
   --accent-contrast: #ffffff;
 
-  --font: "Pretendard Variable", Pretendard, -apple-system,
+  --font: "Outfit", "Pretendard Variable", Pretendard, -apple-system,
           BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR",
           "Segoe UI", Helvetica, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
