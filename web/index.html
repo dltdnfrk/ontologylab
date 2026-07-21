@@ -162,13 +162,16 @@
           <input type="text" id="collect-files" placeholder="/path/to/doc.pdf" />
         </label>
         <label>논문 검색어
-          <input type="text" id="collect-paper-query" placeholder="지식 그래프 추출" />
+          <input type="text" id="collect-paper-query" placeholder="아무 주제나 자유롭게 (예: knowledge graph extraction)" />
         </label>
         <label>논문 소스
           <!-- options mirror paper_api.IMPLEMENTED_SOURCES -->
           <select id="collect-paper-source">
-            <option value="arxiv" selected>arxiv</option>
-            <option value="crossref">crossref</option>
+            <option value="arxiv" selected>arXiv</option>
+            <option value="openalex">OpenAlex</option>
+            <option value="semanticscholar">Semantic Scholar</option>
+            <option value="europepmc">Europe PMC (PubMed)</option>
+            <option value="crossref">Crossref</option>
           </select>
         </label>
         <label>최대 개수

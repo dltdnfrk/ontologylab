@@ -28,7 +28,7 @@ from qa_round2.r2_helpers import (
 ALLOWED_URL = "https://docs.python.org/3/library/sqlite3.html"
 DENIED_URL = "https://evil.example/malware"
 ALLOWED_QUERY = "databases"
-DENIED_QUERY = "quantum blockchain secrets"
+DENIED_QUERY = "https://evil.example/exfil"  # URL-shaped: rejected by validation
 
 
 def _collect(case_id, data_dir, *extra):

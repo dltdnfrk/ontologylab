@@ -138,7 +138,7 @@ def test_fetch_crossref_still_allowlist_gated(monkeypatch):
     with pytest.raises(NotAllowlisted):
         asyncio.run(
             PaperApiConnector().fetch(
-                {"source": "crossref", "query": "quantum finance"}
+                {"source": "crossref", "query": "https://evil.example/x"}
             )
         )
 
@@ -154,7 +154,7 @@ def test_fetch_checks_allowlist_before_any_io(monkeypatch):
     connector = PaperApiConnector()
 
     with pytest.raises(NotAllowlisted):
-        asyncio.run(connector.fetch({"source": "arxiv", "query": "quantum finance"}))
+        asyncio.run(connector.fetch({"source": "arxiv", "query": "https://evil.example/x"}))
     with pytest.raises(NotAllowlisted):
         asyncio.run(
             connector.fetch({"source": "unknown-source", "query": "databases"})
@@ -218,7 +218,7 @@ def test_cli_collect_rejects_non_allowlisted_paper_query(tmp_path, capsys, monke
     monkeypatch.setattr(pa, "_http_get_text", boom)
     code = run_cli(
         "collect", "--data-dir", str(tmp_path / "data"),
-        "--paper-query", "quantum finance",
+        "--paper-query", "https://evil.example/x",
     )
     assert code == 2
     assert "REJECTED" in capsys.readouterr().err
@@ -248,16 +248,18 @@ def test_cli_collect_crossref_source_inserts_documents(
 
 def test_check_source_implemented_still_guards_unimplemented():
     """The UNSUPPORTED guard remains for any future source added to the
-    allowlist before a fetcher exists (both current sources are implemented)."""
+    allowlist before a fetcher exists (all current sources are implemented)."""
     from ontologylab.connectors.paper_api import (
         IMPLEMENTED_SOURCES,
         UnsupportedPaperSource,
         check_source_implemented,
     )
 
-    assert IMPLEMENTED_SOURCES == frozenset({"arxiv", "crossref"})
+    assert IMPLEMENTED_SOURCES == frozenset({
+        "arxiv", "crossref", "openalex", "semanticscholar", "europepmc",
+    })
     with pytest.raises(UnsupportedPaperSource):
-        check_source_implemented("semantic-scholar")
+        check_source_implemented("not-a-real-source")
 
 
 NO_ID_ENTRY_FIXTURE = """<?xml version="1.0" encoding="UTF-8"?>
@@ -347,7 +349,7 @@ def test_cli_collect_mixed_run_validates_all_gates_before_any_fetch(
     code = run_cli(
         "collect", "--data-dir", str(tmp_path / "d1"),
         "--url", "https://docs.python.org/3/library/sqlite3.html",
-        "--paper-query", "quantum finance",
+        "--paper-query", "https://evil.example/x",
     )
     assert code == 2
     assert "REJECTED" in capsys.readouterr().err

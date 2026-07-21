@@ -35,12 +35,30 @@ def test_non_http_scheme_denied():
         check_url("ftp://docs.python.org/x")
 
 
-def test_paper_query_denied_off_list():
-    with pytest.raises(NotAllowlisted):
-        check_paper_query("arxiv", "medieval pottery")
+def test_paper_source_positive_list_still_enforced():
+    """Sources stay a closed list — they select fixed network endpoints."""
     with pytest.raises(NotAllowlisted):
         check_paper_query("unknown-source", "databases")
     assert check_paper_query("arxiv", "databases") == ("arxiv", "databases")
+    # 2026-07 expansion: three more keyless sources
+    for source in ("openalex", "semanticscholar", "europepmc"):
+        assert check_paper_query(source, "databases") == (source, "databases")
+
+
+def test_paper_query_free_text_validated_not_enumerated():
+    """Queries are validated (they are only search terms), not enumerated."""
+    # arbitrary research topics now pass
+    assert check_paper_query("arxiv", "medieval pottery")[1] == "medieval pottery"
+    assert check_paper_query("openalex", "knowledge graph extraction")
+    # ... but degenerate/dangerous shapes are still rejected
+    with pytest.raises(NotAllowlisted):
+        check_paper_query("arxiv", "   ")  # empty
+    with pytest.raises(NotAllowlisted):
+        check_paper_query("arxiv", "x" * 201)  # over MAX_PAPER_QUERY_LEN
+    with pytest.raises(NotAllowlisted):
+        check_paper_query("arxiv", "bad\x00query")  # control chars
+    with pytest.raises(NotAllowlisted):
+        check_paper_query("arxiv", "https://evil.example/x")  # embedded URL
 
 
 def test_connector_checks_before_any_io(monkeypatch):

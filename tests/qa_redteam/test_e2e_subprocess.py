@@ -71,13 +71,13 @@ def test_e2e_02_nothing_to_collect(tmp_path):
 def test_e2e_03_rejected_paper_query(tmp_path):
     r = run_cli(
         "E2E-03", "collect", "--data-dir", str(tmp_path / "d"),
-        "--paper-query", "quantum finance",
+        "--paper-query", "https://evil.example/exfil",
     )
     ok = r["exit_code"] == 2 and "REJECTED" in r["stderr"]
     record_case(
         id="E2E-03",
         contractRef="C1/C4",
-        scenario="subprocess: non-allowlisted paper query 'quantum finance' (dead proxies prove no network needed)",
+        scenario="subprocess: URL-shaped paper query (rejected by validation; dead proxies prove no network needed)",
         expected="exit 2, REJECTED on stderr, before any network call",
         actual=f"exit={r['exit_code']} stderr={r['stderr'].strip()!r}",
         verdict="passed" if ok else "failed",

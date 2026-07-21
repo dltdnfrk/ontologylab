@@ -46,19 +46,28 @@ def _boom_fetch(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_rt_c1_01_substring_or_query_rejected(tmp_path, monkeypatch):
-    _boom_fetch(monkeypatch)
+def test_rt_c1_01_boolean_query_is_plain_search_term(tmp_path, monkeypatch):
+    """2026-07 policy: queries are validated, not enumerated. A boolean-ish
+    query is just a search term sent (percent-encoded) to the FIXED arXiv
+    endpoint — prove it fetches that endpoint and nothing else."""
+    seen: list[str] = []
+    _patch_feed(monkeypatch, fx.GOOD_FEED, seen)
     r = _collect("RT-C1-01", tmp_path / "d", "--paper-query", "databases OR secrets")
+    (url,) = seen
+    ok = (
+        r["exit_code"] == 0
+        and url.startswith(pa.ARXIV_API_URL)
+        and "databases+OR+secrets" in url
+    )
     record_case(
         id="RT-C1-01",
         contractRef="C1",
-        scenario="query 'databases OR secrets' (allowlisted term as substring only)",
-        expected="REJECTED, exit 2, zero network touchpoints",
-        actual=f"exit={r['exit_code']} stderr={r['stderr'].strip()!r}",
-        verdict="passed" if r["exit_code"] == 2 and "REJECTED" in r["stderr"] else "failed",
+        scenario="query 'databases OR secrets' under the validated-query policy",
+        expected="accepted as a search term; fetch hits ONLY the fixed arXiv endpoint, query percent-encoded",
+        actual=f"exit={r['exit_code']} url={url!r}",
+        verdict="passed" if ok else "failed",
     )
-    assert r["exit_code"] == 2
-    assert "REJECTED" in r["stderr"]
+    assert ok
 
 
 def test_rt_c1_02_case_whitespace_normalization_asymmetry(tmp_path, monkeypatch):
@@ -106,27 +115,30 @@ def test_rt_c1_03_source_injection_rejected(tmp_path, monkeypatch):
 
 def test_rt_c1_04_url_injection_via_query(tmp_path, monkeypatch):
     _boom_fetch(monkeypatch)
+    seen: list[str] = []
+    monkeypatch.undo()  # replace boom with a recording fixture fetch
+    _patch_feed(monkeypatch, fx.GOOD_FEED, seen)
     r = _collect(
         "RT-C1-04", tmp_path / "d", "--paper-query", "databases&max_results=9999"
     )
-    rejected = r["exit_code"] == 2 and "REJECTED" in r["stderr"]
     # Defense-in-depth proof: even if the allowlist ever admitted it, the
     # query is quote_plus-encoded so '&'/'=' cannot split URL parameters.
     url = pa._build_query_url("databases&max_results=9999", 5)
     encoded_safely = "%26" in url and url.count("max_results=") == 1
+    fetched_fixed_endpoint = bool(seen) and seen[0].startswith(pa.ARXIV_API_URL)
     record_case(
         id="RT-C1-04",
         contractRef="C1",
         scenario="query 'databases&max_results=9999' (URL parameter injection attempt)",
-        expected="rejected by allowlist OR safely URL-encoded (prove which)",
+        expected="accepted as a search term but percent-encoded: '&'/'=' cannot split URL parameters",
         actual=(
-            f"REJECTED by allowlist (exit={r['exit_code']}); additionally "
+            f"exit={r['exit_code']}; fetch url={seen[0]!r}; "
             f"_build_query_url percent-encodes '&' -> {url!r}"
         ),
-        verdict="passed" if rejected and encoded_safely else "failed",
+        verdict="passed" if encoded_safely and fetched_fixed_endpoint else "failed",
     )
-    assert rejected
     assert encoded_safely
+    assert fetched_fixed_endpoint
 
 
 def test_rt_c1_05_empty_query_rejected(tmp_path, monkeypatch):
@@ -144,19 +156,29 @@ def test_rt_c1_05_empty_query_rejected(tmp_path, monkeypatch):
     assert "REJECTED" in r["stderr"]
 
 
-def test_rt_c1_06_unicode_homoglyph_rejected(tmp_path, monkeypatch):
-    _boom_fetch(monkeypatch)
+def test_rt_c1_06_unicode_homoglyph_is_just_another_term(tmp_path, monkeypatch):
+    """2026-07 policy: a homoglyph query is merely a different search term.
+    It cannot select a different endpoint (sources are the positive list),
+    and it is percent-encoded into the fixed arXiv URL."""
+    seen: list[str] = []
+    _patch_feed(monkeypatch, fx.GOOD_FEED, seen)
     homoglyph = "d\u0430tabases"  # Cyrillic 'а'
     r = _collect("RT-C1-06", tmp_path / "d", "--paper-query", homoglyph)
+    (url,) = seen
+    ok = (
+        r["exit_code"] == 0
+        and url.startswith(pa.ARXIV_API_URL)
+        and "d%D0%B0tabases" in url  # Cyrillic а percent-encoded, not folded
+    )
     record_case(
         id="RT-C1-06",
         contractRef="C1",
         scenario="unicode homoglyph query 'dаtabases' (Cyrillic а)",
-        expected="REJECTED — exact-match positive list must not fold homoglyphs",
-        actual=f"exit={r['exit_code']} stderr={r['stderr'].strip()!r}",
-        verdict="passed" if r["exit_code"] == 2 and "REJECTED" in r["stderr"] else "failed",
+        expected="treated as a plain search term: fixed endpoint only, percent-encoded (no case/homoglyph folding)",
+        actual=f"exit={r['exit_code']} url={url!r}",
+        verdict="passed" if ok else "failed",
     )
-    assert r["exit_code"] == 2
+    assert ok
 
 
 def test_rt_c1_07_uppercase_source_rejected(tmp_path, monkeypatch):
