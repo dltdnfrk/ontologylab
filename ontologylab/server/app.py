@@ -103,4 +103,16 @@ def create_app(
     async def index() -> FileResponse:
         return FileResponse(str(INDEX_HTML))
 
+    # Local single-user app: the UI iterates often, and browsers apply
+    # heuristic caching to /static (Last-Modified only) — which kept serving
+    # a stale stylesheet after redesigns. no-cache forces revalidation
+    # (304s keep it cheap); on localhost correctness beats caching.
+    @app.middleware("http")
+    async def _no_cache_ui(request, call_next):  # type: ignore[no-untyped-def]
+        response = await call_next(request)
+        path = request.url.path
+        if path == "/" or path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     return app

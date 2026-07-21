@@ -1476,11 +1476,17 @@
         수집·추출은 온보딩 버튼으로 자동화해도 되지만 승인은 절대 자동화하지
         않는다 — 3·4단계 버튼은 해당 화면으로 이동만 한다. -- */
   function renderJourney(docs, pending, verified, packsCount) {
+    // 순차 게이팅: 앞 단계가 끝나야 다음 단계도 완료로 표시.
+    // (픽스처 팩만 있는 초기 상태에서 4번만 ✓로 보이는 혼란 방지)
+    var s1 = docs > 0;
+    var s2 = s1 && pending + verified > 0;
+    var s3 = s2 && verified > 0;
+    var s4 = s3 && packsCount > 0;
     var states = {
-      "jstep-collect": docs > 0,
-      "jstep-extract": pending + verified > 0,
-      "jstep-review": verified > 0,
-      "jstep-pack": packsCount > 0,
+      "jstep-collect": s1,
+      "jstep-extract": s2,
+      "jstep-review": s3,
+      "jstep-pack": s4,
     };
     var allDone = true;
     Object.keys(states).forEach(function (id) {
