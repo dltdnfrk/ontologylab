@@ -23,7 +23,7 @@ except ImportError:  # pragma: no cover
     from typing import TypedDict
 
 from ontologylab.kgstore import KGStore, KGStoreError
-from ontologylab.engines import ENGINE_NAMES, EngineError, get_engine
+from ontologylab.engines import EngineError, engine_name_arg, get_engine
 from ontologylab.expansion import expand_query
 from ontologylab.packbuilder import list_packs as discover_packs, pack_sqlite_path
 from ontologylab.paths import default_packs_dir
@@ -827,9 +827,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--expansion-engine",
         default=None,
-        choices=list(ENGINE_NAMES),
+        type=engine_name_arg,
+        metavar="ENGINE",
         help="Optional LLM engine for semantic_search query expansion "
-        "(expand=True). Default: none (plain lexical search only).",
+        "(expand=True): mock|claude|codex|gemini or api:<provider-id>. "
+        "Default: none (plain lexical search only).",
     )
     parser.add_argument(
         "--expansion-model",

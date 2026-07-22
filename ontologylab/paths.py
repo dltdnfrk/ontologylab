@@ -60,6 +60,16 @@ def jobs_dir(data_dir: Path | str) -> Path:
     return Path(data_dir) / "jobs"
 
 
+def providers_path(data_dir: Path | str) -> Path:
+    """Return the configurable-provider registry file under ``data_dir``.
+
+    Lives inside the gitignored working data area (like kg.sqlite and
+    settings.json), so the registry — which stores only the *name* of each
+    provider's API-key env var, never a key — is never committed.
+    """
+    return Path(data_dir) / "providers.json"
+
+
 def new_job_dir(data_dir: Path | str, stage: str) -> Path:
     """Create and return a fresh job directory ``data/jobs/<stage>-<ts>/``."""
     stamp = time.strftime("%Y%m%d-%H%M%S")

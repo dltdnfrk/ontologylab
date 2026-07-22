@@ -339,7 +339,164 @@
     } catch (e) {
       list.innerHTML = "<li class='err-msg'>" + e.message + "</li>";
     }
+    // Providers render independently — its own try/catch keeps a provider
+    // fetch failure from blanking the engine list (and vice versa).
+    loadProviders();
   }
+
+  /* ---- Providers (configurable API model backends) ---- */
+
+  /* Server strings (id/base_url/env-name/label/error) are user-entered;
+     always escapeHtml before innerHTML. The registry never returns a key. */
+  async function loadProviders() {
+    var tbody = $("#providers-body");
+    if (!tbody) return;
+    var empty = $("#providers-empty");
+    var errEl = $("#providers-error");
+    errEl.classList.add("hidden");
+    showTableLoading(tbody, 7);
+    try {
+      var res = await api("/api/providers");
+      var providers = (res && res.providers) || [];
+      tbody.innerHTML = "";
+      if (!providers.length) {
+        empty.classList.remove("hidden");
+        return;
+      }
+      empty.classList.add("hidden");
+      providers.forEach(function (p) {
+        var keyBadge = p.key_present
+          ? "<span class='badge st-verified'>설정됨</span>"
+          : "<span class='badge st-proposed'>미설정</span>";
+        var tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td><code>api:" + escapeHtml(p.id) + "</code></td>" +
+          "<td>" + escapeHtml(p.kind) + "</td>" +
+          "<td>" + escapeHtml(p.base_url) + "</td>" +
+          "<td><code>" + escapeHtml(p.api_key_env) + "</code></td>" +
+          "<td>" + keyBadge + "</td>" +
+          "<td>" + escapeHtml(String((p.models || []).length)) + "</td>" +
+          "<td class='actions'>" +
+          "<button type='button' class='btn provider-test-btn' data-id='" +
+          escapeHtml(p.id) +
+          "'>테스트</button> " +
+          "<button type='button' class='btn btn-danger provider-remove-btn' data-id='" +
+          escapeHtml(p.id) +
+          "'>삭제</button>" +
+          "</td>";
+        tbody.appendChild(tr);
+      });
+    } catch (e) {
+      tbody.innerHTML = "";
+      errEl.textContent = friendlyError(e);
+      errEl.classList.remove("hidden");
+    }
+  }
+
+  /* Test / remove buttons (delegated: rows re-render on refresh). */
+  $("#providers-body").addEventListener("click", async function (ev) {
+    if (!ev.target.closest) return;
+    var box = $("#provider-result");
+    var testBtn = ev.target.closest(".provider-test-btn");
+    if (testBtn) {
+      var id = testBtn.dataset.id;
+      testBtn.disabled = true;
+      showResult(box, "<span class='muted'>" + escapeHtml(id) + " 테스트 중…</span>");
+      try {
+        var res = await apiSend(
+          "/api/providers/" + encodeURIComponent(id) + "/test", {}
+        );
+        if (res && res.ok) {
+          showResult(
+            box,
+            "<span class='ok-msg'>연결됐어요!</span> <code>api:" +
+              escapeHtml(id) +
+              "</code> · " +
+              escapeHtml(String(res.latency_ms)) +
+              "ms · 응답: <code>" +
+              escapeHtml(res.sample || "") +
+              "</code>"
+          );
+        } else {
+          showResult(
+            box,
+            escapeHtml((res && res.error) || "테스트에 실패했어요."),
+            true
+          );
+        }
+      } catch (e) {
+        showResult(box, escapeHtml(friendlyError(e)), true);
+      } finally {
+        testBtn.disabled = false;
+      }
+      return;
+    }
+    var rmBtn = ev.target.closest(".provider-remove-btn");
+    if (rmBtn) {
+      var rid = rmBtn.dataset.id;
+      rmBtn.disabled = true;
+      try {
+        await api("/api/providers/" + encodeURIComponent(rid), {
+          method: "DELETE",
+        });
+        showResult(
+          box,
+          "<span class='ok-msg'>삭제했어요.</span> <code>api:" +
+            escapeHtml(rid) +
+            "</code>"
+        );
+        await loadProviders();
+      } catch (e) {
+        rmBtn.disabled = false;
+        showResult(box, escapeHtml(friendlyError(e)), true);
+      }
+    }
+  });
+
+  $("#provider-form").addEventListener("submit", async function (ev) {
+    ev.preventDefault();
+    var box = $("#provider-result");
+    var btn = $("#provider-submit");
+    var payload = {
+      id: $("#provider-id").value.trim(),
+      kind: $("#provider-kind").value,
+      base_url: $("#provider-base-url").value.trim(),
+      api_key_env: $("#provider-api-key-env").value.trim(),
+      models: splitList($("#provider-models").value),
+      label: $("#provider-label").value.trim(),
+    };
+    if (!payload.id || !payload.base_url || !payload.api_key_env) {
+      showResult(box, "ID·base_url·키 환경변수 이름은 꼭 채워주세요.", true);
+      return;
+    }
+    btn.disabled = true;
+    showResult(box, "<span class='muted'>추가 중…</span>");
+    try {
+      var res = await apiSend("/api/providers", payload);
+      if (res && res.ok) {
+        showResult(
+          box,
+          "<span class='ok-msg'>프로바이더가 등록됐어요!</span> <code>api:" +
+            escapeHtml(payload.id) +
+            "</code> 로 골라 쓸 수 있어요. 키는 환경변수 <code>" +
+            escapeHtml(payload.api_key_env) +
+            "</code> 에 넣어주세요."
+        );
+        $("#provider-id").value = "";
+        $("#provider-base-url").value = "";
+        $("#provider-api-key-env").value = "";
+        $("#provider-models").value = "";
+        $("#provider-label").value = "";
+        await loadProviders();
+      } else {
+        showResult(box, escapeHtml((res && res.detail) || "추가에 실패했어요."), true);
+      }
+    } catch (e) {
+      showResult(box, escapeHtml(friendlyError(e)), true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   async function loadSettings() {
     var box = $("#settings-result");

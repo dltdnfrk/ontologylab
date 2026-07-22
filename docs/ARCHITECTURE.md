@@ -510,6 +510,15 @@ raw_text, usage = await engine.generate(extraction_prompt, model=cfg.model)
 
 The extraction prompt is built by a small new module, `extractor.build_extraction_prompt(ontology_schema, chunk_text) -> str` (structurally analogous to drylab's `domain.improvement_prompt()` but new code). It embeds the active ontology schema (entity types + relation types + a few-shot example in a neutral domain, e.g. software docs) plus the document chunk, and instructs the model to return the single fenced ` ```json ` block specified above.
 
+### 7.2 Configurable model providers (API backends)
+
+The built-in engines shell out to subscription CLIs. Alongside them, a user can register **API model backends** and select one as an engine — without adding a network SDK or ever committing a secret.
+
+- **Registry (`providers.py` + `data/providers.json`).** A `Provider` is a frozen record `{id, kind, base_url, api_key_env, models, label}`. `kind` is `anthropic` (Anthropic Messages API) or `openai` (any OpenAI-compatible `/chat/completions` endpoint — OpenAI, OpenRouter, a local Ollama/LM Studio server). The registry lives in the gitignored `data/` dir and is written atomically (`.tmp` + replace, like `settings.py`). `validate_provider` gates the id slug (`^[a-z0-9][a-z0-9_-]{0,31}$`), the kind, the `base_url` scheme (**https always; http only for `localhost`/`127.0.0.1`** so a local server works), and a plausible env-var name (`^[A-Z][A-Z0-9_]*$`).
+- **Env-only key posture (load-bearing).** A provider stores the **name** of an environment variable, never the key. The key is resolved from `os.environ` at call time (`resolve_api_key`) and is never serialized, logged, or echoed in an error — the registry file physically has no key field. `provider list` / the dashboard report only whether the var is *set* (`key: set|MISSING`, `key_present`).
+- **`ApiEngine` (in `engines.py`).** Duck-types the same `Engine` protocol (`name()` → `api:<id>`, `async generate() -> (text, usage)`). It builds the request per `kind`, runs the blocking `urllib.request` POST in `asyncio.to_thread` (stdlib only — mirrors `connectors/paper_api.py`; no `anthropic`/`openai`/`requests`/`httpx` dependency), and maps non-2xx / URLError / timeout / bad-shape into a **redacted** `EngineError`.
+- **Selection.** `get_engine("api:<id>", ..., data_dir=...)` loads the provider from the given data dir and returns an `ApiEngine`; unknown → `EngineError`. Engine-name validation (`is_valid_engine_name` / the argparse `type=`) accepts a built-in **or** an `api:<slug>`, replacing the rigid `choices=ENGINE_NAMES`. The CLI `provider` subcommands (`list`/`add`/`remove`/`test`) and the `/api/providers` routes drive the registry; the dashboard's Engines tab exposes the same surface. **`mock` remains the default engine everywhere** — a networked provider runs only when explicitly selected *and* its key env var is set.
+
 ---
 
 ## 8. Local dashboard (reused FastAPI + vanilla frontend)

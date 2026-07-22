@@ -495,6 +495,60 @@
         <code>claude</code>·<code>codex</code>·<code>gemini</code>는 해당 CLI가
         깔려 있어야 해요.</p>
       <ul id="engines-list"></ul>
+
+      <h3>프로바이더 — 직접 등록하는 API 모델</h3>
+      <p class="tab-intro">Anthropic API나 OpenAI 호환 API를 엔진으로 등록하면
+        <code>api:&lt;id&gt;</code> 형태로 추출·크리틱·검색에 골라 쓸 수 있어요.
+        키는 환경변수로 넣고 여기엔 <strong>변수 이름만</strong> 저장돼요 (커밋 안전).</p>
+      <div class="table-wrap table-scroll">
+        <table id="providers-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>종류</th>
+              <th>base_url</th>
+              <th>키 환경변수</th>
+              <th>키</th>
+              <th>모델</th>
+              <th>작업</th>
+            </tr>
+          </thead>
+          <tbody id="providers-body"></tbody>
+        </table>
+      </div>
+      <p id="providers-empty" class="muted hidden empty-state-card">아직 등록된
+        프로바이더가 없어요 — 아래에서 하나 추가해보세요.</p>
+      <p id="providers-error" class="err-msg hidden"></p>
+
+      <h4>프로바이더 추가</h4>
+      <form id="provider-form" class="form-grid">
+        <label>ID
+          <input type="text" id="provider-id" placeholder="my-anthropic" />
+        </label>
+        <label>종류
+          <select id="provider-kind">
+            <option value="anthropic" selected>anthropic</option>
+            <option value="openai">openai (호환)</option>
+          </select>
+        </label>
+        <label>base_url
+          <input type="text" id="provider-base-url" placeholder="https://api.anthropic.com/v1" />
+        </label>
+        <label>키 환경변수 이름
+          <input type="text" id="provider-api-key-env" placeholder="ANTHROPIC_API_KEY" />
+        </label>
+        <label>모델 (쉼표로 구분, 선택 — 첫 번째가 기본)
+          <input type="text" id="provider-models" placeholder="claude-fable-5, claude-haiku-4-5-20251001" />
+        </label>
+        <label>라벨 (선택)
+          <input type="text" id="provider-label" placeholder="내 Anthropic 키" />
+        </label>
+        <div class="form-actions">
+          <button type="submit" id="provider-submit" class="btn btn-primary">추가</button>
+        </div>
+      </form>
+      <div id="provider-result" class="status-box result-box hidden"></div>
+
       <h3>비용 요약</h3>
       <pre id="cost-pre" class="code-block">—</pre>
     </section>

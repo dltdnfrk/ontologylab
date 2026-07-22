@@ -21,6 +21,7 @@ import argparse
 import asyncio
 import json
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.error import URLError
@@ -40,7 +41,7 @@ from ontologylab.connectors.paper_api import (
     check_source_implemented,
 )
 from ontologylab.connectors.web_crawl import WebCrawlConnector
-from ontologylab.engines import ENGINE_NAMES, EngineError, get_engine
+from ontologylab.engines import EngineError, engine_name_arg, get_engine
 from ontologylab.expansion import expand_query
 from ontologylab.extractor import (
     PROMPT_VERSION,
@@ -214,7 +215,7 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
     kill_switch = KillSwitch(str(job_dir))
     kill_switch.install()
 
-    engine = get_engine(args.engine, args.model, seed=args.seed)
+    engine = get_engine(args.engine, args.model, seed=args.seed, data_dir=data_dir)
     schema = store.get_schema()
 
     if args.doc_ids:
@@ -566,7 +567,7 @@ def cmd_critic(args: argparse.Namespace) -> int:
     from ontologylab.critic import critic_review, resolve_critic_model
 
     critic_model = resolve_critic_model(args.engine, args.model)
-    engine = get_engine(args.engine, critic_model)
+    engine = get_engine(args.engine, critic_model, data_dir=Path(args.data_dir))
     store = _open_store(args)
     try:
         stats = asyncio.run(
@@ -700,7 +701,9 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
         from ontologylab.communities import llm_summarizer
 
         summarizer = llm_summarizer(
-            get_engine(args.summarize_engine, args.summarize_model),
+            get_engine(
+                args.summarize_engine, args.summarize_model, data_dir=data_dir
+            ),
             model=args.summarize_model,
         )
         summary_method = f"llm:{args.summarize_engine}"
@@ -793,7 +796,9 @@ def cmd_search(args: argparse.Namespace) -> int:
         variants: list[str] = []
         if args.expand:
             try:
-                engine = get_engine(args.engine, args.model)
+                engine = get_engine(
+                    args.engine, args.model, data_dir=Path(args.data_dir)
+                )
                 variants, usage = asyncio.run(
                     expand_query(args.query, engine, model=args.model)
                 )
@@ -891,6 +896,105 @@ def cmd_embed(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# provider registry (configurable API model backends; keys stay in env vars)
+# ---------------------------------------------------------------------------
+
+
+def cmd_provider_list(args: argparse.Namespace) -> int:
+    from ontologylab.providers import load_providers, resolve_api_key
+
+    providers = load_providers(Path(args.data_dir))
+    if not providers:
+        print(
+            "[ontologylab] no providers registered — add one with "
+            "`ontologylab provider add`"
+        )
+        return 0
+    for provider in providers:
+        key_state = "set" if resolve_api_key(provider) else "MISSING"
+        label = f" ({provider.label})" if provider.label else ""
+        print(
+            f"api:{provider.id}{label}  kind={provider.kind}  "
+            f"base_url={provider.base_url}  api_key_env={provider.api_key_env}  "
+            f"key:{key_state}  models={len(provider.models)}"
+        )
+    return 0
+
+
+def cmd_provider_add(args: argparse.Namespace) -> int:
+    from ontologylab.providers import Provider, ProviderError, add_provider
+
+    models = tuple(
+        m.strip() for m in (args.models or "").split(",") if m.strip()
+    )
+    provider = Provider(
+        id=args.id,
+        kind=args.kind,
+        base_url=args.base_url,
+        api_key_env=args.api_key_env,
+        models=models,
+        label=args.label or "",
+    )
+    try:
+        add_provider(Path(args.data_dir), provider)
+    except ProviderError as exc:
+        print(f"[ontologylab] error: {exc}", file=sys.stderr)
+        return 2
+    print(
+        f"[ontologylab] registered provider api:{provider.id} — select it as "
+        f"`--engine api:{provider.id}`. Set the key in ${provider.api_key_env}."
+    )
+    return 0
+
+
+def cmd_provider_remove(args: argparse.Namespace) -> int:
+    from ontologylab.providers import remove_provider
+
+    if remove_provider(Path(args.data_dir), args.id):
+        print(f"[ontologylab] removed provider api:{args.id}")
+        return 0
+    print(f"[ontologylab] no provider with id {args.id!r}", file=sys.stderr)
+    return 1
+
+
+def cmd_provider_test(args: argparse.Namespace) -> int:
+    """Send one tiny prompt to a provider (the only CLI path that hits the network)."""
+    from ontologylab.providers import get_provider, resolve_api_key
+
+    data_dir = Path(args.data_dir)
+    provider = get_provider(data_dir, args.id)
+    if provider is None:
+        print(f"[ontologylab] no provider with id {args.id!r}", file=sys.stderr)
+        return 1
+    if not resolve_api_key(provider):
+        print(
+            f"[ontologylab] provider {args.id!r}: env var "
+            f"{provider.api_key_env} is not set (MISSING) — export it and retry",
+            file=sys.stderr,
+        )
+        return 1
+    engine = get_engine(f"api:{provider.id}", args.model, data_dir=data_dir)
+    start = time.monotonic()
+    try:
+        text, _usage = asyncio.run(
+            engine.generate(
+                "ping — reply with the single word: pong", model=args.model
+            )
+        )
+    except EngineError as exc:
+        print(f"[ontologylab] provider {args.id!r} test failed: {exc}",
+              file=sys.stderr)
+        return 2
+    elapsed_ms = (time.monotonic() - start) * 1000
+    sample = text.strip()[:40]
+    print(
+        f"[ontologylab] provider api:{args.id} ok · {elapsed_ms:.0f}ms · "
+        f"reply: {sample!r}"
+    )
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # parser wiring
 # ---------------------------------------------------------------------------
 
@@ -923,7 +1027,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     p_extract = sub.add_parser("extract", help="LLM-extract proposed entities/relations.")
     p_extract.add_argument("--engine", default=paths.DEFAULT_ENGINE,
-                           choices=list(ENGINE_NAMES))
+                           type=engine_name_arg, metavar="ENGINE",
+                           help="mock|claude|codex|gemini or api:<provider-id> "
+                                "(see `ontologylab provider`).")
     p_extract.add_argument("--model", default=paths.DEFAULT_MODEL)
     p_extract.add_argument("--doc-ids", nargs="*", default=None,
                            help="Documents to extract (default: all unprocessed).")
@@ -999,7 +1105,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
              "only: sorts the queue and flags disagreements; never approves).",
     )
     p_critic.add_argument("--engine", default="mock",
-                          choices=list(ENGINE_NAMES))
+                          type=engine_name_arg, metavar="ENGINE",
+                          help="mock|claude|codex|gemini or api:<provider-id>.")
     p_critic.add_argument(
         "--model", default=None,
         help="Critic model. Default: the cheap Haiku-class CRITIC_MODEL tier "
@@ -1056,9 +1163,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_build.add_argument("--packs-dir", default=str(paths.default_packs_dir()))
     p_build.add_argument(
         "--summarize-engine", default=None,
-        choices=list(ENGINE_NAMES),
-        help="Optional LLM for community summaries (default: extractive, "
-             "model-free). Any failure falls back to extractive per community.",
+        type=engine_name_arg, metavar="ENGINE",
+        help="Optional LLM for community summaries (mock|claude|codex|gemini "
+             "or api:<provider-id>; default: extractive, model-free). Any "
+             "failure falls back to extractive per community.",
     )
     p_build.add_argument("--summarize-model", default=None)
     _add_data_dir(p_build)
@@ -1099,7 +1207,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
                           help="Expand the query with LLM lexical variants "
                                "(fails open to plain lexical search).")
     p_search.add_argument("--engine", default="mock",
-                          choices=list(ENGINE_NAMES))
+                          type=engine_name_arg, metavar="ENGINE",
+                          help="mock|claude|codex|gemini or api:<provider-id>.")
     p_search.add_argument("--model", default=None)
     p_search.add_argument(
         "--embedder", default=None,
@@ -1123,6 +1232,55 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     _add_data_dir(p_embed)
     p_embed.set_defaults(func=cmd_embed)
+
+    p_provider = sub.add_parser(
+        "provider",
+        help="Manage configurable API model providers (registry only — keys "
+             "stay in env vars, never stored). Select one as `--engine api:<id>`.",
+    )
+    prov_sub = p_provider.add_subparsers(dest="provider_command", required=True)
+
+    p_prov_list = prov_sub.add_parser(
+        "list", help="List registered providers and whether each key env var is set."
+    )
+    _add_data_dir(p_prov_list)
+    p_prov_list.set_defaults(func=cmd_provider_list)
+
+    p_prov_add = prov_sub.add_parser(
+        "add", help="Register (or update) a provider by id."
+    )
+    p_prov_add.add_argument("--id", required=True,
+                            help="Slug id, e.g. 'my-anthropic' (^[a-z0-9][a-z0-9_-]{0,31}$).")
+    p_prov_add.add_argument("--kind", required=True, choices=["anthropic", "openai"],
+                            help="API dialect: anthropic or openai-compatible.")
+    p_prov_add.add_argument("--base-url", required=True,
+                            help="API base, e.g. https://api.anthropic.com/v1 "
+                                 "(http only for localhost).")
+    p_prov_add.add_argument("--api-key-env", required=True,
+                            help="NAME of the env var holding the key (the key "
+                                 "itself is never stored), e.g. ANTHROPIC_API_KEY.")
+    p_prov_add.add_argument("--models", default=None,
+                            help="Comma-separated model ids; the first is the default.")
+    p_prov_add.add_argument("--label", default="",
+                            help="Optional human label.")
+    _add_data_dir(p_prov_add)
+    p_prov_add.set_defaults(func=cmd_provider_add)
+
+    p_prov_remove = prov_sub.add_parser("remove", help="Remove a provider by id.")
+    p_prov_remove.add_argument("--id", required=True)
+    _add_data_dir(p_prov_remove)
+    p_prov_remove.set_defaults(func=cmd_provider_remove)
+
+    p_prov_test = prov_sub.add_parser(
+        "test",
+        help="Send one tiny prompt to a provider (needs its key env var set). "
+             "The only provider subcommand that touches the network.",
+    )
+    p_prov_test.add_argument("--id", required=True)
+    p_prov_test.add_argument("--model", default=None,
+                             help="Override the model for this test call.")
+    _add_data_dir(p_prov_test)
+    p_prov_test.set_defaults(func=cmd_provider_test)
 
     return parser
 

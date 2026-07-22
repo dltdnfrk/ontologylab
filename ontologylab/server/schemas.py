@@ -73,6 +73,42 @@ class CostSummary(BaseModel):
     per_engine: dict = Field(default_factory=dict)
 
 
+class ProviderModel(BaseModel):
+    """Public view of one registered API provider (never carries a key).
+
+    ``api_key_env`` is the NAME of an env var; ``key_present`` reports whether
+    that var is currently set — the value itself is never serialized.
+    """
+
+    id: str
+    kind: str
+    base_url: str
+    api_key_env: str
+    models: list[str] = Field(default_factory=list)
+    label: str = ""
+    key_present: bool = False
+
+
+class ProviderCreate(BaseModel):
+    """Register (or upsert) an API provider from the dashboard/HTTP layer."""
+
+    id: str
+    kind: str
+    base_url: str
+    api_key_env: str
+    models: list[str] = Field(default_factory=list)
+    label: str = ""
+
+
+class ProviderTestResult(BaseModel):
+    """Outcome of a one-shot provider ping (never carries a key)."""
+
+    ok: bool
+    latency_ms: Optional[int] = None
+    sample: Optional[str] = None
+    error: Optional[str] = None
+
+
 class ProposalAction(BaseModel):
     """Approve or reject a single proposed node/edge."""
 

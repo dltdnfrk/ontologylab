@@ -127,3 +127,104 @@ def test_index_serves_html(tmp_path: Path) -> None:
     resp = client.get("/")
     assert resp.status_code == 200
     assert "ontologylab" in resp.text.lower()
+
+
+# ---------------------------------------------------------------------------
+# Providers (registry HTTP surface — offline; the key never appears in a body)
+# ---------------------------------------------------------------------------
+
+_OPENAI_BODY = {
+    "id": "orouter",
+    "kind": "openai",
+    "base_url": "https://openrouter.ai/api/v1",
+    "api_key_env": "SRV_OR_KEY",
+    "models": ["meta/llama"],
+}
+
+
+def test_providers_empty(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    assert client.get("/api/providers").json() == {"providers": []}
+
+
+def test_provider_add_lists_and_reports_key_present(
+    tmp_path: Path, monkeypatch
+) -> None:
+    client = _client(tmp_path)
+    add = client.post("/api/providers", json=_OPENAI_BODY)
+    assert add.status_code == 200
+    assert add.json()["ok"] is True
+
+    # Without the env var, key_present is False.
+    monkeypatch.delenv("SRV_OR_KEY", raising=False)
+    listed = client.get("/api/providers").json()["providers"]
+    assert len(listed) == 1
+    assert listed[0]["id"] == "orouter"
+    assert listed[0]["key_present"] is False
+    assert listed[0]["api_key_env"] == "SRV_OR_KEY"
+
+    # With it set, key_present flips True — but the value is never returned.
+    monkeypatch.setenv("SRV_OR_KEY", "sk-secret")
+    listed = client.get("/api/providers").json()["providers"]
+    assert listed[0]["key_present"] is True
+
+
+def test_provider_add_invalid_returns_400(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    bad = dict(_OPENAI_BODY, id="BAD ID")
+    resp = client.post("/api/providers", json=bad)
+    assert resp.status_code == 400
+    assert "invalid provider id" in resp.json()["detail"]
+
+
+def test_provider_delete(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    client.post("/api/providers", json=_OPENAI_BODY)
+    removed = client.request("DELETE", "/api/providers/orouter").json()
+    assert removed == {"ok": True, "removed": True}
+    # Idempotent: deleting again reports removed=False, still ok.
+    again = client.request("DELETE", "/api/providers/orouter").json()
+    assert again == {"ok": True, "removed": False}
+    assert client.get("/api/providers").json() == {"providers": []}
+
+
+def test_provider_test_missing_key_is_clear_not_error(
+    tmp_path: Path, monkeypatch
+) -> None:
+    client = _client(tmp_path)
+    client.post("/api/providers", json=_OPENAI_BODY)
+    monkeypatch.delenv("SRV_OR_KEY", raising=False)
+    res = client.post("/api/providers/orouter/test").json()
+    assert res["ok"] is False
+    assert "SRV_OR_KEY" in res["error"]
+
+
+def test_provider_test_with_key_pings_via_monkeypatched_http(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import ontologylab.engines as engines
+
+    client = _client(tmp_path)
+    client.post("/api/providers", json=_OPENAI_BODY)
+    monkeypatch.setenv("SRV_OR_KEY", "sk-super-secret")
+
+    def fake_post(url, headers, payload, timeout_s):
+        assert url.endswith("/chat/completions")
+        assert headers["Authorization"] == "Bearer sk-super-secret"
+        return {"choices": [{"message": {"content": "pong"}}]}
+
+    monkeypatch.setattr(engines, "_http_post_json", fake_post)
+    resp = client.post("/api/providers/orouter/test")
+    res = resp.json()
+    assert res["ok"] is True
+    assert res["sample"] == "pong"
+    assert isinstance(res["latency_ms"], int)
+    # The key must not appear anywhere in the response body.
+    assert "sk-super-secret" not in resp.text
+
+
+def test_provider_test_unknown_id(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    res = client.post("/api/providers/ghost/test").json()
+    assert res["ok"] is False
+    assert "ghost" in res["error"]

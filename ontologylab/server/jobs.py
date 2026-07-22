@@ -177,7 +177,7 @@ class JobRegistry:
                 max_engine_calls=max_engine_calls,
             )
         )
-        engine = get_engine(job.engine, job.model, seed=seed)
+        engine = get_engine(job.engine, job.model, seed=seed, data_dir=self.data_dir)
 
         # sqlite connections are thread-bound: open fresh INSIDE the worker.
         store = KGStore.open(paths.kg_db_path(self.data_dir))

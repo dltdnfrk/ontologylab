@@ -23,13 +23,23 @@ raise EngineError on failure (missing binary, timeout, non-zero exit).
 
 from __future__ import annotations
 
+import argparse
+import asyncio
 import json
 import re
 import subprocess
 import time
 from typing import Optional
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
-from ontologylab.paths import DEFAULT_MODEL
+from ontologylab.paths import DEFAULT_MODEL, default_data_dir
+from ontologylab.providers import (
+    PROVIDER_ID_RE,
+    Provider,
+    get_provider,
+    resolve_api_key,
+)
 
 
 class EngineError(Exception):
@@ -428,6 +438,162 @@ class GeminiEngine:
 
 
 # ---------------------------------------------------------------------------
+# API-backed engine (configurable providers)
+# ---------------------------------------------------------------------------
+
+# Anthropic Messages API requires an output-token cap on every request.
+_API_MAX_TOKENS = 4096
+
+
+def _http_post_json(
+    url: str, headers: dict[str, str], payload: dict, timeout_s: float
+) -> dict:
+    """POST ``payload`` as JSON to ``url`` and return the decoded JSON body.
+
+    The single network boundary for ApiEngine (separated for test
+    monkeypatching, exactly like paper_api._http_get_text). ``urlopen``
+    raises HTTPError on a non-2xx status, so callers wrap it into a redacted
+    EngineError; this helper never logs headers (which carry the API key).
+    """
+    data = json.dumps(payload).encode("utf-8")
+    request = Request(url, data=data, headers=headers, method="POST")
+    with urlopen(request, timeout=timeout_s) as response:
+        charset = response.headers.get_content_charset() or "utf-8"
+        raw = response.read().decode(charset, errors="replace")
+    return json.loads(raw)
+
+
+class ApiEngine:
+    """Engine backed by a configured API provider (Anthropic or OpenAI-compatible).
+
+    Selected as ``api:<provider.id>``. The API key is resolved from the
+    provider's ``api_key_env`` environment variable at call time and is never
+    stored, logged, or echoed in an error. The blocking urllib call runs in a
+    worker thread so the event loop is never blocked.
+    """
+
+    def __init__(
+        self,
+        provider: Provider,
+        model: Optional[str] = None,
+        timeout_s: float = _DEFAULT_TIMEOUT_S,
+    ) -> None:
+        self._provider = provider
+        self._model = model or (provider.models[0] if provider.models else None)
+        self._timeout_s = timeout_s
+
+    def name(self) -> str:
+        return f"api:{self._provider.id}"
+
+    def _build_request(
+        self, prompt: str, key: str, model: str
+    ) -> tuple[str, dict[str, str], dict]:
+        """Return (url, headers, body) for the provider's kind."""
+        base = self._provider.base_url.rstrip("/")
+        if self._provider.kind == "anthropic":
+            headers = {
+                "x-api-key": key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            }
+            body = {
+                "model": model,
+                "max_tokens": _API_MAX_TOKENS,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+            return f"{base}/messages", headers, body
+        # kind == "openai" (validated at registration time)
+        headers = {
+            "Authorization": f"Bearer {key}",
+            "content-type": "application/json",
+        }
+        body = {"model": model, "messages": [{"role": "user", "content": prompt}]}
+        return f"{base}/chat/completions", headers, body
+
+    def _parse_response(self, response: dict) -> tuple[str, dict]:
+        """Extract (text, token-usage) from a provider response by kind.
+
+        Indexes the required container directly, so a missing/empty response
+        shape raises (KeyError/IndexError/TypeError) and generate() turns it
+        into an EngineError — rather than silently returning empty text.
+        """
+        usage_meta = response.get("usage") or {}
+        if self._provider.kind == "anthropic":
+            blocks = response["content"]
+            text = "".join(
+                block.get("text", "")
+                for block in blocks
+                if isinstance(block, dict) and block.get("type") == "text"
+            )
+            tokens = {
+                "prompt_tokens": usage_meta.get("input_tokens"),
+                "completion_tokens": usage_meta.get("output_tokens"),
+            }
+        else:  # openai
+            text = response["choices"][0]["message"]["content"] or ""
+            tokens = {
+                "prompt_tokens": usage_meta.get("prompt_tokens"),
+                "completion_tokens": usage_meta.get("completion_tokens"),
+            }
+        return text, {k: v for k, v in tokens.items() if v is not None}
+
+    async def generate(
+        self, prompt: str, *, model: Optional[str] = None
+    ) -> tuple[str, dict]:
+        provider_id = self._provider.id
+        key = resolve_api_key(self._provider)
+        if not key:
+            raise EngineError(
+                f"provider {provider_id!r}: env var "
+                f"{self._provider.api_key_env} is not set"
+            )
+        effective_model = model or self._model
+        if not effective_model:
+            raise EngineError(
+                f"provider {provider_id!r}: no model given and the provider "
+                "has no default model — pass --model or add one"
+            )
+        url, headers, body = self._build_request(prompt, key, effective_model)
+
+        start = time.monotonic()
+        try:
+            response = await asyncio.to_thread(
+                _http_post_json, url, headers, body, self._timeout_s
+            )
+        except HTTPError as exc:
+            # Redacted: status only, never the request headers (which hold the key).
+            raise EngineError(
+                f"provider {provider_id!r}: HTTP {exc.code} from the "
+                f"{self._provider.kind} endpoint"
+            ) from None
+        except (URLError, TimeoutError, OSError) as exc:
+            raise EngineError(
+                f"provider {provider_id!r}: request failed "
+                f"({type(exc).__name__})"
+            ) from None
+        except (json.JSONDecodeError, ValueError):
+            raise EngineError(
+                f"provider {provider_id!r}: response was not valid JSON"
+            ) from None
+        elapsed = time.monotonic() - start
+
+        try:
+            text, tokens = self._parse_response(response)
+        except (KeyError, IndexError, TypeError):
+            raise EngineError(
+                f"provider {provider_id!r}: unexpected response shape"
+            ) from None
+        usage = {
+            "calls": 1,
+            "elapsed": elapsed,
+            "engine": self.name(),
+            "model": effective_model,
+            **tokens,
+        }
+        return text, usage
+
+
+# ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
 
@@ -436,11 +602,48 @@ class GeminiEngine:
 ENGINE_NAMES = ("mock", "claude", "codex", "gemini")
 _ENGINE_NAMES = ENGINE_NAMES  # back-compat alias
 
+# ``api:`` engine names select a configured provider instead of a built-in.
+_API_ENGINE_PREFIX = "api:"
 
-def get_engine(name: str, model: Optional[str] = None, seed: int = 7):
-    """Return an Engine instance for ``name`` in {mock, claude, codex, gemini}.
 
-    ``seed`` only affects MockEngine; the CLI-backed engines ignore it.
+def is_valid_engine_name(name: str) -> bool:
+    """Whether ``name`` is a built-in engine or a well-formed ``api:<slug>``.
+
+    Does NOT check that the provider exists (that needs a data_dir) — only
+    the *shape*. ``get_engine`` resolves an unknown provider to EngineError.
+    """
+    if name in ENGINE_NAMES:
+        return True
+    if name.startswith(_API_ENGINE_PREFIX):
+        return bool(PROVIDER_ID_RE.fullmatch(name[len(_API_ENGINE_PREFIX):]))
+    return False
+
+
+def engine_name_arg(value: str) -> str:
+    """argparse ``type=`` validator: accept a built-in or ``api:<slug>``.
+
+    Replaces the rigid ``choices=list(ENGINE_NAMES)`` so ``api:<id>`` engines
+    are selectable on the CLI, while junk still errors at parse time.
+    """
+    if is_valid_engine_name(value):
+        return value
+    raise argparse.ArgumentTypeError(
+        f"invalid engine {value!r}: expected one of {ENGINE_NAMES} "
+        "or 'api:<provider-id>'"
+    )
+
+
+def get_engine(
+    name: str,
+    model: Optional[str] = None,
+    seed: int = 7,
+    data_dir=None,
+):
+    """Return an Engine instance for ``name``.
+
+    ``name`` is one of {mock, claude, codex, gemini}, or ``api:<provider-id>``
+    to use a configured provider (loaded from ``data_dir`` or the default data
+    dir). ``seed`` only affects MockEngine; the CLI-backed engines ignore it.
     """
     if name == "mock":
         return MockEngine(seed=seed)
@@ -450,4 +653,13 @@ def get_engine(name: str, model: Optional[str] = None, seed: int = 7):
         return CodexEngine(model=model)
     if name == "gemini":
         return GeminiEngine(model=model)
+    if name.startswith(_API_ENGINE_PREFIX):
+        provider_id = name[len(_API_ENGINE_PREFIX):]
+        provider = get_provider(data_dir or default_data_dir(), provider_id)
+        if provider is None:
+            raise EngineError(
+                f"unknown provider {provider_id!r}; register it with "
+                "`ontologylab provider add`"
+            )
+        return ApiEngine(provider, model=model)
     raise EngineError(f"unknown engine {name!r}; expected one of {_ENGINE_NAMES}")

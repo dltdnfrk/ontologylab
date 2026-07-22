@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import time
 from pathlib import Path
 from typing import Any
 from urllib.error import URLError
@@ -35,6 +36,15 @@ from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError, Unkn
 from ontologylab.mcp_server import serve_args
 from ontologylab.packbuilder import PackBuildError, build_pack, list_packs
 from ontologylab.paths import default_data_dir, default_packs_dir, kg_db_path
+from ontologylab.providers import (
+    Provider,
+    ProviderError,
+    add_provider,
+    get_provider,
+    load_providers,
+    remove_provider,
+    resolve_api_key,
+)
 from ontologylab.provenance import Provenance
 from ontologylab.server import settings as settings_mod
 from ontologylab.server.jobs import JobRegistry
@@ -50,6 +60,9 @@ from ontologylab.server.schemas import (
     MergeScanRequest,
     PackBuildRequest,
     ProposalAction,
+    ProviderCreate,
+    ProviderModel,
+    ProviderTestResult,
     Settings,
 )
 
@@ -117,6 +130,84 @@ def put_settings(new_settings: Settings) -> Settings:
 @router.get("/cost", response_model=CostSummary)
 def get_cost() -> CostSummary:
     return settings_mod.cost_summary()
+
+
+# ---------------------------------------------------------------------------
+# Providers (configurable API model backends — registry only, keys stay in env)
+# ---------------------------------------------------------------------------
+
+
+def _provider_public(provider: Provider) -> ProviderModel:
+    """Public projection of a Provider: env-var NAME + presence, never the key."""
+    return ProviderModel(
+        id=provider.id,
+        kind=provider.kind,
+        base_url=provider.base_url,
+        api_key_env=provider.api_key_env,
+        models=list(provider.models),
+        label=provider.label,
+        key_present=resolve_api_key(provider) is not None,
+    )
+
+
+@router.get("/providers")
+def list_providers() -> dict[str, Any]:
+    providers = [_provider_public(p) for p in load_providers(_data_dir)]
+    return {"providers": providers}
+
+
+@router.post("/providers")
+def create_provider(body: ProviderCreate) -> dict[str, Any]:
+    provider = Provider(
+        id=body.id,
+        kind=body.kind,
+        base_url=body.base_url,
+        api_key_env=body.api_key_env,
+        models=tuple(body.models or ()),
+        label=body.label or "",
+    )
+    try:
+        add_provider(_data_dir, provider)
+    except ProviderError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "provider": _provider_public(provider)}
+
+
+@router.delete("/providers/{provider_id}")
+def delete_provider(provider_id: str) -> dict[str, Any]:
+    removed = remove_provider(_data_dir, provider_id)
+    return {"ok": True, "removed": removed}
+
+
+@router.post("/providers/{provider_id}/test", response_model=ProviderTestResult)
+async def test_provider(provider_id: str) -> ProviderTestResult:
+    """One-shot ping via ApiEngine. Errors (incl. missing key) are returned as
+    ``ok:false`` with a redacted message — the key is never leaked."""
+    from ontologylab.engines import EngineError, get_engine
+
+    provider = get_provider(_data_dir, provider_id)
+    if provider is None:
+        return ProviderTestResult(
+            ok=False, error=f"등록되지 않은 프로바이더예요: {provider_id}"
+        )
+    if resolve_api_key(provider) is None:
+        return ProviderTestResult(
+            ok=False,
+            error=(
+                f"환경변수 {provider.api_key_env} 가 설정되지 않았어요. "
+                "키를 넣고 서버를 다시 시작해주세요."
+            ),
+        )
+    engine = get_engine(f"api:{provider_id}", data_dir=_data_dir)
+    start = time.monotonic()
+    try:
+        text, _usage = await engine.generate(
+            "ping — reply with the single word: pong"
+        )
+    except EngineError as exc:
+        return ProviderTestResult(ok=False, error=str(exc))
+    latency_ms = int((time.monotonic() - start) * 1000)
+    return ProviderTestResult(ok=True, latency_ms=latency_ms, sample=text[:40])
 
 
 # ---------------------------------------------------------------------------
@@ -267,7 +358,7 @@ async def critic_run(body: CriticRunRequest) -> dict[str, Any]:
     from ontologylab.engines import get_engine
 
     critic_model = resolve_critic_model(body.engine, body.model)
-    engine = get_engine(body.engine, critic_model)
+    engine = get_engine(body.engine, critic_model, data_dir=_data_dir)
     store = _open_store()
     try:
         stats = await critic_review(
