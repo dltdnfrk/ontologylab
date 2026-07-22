@@ -11,13 +11,37 @@ from ontologylab.critic import (
     build_critic_prompt,
     critic_review,
     parse_critic,
+    resolve_critic_model,
 )
 from ontologylab.engines import EngineError, MockEngine
+from ontologylab.paths import CRITIC_MODEL, DEFAULT_MODEL
 from tests.conftest import insert, make_entity, make_relation
 
 
 def run(coro):
     return asyncio.run(coro)
+
+
+# ---------------------------------------------------------------------------
+# Critic model tier: advisory triage runs on the cheap Haiku-class model
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_critic_model_defaults_claude_to_cheap_tier():
+    # claude engine, no explicit model -> cheap CRITIC_MODEL (not the anchor)
+    assert resolve_critic_model("claude", None) == CRITIC_MODEL
+    assert CRITIC_MODEL != DEFAULT_MODEL  # it is genuinely a different tier
+
+
+def test_resolve_critic_model_explicit_always_wins():
+    assert resolve_critic_model("claude", "claude-opus-4-8") == "claude-opus-4-8"
+    assert resolve_critic_model("mock", "whatever") == "whatever"
+
+
+def test_resolve_critic_model_leaves_other_engines_alone():
+    # non-claude engines resolve their own default (None = engine's default)
+    for engine in ("mock", "codex", "gemini"):
+        assert resolve_critic_model(engine, None) is None
 
 
 # ---------------------------------------------------------------------------

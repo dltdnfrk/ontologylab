@@ -34,6 +34,7 @@ from ontologylab.kgstore import (
     KGStoreError,
     span_excerpt,
 )
+from ontologylab.paths import CRITIC_MODEL
 
 CRITIC_PROMPT_VERSION = "critic-v1"
 
@@ -41,6 +42,26 @@ CRITIC_PROMPT_VERSION = "critic-v1"
 EVIDENCE_CONTEXT_CHARS = SPAN_EXCERPT_CONTEXT_CHARS
 MAX_EVIDENCE_CHARS = SPAN_EXCERPT_MAX_CHARS
 DEFAULT_BATCH_SIZE = 20
+
+# The critic runs on the claude engine under this registered name; only it
+# gets the cheap CRITIC_MODEL default (other engines resolve their own).
+_CLAUDE_ENGINE_NAME = "claude"
+
+
+def resolve_critic_model(engine_name: str, explicit: Optional[str]) -> Optional[str]:
+    """Pick the model the critic should score on.
+
+    The critic is advisory triage (it sorts the queue and flags disagreements,
+    never approves), so the claude engine defaults to the cheaper Haiku-class
+    ``CRITIC_MODEL`` tier instead of the extraction anchor model. An explicit
+    model always wins; non-claude engines are unaffected and resolve their own
+    default (``None`` here means "use the engine's own default").
+    """
+    if explicit:
+        return explicit
+    if engine_name == _CLAUDE_ENGINE_NAME:
+        return CRITIC_MODEL
+    return None
 
 
 def build_critic_prompt(items: list[dict[str, Any]]) -> str:

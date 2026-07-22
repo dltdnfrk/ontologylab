@@ -263,14 +263,15 @@ def get_community(community_id: str) -> dict[str, Any]:
 
 @router.post("/critic/run")
 async def critic_run(body: CriticRunRequest) -> dict[str, Any]:
-    from ontologylab.critic import critic_review
+    from ontologylab.critic import critic_review, resolve_critic_model
     from ontologylab.engines import get_engine
 
-    engine = get_engine(body.engine, body.model)
+    critic_model = resolve_critic_model(body.engine, body.model)
+    engine = get_engine(body.engine, critic_model)
     store = _open_store()
     try:
         stats = await critic_review(
-            store, engine, model=body.model,
+            store, engine, model=critic_model,
             limit=body.limit, batch_size=body.batch_size,
         )
         return {"ok": True, **stats}

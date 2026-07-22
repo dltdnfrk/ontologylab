@@ -17,6 +17,11 @@ ROOT: Path = Path(__file__).resolve().parent.parent
 
 DEFAULT_ENGINE: str = "claude"
 DEFAULT_MODEL: str = "claude-fable-5"
+# Critic triage is advisory-only (it pre-scores the review queue, never
+# approves), so it runs on a cheaper/faster Haiku-class tier instead of the
+# extraction anchor model. Explicit --model still overrides. Only the claude
+# engine consumes this (see critic.resolve_critic_model).
+CRITIC_MODEL: str = "claude-haiku-4-5-20251001"
 DEFAULT_SEED: int = 7
 
 # Extraction-job safety defaults (consumed by safety.Caps via a config object).

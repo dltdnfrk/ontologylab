@@ -563,21 +563,23 @@ def cmd_entity(args: argparse.Namespace) -> int:
 
 
 def cmd_critic(args: argparse.Namespace) -> int:
-    from ontologylab.critic import critic_review
+    from ontologylab.critic import critic_review, resolve_critic_model
 
-    engine = get_engine(args.engine, args.model)
+    critic_model = resolve_critic_model(args.engine, args.model)
+    engine = get_engine(args.engine, critic_model)
     store = _open_store(args)
     try:
         stats = asyncio.run(
             critic_review(
-                store, engine, model=args.model,
+                store, engine, model=critic_model,
                 limit=args.limit, batch_size=args.batch_size,
             )
         )
     finally:
         store.close()
+    tier = f" · {critic_model}" if critic_model else ""
     print(
-        f"[ontologylab] critic ({args.engine}) scored {stats['scored']}/"
+        f"[ontologylab] critic ({args.engine}{tier}) scored {stats['scored']}/"
         f"{stats['candidates']} pending item(s); "
         f"{stats['disagreements']} disagreement(s) flagged"
     )
@@ -998,7 +1000,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     p_critic.add_argument("--engine", default="mock",
                           choices=list(ENGINE_NAMES))
-    p_critic.add_argument("--model", default=None)
+    p_critic.add_argument(
+        "--model", default=None,
+        help="Critic model. Default: the cheap Haiku-class CRITIC_MODEL tier "
+             "for the claude engine (advisory triage needs no anchor model); "
+             "other engines use their own default.")
     p_critic.add_argument("--limit", type=int, default=200,
                           help="Max pending items to score this run.")
     p_critic.add_argument("--batch-size", type=int, default=20)

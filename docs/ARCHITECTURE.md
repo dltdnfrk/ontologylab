@@ -731,15 +731,15 @@ WEB_CRAWL_ALLOWED_HOSTS = {
     "raw.githubusercontent.com",   # project READMEs / docs
 }
 
-PAPER_API_ALLOWED = {
-    # allowed API sources ...
-    "sources": {"arxiv", "crossref"},
-    # ... and allowed query categories/terms (positive list, not an open field)
-    "queries": {
-        "distributed systems", "software architecture",
-        "programming languages", "databases", "operating systems",
-    },
+# Paper sources: closed positive list — each maps to one fixed, keyless
+# metadata endpoint (see connectors/paper_api.py).
+PAPER_API_SOURCES = {
+    "arxiv", "crossref", "openalex", "semanticscholar", "europepmc",
 }
+# Paper queries: validated, NOT enumerated. A query is only a percent-encoded
+# search term inside one of those fixed endpoints, so it is checked for shape
+# (non-empty, length-bounded, no control chars, no embedded URL) rather than
+# matched against a phrase list.
 ```
 
-Both connectors import from this one module; a URL host or a paper query not present is rejected with a clear `NotAllowlisted` error. Extending the allowlist is an explicit, reviewable edit to this file — the enforcement point is the same for both connectors.
+Both connectors import from this one module. A crawl URL whose host is not listed, a paper source not on the positive list, or a paper query that fails validation is rejected with a clear `NotAllowlisted` error. Extending the host/source allowlist is an explicit, reviewable edit to this file; the query gate is validation, not a phrase list — the original five-phrase MVP list was deliberately replaced (2026-07) because it made real research unusable. The enforcement point is the same for both connectors.
