@@ -1,6 +1,8 @@
 /* ==========================================================================
    ontologylab — flat neutral UI, Pretendard, one restrained accent
    (visual language studied from vibedesignlab.net). Offline, no CDN.
+   Tokens follow shadcn/ui semantic pairs (background/foreground per surface,
+   sidebar-*, chart-*, ring) so themes stay swappable — values unchanged.
    Every functional selector the JS toggles is preserved:
    .hidden  .active  .tab-panel  .inspector-open  .row-focused  .selected
    .journey-done  .empty-state-card  .conf-cell(--v)  .is-ok/.is-todo
@@ -33,44 +35,73 @@
 
 :root {
   color-scheme: light dark;
-  /* 단일 포인트색: 절제된 인디고 (레퍼런스의 rgb(158,158,255) 계열).
-     상태색(ok/warn/err)은 기능 신호 전용 — 장식에 쓰지 않는다. */
+
+  /* 캔버스/글자 — 보랏빛이 살짝 도는 뉴트럴 (Pretendard 잉크 톤) */
+  --background: #fafafa;
+  --foreground: #1a191d;
+
+  /* 면(surface) 쌍 — 크롬 패널과 카드 모두 flat white */
+  --card: #ffffff;
+  --card-foreground: #1a191d;
+  --popover: #ffffff;
+  --popover-foreground: #1a191d;
+
+  /* 주 버튼: 잉크 (Vercel/Attio) */
+  --primary: #17161a;
+  --primary-foreground: #ffffff;
+
+  /* 채움/칩/코드 배경 */
+  --secondary: #f4f4f6;
+  --secondary-foreground: #1a191d;
+  --muted: #f4f4f6;
+  --muted-foreground: #6e6b76;
+
+  /* 단일 포인트색: 절제된 인디고 (레퍼런스의 rgb(158,158,255) 계열) */
   --accent: #5b5bd6;
-  --accent-strong: #4a4ac4;
+  --accent-foreground: #ffffff;
   --accent-soft: rgba(91, 91, 214, 0.1);
+
+  --destructive: #d32f2f;
+  --destructive-foreground: #ffffff;
+
+  --border: #e5e3e8;                        /* hairline separator */
+  --input: #e5e3e8;
+  --ring: #5b5bd6;
+
+  /* 상태색은 기능 신호 전용 — 장식에 쓰지 않는다 */
   --ok: #3d9a50;
   --warn: #c77700;
-  --err: #d32f2f;
   --ok-text: #2e7d3f;
   --warn-text: #a36200;
 
-  /* 보랏빛이 살짝 도는 뉴트럴 (Pretendard 잉크 톤) */
-  --text: #1a191d;
-  --text-muted: #6e6b76;
-  --border: #e5e3e8;                        /* hairline separator */
+  /* 앱 셸 크롬(헤더·파이프라인 바·캔버스) 면 — shadcn 확장 토큰.
+     다크에선 카드보다 한 단계 가라앉아 헤어라인 없이도 깊이가 생긴다. */
+  --shell: #ffffff;
 
-  --glass: #ffffff;                          /* chrome panels — flat */
-  --glass-border: #e5e3e8;
-  --card: #ffffff;                           /* inner cards — flat */
-  --card-solid: #ffffff;
-  --bg-muted: #f4f4f6;                       /* fills, chips, code */
+  /* 좌측 레일 전용 면 (shadcn sidebar 토큰) */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #6e6b76;
+  --sidebar-primary: #5b5bd6;
+  --sidebar-accent: #f4f4f6;
+  --sidebar-accent-foreground: #1a191d;
+  --sidebar-border: #e5e3e8;
+  --sidebar-ring: #5b5bd6;
+
+  /* 데이터 시각화 팔레트 (예약 — confidence bar 외 향후 차트용) */
+  --chart-1: #5b5bd6;
+  --chart-2: #3d9a50;
+  --chart-3: #c77700;
+  --chart-4: #d32f2f;
+  --chart-5: #6e6b76;
 
   --shadow-float: none;                      /* 깊이는 면 값 차이와
                                                 헤어라인으로 표현 */
   --shadow-soft: none;
 
-  --ink: #17161a;                            /* 주 버튼: 잉크 (Vercel/Attio) */
-  --ink-contrast: #ffffff;
-
-  --radius-lg: 12px;
-  --radius-md: 10px;
-  --radius-sm: 7px;
-
-  /* legacy aliases (rules below and JS-rendered markup rely on these names) */
-  --bg: transparent;
-  --bg-panel: var(--card);
-  --radius: var(--radius-md);
-  --accent-contrast: #ffffff;
+  --radius: 10px;
+  --radius-sm: calc(var(--radius) - 3px);    /* 7px */
+  --radius-md: var(--radius);                /* 10px */
+  --radius-lg: calc(var(--radius) + 2px);    /* 12px */
 
   --font: "Outfit", "Pretendard Variable", Pretendard, -apple-system,
           BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR",
@@ -80,32 +111,53 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --background: #0e0d11;
+    --foreground: #e5e3e8;
+
+    --card: #1a191e;
+    --card-foreground: #e5e3e8;
+    --popover: #1a191e;
+    --popover-foreground: #e5e3e8;
+
+    --primary: #f2f1f4;           /* 다크에선 화이트 버튼 + 잉크 글자 */
+    --primary-foreground: #131217;
+
+    --secondary: #232127;
+    --secondary-foreground: #e5e3e8;
+    --muted: #232127;
+    --muted-foreground: #928f99;
+
     --accent: #9e9eff;
-    --accent-strong: #b0b0ff;
+    --accent-foreground: #0a090c; /* 밝은 인디고 위엔 잉크색 */
     --accent-soft: rgba(158, 158, 255, 0.14);
+
+    --destructive: #e5534b;
+    --destructive-foreground: #0a090c;
+
+    --border: #2a282f;
+    --input: #2a282f;
+    --ring: #9e9eff;
+
     --ok: #4caf6d;
     --warn: #cf9f4a;
-    --err: #e5534b;
     --ok-text: var(--ok);
     --warn-text: var(--warn);
 
-    --text: #e5e3e8;
-    --text-muted: #928f99;
-    --border: #2a282f;
+    --shell: #141317;
 
-    --glass: #141317;
-    --glass-border: #2a282f;
-    --card: #1a191e;
-    --card-solid: #1a191e;
-    --bg-muted: #232127;
+    --sidebar: #141317;
+    --sidebar-foreground: #928f99;
+    --sidebar-primary: #9e9eff;
+    --sidebar-accent: #232127;
+    --sidebar-accent-foreground: #e5e3e8;
+    --sidebar-border: #2a282f;
+    --sidebar-ring: #9e9eff;
 
-    --shadow-float: none;
-    --shadow-soft: none;
-
-    --ink: #f2f1f4;               /* 다크에선 화이트 버튼 + 잉크 글자 */
-    --ink-contrast: #131217;
-
-    --accent-contrast: #0a090c;   /* 밝은 인디고 위엔 잉크색 */
+    --chart-1: #9e9eff;
+    --chart-2: #4caf6d;
+    --chart-3: #cf9f4a;
+    --chart-4: #e5534b;
+    --chart-5: #928f99;
   }
 }
 
@@ -116,17 +168,13 @@
 html, body { margin: 0; padding: 0; }
 
 body {
-  color: var(--text);
+  color: var(--foreground);
   font-family: var(--font);
   font-size: 14px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
-  background: #fafafa;
-}
-
-@media (prefers-color-scheme: dark) {
-  body { background: #0e0d11; }
+  background: var(--background);
 }
 
 a { color: var(--accent); }
@@ -134,9 +182,9 @@ a { color: var(--accent); }
 h1, h2, h3, h4 { letter-spacing: -0.01em; }
 
 .hidden { display: none !important; }
-.muted { color: var(--text-muted); font-size: 0.85rem; }
+.muted { color: var(--muted-foreground); font-size: 0.85rem; }
 .ok-msg { color: var(--ok); }
-.err-msg { color: var(--err); }
+.err-msg { color: var(--destructive); }
 
 .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .row.space-between { justify-content: space-between; }
@@ -157,10 +205,13 @@ header.app-header,
 nav.tabs,
 .pipeline-bar,
 main {
-  background: var(--glass);
+  background: var(--shell);
 }
 header.app-header { border-bottom: 1px solid var(--border); }
-nav.tabs { border-right: 1px solid var(--border); }
+nav.tabs {
+  background: var(--sidebar);
+  border-right: 1px solid var(--sidebar-border);
+}
 .pipeline-bar { border-bottom: 1px solid var(--border); }
 
 header.app-header {
@@ -174,7 +225,7 @@ header.app-header {
 
 .brand { display: flex; align-items: baseline; gap: 0.65rem; }
 .brand h1 { margin: 0; font-size: 1.02rem; font-weight: 700; }
-.brand p { margin: 0; font-size: 0.78rem; color: var(--text-muted); }
+.brand p { margin: 0; font-size: 0.78rem; color: var(--muted-foreground); }
 
 .header-status { display: flex; align-items: center; gap: 0.5rem; min-height: 2.1rem; }
 
@@ -200,7 +251,7 @@ nav.tabs .tab-btn {
   font: inherit;
   font-size: 0.855rem;
   font-weight: 500;
-  color: var(--text-muted);
+  color: var(--sidebar-foreground);
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
@@ -211,14 +262,17 @@ nav.tabs .tab-btn {
 .nav-ic { width: 15px; height: 15px; flex: 0 0 auto; opacity: 0.75; }
 .nav-label { flex: 1; }
 
-nav.tabs .tab-btn:hover { background: var(--bg-muted); color: var(--text); }
+nav.tabs .tab-btn:hover {
+  background: var(--sidebar-accent);
+  color: var(--sidebar-accent-foreground);
+}
 
 nav.tabs .tab-btn.active {
-  color: var(--text);
-  background: var(--bg-muted);
+  color: var(--sidebar-accent-foreground);
+  background: var(--sidebar-accent);
   font-weight: 600;
 }
-nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--accent); }
+nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--sidebar-primary); }
 
 .tab-btn-aux { font-size: 0.83rem; }
 
@@ -227,7 +281,7 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--accent); }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   margin: 0.9rem 0.7rem 0.3rem;
 }
 
@@ -235,7 +289,7 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--accent); }
   margin-top: auto;
   padding: 0.8rem 0.7rem 0.3rem;
   font-size: 0.7rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .tab-badge {
@@ -244,7 +298,7 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--accent); }
   padding: 0.05em 0.42em;
   border-radius: 999px;
   background: var(--accent);
-  color: var(--accent-contrast);
+  color: var(--accent-foreground);
   font-size: 0.7rem;
   font-weight: 700;
   text-align: center;
@@ -275,7 +329,7 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--accent); }
   gap: 0.5rem;
   min-width: 0;
   font: inherit;
-  color: var(--text);
+  color: var(--foreground);
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
@@ -285,7 +339,7 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--accent); }
               box-shadow 0.18s ease;
 }
 
-.step:hover { background: var(--bg-muted); }
+.step:hover { background: var(--muted); }
 
 .step-no {
   color: var(--accent);
@@ -297,7 +351,7 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--accent); }
 
 .step-stat {
   font-size: 0.74rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
 }
 .step-stat.is-ok { color: var(--ok-text); }
@@ -305,7 +359,7 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--accent); }
 
 .step-key { border-color: var(--accent-soft); background: var(--accent-soft); }
 
-.step-arrow { color: var(--text-muted); opacity: 0.5; }
+.step-arrow { color: var(--muted-foreground); opacity: 0.5; }
 
 /* current-stage marker (driven by body[data-active-tab], set in showTab) */
 body[data-active-tab="sources"] .step[data-goto="sources"],
@@ -313,7 +367,7 @@ body[data-active-tab="jobs"] .step[data-goto="jobs"],
 body[data-active-tab="review"] .step[data-goto="review"],
 body[data-active-tab="packs"] .step[data-goto="packs"],
 body[data-active-tab="mcp"] .step[data-goto="mcp"] {
-  background: var(--bg-muted);
+  background: var(--muted);
   border-color: transparent;
   box-shadow: inset 0 -2px 0 var(--accent);
 }
@@ -349,20 +403,20 @@ main {
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-md);
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 0.87rem;
   box-shadow: var(--shadow-soft);
 }
 
 /* ---------- 7. Controls ---------- */
 
-label { font-size: 0.78rem; color: var(--text-muted); }
+label { font-size: 0.78rem; color: var(--muted-foreground); }
 
 input, select, textarea {
   font-family: inherit;
   font-size: 0.9rem;
-  background: var(--bg-muted);
-  color: var(--text);
+  background: var(--muted);
+  color: var(--foreground);
   border: 1px solid transparent;
   border-radius: 10px;
   padding: 0.5rem 0.7rem;
@@ -373,7 +427,7 @@ input, select, textarea {
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--accent);
-  background: var(--card-solid);
+  background: var(--card);
 }
 
 /* native checkboxes: don't inherit text-input chrome; keep visible focus */
@@ -386,7 +440,7 @@ input[type="checkbox"], input[type="radio"] {
   accent-color: var(--accent);
 }
 input[type="checkbox"]:focus-visible, input[type="radio"]:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
@@ -401,7 +455,7 @@ button.mcpb-btn {
   appearance: none;
   display: inline-block;
   background: transparent;
-  color: var(--text);
+  color: var(--foreground);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 0.38rem 0.85rem;
@@ -413,26 +467,26 @@ button.mcpb-btn {
               opacity 0.15s ease;
 }
 
-.btn:hover { background: var(--bg-muted); }
+.btn:hover { background: var(--muted); }
 .btn:active { opacity: 0.85; }
 
 .btn-primary, .btn.primary {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--ink-contrast);
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
   font-weight: 500;
 }
 .btn-primary:hover, .btn.primary:hover { opacity: 0.88; }
 
 .btn-danger, .btn.danger {
   background: transparent;
-  border-color: rgba(211, 47, 47, 0.45);
-  color: var(--err);
+  border-color: color-mix(in srgb, var(--destructive) 45%, transparent);
+  color: var(--destructive);
 }
 .btn-danger:hover, .btn.danger:hover {
-  background: var(--err);
-  border-color: var(--err);
-  color: #fff;
+  background: var(--destructive);
+  border-color: var(--destructive);
+  color: var(--destructive-foreground);
 }
 
 .btn:disabled, button:disabled {
@@ -455,7 +509,7 @@ button.mcpb-btn {
 
 button:focus-visible, .btn:focus-visible, .step:focus-visible,
 .tab-btn:focus-visible, .btn-link:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
@@ -488,7 +542,7 @@ button:focus-visible, .btn:focus-visible, .step:focus-visible,
 .adv-opts { grid-column: 1 / -1; }
 .adv-opts summary {
   cursor: pointer;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 0.84rem;
 }
 .adv-opts label {
@@ -508,7 +562,7 @@ button:focus-visible, .btn:focus-visible, .step:focus-visible,
 }
 .help-details ol {
   margin: 0.55rem 0 0.3rem 1.3rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 0.86rem;
 }
 
@@ -524,13 +578,13 @@ button:focus-visible, .btn:focus-visible, .step:focus-visible,
 }
 
 .status-row { display: flex; gap: 0.5rem; padding: 0.14rem 0; }
-.status-row > span:first-child { color: var(--text-muted); min-width: 120px; }
+.status-row > span:first-child { color: var(--muted-foreground); min-width: 120px; }
 
 .result-box { font-size: 0.86rem; }
-.result-box.result-error { border-color: rgba(255, 59, 48, 0.5); color: var(--err); }
+.result-box.result-error { border-color: color-mix(in srgb, var(--destructive) 50%, transparent); color: var(--destructive); }
 
 .code-block {
-  background: var(--bg-muted);
+  background: var(--muted);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 0.8rem;
@@ -549,7 +603,7 @@ kbd {
   border: 1px solid var(--border);
   border-bottom-width: 2px;
   border-radius: 6px;
-  background: var(--bg-muted);
+  background: var(--muted);
 }
 
 /* ---------- 10. Tables ---------- */
@@ -579,7 +633,7 @@ th, td {
 .table-wrap tbody tr:last-child td { border-bottom: none; }
 
 th {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-weight: 500;
   font-size: 0.7rem;
   text-transform: uppercase;
@@ -590,22 +644,22 @@ th {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--card-solid);
+  background: var(--card);
   box-shadow: 0 1px 0 var(--border);
 }
 
 #jobs-table tbody tr,
 #communities-table tbody tr { cursor: pointer; }
 #jobs-table tbody tr:hover,
-#communities-table tbody tr:hover { background: var(--bg-muted); }
+#communities-table tbody tr:hover { background: var(--muted); }
 
 tbody tr.selected { background: var(--accent-soft); }
 
 td code {
   font-family: var(--mono);
   font-size: 0.74rem;
-  color: var(--text-muted);
-  background: var(--bg-muted);
+  color: var(--muted-foreground);
+  background: var(--muted);
   padding: 0.06rem 0.4rem;
   border-radius: 6px;
 }
@@ -619,24 +673,24 @@ td code {
   font-size: 0.7rem;
   font-weight: 600;
   border: 1px solid var(--border);
-  color: var(--text-muted);
-  background: var(--bg-muted);
+  color: var(--muted-foreground);
+  background: var(--muted);
 }
 
-.badge.st-proposed { color: var(--warn-text); border-color: transparent; background: rgba(199, 119, 0, 0.12); }
+.badge.st-proposed { color: var(--warn-text); border-color: transparent; background: color-mix(in srgb, var(--warn) 12%, transparent); }
 .badge.st-verified, .badge.st-complete, .badge.st-merged {
-  color: var(--ok-text); border-color: transparent; background: rgba(61, 154, 80, 0.12);
+  color: var(--ok-text); border-color: transparent; background: color-mix(in srgb, var(--ok) 12%, transparent);
 }
 .badge.st-rejected, .badge.st-failed, .badge.st-invalidated {
-  color: var(--err); border-color: transparent; background: rgba(211, 47, 47, 0.1);
+  color: var(--destructive); border-color: transparent; background: color-mix(in srgb, var(--destructive) 10%, transparent);
 }
 .badge.st-running { color: var(--accent); border-color: transparent; background: var(--accent-soft); }
-.badge.st-dismissed, .badge.st-stale { color: var(--text-muted); }
+.badge.st-dismissed, .badge.st-stale { color: var(--muted-foreground); }
 
-.badge.badge-errkind { color: var(--err); border-color: rgba(211, 47, 47, 0.4); background: transparent; }
-.badge.kind-rejected { color: var(--err); }
-.badge.kind-unsupported { color: var(--warn-text); border-color: rgba(199, 119, 0, 0.4); }
-.badge.kind-fetch_failed { background: var(--err); border-color: var(--err); color: #fff; }
+.badge.badge-errkind { color: var(--destructive); border-color: color-mix(in srgb, var(--destructive) 40%, transparent); background: transparent; }
+.badge.kind-rejected { color: var(--destructive); }
+.badge.kind-unsupported { color: var(--warn-text); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.badge.kind-fetch_failed { background: var(--destructive); border-color: var(--destructive); color: var(--destructive-foreground); }
 
 /* ---------- 12. Header pills ---------- */
 
@@ -717,11 +771,11 @@ td code {
   font-family: var(--font);
   font-weight: 700;
   font-size: 0.85rem;
-  color: var(--text);
+  color: var(--foreground);
 }
 
 .critic-band {
-  background: var(--bg-muted);
+  background: var(--muted);
   border-radius: var(--radius-md);
   padding: 0.55rem 0.85rem;
   display: flex;
@@ -731,7 +785,7 @@ td code {
   margin: 0.8rem 0;
   font-size: 0.85rem;
 }
-.critic-band-label { font-weight: 600; color: var(--text-muted); }
+.critic-band-label { font-weight: 600; color: var(--muted-foreground); }
 .critic-band label { display: flex; align-items: center; gap: 0.4rem; }
 .critic-band select { width: auto; }
 
@@ -773,7 +827,7 @@ tr.row-focused {
   padding: 0.95rem 1.1rem;
   transition: border-color 0.18s ease;
 }
-.journey-step:hover { border-color: var(--text-muted); }
+.journey-step:hover { border-color: var(--muted-foreground); }
 
 .journey-no {
   flex: 0 0 auto;
@@ -784,15 +838,15 @@ tr.row-focused {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-muted);
-  color: var(--text-muted);
+  background: var(--muted);
+  color: var(--muted-foreground);
   font-weight: 700;
 }
 
-.journey-done { border-color: rgba(52, 199, 89, 0.5); }
+.journey-done { border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
 .journey-done .journey-no {
   background: var(--ok);
-  color: #fff;
+  color: var(--card);
   font-size: 0;
 }
 .journey-done .journey-no::after { content: "✓"; font-size: 0.95rem; }
@@ -805,7 +859,7 @@ tr.row-focused {
 
 #journey-done {
   padding: 1rem 1.2rem;
-  border: 1px solid rgba(52, 199, 89, 0.5);
+  border: 1px solid color-mix(in srgb, var(--ok) 50%, transparent);
   border-radius: var(--radius-lg);
   background: var(--card);
   box-shadow: var(--shadow-soft);
