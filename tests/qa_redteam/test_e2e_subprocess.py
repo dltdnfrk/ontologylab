@@ -16,7 +16,9 @@ from pathlib import Path
 from qa_redteam.qa_helpers import list_documents, record_case, record_subprocess
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-VENV_PY = REPO_ROOT / ".venv" / "bin" / "python"
+# 로컬 개발은 .venv, CI처럼 venv 없이 설치된 환경은 현재 인터프리터로 폴백
+_venv_py = REPO_ROOT / ".venv" / "bin" / "python"
+VENV_PY = _venv_py if _venv_py.exists() else Path(sys.executable)
 
 _DEAD_PROXY = "http://127.0.0.1:9"
 
