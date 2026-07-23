@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install (core + server + mcp + test extras)
+        run: python -m pip install -e ".[server,mcp,test]"
+
+      # The suite is offline by design: the mock engine drives extraction,
+      # live-API paths are monkeypatched, and connectors are deny-by-default.
+      - name: pytest
+        run: python -m pytest -q
+
+      - name: Dashboard JS syntax check
+        run: node --check web/app.js
