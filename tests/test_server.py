@@ -287,3 +287,92 @@ def test_registry_wait_version_times_out_unchanged(tmp_path: Path) -> None:
     version = registry.wait_version(registry.wait_version(-1, 0.01), 0.05)
     assert _time.monotonic() - t0 < 1.0
     assert isinstance(version, int)
+
+
+# ---------------------------------------------------------------------------
+# Graph browser API (/api/graph, /api/graph/neighbors/{id})
+# ---------------------------------------------------------------------------
+
+
+def _graph_client(tmp_path: Path) -> TestClient:
+    """2 verified + 1 proposed node; verified 엣지(e_ab) + 제안 엣지(e_bc).
+
+    verified 엣지가 proposed 노드로 건너가는 케이스는 만들 수 없다 —
+    approve()가 양끝 verified를 강제하므로(EndpointNotVerified) 경계
+    멤버십 필터는 entity_type 필터 테스트에서 대신 고정된다.
+    """
+    from ontologylab.models import ProposedRelation
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    store = KGStore.open(data_dir / "kg.sqlite")
+    doc, _ = store.insert_document(
+        source_kind="upload",
+        source_uri="file:///g.txt",
+        title="g",
+        raw_text="Alpha Beta Gamma",
+        content_hash="graph-h1",
+    )
+    store.insert_proposed(
+        [
+            ProposedEntity(id="n_a", entity_type="Component", name="Alpha"),
+            ProposedEntity(id="n_b", entity_type="Component", name="Beta"),
+            ProposedEntity(id="n_c", entity_type="Concept", name="Gamma"),
+        ],
+        [
+            ProposedRelation(
+                id="e_ab", relation_type="part_of",
+                src_entity_id="n_a", dst_entity_id="n_b",
+            ),
+            ProposedRelation(
+                id="e_bc", relation_type="part_of",
+                src_entity_id="n_b", dst_entity_id="n_c",
+            ),
+        ],
+        source_doc_id=doc.id,
+        extractor_engine="mock",
+    )
+    store.approve("n_a")
+    store.approve("n_b")
+    store.approve("e_ab")  # verified 엣지 1: 양끝 verified
+    store.close()
+    return TestClient(create_app(data_dir=data_dir))
+
+
+def test_graph_overview_includes_proposed_by_default(tmp_path: Path) -> None:
+    client = _graph_client(tmp_path)
+    data = client.get("/api/graph").json()
+    names = sorted(n["name"] for n in data["nodes"])
+    assert names == ["Alpha", "Beta", "Gamma"]
+    assert {e["id"] for e in data["edges"]} == {"e_ab", "e_bc"}
+
+
+def test_graph_overview_verified_only(tmp_path: Path) -> None:
+    client = _graph_client(tmp_path)
+    data = client.get("/api/graph", params={"include_proposed": "false"}).json()
+    names = sorted(n["name"] for n in data["nodes"])
+    assert names == ["Alpha", "Beta"]          # 제안 노드 Gamma 제외
+    assert {e["id"] for e in data["edges"]} == {"e_ab"}  # 경계 엣지 제외
+
+
+def test_graph_overview_entity_type_filter(tmp_path: Path) -> None:
+    client = _graph_client(tmp_path)
+    data = client.get("/api/graph", params={"entity_type": "Concept"}).json()
+    assert [n["name"] for n in data["nodes"]] == ["Gamma"]
+    assert data["edges"] == []                 # 매칭 노드끼리의 엣지만
+
+
+def test_graph_neighbors_one_hop(tmp_path: Path) -> None:
+    client = _graph_client(tmp_path)
+    data = client.get("/api/graph/neighbors/n_a", params={"hops": 1}).json()
+    by_id = {n["id"]: n for n in data["nodes"]}
+    assert by_id["n_a"]["hop"] == 0
+    assert by_id["n_b"]["hop"] == 1
+    assert "n_c" not in by_id                  # 2-hop은 hops=1에서 제외
+    assert {e["id"] for e in data["edges"]} == {"e_ab"}
+
+
+def test_graph_neighbors_unknown_node_404(tmp_path: Path) -> None:
+    client = _graph_client(tmp_path)
+    resp = client.get("/api/graph/neighbors/ghost")
+    assert resp.status_code == 404

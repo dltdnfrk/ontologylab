@@ -909,6 +909,120 @@ tr.row-focused {
 #engines-list { padding-left: 1.2rem; }
 #engines-list li { margin: 0.3rem 0; }
 
+/* ---------- 17b. Graph browser ---------- */
+
+#tab-graph { max-width: 1240px; }
+
+.graph-toolbar { margin: 0.8rem 0; align-items: flex-end; }
+.graph-toolbar label { display: flex; flex-direction: column; gap: 0.35rem; }
+.graph-toolbar select, .graph-toolbar input { width: auto; min-width: 140px; }
+
+#graph-wrap {
+  position: relative;
+  height: calc(100vh - 340px);
+  min-height: 420px;
+}
+
+#graph-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: grab;
+  touch-action: none;              /* 팬/줌은 포인터 이벤트가 처리 */
+  user-select: none;
+}
+#graph-svg:active { cursor: grabbing; }
+
+.g-edge {
+  stroke: var(--border);
+  stroke-width: 1.2;
+  stroke-dasharray: 4 3;           /* 기본(제안): 점선 */
+}
+.g-edge-verified {
+  stroke: var(--muted-foreground);
+  stroke-opacity: 0.55;
+  stroke-dasharray: none;
+}
+
+.g-node { cursor: pointer; }
+.g-node circle {
+  stroke: var(--card);
+  stroke-width: 1.5;
+  transition: opacity 0.15s ease;
+}
+.g-node.g-proposed circle {
+  stroke: var(--muted-foreground);
+  stroke-dasharray: 3 2;           /* 제안 노드: 점선 링 */
+  opacity: 0.8;
+}
+.g-node.g-selected circle {
+  stroke: var(--ring);
+  stroke-width: 2.5;
+  stroke-dasharray: none;
+  opacity: 1;
+}
+.g-node text {
+  fill: var(--muted-foreground);
+  font-size: 10px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.g-node.g-dim { opacity: 0.15; }
+
+#graph-legend {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.8rem;
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  max-width: 60%;
+  pointer-events: none;
+}
+.g-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.14rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+}
+.g-chip i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.g-chip .g-chip-dashed {
+  background: transparent;
+  border: 1.5px dashed var(--muted-foreground);
+}
+
+#graph-info {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.8rem;
+  width: 250px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.8rem 0.95rem;
+  box-shadow: var(--shadow-float);
+}
+#graph-info .row { margin-top: 0.55rem; }
+#graph-info .btn { font-size: 0.78rem; padding: 0.3rem 0.65rem; }
+
+@media (max-width: 900px) {
+  #graph-wrap { height: 60vh; min-height: 320px; }
+  #graph-info { position: static; width: auto; margin-top: 0.7rem; }
+}
+
 /* ---------- 18. Responsive / motion ---------- */
 
 @media (max-width: 1100px) {

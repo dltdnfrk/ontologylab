@@ -2139,14 +2139,18 @@ class KGStore:
         node_ids = {n["id"] for n in nodes}
         edges: list[dict[str, Any]] = []
         if node_ids:
-            placeholders = ",".join("?" for _ in node_ids)
+            # id 집합은 json_each로 한 번만 바인딩 — IN (?,?,…) 확장은 2×N
+            # 파라미터라 sqlite<3.32의 host-param 한도(999)를 limit≈500에서
+            # 넘어선다 (JSON1의 json_each는 3.9+라 안전).
+            ids_json = json.dumps(sorted(node_ids))
+            id_set = "(SELECT value FROM json_each(?))"
             edge_where = [
                 status_sql,
                 self._edge_current_sql(),
-                f"src_node_id IN ({placeholders})",
-                f"dst_node_id IN ({placeholders})",
+                f"src_node_id IN {id_set}",
+                f"dst_node_id IN {id_set}",
             ]
-            edge_args: list[Any] = [*node_ids, *node_ids]
+            edge_args: list[Any] = [ids_json, ids_json]
             if relation_type:
                 edge_where.insert(1, "relation_type = ?")
                 edge_args.insert(0, relation_type)

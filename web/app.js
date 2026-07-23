@@ -1605,6 +1605,393 @@
 
   /* -- Lazy loading + refresh wiring -- */
 
+  /* -- 그래프 자유 탐색 (읽기 전용 — 결정은 항상 ③ 검토에서) ---------- */
+
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  var gNodes = [];            // {id,name,entity_type,status,x,y,vx,vy,fx,fy}
+  var gEdges = [];            // {source,target,relation_type,status} (id 참조)
+  var gIndex = {};            // id -> node
+  var gDegree = {};           // id -> degree
+  var gSelected = null;
+  var gAlpha = 0;             // 시뮬레이션 온도 (0이면 정지)
+  var gRaf = null;
+  var gView = { x: 0, y: 0, k: 1 };
+  var gTypeColor = {};
+  var graphLoadedOnce = false;
+
+  function graphPalette() {
+    var css = getComputedStyle(document.documentElement);
+    var out = [];
+    for (var i = 1; i <= 5; i++) {
+      var v = css.getPropertyValue("--chart-" + i).trim();
+      if (v) out.push(v);
+    }
+    return out.length ? out : ["#5b5bd6"];
+  }
+
+  function typeColor(type) {
+    if (!gTypeColor[type]) {
+      var palette = graphPalette();
+      var idx = Object.keys(gTypeColor).length % palette.length;
+      gTypeColor[type] = palette[idx];
+    }
+    return gTypeColor[type];
+  }
+
+  function graphSize() {
+    var svg = $("#graph-svg");
+    var rect = svg.getBoundingClientRect();
+    return { w: rect.width || 900, h: rect.height || 520 };
+  }
+
+  function mergeGraphData(data, anchor) {
+    // anchor가 있으면 새 노드를 그 근처에 흩뿌려 확장이 자연스럽게 보이게
+    var size = graphSize();
+    var cx = anchor ? anchor.x : size.w / 2;
+    var cy = anchor ? anchor.y : size.h / 2;
+    (data.nodes || []).forEach(function (n) {
+      if (gIndex[n.id]) return;
+      var node = {
+        id: n.id,
+        name: n.name || n.id.slice(0, 8),
+        entity_type: n.entity_type || "?",
+        status: n.status || "proposed",
+        confidence: n.confidence,
+        x: cx + (Math.random() - 0.5) * (anchor ? 90 : size.w * 0.7),
+        y: cy + (Math.random() - 0.5) * (anchor ? 90 : size.h * 0.7),
+        vx: 0,
+        vy: 0,
+      };
+      gIndex[n.id] = node;
+      gNodes.push(node);
+    });
+    var seen = {};
+    gEdges.forEach(function (e) { seen[e.id] = true; });
+    (data.edges || []).forEach(function (e) {
+      if (seen[e.id]) return;
+      // 양 끝이 화면에 있는 엣지만 (traverse가 limit로 끊겼을 때 대비)
+      if (!gIndex[e.source_id] || !gIndex[e.target_id]) return;
+      gEdges.push({
+        id: e.id,
+        source: e.source_id,
+        target: e.target_id,
+        relation_type: e.relation_type,
+        status: e.status,
+      });
+    });
+    gDegree = {};
+    gEdges.forEach(function (e) {
+      gDegree[e.source] = (gDegree[e.source] || 0) + 1;
+      gDegree[e.target] = (gDegree[e.target] || 0) + 1;
+    });
+  }
+
+  function graphTick() {
+    var size = graphSize();
+    var i, j, a, b, dx, dy, d2, d, f;
+    // 반발 (O(n²) — limit 500 노드 스코프에선 충분)
+    for (i = 0; i < gNodes.length; i++) {
+      for (j = i + 1; j < gNodes.length; j++) {
+        a = gNodes[i]; b = gNodes[j];
+        dx = b.x - a.x; dy = b.y - a.y;
+        d2 = dx * dx + dy * dy;
+        if (d2 < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = 1; }
+        if (d2 > 160000) continue; // 400px 밖은 무시
+        f = 1400 / d2;
+        d = Math.sqrt(d2);
+        a.vx -= (dx / d) * f; a.vy -= (dy / d) * f;
+        b.vx += (dx / d) * f; b.vy += (dy / d) * f;
+      }
+    }
+    // 엣지 스프링 (자연 길이 90)
+    gEdges.forEach(function (e) {
+      var s = gIndex[e.source], t = gIndex[e.target];
+      if (!s || !t) return;
+      var ex = t.x - s.x, ey = t.y - s.y;
+      var ed = Math.sqrt(ex * ex + ey * ey) || 1;
+      var force = (ed - 90) * 0.02;
+      s.vx += (ex / ed) * force; s.vy += (ey / ed) * force;
+      t.vx -= (ex / ed) * force; t.vy -= (ey / ed) * force;
+    });
+    // 중심 중력 + 적분
+    gNodes.forEach(function (n) {
+      n.vx += (size.w / 2 - n.x) * 0.002;
+      n.vy += (size.h / 2 - n.y) * 0.002;
+      if (n.fx != null) { n.x = n.fx; n.y = n.fy; n.vx = 0; n.vy = 0; return; }
+      n.vx *= 0.85; n.vy *= 0.85;
+      n.x += n.vx * gAlpha; n.y += n.vy * gAlpha;
+    });
+    gAlpha *= 0.985;
+  }
+
+  function graphNodeRadius(n) {
+    return Math.min(16, 6 + 1.6 * Math.sqrt(gDegree[n.id] || 0));
+  }
+
+  function drawGraph() {
+    var svg = $("#graph-svg");
+    svg.innerHTML = "";
+    var root = document.createElementNS(SVG_NS, "g");
+    root.setAttribute("id", "graph-root");
+    svg.appendChild(root);
+    var edgeGroup = document.createElementNS(SVG_NS, "g");
+    var nodeGroup = document.createElementNS(SVG_NS, "g");
+    root.appendChild(edgeGroup);
+    root.appendChild(nodeGroup);
+    gEdges.forEach(function (e) {
+      var line = document.createElementNS(SVG_NS, "line");
+      line.setAttribute("class", "g-edge" + (e.status === "verified" ? " g-edge-verified" : ""));
+      line.dataset.source = e.source;
+      line.dataset.target = e.target;
+      var title = document.createElementNS(SVG_NS, "title");
+      title.textContent = e.relation_type + " (" + statusKo(e.status) + ")";
+      line.appendChild(title);
+      edgeGroup.appendChild(line);
+    });
+    gNodes.forEach(function (n) {
+      var g = document.createElementNS(SVG_NS, "g");
+      g.setAttribute("class", "g-node" + (n.status === "verified" ? " g-verified" : " g-proposed"));
+      g.dataset.id = n.id;
+      var circle = document.createElementNS(SVG_NS, "circle");
+      circle.setAttribute("r", graphNodeRadius(n));
+      circle.setAttribute("fill", typeColor(n.entity_type));
+      var label = document.createElementNS(SVG_NS, "text");
+      label.setAttribute("dy", graphNodeRadius(n) + 11);
+      label.textContent = n.name.length > 18 ? n.name.slice(0, 17) + "…" : n.name;
+      var title = document.createElementNS(SVG_NS, "title");
+      title.textContent = n.name + " · " + n.entity_type + " · " + statusKo(n.status);
+      g.appendChild(title);
+      g.appendChild(circle);
+      g.appendChild(label);
+      nodeGroup.appendChild(g);
+    });
+    renderGraphLegend();
+    applyGraphSearch();
+    positionGraph();
+  }
+
+  function positionGraph() {
+    var root = document.getElementById("graph-root");
+    if (!root) return;
+    root.setAttribute(
+      "transform",
+      "translate(" + gView.x + "," + gView.y + ") scale(" + gView.k + ")"
+    );
+    var lines = root.querySelectorAll("line");
+    lines.forEach(function (line) {
+      var s = gIndex[line.dataset.source], t = gIndex[line.dataset.target];
+      if (!s || !t) return;
+      line.setAttribute("x1", s.x); line.setAttribute("y1", s.y);
+      line.setAttribute("x2", t.x); line.setAttribute("y2", t.y);
+    });
+    root.querySelectorAll("g.g-node").forEach(function (g) {
+      var n = gIndex[g.dataset.id];
+      if (!n) return;
+      g.setAttribute("transform", "translate(" + n.x + "," + n.y + ")");
+      g.classList.toggle("g-selected", gSelected === n.id);
+    });
+  }
+
+  function graphLoop() {
+    // 탭이 숨겨지면(display:none → rect 0) 시뮬레이션을 멈춰 좌표 드리프트
+    // 방지 — 돌아와서 드래그/새로고침하면 reheatGraph가 다시 돌린다.
+    if ($("#graph-svg").getBoundingClientRect().width === 0) {
+      gRaf = null;
+      return;
+    }
+    if (gAlpha > 0.02) {
+      graphTick();
+      positionGraph();
+      gRaf = requestAnimationFrame(graphLoop);
+    } else {
+      gRaf = null;
+    }
+  }
+
+  function reheatGraph(alpha) {
+    gAlpha = Math.max(gAlpha, alpha);
+    if (!gRaf) gRaf = requestAnimationFrame(graphLoop);
+  }
+
+  function renderGraphLegend() {
+    var box = $("#graph-legend");
+    var html = "";
+    Object.keys(gTypeColor).forEach(function (type) {
+      html +=
+        "<span class='g-chip'><i style='background:" + gTypeColor[type] +
+        "'></i>" + escapeHtml(type) + "</span>";
+    });
+    html += "<span class='g-chip g-chip-hint'><i class='g-chip-dashed'></i>점선 테두리 = 제안(미검증)</span>";
+    box.innerHTML = html;
+  }
+
+  function graphStats() {
+    $("#graph-stats").textContent =
+      "노드 " + gNodes.length + " · 엣지 " + gEdges.length;
+  }
+
+  function selectGraphNode(id) {
+    gSelected = id;
+    var info = $("#graph-info");
+    if (!id) { info.classList.add("hidden"); positionGraph(); return; }
+    var n = gIndex[id];
+    $("#graph-info-name").textContent = n.name;
+    $("#graph-info-meta").textContent =
+      n.entity_type + " · " + statusKo(n.status) +
+      (n.confidence == null ? "" : " · 확신도 " + Number(n.confidence).toFixed(2)) +
+      " · 연결 " + (gDegree[id] || 0) + "개";
+    info.classList.remove("hidden");
+    positionGraph();
+  }
+
+  async function expandGraphNode(id) {
+    var anchor = gIndex[id];
+    if (!anchor) return;
+    var err = $("#graph-error");
+    err.classList.add("hidden");
+    try {
+      var verifiedOnly = $("#graph-status").value === "verified";
+      var data = await api(
+        "/api/graph/neighbors/" + encodeURIComponent(id) +
+        "?hops=1&include_proposed=" + (verifiedOnly ? "false" : "true")
+      );
+      mergeGraphData(data, anchor);
+      drawGraph();
+      graphStats();
+      reheatGraph(0.6);
+    } catch (e) {
+      err.textContent = friendlyError(e);
+      err.classList.remove("hidden");
+    }
+  }
+
+  function applyGraphSearch() {
+    var q = $("#graph-search").value.trim().toLowerCase();
+    var root = document.getElementById("graph-root");
+    if (!root) return;
+    root.querySelectorAll("g.g-node").forEach(function (g) {
+      var n = gIndex[g.dataset.id];
+      var hit = !q || (n && n.name.toLowerCase().indexOf(q) !== -1);
+      g.classList.toggle("g-dim", Boolean(q) && !hit);
+    });
+  }
+
+  async function loadGraph() {
+    var err = $("#graph-error");
+    err.classList.add("hidden");
+    var verifiedOnly = $("#graph-status").value === "verified";
+    var type = $("#graph-type").value;
+    var url =
+      "/api/graph?limit=200&include_proposed=" + (verifiedOnly ? "false" : "true") +
+      (type ? "&entity_type=" + encodeURIComponent(type) : "");
+    try {
+      var data = await api(url);
+      gNodes = []; gEdges = []; gIndex = {}; gDegree = {};
+      gSelected = null; gView = { x: 0, y: 0, k: 1 }; gTypeColor = {};
+      $("#graph-info").classList.add("hidden");
+      var empty = !(data.nodes || []).length;
+      $("#graph-empty").classList.toggle("hidden", !empty);
+      $("#graph-wrap").classList.toggle("hidden", empty);
+      if (empty) { $("#graph-stats").textContent = ""; return; }
+      mergeGraphData(data, null);
+      // 타입 필터 옵션 채우기 (전체 로드시에만 — 필터 적용 중엔 유지)
+      if (!type) {
+        var sel = $("#graph-type");
+        var current = sel.value;
+        sel.innerHTML = "<option value=''>전체</option>";
+        Object.keys(
+          gNodes.reduce(function (acc, n) { acc[n.entity_type] = 1; return acc; }, {})
+        ).sort().forEach(function (t) {
+          var opt = document.createElement("option");
+          opt.value = t; opt.textContent = t;
+          sel.appendChild(opt);
+        });
+        sel.value = current || "";
+      }
+      drawGraph();
+      graphStats();
+      reheatGraph(1);
+    } catch (e) {
+      err.textContent = friendlyError(e);
+      err.classList.remove("hidden");
+    }
+  }
+
+  (function wireGraph() {
+    var svg = $("#graph-svg");
+    var dragNode = null, panStart = null, downAt = null;
+
+    svg.addEventListener("pointerdown", function (ev) {
+      downAt = { x: ev.clientX, y: ev.clientY };
+      var g = ev.target.closest("g.g-node");
+      if (g) {
+        dragNode = gIndex[g.dataset.id];
+        if (dragNode) { dragNode.fx = dragNode.x; dragNode.fy = dragNode.y; }
+      } else {
+        panStart = { px: ev.clientX, py: ev.clientY, vx: gView.x, vy: gView.y };
+      }
+      try { svg.setPointerCapture(ev.pointerId); } catch (_) {}
+    });
+    svg.addEventListener("pointermove", function (ev) {
+      if (dragNode) {
+        var rect = svg.getBoundingClientRect();
+        dragNode.fx = (ev.clientX - rect.left - gView.x) / gView.k;
+        dragNode.fy = (ev.clientY - rect.top - gView.y) / gView.k;
+        reheatGraph(0.35);
+      } else if (panStart) {
+        gView.x = panStart.vx + (ev.clientX - panStart.px);
+        gView.y = panStart.vy + (ev.clientY - panStart.py);
+        positionGraph();
+      }
+    });
+    svg.addEventListener("pointerup", function (ev) {
+      // movementX/Y는 pointerup에서 신뢰 불가 — 시작 좌표와의 거리로 판정
+      var moved = downAt
+        ? Math.abs(ev.clientX - downAt.x) + Math.abs(ev.clientY - downAt.y)
+        : 0;
+      if (dragNode) {
+        var id = dragNode.id;
+        dragNode.fx = null; dragNode.fy = null;
+        dragNode = null;
+        if (moved < 4) selectGraphNode(id); // 클릭으로 간주
+      }
+      panStart = null;
+      downAt = null;
+    });
+    svg.addEventListener("dblclick", function (ev) {
+      var g = ev.target.closest("g.g-node");
+      if (g) { ev.preventDefault(); expandGraphNode(g.dataset.id); }
+    });
+    svg.addEventListener("wheel", function (ev) {
+      ev.preventDefault();
+      var rect = svg.getBoundingClientRect();
+      var mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+      var k2 = Math.min(4, Math.max(0.2, gView.k * Math.exp(-ev.deltaY * 0.0015)));
+      // 커서 아래 지점을 고정한 채 스케일
+      gView.x = mx - ((mx - gView.x) / gView.k) * k2;
+      gView.y = my - ((my - gView.y) / gView.k) * k2;
+      gView.k = k2;
+      positionGraph();
+    }, { passive: false });
+
+    $("#graph-refresh-btn").addEventListener("click", loadGraph);
+    $("#graph-status").addEventListener("change", loadGraph);
+    $("#graph-type").addEventListener("change", loadGraph);
+    $("#graph-search").addEventListener("input", applyGraphSearch);
+    $("#graph-info-close").addEventListener("click", function () {
+      selectGraphNode(null);
+    });
+    $("#graph-expand-btn").addEventListener("click", function () {
+      if (gSelected) expandGraphNode(gSelected);
+    });
+    $("#graph-review-btn").addEventListener("click", function () {
+      if (!gSelected) return;
+      var id = gSelected;
+      document.querySelector('.tab-btn[data-tab="review"]').click();
+      loadEntityPanel(id);
+    });
+  })();
+
   var tabLoaders = {
     review: loadProposals,
     merge: loadMergeCandidates,
@@ -1619,6 +2006,14 @@
     packs: loadPacks,
     mcp: loadMcp,
     communities: loadCommunities,
+    graph: function () {
+      // 첫 진입에만 자동 로드 — 재진입 시 탐색 상태(뷰·선택) 유지,
+      // 갱신은 새로고침 버튼으로 명시적으로
+      if (!graphLoadedOnce) {
+        graphLoadedOnce = true;
+        return loadGraph();
+      }
+    },
     engines: loadEngines,
   };
 

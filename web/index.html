@@ -33,6 +33,7 @@
     <div class="nav-group-label" aria-hidden="true">도구</div>
     <button class="tab-btn tab-btn-aux" data-tab="merge" role="tab" aria-selected="false"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5V12a6 6 0 0 0 6 6h3.5"/></svg><span class="nav-label">병합</span></button>
     <button class="tab-btn tab-btn-aux" data-tab="communities" role="tab" aria-selected="false"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.3 10.8l7.4-4.3"/><path d="M8.3 13.2l7.4 4.3"/></svg><span class="nav-label">커뮤니티</span></button>
+    <button class="tab-btn tab-btn-aux" data-tab="graph" role="tab" aria-selected="false"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="2.3"/><circle cx="5" cy="18" r="2.3"/><circle cx="19" cy="18" r="2.3"/><path d="M10.9 7 6.2 15.9"/><path d="M13.1 7l4.7 8.9"/><path d="M7.3 18h9.4"/></svg><span class="nav-label">그래프</span></button>
     <button class="tab-btn tab-btn-aux" data-tab="engines" role="tab" aria-selected="false"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="10" y="10" width="4" height="4"/><path d="M9 2v3"/><path d="M15 2v3"/><path d="M9 19v3"/><path d="M15 19v3"/><path d="M2 9h3"/><path d="M2 15h3"/><path d="M19 9h3"/><path d="M19 15h3"/></svg><span class="nav-label">엔진</span></button>
     <button class="tab-btn tab-btn-aux" data-tab="settings" role="tab" aria-selected="false"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 5h-8"/><path d="M9 5H3"/><path d="M21 12h-4"/><path d="M13 12H3"/><path d="M21 19h-11"/><path d="M6 19H3"/><circle cx="11" cy="5" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="8" cy="19" r="1.8"/></svg><span class="nav-label">설정</span></button>
     <div class="nav-rail-footer">로컬 전용 · 모든 데이터는 이 컴퓨터에만 저장돼요</div>
@@ -484,6 +485,51 @@
         <h3 id="community-detail-title">커뮤니티</h3>
         <div id="community-detail-body"></div>
         <p id="community-detail-error" class="err-msg hidden"></p>
+      </div>
+    </section>
+
+    <!-- ================= 그래프 (보조) ================= -->
+    <section id="tab-graph" class="tab-panel" data-tab-panel="graph">
+      <h2>그래프 — 자유 탐색</h2>
+      <p class="tab-intro">쌓인 지식그래프를 눈으로 돌아다녀요. 노드를
+        클릭하면 요약이 뜨고, <strong>더블클릭</strong>하면 이웃이
+        펼쳐져요. 여기서는 아무것도 바뀌지 않아요 — 승인·거부 같은 결정은
+        항상 ③ 검토에서 해요.</p>
+      <div class="form-actions graph-toolbar">
+        <label>보기
+          <select id="graph-status">
+            <option value="all" selected>제안 + 검증 전부</option>
+            <option value="verified">검증만</option>
+          </select>
+        </label>
+        <label>타입
+          <select id="graph-type"><option value="">전체</option></select>
+        </label>
+        <label>강조 검색
+          <input type="search" id="graph-search" placeholder="이름 일부…" autocomplete="off" />
+        </label>
+        <button type="button" id="graph-refresh-btn" class="btn">새로고침</button>
+        <span id="graph-stats" class="muted"></span>
+      </div>
+      <p id="graph-error" class="err-msg hidden"></p>
+      <div id="graph-empty" class="empty-state-card hidden">
+        아직 볼 그래프가 없어요 — <button type="button" class="btn-link" data-goto="jobs">② 추출</button>을
+        돌리면 제안 노드가 생겨요.
+      </div>
+      <div id="graph-wrap" class="hidden">
+        <svg id="graph-svg" role="img" aria-label="지식그래프 탐색 화면"></svg>
+        <div id="graph-legend" aria-hidden="true"></div>
+        <aside id="graph-info" class="hidden">
+          <div class="row space-between">
+            <strong id="graph-info-name"></strong>
+            <button type="button" id="graph-info-close" class="btn-link" aria-label="닫기">✕</button>
+          </div>
+          <p id="graph-info-meta" class="muted"></p>
+          <div class="row">
+            <button type="button" id="graph-expand-btn" class="btn">이웃 펼치기</button>
+            <button type="button" id="graph-review-btn" class="btn btn-primary">③ 검토에서 열기</button>
+          </div>
+        </aside>
       </div>
     </section>
 

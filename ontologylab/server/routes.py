@@ -351,6 +351,57 @@ def get_community(community_id: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Graph browser (read-only subgraph views — the browser never mutates;
+# approve/reject/invalidate stay in the Review surface, per HITL invariant)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/graph")
+def get_graph(
+    include_proposed: bool = Query(
+        True, description="False면 verified-only 서브그래프"
+    ),
+    entity_type: str | None = Query(None),
+    limit: int = Query(150, ge=1, le=500),
+) -> dict[str, Any]:
+    """Overview subgraph: up to ``limit`` nodes plus the edges among them."""
+    store = _open_store()
+    try:
+        return store.graph_query(
+            entity_type=entity_type or None,
+            include_proposed=include_proposed,
+            limit=limit,
+        )
+    finally:
+        store.close()
+
+
+@router.get("/graph/neighbors/{node_id}")
+def get_graph_neighbors(
+    node_id: str,
+    hops: int = Query(1, ge=1, le=3),
+    include_proposed: bool = Query(True),
+    limit: int = Query(100, ge=1, le=500),
+) -> dict[str, Any]:
+    """N-hop BFS neighborhood around one node (graph-browser expansion)."""
+    store = _open_store()
+    try:
+        result = store.traverse_relations(
+            [node_id],
+            max_hops=hops,
+            include_proposed=include_proposed,
+            limit=limit,
+        )
+    finally:
+        store.close()
+    if not result["nodes"]:
+        raise HTTPException(
+            status_code=404, detail=f"unknown or filtered node {node_id!r}"
+        )
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Critic triage (W8 — advisory scores; never a decision path)
 # ---------------------------------------------------------------------------
 
