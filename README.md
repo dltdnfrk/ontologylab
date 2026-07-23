@@ -3,6 +3,7 @@
 [![CI](https://github.com/dltdnfrk/ontologylab/actions/workflows/ci.yml/badge.svg)](https://github.com/dltdnfrk/ontologylab/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
 ![local-first](https://img.shields.io/badge/local--first-no%20cloud-8b8b8b)
+![MIT](https://img.shields.io/badge/license-MIT-green)
 
 Local-first, single-user **knowledge-graph pipeline**:
 
