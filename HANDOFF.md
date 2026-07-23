@@ -86,6 +86,7 @@ MVP 컷라인 + post-MVP Wave 1 + Wave 2 핵심 **코드 + 테스트 완료**.
 | **안전 하드닝** (2026-07-19): safety.py `Caps`/`KillSwitch` 테스트 17개(유일 미검증 안전 가드 해소) + 워킹DB 동시성 방어(락 경합→503+Retry-After, 그 외→리댁션 500; 실2스레드 테스트) | ✅ (`0df9b8a`) |
 | **대시보드 UI 갭 4종** (2026-07-19): W14 pack-diff 패널 · Settings 편집·저장 폼 · Communities 탭(+`/api/communities` 라우트 2개) · 엔티티 패널 verified 엣지 무효화 버튼. + critic.py 조용한 폴백 가시화(`docs_unloadable`) | ✅ (`4305816`·`6adbbe8`·`575acb0`) |
 | **문서 드리프트 정리** (2026-07-19): ARCHITECTURE MCP 도구 표 8→10(`get_entity` W9·`get_communities` W12), §8 대시보드 "실제 출고 형태" reconciliation(Graph Browser 미구축 정직화, SSE 아닌 폴링) | ✅ (`ad8299b`) |
+| **SSE 잡 스트림** (2026-07-23): `GET /api/jobs/stream` — JobRegistry 조건변수(`touch`/`wait_version`) 기반 변경 푸시 + keepalive, 대시보드는 EventSource 우선·기존 1.5s 폴링은 자동 폴백(`jobsStreamLive` 가드). 테스트 3종(초기 스냅샷·변경 푸시·타임아웃; TestClient는 본문 버퍼링이라 `max_events` 유한 스트림으로 검증). 라이브 확인: mock 추출 중 `/api/jobs` 추가 폴링 0건, 완료 전환 배너 SSE로 표시 | ✅ |
 | **shadcn 토큰 체계 이식** (2026-07-22): `web/style.css` 디자인 토큰을 shadcn/ui 시맨틱 쌍(background/foreground per surface, primary/muted/accent/destructive-\*, border/input/ring, sidebar-\* 7종, chart-1..5, radius calc 스케일)으로 전면 재구조화 — 값은 그대로(비주얼 무변), 좌측 레일은 sidebar 토큰·포커스는 `--ring` 배선. 상태색 rgba 하드코딩은 `color-mix()`로 토큰화 (구 iOS 계열 #34c759·#ff3b30 → `--ok`/`--destructive`로 의도적 통일, 다크모드 상태색 정합성 개선). fresh-context opus 리뷰 통과(선택자·값 손실 0), 서빙 스모크 OK | ✅ |
 | pytest (277) | ✅ green |
 | E2E: collect → extract → approve → pack → MCP query (CLI + API 양쪽) | ✅ |

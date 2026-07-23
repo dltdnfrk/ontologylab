@@ -741,6 +741,8 @@
   /* -- Jobs -- */
 
   var jobsPollTimer = null;
+  var jobsStreamLive = false; // SSE 수신 중이면 true — 폴링 억제
+  var jobsStreamRetryMs = 2000;
   var selectedJobId = null;
   var extractEnginesLoaded = false;
   // running→complete/failed 전환 감지용 (완료 순간 안내를 띄우기 위해)
@@ -826,7 +828,43 @@
       clearTimeout(jobsPollTimer);
       jobsPollTimer = null;
     }
-    if (anyRunning) jobsPollTimer = setTimeout(loadJobs, 1500);
+    // SSE 스트림이 살아 있으면 서버가 밀어주므로 폴링은 잡지 않는다.
+    if (anyRunning && !jobsStreamLive) jobsPollTimer = setTimeout(loadJobs, 1500);
+  }
+
+  // 스냅샷 적용 공통 경로 — SSE 이벤트와 폴링 응답이 모두 여길 지난다.
+  function applyJobs(jobs) {
+    renderJobs(jobs);
+    // running → 종료 전환 감지: 완료 순간에 다음 단계 안내 + 검토 배지 갱신
+    jobs.forEach(function (job) {
+      var prev = prevJobStatuses[job.job_id];
+      if (prev === "running" && job.status === "complete") {
+        showResult(
+          $("#extract-result"),
+          "<span class='ok-msg'>추출 완료!</span> " +
+            escapeHtml(totalsSummary(job.totals)) +
+            " <button type='button' class='btn btn-primary'" +
+            " data-goto='review'>③ 검토하러 가기 →</button>"
+        );
+        loadProposals();
+      } else if (prev === "running" && job.status === "failed") {
+        showResult(
+          $("#extract-result"),
+          statusBadge("failed") + " " + escapeHtml(job.error || "추출 실패"),
+          true
+        );
+      }
+      prevJobStatuses[job.job_id] = job.status;
+    });
+    if (selectedJobId) {
+      var sel = jobs.filter(function (j) {
+        return j.job_id === selectedJobId;
+      })[0];
+      if (sel) renderJobDetail(sel);
+    }
+    return jobs.some(function (j) {
+      return j.status === "running";
+    });
   }
 
   async function loadJobs() {
@@ -836,38 +874,7 @@
     if (!jobsBody.children.length) showTableLoading(jobsBody, 6);
     try {
       var data = await api("/api/jobs");
-      var jobs = (data && data.jobs) || [];
-      renderJobs(jobs);
-      // running → 종료 전환 감지: 완료 순간에 다음 단계 안내 + 검토 배지 갱신
-      jobs.forEach(function (job) {
-        var prev = prevJobStatuses[job.job_id];
-        if (prev === "running" && job.status === "complete") {
-          showResult(
-            $("#extract-result"),
-            "<span class='ok-msg'>추출 완료!</span> " +
-              escapeHtml(totalsSummary(job.totals)) +
-              " <button type='button' class='btn btn-primary'" +
-              " data-goto='review'>③ 검토하러 가기 →</button>"
-          );
-          loadProposals();
-        } else if (prev === "running" && job.status === "failed") {
-          showResult(
-            $("#extract-result"),
-            statusBadge("failed") + " " + escapeHtml(job.error || "추출 실패"),
-            true
-          );
-        }
-        prevJobStatuses[job.job_id] = job.status;
-      });
-      if (selectedJobId) {
-        var sel = jobs.filter(function (j) {
-          return j.job_id === selectedJobId;
-        })[0];
-        if (sel) renderJobDetail(sel);
-      }
-      var anyRunning = jobs.some(function (j) {
-        return j.status === "running";
-      });
+      var anyRunning = applyJobs((data && data.jobs) || []);
       scheduleJobsPoll(anyRunning);
     } catch (e) {
       if (jobsBody.querySelector("td[colspan]")) jobsBody.innerHTML = "";
@@ -875,6 +882,35 @@
       err.classList.remove("hidden");
       scheduleJobsPoll(false);
     }
+  }
+
+  // ---- SSE: 잡 상태 실시간 스트림 (실패 시 기존 폴링으로 폴백) ----
+  function connectJobsStream() {
+    if (!window.EventSource) return; // 미지원 브라우저: 폴링 유지
+    var es = new EventSource("/api/jobs/stream");
+    es.addEventListener("jobs", function (ev) {
+      var jobs;
+      try {
+        jobs = (JSON.parse(ev.data) || {}).jobs || [];
+      } catch (e) {
+        return; // 손상 스냅샷은 버린다 — 다음 이벤트가 곧 온다
+      }
+      jobsStreamLive = true;
+      jobsStreamRetryMs = 2000; // 실데이터 수신이 확인된 뒤에만 백오프 리셋
+      $("#jobs-error").classList.add("hidden");
+      applyJobs(jobs);
+      scheduleJobsPoll(false); // 스트림 수신 중엔 폴링 타이머 해제
+    });
+    es.onerror = function () {
+      es.close();
+      var wasLive = jobsStreamLive;
+      jobsStreamLive = false;
+      if (wasLive) loadJobs(); // 즉시 한 번 동기화 + 폴링 재가동
+      setTimeout(connectJobsStream, jobsStreamRetryMs);
+      jobsStreamRetryMs = Math.min(jobsStreamRetryMs * 2, 30000);
+    };
+    // onopen에서 백오프를 리셋하지 않는다 — 연결만 되고 데이터가 안 오는
+    // 프록시 상대로 2초 바닥에 고정되는 것을 막는다 (리셋은 jobs 수신 시).
   }
 
   $("#extract-form").addEventListener("submit", async function (ev) {
@@ -1931,6 +1967,7 @@
 
   loadHome();
   setInterval(loadHome, 30000); // 상단 크롬(스트립·지금 할 일·배지) 주기 갱신
+  connectJobsStream(); // 잡 상태는 SSE 우선, 폴링은 폴백
   loadProposals();
   loadEngines();
   loadSettings();

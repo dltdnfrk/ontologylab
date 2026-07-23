@@ -11,13 +11,16 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import json
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 from urllib.error import URLError
 from xml.etree.ElementTree import ParseError
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 
 from ontologylab import paths
 from ontologylab.connectors.allowlist import (
@@ -676,6 +679,62 @@ def start_extract(body: ExtractRequest) -> dict[str, Any]:
 @router.get("/jobs")
 def list_jobs() -> dict[str, Any]:
     return {"jobs": [job.as_status() for job in _registry().list()]}
+
+
+# Seconds each stream iteration waits for a change before emitting a
+# keepalive comment (also bounds how long a disconnect goes unnoticed).
+# Tests shrink this to keep teardown fast.
+JOBS_STREAM_WAIT_S = 15.0
+
+
+@router.get("/jobs/stream")
+async def stream_jobs(
+    request: Request,
+    max_events: int | None = Query(
+        None,
+        ge=1,
+        description="끝없는 스트림 대신 N개의 jobs 이벤트 후 종료 (테스트/진단용 "
+        "— TestClient류 버퍼링 클라이언트는 유한 응답만 읽을 수 있다)",
+    ),
+) -> StreamingResponse:
+    """Server-sent job updates: push on change instead of client polling.
+
+    Emits an immediate ``event: jobs`` snapshot on connect, then a new
+    snapshot whenever the registry version moves (job created, progress
+    line, status transition). Quiet periods produce ``: keepalive``
+    comments so proxies don't drop the connection. The dashboard falls
+    back to GET /api/jobs polling when EventSource is unavailable.
+    """
+    registry = _registry()
+
+    async def event_source() -> AsyncIterator[str]:
+        last_seen = -1  # registry starts at 0 → first wait returns at once
+        remaining = max_events
+        while True:
+            if await request.is_disconnected():
+                return
+            version = await run_in_threadpool(
+                registry.wait_version, last_seen, JOBS_STREAM_WAIT_S
+            )
+            if version == last_seen:
+                yield ": keepalive\n\n"
+                continue
+            last_seen = version
+            payload = json.dumps(
+                {"jobs": [job.as_status() for job in registry.list()]},
+                ensure_ascii=False,
+            )
+            yield "event: jobs\ndata: " + payload + "\n\n"
+            if remaining is not None:
+                remaining -= 1
+                if remaining <= 0:
+                    return
+
+    return StreamingResponse(
+        event_source(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/jobs/{job_id}", response_model=JobStatus)

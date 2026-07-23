@@ -228,3 +228,62 @@ def test_provider_test_unknown_id(tmp_path: Path) -> None:
     res = client.post("/api/providers/ghost/test").json()
     assert res["ok"] is False
     assert "ghost" in res["error"]
+
+
+# ---------------------------------------------------------------------------
+# SSE job stream (/api/jobs/stream)
+# ---------------------------------------------------------------------------
+# TestClient(httpx ASGITransport)는 응답 본문을 전부 버퍼링하므로 무한
+# 스트림은 테스트에서 읽을 수 없다. max_events로 유한 스트림을 받아 검증.
+
+
+def _parse_jobs_events(body: str) -> list[dict]:
+    """Extract every ``event: jobs`` data payload from an SSE body."""
+    import json as _json
+
+    events = []
+    event_name = None
+    for line in body.splitlines():
+        if line.startswith("event:"):
+            event_name = line.split(":", 1)[1].strip()
+        elif line.startswith("data:") and event_name == "jobs":
+            events.append(_json.loads(line.split(":", 1)[1].strip()))
+    return events
+
+
+def test_jobs_stream_sends_initial_snapshot(tmp_path: Path, monkeypatch) -> None:
+    from ontologylab.server import routes
+
+    monkeypatch.setattr(routes, "JOBS_STREAM_WAIT_S", 0.2)
+    client = _client(tmp_path)
+    resp = client.get("/api/jobs/stream", params={"max_events": 1})
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/event-stream")
+    assert _parse_jobs_events(resp.text) == [{"jobs": []}]
+
+
+def test_jobs_stream_pushes_on_registry_change(tmp_path: Path, monkeypatch) -> None:
+    import threading
+
+    from ontologylab.server import routes
+
+    monkeypatch.setattr(routes, "JOBS_STREAM_WAIT_S", 0.2)
+    client = _client(tmp_path)
+    registry = routes._registry()
+    # 요청이 두 번째 이벤트를 기다리며 파킹된 동안 레지스트리를 건드린다.
+    threading.Timer(0.15, registry.touch).start()
+    resp = client.get("/api/jobs/stream", params={"max_events": 2})
+    events = _parse_jobs_events(resp.text)
+    assert len(events) == 2  # 초기 스냅샷 + touch로 밀린 스냅샷
+
+
+def test_registry_wait_version_times_out_unchanged(tmp_path: Path) -> None:
+    import time as _time
+
+    from ontologylab.server.jobs import JobRegistry
+
+    registry = JobRegistry(tmp_path)
+    t0 = _time.monotonic()
+    version = registry.wait_version(registry.wait_version(-1, 0.01), 0.05)
+    assert _time.monotonic() - t0 < 1.0
+    assert isinstance(version, int)

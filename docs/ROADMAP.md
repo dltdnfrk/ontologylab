@@ -373,8 +373,8 @@ extra time for protocol conformance testing against at least one real client.
 
 **Deliverables:**
 - Screens: **Sources** (connectors run history, trigger new collect jobs), **Extraction Jobs**
-  (polling-based job status via `GET /api/jobs`, mirroring `tui.py`'s status-polling pattern;
-  SSE streaming is an optional later upgrade), **Review Queue** (M5, promoted
+  (job status via SSE `GET /api/jobs/stream` — shipped 2026-07-23 — with `GET /api/jobs`
+  polling as the automatic fallback, mirroring `tui.py`'s pattern), **Review Queue** (M5, promoted
   to a first-class nav item), **Packs** (M6 list/build/export/download), **MCP Status** (which
   pack is currently active for the MCP server, a "copy stdio config" helper for MCP clients).
 - `server/settings.py`'s `engines()` availability check surfaced in a Settings screen (already

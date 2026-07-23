@@ -5,8 +5,10 @@ in a daemon thread (one per job) reusing the exact building blocks of
 ``main._extract_async`` (chunk -> engine.generate ->
 parse_and_validate_extraction -> insert_proposed) with the same Caps
 budgets and the same provenance events, so ``cost_summary()`` picks server
-jobs up identically to CLI jobs. The dashboard polls GET /api/jobs — the
-same status-polling pattern as ``tui.py`` — instead of SSE streaming.
+jobs up identically to CLI jobs. The dashboard subscribes to
+GET /api/jobs/stream (SSE, change-driven via a registry condition variable)
+and falls back to polling GET /api/jobs — the same status-polling pattern
+as ``tui.py`` — when the stream is unavailable.
 
 sqlite objects are not shareable across threads, so the worker opens a
 FRESH KGStore inside the thread. Kill-switch file handling is a CLI
@@ -58,10 +60,15 @@ class Job:
     progress: deque = field(default_factory=lambda: deque(maxlen=_PROGRESS_MAXLEN))
     error: Optional[str] = None
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    # Registry back-reference so every visible change can wake SSE waiters.
+    # Optional: a bare Job (unit tests) works without a registry.
+    _registry: Optional["JobRegistry"] = field(default=None, repr=False)
 
     def log(self, line: str) -> None:
         with self._lock:
             self.progress.append(line)
+        if self._registry is not None:
+            self._registry.touch()
 
     def as_status(self) -> dict[str, Any]:
         with self._lock:
@@ -91,6 +98,31 @@ class JobRegistry:
         self._jobs: dict[str, Job] = {}
         self._order: list[str] = []  # insertion order (oldest first)
         self._lock = threading.Lock()
+        # Monotonic change counter + condition for SSE push (jobs/stream).
+        # Workers touch() on every visible change; each connected stream
+        # client parks one threadpool thread in wait_version() — the pool
+        # is anyio's default (40, shared with sync routes) and a parked
+        # wait is non-cancellable, so a disconnected client's thread can
+        # linger up to JOBS_STREAM_WAIT_S. Fine for the local single-user
+        # dashboard this server is scoped to; revisit before multi-user.
+        self._version = 0
+        self._cond = threading.Condition()
+
+    def touch(self) -> None:
+        """Record a visible change and wake any waiting stream clients."""
+        with self._cond:
+            self._version += 1
+            self._cond.notify_all()
+
+    def wait_version(self, last_seen: int, timeout: float) -> int:
+        """Block until the version moves past ``last_seen`` (or timeout).
+
+        Returns the current version either way; callers treat an unchanged
+        value as "send keepalive".
+        """
+        with self._cond:
+            self._cond.wait_for(lambda: self._version != last_seen, timeout)
+            return self._version
 
     def create(
         self,
@@ -112,10 +144,12 @@ class JobRegistry:
             engine=engine,
             model=model,
             started_ts=time.time(),
+            _registry=self,
         )
         with self._lock:
             self._jobs[job.job_id] = job
             self._order.append(job.job_id)
+        self.touch()  # new job appears in streams immediately
         thread = threading.Thread(
             target=self._run,
             args=(job, job_dir),
@@ -152,11 +186,12 @@ class JobRegistry:
                 job.status = "failed"
                 job.error = str(exc)
                 job.finished_ts = time.time()
-            job.log(f"[ontologylab] extraction failed: {exc}")
+            job.log(f"[ontologylab] extraction failed: {exc}")  # log() touches
         else:
             with job._lock:
                 job.status = "complete"
                 job.finished_ts = time.time()
+            self.touch()  # running → complete transition
 
     async def _extract_async(
         self,
