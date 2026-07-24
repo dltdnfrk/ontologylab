@@ -39,7 +39,26 @@ def main() -> None:
         default=str(default_packs_dir()),
         help="Knowledge-pack output directory (default: ROOT/packs)",
     )
+    parser.add_argument(
+        "--allow-remote",
+        action="store_true",
+        help=(
+            "Permit binding a non-loopback host. The server has NO auth and "
+            "exposes the entire knowledge graph, so a non-loopback bind puts "
+            "your data on the network — required flag to acknowledge that."
+        ),
+    )
     args = parser.parse_args()
+
+    from ontologylab.server.security import is_local_hostname
+
+    if not is_local_hostname(args.host) and not args.allow_remote:
+        parser.error(
+            f"refusing to bind non-loopback host {args.host!r} without "
+            "--allow-remote: the server has no auth and would expose your "
+            "entire knowledge graph to the network. Keep 127.0.0.1 for "
+            "local-only use, or pass --allow-remote if you truly intend this."
+        )
 
     import uvicorn
 

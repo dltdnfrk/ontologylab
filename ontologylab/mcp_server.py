@@ -25,7 +25,11 @@ except ImportError:  # pragma: no cover
 from ontologylab.kgstore import KGStore, KGStoreError
 from ontologylab.engines import EngineError, engine_name_arg, get_engine
 from ontologylab.expansion import expand_query
-from ontologylab.packbuilder import list_packs as discover_packs, pack_sqlite_path
+from ontologylab.packbuilder import (
+    list_packs as discover_packs,
+    pack_sqlite_path,
+    safe_pack_component,
+)
 from ontologylab.paths import default_packs_dir
 
 
@@ -314,6 +318,9 @@ class PackSession:
         return KGStore.open(path, read_only=True), True
 
     def resource_manifest(self, pack_id: str) -> dict[str, Any]:
+        # Validate pack_id as a safe segment before joining it into a path —
+        # this reader bypasses pack_sqlite_path, so guard traversal here too.
+        safe_pack_component(pack_id, kind="pack id")
         manifest_path = self.packs_dir / pack_id / "manifest.json"
         if not manifest_path.is_file():
             raise KGStoreError(f"pack {pack_id!r} has no manifest")
@@ -419,13 +426,16 @@ class PackSession:
         include_proposed: bool = False,
         detail: bool = False,
     ) -> dict[str, Any]:
-        """Lexical FTS5 search with optional fail-open LLM query expansion.
+        """Search with optional fail-open LLM query expansion.
 
-        When ``engine_name`` is set, an LLM proposes lexical query variants
-        that are OR-composed into the same FTS5 MATCH; any expansion failure
-        fails open to the plain lexical query. The ``search_tier`` label is
-        ``"fts5+llm-expansion"`` ONLY when at least one variant was actually
-        used, ``"fts5"`` otherwise. Never vector search.
+        When ``engine_name`` is set, an LLM proposes lexical query variants;
+        any expansion failure fails open to the plain query. When the active
+        pack's embeddings line up with the server's embedder this becomes
+        the 3-signal hybrid — plain lexical + expanded lexical + vector on
+        the ORIGINAL query (variants never pollute the embedding) — fused
+        with RRF. Otherwise plain lexical FTS5 on the expanded query.
+        ``search_tier`` composes honestly: ``+vec-rrf`` only when the
+        vector leg ran, ``+llm-expansion`` only when a variant was used.
         """
         store = self._require_store()
         variants: list[str] = []
@@ -438,14 +448,31 @@ class PackSession:
             else:
                 variants, usage = await expand_query(query, engine, model=model)
                 expansion_error = usage.get("error")
-        fts_query = " ".join([query, *variants]) if variants else query
-        results, tier = self._run_search(
-            fts_query,
-            top_k=top_k,
-            entity_type=entity_type,
-            min_score=min_score,
-            include_proposed=include_proposed,
-        )
+        expanded_query = " ".join([query, *variants]) if variants else query
+        embedder = self._active_embedder()
+        if embedder is not None:
+            # 세 번째 신호는 변형들"만" — 원 쿼리를 다시 섞으면 plain
+            # lexical과 강하게 상관된 리스트가 되어 lexical에 2배 가중치를
+            # 주는 꼴이 된다 (독립 신호 원칙)
+            results = store.hybrid_search(
+                query,
+                embedder,
+                top_k=top_k,
+                entity_type=entity_type,
+                min_score=min_score,
+                include_proposed=include_proposed,
+                extra_lexical_queries=[" ".join(variants)] if variants else None,
+            )
+            tier = "fts5+vec-rrf"
+        else:
+            results = store.semantic_search(
+                expanded_query,
+                top_k=top_k,
+                entity_type=entity_type,
+                min_score=min_score,
+                include_proposed=include_proposed,
+            )
+            tier = "fts5"
         if variants:
             tier += "+llm-expansion"
         if not detail:
@@ -689,12 +716,14 @@ def build_mcp_app(session: PackSession) -> Any:
         expand: bool = False,
         detail: bool = False,
     ) -> SearchResult:
-        """Lexical FTS5/BM25 search over node names/aliases/properties (0..1
+        """FTS5/BM25 search over node names/aliases/properties (0..1
         match_score). With expand=True, an LLM adds lexical query variants
-        (fail-open; requires --expansion-engine at server start). NOT vector
-        search — no embeddings are involved. Results are COMPACT rows
-        (id/name/type/score/snippet) unless detail=true; use get_entity(id)
-        for one full record."""
+        (fail-open; requires --expansion-engine at server start). Vector
+        search joins the RRF fusion ONLY when the server was started with
+        --embedder AND the active pack carries matching embeddings — the
+        search_tier field in every response states which signals actually
+        ran. Results are COMPACT rows (id/name/type/score/snippet) unless
+        detail=true; use get_entity(id) for one full record."""
         if not expand:
             return session.semantic_search(
                 query,
@@ -842,7 +871,8 @@ def main(argv: list[str] | None = None) -> None:
         "--embedder",
         default=None,
         help="Enable BM25+vector RRF search for packs that carry matching "
-             "embeddings: 'hash' (offline test embedder) or a "
+             "embeddings: 'auto' (real MiniLM when sentence-transformers is "
+             "installed, else hash), 'hash' (offline test embedder), or a "
              "sentence-transformers model name. Default: lexical only.",
     )
     args = parser.parse_args(argv)
@@ -853,7 +883,10 @@ def main(argv: list[str] | None = None) -> None:
 
         try:
             embedder = get_embedder(args.embedder)
-        except RuntimeError as exc:
+        except Exception as exc:  # noqa: BLE001 — 다운로드/임포트 실패 등
+            # sentence-transformers 초기화는 첫 실행 시 모델 다운로드까지
+            # 시도하므로 RuntimeError 외에 OSError/HFHub 계열도 나온다 —
+            # 어떤 실패든 raw traceback 대신 깔끔히 종료한다.
             print(f"[ontologylab.mcp] embedder unavailable: {exc}", file=sys.stderr)
             raise SystemExit(2) from exc
     session = PackSession(

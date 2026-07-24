@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import sqlite3
 import time
@@ -34,6 +35,27 @@ from ontologylab.models import PackManifest
 
 class PackBuildError(Exception):
     """Raised when a pack cannot be built."""
+
+
+# A pack id/name becomes a directory segment under packs_dir. Restrict it to a
+# safe charset so a caller-supplied value (HTTP build request, MCP tool arg)
+# cannot contain "/" or ".." and escape packs_dir — either to drop files into
+# an arbitrary write location or to read a pack.sqlite from outside the store.
+_SAFE_PACK_COMPONENT = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def safe_pack_component(value: str, *, kind: str = "pack name") -> str:
+    """Return ``value`` if it is a safe single path segment, else raise.
+
+    Rejects empty strings, ``.``/``..``, and anything with a path separator or
+    character outside ``[A-Za-z0-9._-]``.
+    """
+    if not value or value in (".", "..") or not _SAFE_PACK_COMPONENT.match(value):
+        raise PackBuildError(
+            f"invalid {kind} {value!r}: use only letters, digits, '.', '_', '-' "
+            "(no path separators)"
+        )
+    return value
 
 
 def build_pack(
@@ -54,6 +76,7 @@ def build_pack(
     replaces the extractive summaries (e.g. LLM-backed, fail-open); pass
     ``summary_method`` to label how those summaries were made.
     """
+    safe_pack_component(name, kind="pack name")
     kg_db_path = Path(kg_db_path)
     if not kg_db_path.is_file():
         raise PackBuildError(f"working KG not found: {kg_db_path}")
@@ -265,6 +288,10 @@ def list_packs(packs_dir: str | Path) -> list[dict[str, Any]]:
 
 
 def pack_sqlite_path(packs_dir: str | Path, pack_id: str) -> Path:
+    # pack_id arrives from callers including MCP tool args and HTTP params;
+    # validate it as a single safe segment so "../../x" cannot read a
+    # pack.sqlite from outside packs_dir (path traversal).
+    safe_pack_component(pack_id, kind="pack id")
     path = Path(packs_dir) / pack_id / "pack.sqlite"
     if not path.is_file():
         raise PackBuildError(f"pack {pack_id!r} not found under {packs_dir}")

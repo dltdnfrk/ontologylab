@@ -124,3 +124,66 @@ def test_pack_without_embeddings_stays_fts5(tmp_path, store, doc):
     manifest = build_pack(store.db_path, tmp_path / "packs", name="plain")
     assert manifest.search_tier == "fts5"
     assert manifest.embedding_model is None
+
+
+def test_get_embedder_auto_resolution(monkeypatch):
+    """'auto'는 sentence-transformers 설치 여부로 실모델/hash를 고른다."""
+    import ontologylab.embeddings as embeddings
+
+    monkeypatch.setattr(embeddings, "st_available", lambda: False)
+    assert isinstance(embeddings.get_embedder("auto"), HashingEmbedder)
+
+    chosen = {}
+
+    class FakeST:
+        def __init__(self, model_name="sentence-transformers/all-MiniLM-L6-v2"):
+            chosen["model"] = model_name
+
+    monkeypatch.setattr(embeddings, "st_available", lambda: True)
+    monkeypatch.setattr(embeddings, "SentenceTransformerEmbedder", FakeST)
+    assert isinstance(embeddings.get_embedder("auto"), FakeST)
+    assert chosen["model"].endswith("all-MiniLM-L6-v2")
+
+
+def test_hybrid_search_three_signal_extra_lexical(store, doc):
+    """확장 변형이 독립 lexical 신호로 융합에 참여한다 (3신호 RRF)."""
+    insert(
+        store,
+        doc,
+        [
+            make_entity("RateLimiter", "Component"),
+            make_entity("Throttle", "Component"),
+            make_entity("OrderService", "Component"),
+        ],
+    )
+    store.bulk_approve()
+    emb = HashingEmbedder()
+    store.embed_nodes(emb)
+
+    # 원 쿼리만으로는 Throttle이 lexical에 잡히지 않는다
+    base = store.hybrid_search("ratelimiting requests", emb, top_k=3)
+    base_names = [r["name"] for r in base]
+    assert "Throttle" not in base_names[:1]  # RateLimiter가 1위
+
+    # 확장 변형("throttle")이 세 번째 신호로 들어오면 Throttle이 부상한다
+    fused = store.hybrid_search(
+        "ratelimiting requests",
+        emb,
+        top_k=3,
+        extra_lexical_queries=["throttle"],
+    )
+    fused_names = [r["name"] for r in fused]
+    assert "Throttle" in fused_names           # 변형 신호로 신규 부상
+    assert "RateLimiter" in fused_names        # 원 쿼리 신호도 보존
+    # (이 쿼리는 FTS-hostile이라 원 쿼리 lexical이 0건 — 순위 단언은
+    #  신호 개수에 의존하므로 포함 여부만 고정한다)
+    assert all(0.0 < r["match_score"] <= 1.0 for r in fused)
+
+    # 원 쿼리와 동일한 변형은 스킵되어 2신호와 같은 결과를 낸다
+    same = store.hybrid_search(
+        "ratelimiting requests",
+        emb,
+        top_k=3,
+        extra_lexical_queries=["ratelimiting requests"],
+    )
+    assert [r["id"] for r in same] == [r["id"] for r in base]

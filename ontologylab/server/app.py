@@ -21,6 +21,10 @@ from ontologylab.server.routes import (
     attach_packs_dir,
     router,
 )
+from ontologylab.server.security import (
+    host_header_is_trusted,
+    is_cross_site_state_change,
+)
 
 WEB_DIR = ROOT / "web"
 INDEX_HTML = WEB_DIR / "index.html"
@@ -114,5 +118,43 @@ def create_app(
         if path == "/" or path.startswith("/static/"):
             response.headers["Cache-Control"] = "no-cache"
         return response
+
+    # Registered last => outermost => runs first. The server binds to loopback
+    # with no auth, so a web page the user visits is the real adversary here.
+    # Reject non-loopback Host headers (DNS rebinding) and cross-site
+    # state-changing requests (CSRF) before any handler sees them. See
+    # server/security.py for the rationale and the unit-tested predicates.
+    @app.middleware("http")
+    async def _local_guard(request, call_next):  # type: ignore[no-untyped-def]
+        if not host_header_is_trusted(request.headers.get("host")):
+            return JSONResponse(
+                status_code=421,
+                content={
+                    "ok": False,
+                    "error_kind": "bad_host",
+                    "detail": (
+                        "This server only accepts loopback Host headers "
+                        "(127.0.0.1 / localhost / [::1]) unless a hostname is "
+                        "allowlisted via ONTOLOGYLAB_ALLOWED_HOSTS."
+                    ),
+                },
+            )
+        if is_cross_site_state_change(
+            request.method,
+            request.headers.get("sec-fetch-site"),
+            request.headers.get("origin"),
+        ):
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "ok": False,
+                    "error_kind": "cross_site",
+                    "detail": (
+                        "Cross-site state-changing requests are refused. Use "
+                        "the local dashboard or a non-browser client."
+                    ),
+                },
+            )
+        return await call_next(request)
 
     return app

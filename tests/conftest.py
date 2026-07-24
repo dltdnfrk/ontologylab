@@ -2,12 +2,32 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 
 import pytest
 
 from ontologylab.kgstore import KGStore
 from ontologylab.models import ProposedEntity, ProposedRelation, SourceSpan
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _allow_testclient_host():
+    """Let the loopback Host guard accept FastAPI TestClient's 'testserver'.
+
+    The server rejects non-loopback Host headers (DNS-rebinding defense); the
+    ASGI TestClient drives the app as host 'testserver', so allowlist it for
+    the test session only. Production stays loopback-only.
+    """
+    prior = os.environ.get("ONTOLOGYLAB_ALLOWED_HOSTS")
+    os.environ["ONTOLOGYLAB_ALLOWED_HOSTS"] = "testserver"
+    try:
+        yield
+    finally:
+        if prior is None:
+            os.environ.pop("ONTOLOGYLAB_ALLOWED_HOSTS", None)
+        else:
+            os.environ["ONTOLOGYLAB_ALLOWED_HOSTS"] = prior
 
 SAMPLE_TEXT = (
     "# Service notes\n\n"

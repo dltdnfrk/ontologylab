@@ -182,10 +182,27 @@ class SentenceTransformerEmbedder:
         return [list(map(float, v)) for v in vectors]
 
 
+def st_available() -> bool:
+    """True when the optional sentence-transformers package is importable."""
+    import importlib.util
+
+    return importlib.util.find_spec("sentence_transformers") is not None
+
+
 def get_embedder(name: str | None) -> Embedder | None:
-    """Factory: None | 'hash' | a sentence-transformers model name."""
+    """Factory: None | 'auto' | 'hash' | a sentence-transformers model name.
+
+    'auto' picks the real MiniLM model when sentence-transformers is
+    installed and falls back to the offline hash embedder otherwise — the
+    stored embedding_model still records whichever backend actually ran,
+    so pack/query model matching stays honest either way.
+    """
     if not name or name == "none":
         return None
+    if name == "auto":
+        if st_available():
+            return SentenceTransformerEmbedder()
+        return HashingEmbedder()
     if name in ("hash", "hash-v1"):
         return HashingEmbedder()
     return SentenceTransformerEmbedder(name)
@@ -214,7 +231,11 @@ def rrf_fuse(
             scores[item_id] = scores.get(item_id, 0.0) + 1.0 / (k + rank + 1)
     if not scores:
         return []
-    max_possible = len(ranked_lists) / (k + 1)
+    # 정규화 분모는 "비어 있지 않은" 리스트 수 — 빈 신호(예: lexical 0건)가
+    # 끼면 len(ranked_lists) 기준으로는 만점이 불가능해져 min_score 필터가
+    # 신호 개수에 따라 다르게 잘리는 스케일 드리프트가 생긴다.
+    contributing = sum(1 for ranked in ranked_lists if ranked)
+    max_possible = contributing / (k + 1)
     fused = [(item_id, score / max_possible) for item_id, score in scores.items()]
     fused.sort(key=lambda pair: (-pair[1], pair[0]))
     return fused

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ontologylab.connectors.paper_api import (
     DEFAULT_LIMIT as PAPER_DEFAULT_LIMIT,
@@ -46,6 +46,18 @@ class PackBuildRequest(BaseModel):
     """Build a verified-only knowledge pack (Packs screen)."""
 
     name: str = Field(min_length=1, max_length=64)
+
+    @field_validator("name")
+    @classmethod
+    def _safe_name(cls, value: str) -> str:
+        # The name becomes a directory segment under packs_dir; reject path
+        # separators / traversal up front (build_pack revalidates in depth).
+        from ontologylab.packbuilder import PackBuildError, safe_pack_component
+
+        try:
+            return safe_pack_component(value, kind="pack name")
+        except PackBuildError as exc:
+            raise ValueError(str(exc)) from exc
 
 
 class EngineInfo(BaseModel):

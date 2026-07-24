@@ -2073,13 +2073,20 @@ class KGStore:
         entity_type: str | None = None,
         min_score: float = 0.0,
         include_proposed: bool = False,
+        extra_lexical_queries: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """BM25 + vector fused with Reciprocal Rank Fusion (§5.4 tier-2).
 
-        Both backends run status-filtered, their ranked id lists are fused
+        All backends run status-filtered, their ranked id lists are fused
         with RRF (k=60), and match_score carries the normalized 0..1 fused
         score (rank-based relevance, higher is better — documented meaning
         consistent across tiers).
+
+        ``extra_lexical_queries`` adds one ranked list per entry (e.g. the
+        LLM-expanded variant query) as an INDEPENDENT fusion signal — the
+        vector leg always embeds the original ``query`` only, so expansion
+        terms never pollute the semantic embedding. This is the 3-signal
+        hybrid: plain lexical + expanded lexical + vector.
         """
         from ontologylab.embeddings import rrf_fuse
 
@@ -2089,6 +2096,18 @@ class KGStore:
             entity_type=entity_type,
             include_proposed=include_proposed,
         )
+        extra_lists: list[list[dict[str, Any]]] = []
+        for extra_query in extra_lexical_queries or []:
+            if not extra_query or extra_query == query:
+                continue
+            extra_lists.append(
+                self.semantic_search(
+                    extra_query,
+                    top_k=top_k * 2,
+                    entity_type=entity_type,
+                    include_proposed=include_proposed,
+                )
+            )
         vector = self.vector_search(
             query,
             embedder,
@@ -2096,8 +2115,15 @@ class KGStore:
             entity_type=entity_type,
             include_proposed=include_proposed,
         )
-        by_id = {item["id"]: item for item in [*vector, *lexical]}
-        fused = rrf_fuse([[i["id"] for i in lexical], [i["id"] for i in vector]])
+        all_lists = [lexical, *extra_lists, vector]
+        # dict 채우기는 역순 — 기존 [*vector, *lexical] 규약대로 lexical
+        # 행이 같은 id의 vector 행을 덮어쓴다
+        by_id = {
+            item["id"]: item
+            for ranked in reversed(all_lists)
+            for item in ranked
+        }
+        fused = rrf_fuse([[i["id"] for i in ranked] for ranked in all_lists])
         results = []
         for item_id, fused_score in fused:
             if fused_score < min_score:

@@ -14,6 +14,7 @@ from typing import Any
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from ontologylab.connectors.allowlist import check_url
+from ontologylab.paths import assert_network_allowed
 from ontologylab.connectors.base import (
     FETCH_TIMEOUT_S as _FETCH_TIMEOUT_S,
     USER_AGENT as _USER_AGENT,
@@ -98,6 +99,7 @@ _opener = build_opener(_AllowlistedRedirectHandler())
 
 def _fetch_url(url: str) -> str:
     """Fetch one allowlist-checked URL; separated for test monkeypatching."""
+    assert_network_allowed(f"web crawl ({url})")
     request = Request(url, headers={"User-Agent": _USER_AGENT})
     with _opener.open(request, timeout=_FETCH_TIMEOUT_S) as response:
         charset = response.headers.get_content_charset() or "utf-8"

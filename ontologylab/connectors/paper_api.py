@@ -19,6 +19,7 @@ from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
 from ontologylab.connectors.allowlist import check_paper_query
+from ontologylab.paths import assert_network_allowed
 from ontologylab.connectors.base import (
     FETCH_TIMEOUT_S as _FETCH_TIMEOUT_S,
     USER_AGENT as _USER_AGENT,
@@ -85,6 +86,9 @@ def _http_get_text(url: str) -> str:
 
     The single network boundary for BOTH paper sources (Atom or JSON).
     """
+    # Search terms leak research direction to third-party APIs; offline mode
+    # refuses the whole channel.
+    assert_network_allowed(f"paper API fetch ({url})")
     request = Request(url, headers={"User-Agent": _USER_AGENT})
     with urlopen(request, timeout=_FETCH_TIMEOUT_S) as response:
         charset = response.headers.get_content_charset() or "utf-8"

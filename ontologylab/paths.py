@@ -8,6 +8,7 @@ library only.
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 
@@ -68,6 +69,34 @@ def providers_path(data_dir: Path | str) -> Path:
     provider's API-key env var, never a key — is never committed.
     """
     return Path(data_dir) / "providers.json"
+
+
+# Global network kill switch. When ``ONTOLOGYLAB_OFFLINE`` is set to a truthy
+# value the app refuses every outbound network egress (API-backed LLM engines
+# and the paper/web connectors) — a hard, auditable guarantee that private
+# notes never leave the machine, independent of which engine is configured.
+# Default (unset) preserves existing behavior.
+_OFFLINE_TRUTHY = frozenset({"1", "true", "yes", "on"})
+
+
+def offline_mode() -> bool:
+    """True iff the ONTOLOGYLAB_OFFLINE kill switch is engaged."""
+    return os.environ.get("ONTOLOGYLAB_OFFLINE", "").strip().lower() in _OFFLINE_TRUTHY
+
+
+class NetworkBlocked(RuntimeError):
+    """Raised when an outbound network egress is attempted in offline mode."""
+
+
+def assert_network_allowed(what: str) -> None:
+    """Raise :class:`NetworkBlocked` if offline mode forbids network egress.
+
+    ``what`` names the egress point (engine/connector) for the error message.
+    """
+    if offline_mode():
+        raise NetworkBlocked(
+            f"offline mode (ONTOLOGYLAB_OFFLINE) blocks network egress: {what}"
+        )
 
 
 def new_job_dir(data_dir: Path | str, stage: str) -> Path:

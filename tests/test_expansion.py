@@ -267,6 +267,58 @@ def test_mcp_semantic_search_tool_exposes_expand(tmp_path):
         tools = asyncio.run(app.list_tools())
         (tool,) = [t for t in tools if t.name == "semantic_search"]
         assert "expand" in tool.inputSchema["properties"]
-        assert "NOT vector" in tool.description  # honest tier labeling
+        # honest tier labeling: vector participation is conditional, and the
+        # response's search_tier declares which signals actually ran
+        assert "ONLY when" in tool.description
+        assert "search_tier" in tool.description
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+# 3-signal hybrid: plain lexical + expanded lexical + vector (RRF)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def workspace_embedded(tmp_path):
+    """workspace와 동일하되 build-pack 전에 hash 임베딩을 백필한 팩."""
+    notes = tmp_path / "notes.md"
+    notes.write_text(SAMPLE_TEXT, encoding="utf-8")
+    data = str(tmp_path / "data")
+    packs = tmp_path / "packs"
+    assert run_cli("collect", "--data-dir", data, "--file", str(notes)) == 0
+    assert run_cli("extract", "--data-dir", data, "--engine", "mock") == 0
+    assert run_cli("approve", "--data-dir", data, "--filter", "min_confidence=0.5") == 0
+    assert run_cli("embed", "--data-dir", data, "--embedder", "hash") == 0
+    assert (
+        run_cli(
+            "build-pack", "--data-dir", data, "--name", "demo-vec",
+            "--packs-dir", str(packs),
+        )
+        == 0
+    )
+    return {"data": data, "packs": packs}
+
+
+def test_pack_session_three_signal_tier_labels(workspace_embedded):
+    from ontologylab.embeddings import HashingEmbedder
+
+    session = PackSession(workspace_embedded["packs"], embedder=HashingEmbedder())
+    try:
+        assert session.try_autoload() is not None
+
+        # 확장 + 벡터가 모두 실동작 → 3신호 라벨
+        expanded = asyncio.run(
+            session.semantic_search_expanded("rate limiter", engine_name="mock")
+        )
+        assert expanded["search_tier"] == "fts5+vec-rrf+llm-expansion"
+        assert expanded["expansion_terms"] == ["ratelimiter"]
+        assert "RateLimiter" in [r["name"] for r in expanded["results"]]
+
+        # 엔진 없이 호출하면 확장 라벨은 정직하게 빠진다
+        plain = asyncio.run(session.semantic_search_expanded("rate limiter"))
+        assert plain["search_tier"] == "fts5+vec-rrf"
+        assert plain["expansion_terms"] == []
     finally:
         session.close()

@@ -817,7 +817,15 @@ def cmd_search(args: argparse.Namespace) -> int:
         if args.embedder:
             from ontologylab.embeddings import get_embedder
 
-            embedder = get_embedder(args.embedder)
+            try:
+                embedder = get_embedder(args.embedder)
+            except Exception as exc:  # noqa: BLE001 — 모델 다운로드/임포트 실패
+                print(
+                    f"[ontologylab] embedder unavailable ({exc}); "
+                    "falling back to lexical",
+                    file=sys.stderr,
+                )
+                embedder = None
             if embedder is not None and store.embedding_model() != embedder.name():
                 print(
                     f"[ontologylab] no {embedder.name()!r} embeddings in this KG "
@@ -827,12 +835,18 @@ def cmd_search(args: argparse.Namespace) -> int:
                 embedder = None
         try:
             if embedder is not None:
+                # 3신호 하이브리드: 벡터 신호는 원 쿼리만 임베딩하고,
+                # 확장 변형은 변형들"만"으로 독립 lexical 랭킹을 만들어
+                # 융합에 참여한다 (원 쿼리를 다시 섞으면 lexical 2배 가중)
                 results = store.hybrid_search(
-                    fts_query,
+                    args.query,
                     embedder,
                     top_k=args.top_k,
                     entity_type=args.type,
                     include_proposed=args.include_proposed,
+                    extra_lexical_queries=(
+                        [" ".join(variants)] if variants else None
+                    ),
                 )
             else:
                 results = store.semantic_search(
@@ -1212,9 +1226,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_search.add_argument("--model", default=None)
     p_search.add_argument(
         "--embedder", default=None,
-        help="Enable tier-2 hybrid search (BM25+vector RRF): 'hash' for the "
-             "offline test embedder, or a sentence-transformers model name. "
-             "Requires embeddings backfilled via `ontologylab embed`.",
+        help="Enable tier-2 hybrid search (BM25+vector RRF): 'auto' (real "
+             "MiniLM when sentence-transformers is installed, else the "
+             "offline hash embedder), 'hash', or a sentence-transformers "
+             "model name. Requires embeddings backfilled via "
+             "`ontologylab embed`.",
     )
     _add_data_dir(p_search)
     p_search.set_defaults(func=cmd_search)
@@ -1227,8 +1243,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     p_embed.add_argument(
         "--embedder", default="hash",
-        help="'hash' (offline, deterministic, NOT semantic) or a "
-             "sentence-transformers model name.",
+        help="'auto' (real MiniLM when sentence-transformers is installed, "
+             "else hash), 'hash' (offline, deterministic, NOT semantic), or "
+             "a sentence-transformers model name.",
     )
     _add_data_dir(p_embed)
     p_embed.set_defaults(func=cmd_embed)

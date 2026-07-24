@@ -25,15 +25,30 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import ipaddress
 import json
 import re
 import subprocess
 import time
 from typing import Optional
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from ontologylab.paths import DEFAULT_MODEL, default_data_dir
+from ontologylab.paths import DEFAULT_MODEL, assert_network_allowed, default_data_dir
+
+
+def _url_is_loopback(url: str) -> bool:
+    """True iff ``url``'s host is localhost / a loopback IP (stays on-machine)."""
+    host = urlparse(url).hostname
+    if not host:
+        return False
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 from ontologylab.providers import (
     PROVIDER_ID_RE,
     Provider,
@@ -376,6 +391,7 @@ class ClaudeEngine:
     async def generate(
         self, prompt: str, *, model: Optional[str] = None
     ) -> tuple[str, dict]:
+        assert_network_allowed("claude CLI engine")
         use_model = model or self._model
         cmd = ["claude", "-p", prompt, "--model", use_model]
         stdout, elapsed = _run_subprocess(cmd, self._timeout_s)
@@ -401,6 +417,7 @@ class CodexEngine:
     async def generate(
         self, prompt: str, *, model: Optional[str] = None
     ) -> tuple[str, dict]:
+        assert_network_allowed("codex CLI engine")
         use_model = model or self._model
         cmd = ["codex", "exec", prompt]
         if use_model:
@@ -428,6 +445,7 @@ class GeminiEngine:
     async def generate(
         self, prompt: str, *, model: Optional[str] = None
     ) -> tuple[str, dict]:
+        assert_network_allowed("gemini CLI engine")
         use_model = model or self._model
         cmd = ["gemini", "-p", prompt]
         if use_model:
@@ -554,6 +572,12 @@ class ApiEngine:
                 "has no default model — pass --model or add one"
             )
         url, headers, body = self._build_request(prompt, key, effective_model)
+
+        # Offline mode blocks egress that leaves the machine. A provider that
+        # points at loopback (local Ollama / LM Studio) keeps data on-device,
+        # so it stays allowed; only remote endpoints are refused.
+        if not _url_is_loopback(url):
+            assert_network_allowed(f"api provider {provider_id!r} ({url})")
 
         start = time.monotonic()
         try:
