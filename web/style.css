@@ -325,7 +325,7 @@ h4 {
 }
 
 /* 숫자는 표·통계 어디서든 자리가 흔들리면 안 된다 */
-code, kbd, .conf-cell, td, .step-stat, .status-row code {
+code, kbd, .conf-cell, td, .nav-stat, .status-row code {
   font-variant-numeric: tabular-nums;
 }
 
@@ -364,11 +364,23 @@ small { font-size: var(--fs-xs); }
 body {
   display: grid;
   grid-template-columns: 232px minmax(0, 1fr);
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
 }
+
+/* 레일 항목 옆의 개수. 파이프라인 바가 하던 일을 여기가 대신한다 —
+   같은 네 단계를 두 곳에 그리던 중복이 slop의 정체였다. */
+.nav-stat {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+.nav-stat.is-todo { color: var(--warn-text); }
+.nav-stat.is-ok { color: var(--muted-foreground); }
 
 /* ---------- 계보(provenance) ---------- */
 
@@ -608,7 +620,6 @@ body {
 /* glass chrome: the four floating panels */
 header.app-header,
 nav.tabs,
-.pipeline-bar,
 main {
   background: var(--shell);
 }
@@ -617,7 +628,6 @@ nav.tabs {
   background: var(--sidebar);
   border-right: 1px solid var(--sidebar-border);
 }
-.pipeline-bar { border-bottom: 1px solid var(--border); }
 
 header.app-header {
   grid-column: 1 / -1;
@@ -717,78 +727,6 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--sidebar-primary); }
   font-size: var(--fs-label);
   font-weight: var(--fw-bold);
   text-align: center;
-}
-
-/* ---------- 5. Pipeline strip ---------- */
-
-.pipeline-bar {
-  grid-column: 2;
-  grid-row: 2;
-  display: flex;
-  align-items: center;
-  height: 38px;
-  overflow-x: auto;
-  padding: 0 var(--sp-3);
-}
-
-.pipeline {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0;
-}
-
-.step {
-  appearance: none;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-  font: inherit;
-  color: var(--foreground);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  height: 26px;
-  padding: 0 var(--sp-3);
-  cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease,
-              box-shadow 0.18s ease;
-}
-
-.step:hover { background: var(--muted); }
-
-.step-no {
-  color: var(--accent);
-  font-weight: var(--fw-bold);
-}
-
-.step-name { font-weight: var(--fw-medium); font-size: var(--fs-sm); }
-.step-desc { display: none; }
-
-.step-stat {
-  font-size: var(--fs-xs);
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
-}
-.step-stat.is-ok { color: var(--ok-text); }
-.step-stat.is-todo { color: var(--warn-text); }
-
-.step-key { border-color: var(--accent-soft); background: var(--accent-soft); }
-
-.step-arrow { color: var(--muted-foreground); opacity: 0.5; }
-
-/* current-stage marker (driven by body[data-active-tab], set in showTab) */
-body[data-active-tab="sources"] .step[data-goto="sources"],
-body[data-active-tab="jobs"] .step[data-goto="jobs"],
-body[data-active-tab="review"] .step[data-goto="review"],
-body[data-active-tab="packs"] .step[data-goto="packs"],
-body[data-active-tab="mcp"] .step[data-goto="mcp"] {
-  background: var(--muted);
-  border-color: transparent;
-  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 /* ---------- 6. Canvas + panels ---------- */

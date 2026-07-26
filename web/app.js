@@ -2895,14 +2895,16 @@
   }
 
   var HOME_STATS = [
-    "#stat-sources", "#stat-review", "#stat-packs", "#stat-mcp",
+    "#stat-sources", "#stat-packs", "#stat-mcp",
   ];
 
   function setStat(sel, text, state) {
     var el = $(sel);
     if (!el) return;
     el.textContent = text;
-    el.className = "step-stat" + (state ? " " + state : "");
+    // `step-stat`은 파이프라인 바와 함께 사라진 클래스다. 그대로 뒀다면
+    // 값은 바뀌는데 스타일이 없어 레일에서 본문 크기로 튀었을 것이다.
+    el.className = "nav-stat" + (state ? " " + state : "");
   }
 
   /* -- 홈 따라하기 여정: 완료 상태는 전부 실데이터에서 파생 (저장 없음).
@@ -2960,21 +2962,18 @@
       // 쌓여 있는데도 "아직 없음"이라고 말하게 된다 — 실제로 홈의 ✓ 체크와
       // 파이프라인 바가 같은 화면에서 서로 반대를 주장했다.
       var extracted = pending + verified > 0;
+      // 사이드바 항목 옆의 개수는 Claude Science의 `2 sessions`와 같은
+      // 자리다 — 숫자 하나. 파이프라인 바가 있던 시절의 "문서 5개 · 제안
+      // 있음"은 가로 폭이 남아돌 때의 문장이라 레일에서는 잘린다.
       setStat(
         "#stat-sources",
-        running ? "진행 중…"
-          : docs ? "문서 " + docs + "개" + (extracted ? " · 제안 있음" : "")
-          : "아직 없음",
+        running ? "진행 중" : docs ? String(docs) : "",
         running || !docs || !extracted ? "is-todo" : "is-ok"
       );
-      setStat(
-        "#stat-review",
-        "대기 " + pending + "건 · 승인 " + verified + "건",
-        pending > 0 ? "is-todo" : "is-ok"
-      );
-      setStat("#stat-packs", "팩 " + packs.length + "개",
+      // 검토 개수는 tab-badge가 이미 말한다 (updateReviewBadge).
+      setStat("#stat-packs", packs.length ? String(packs.length) : "",
         packs.length ? "is-ok" : "is-todo");
-      setStat("#stat-mcp", packs.length ? "연결 가능" : "팩 필요",
+      setStat("#stat-mcp", packs.length ? "가능" : "",
         packs.length ? "is-ok" : "is-todo");
 
       // 상태바 오른쪽: 저장소가 지금 어떤 상태인지 한 줄로. 어느 화면에
