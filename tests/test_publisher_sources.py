@@ -225,17 +225,23 @@ def test_an_empty_or_odd_response_is_no_documents_not_a_crash(parse, text) -> No
 
 
 def _connect(tmp_path, monkeypatch, key: str = KEY) -> None:
-    """Register a literature source whose key resolves from the environment.
+    """Connect every publisher, each as its own registry row.
+
+    One row per publisher because the row's `id` is what selects the
+    credential. An earlier version registered a single `id="journals"` row
+    and resolved on `role`, which returned that one key for all three
+    vendors — see `test_each_publisher_gets_only_its_own_key`.
 
     The env path is used deliberately: it exercises the same
     `resolve_source_key` seam as the Keychain without writing to the user's
     real credential store.
     """
     monkeypatch.setenv("TEST_PUBLISHER_KEY", key)
-    add_source(
-        tmp_path,
-        Source(id="journals", role="literature", api_key_env="TEST_PUBLISHER_KEY"),
-    )
+    for name in KEYED_SOURCES:
+        add_source(
+            tmp_path,
+            Source(id=name, role="literature", api_key_env="TEST_PUBLISHER_KEY"),
+        )
 
 
 @pytest.mark.parametrize(
@@ -397,11 +403,116 @@ def test_the_refusal_message_does_not_quote_the_key(tmp_path, monkeypatch) -> No
     # to the browser — covered in test_error_disclosure.py.)
     assert failures
     assert failures[0].kind == "fetch_failed"
+    # `SourceFailure.error` is written verbatim into provenance.jsonl and
+    # mirrored into status.json — asserting only `kind` left the field that
+    # actually carries text unchecked, so a connector that interpolated the
+    # request URL into its message would have passed.
+    assert KEY not in failures[0].error
+
+
+def test_each_publisher_gets_only_its_own_key(tmp_path, monkeypatch) -> None:
+    """The credential is selected by source id, never by role.
+
+    Resolving on `role` returned the first literature row's key for every
+    publisher, so connecting Springer put the Springer key into Elsevier's
+    `X-ELS-APIKey` header and CORE's bearer token — a live credential handed
+    to two other vendors, which is exactly the harm the redirect guard was
+    written to stop.
+    """
+    keys = {name: f"KEY-FOR-{name.upper()}" for name in KEYED_SOURCES}
+    for name, value in keys.items():
+        monkeypatch.setenv(f"TEST_KEY_{name.upper()}", value)
+        add_source(
+            tmp_path,
+            Source(id=name, role="literature",
+                   api_key_env=f"TEST_KEY_{name.upper()}"),
+        )
+
+    for name, expected in keys.items():
+        resolved = paper_api.resolve_source_key(name, tmp_path)
+        assert resolved == expected, f"{name} resolved to another vendor's key"
+        for other, other_key in keys.items():
+            if other != name:
+                assert resolved != other_key
+
+
+def test_a_publisher_with_no_row_of_its_own_stays_disconnected(
+    tmp_path, monkeypatch
+) -> None:
+    """Connecting one publisher must not silently enable the other two."""
+    monkeypatch.setenv("TEST_KEY_ELSEVIER", "ELS-only")
+    add_source(
+        tmp_path,
+        Source(id=ELSEVIER_SOURCE, role="literature",
+               api_key_env="TEST_KEY_ELSEVIER"),
+    )
+
+    assert paper_api.resolve_source_key(ELSEVIER_SOURCE, tmp_path) == "ELS-only"
+    assert paper_api.resolve_source_key(SPRINGER_SOURCE, tmp_path) == ""
+    assert paper_api.resolve_source_key(CORE_SOURCE, tmp_path) == ""
+    assert SPRINGER_SOURCE not in available_sources(tmp_path)
 
 
 # --------------------------------------------------------------------------
 # Which sources a run queries
 # --------------------------------------------------------------------------
+
+
+def test_collecting_from_an_unconnected_publisher_is_a_typed_refusal(
+    tmp_path,
+) -> None:
+    """`/api/collect` promises 200 with an `error_kind`, never a 5xx.
+
+    `MissingSourceKey` matched none of the route's handlers, so picking a
+    publisher you have not connected — the ordinary first-use path, which
+    both allowlist gates pass — answered 500 Internal Server Error.
+    """
+    from fastapi.testclient import TestClient
+
+    from ontologylab.server import routes
+    from ontologylab.server.app import create_app
+
+    data_dir = tmp_path / "data"
+    routes.attach_data_dir(data_dir)
+    client = TestClient(create_app(data_dir=data_dir))
+
+    response = client.post(
+        "/api/collect",
+        json={"paper_queries": ["knowledge graphs"], "paper_source": ELSEVIER_SOURCE},
+    )
+
+    assert response.status_code == 200, "the route must never 500"
+    body = response.json()
+    assert body["ok"] is False
+    assert body["error_kind"] == "unconfigured"
+
+
+def test_an_oversized_publisher_response_is_a_typed_refusal(
+    tmp_path, monkeypatch
+) -> None:
+    """`ResponseTooLarge` was the other escapee from the same handler list."""
+    from fastapi.testclient import TestClient
+
+    from ontologylab.connectors.paper_api import ResponseTooLarge
+    from ontologylab.server import routes
+    from ontologylab.server.app import create_app
+
+    data_dir = tmp_path / "data"
+    _connect(data_dir, monkeypatch)
+    monkeypatch.setattr(
+        paper_api, "_http_get_text",
+        lambda *a, **k: (_ for _ in ()).throw(ResponseTooLarge("too big")),
+    )
+    routes.attach_data_dir(data_dir)
+    client = TestClient(create_app(data_dir=data_dir))
+
+    response = client.post(
+        "/api/collect",
+        json={"paper_queries": ["q"], "paper_source": ELSEVIER_SOURCE},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["error_kind"] == "too_large"
 
 
 def test_an_unconnected_publisher_is_not_queried_by_default(tmp_path) -> None:

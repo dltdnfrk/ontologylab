@@ -75,9 +75,9 @@ def _client(tmp_path: Path) -> TestClient:
 
 def _connect(client: TestClient, **overrides) -> dict:
     payload = {
-        "id": "journals",
+        "id": "elsevier",
         "role": "literature",
-        "label": "저널 접근",
+        "label": "Elsevier (Scopus)",
         "key": SECRET,
         **overrides,
     }
@@ -120,17 +120,24 @@ def test_the_key_is_not_written_to_the_registry_file(tmp_path) -> None:
     raw = sources_path(tmp_path / "data").read_text(encoding="utf-8")
 
     assert SECRET not in raw
-    assert "ontologylab.literature" in raw, "only the reference is stored"
+    assert "ontologylab.elsevier" in raw, "only the reference is stored"
 
 
 @needs_keychain
-def test_the_key_reaches_the_keychain_under_the_role_bundle(tmp_path) -> None:
-    """"Connect journal access" should not ask the user for an account name."""
+def test_the_default_account_is_derived_from_the_source_id(tmp_path) -> None:
+    """Connecting should not ask the user for an account name — and the name
+    it picks must be per-publisher.
+
+    It was once `ontologylab.{role}`, which gave all three publishers one
+    account: connecting a second overwrote the first key, and that surviving
+    key was then sent to every vendor.
+    """
     client = _client(tmp_path)
 
     _connect(client, keychain_account="")
 
-    assert read_key("ontologylab.literature") == SECRET
+    assert read_key("ontologylab.elsevier") == SECRET
+    assert read_key("ontologylab.literature") is None, "the role must not name it"
 
 
 @needs_keychain
@@ -228,7 +235,7 @@ def test_an_oversized_key_is_refused_without_echoing_it(tmp_path) -> None:
     huge = "k" * 5000
 
     response = client.post(
-        "/api/sources", json={"id": "journals", "role": "literature", "key": huge}
+        "/api/sources", json={"id": "elsevier", "role": "literature", "key": huge}
     )
 
     assert response.status_code == 200, "a gate failure is not a 4xx here"
@@ -240,7 +247,7 @@ def test_a_source_with_no_key_and_no_reference_is_refused(tmp_path) -> None:
     client = _client(tmp_path)
 
     body = client.post(
-        "/api/sources", json={"id": "journals", "role": "literature"}
+        "/api/sources", json={"id": "elsevier", "role": "literature"}
     ).json()
 
     assert body["ok"] is False
@@ -268,7 +275,7 @@ def test_a_keychain_failure_is_reported_without_the_key(
 
     response = client.post(
         "/api/sources",
-        json={"id": "journals", "role": "literature", "key": SECRET},
+        json={"id": "elsevier", "role": "literature", "key": SECRET},
     )
 
     assert response.json()["error_kind"] == "failed"
@@ -296,7 +303,7 @@ def test_the_env_var_path_needs_no_keychain(tmp_path, monkeypatch) -> None:
 
     body = client.post(
         "/api/sources",
-        json={"id": "journals", "role": "literature",
+        json={"id": "elsevier", "role": "literature",
               "api_key_env": "ELSEVIER_API_KEY"},
     ).json()
 
@@ -316,11 +323,11 @@ def test_disconnecting_leaves_the_key_and_says_so(tmp_path) -> None:
     client = _client(tmp_path)
     _connect(client)
 
-    body = client.delete("/api/sources/journals").json()
+    body = client.delete("/api/sources/elsevier").json()
 
     assert body["removed"] is True
     assert body["key_retained"] is True, "the UI needs to offer the second step"
-    assert read_key("ontologylab.literature") == SECRET
+    assert read_key("ontologylab.elsevier") == SECRET
 
 
 @needs_keychain
@@ -328,10 +335,10 @@ def test_forgetting_the_key_actually_removes_it(tmp_path) -> None:
     client = _client(tmp_path)
     _connect(client)
 
-    body = client.delete("/api/sources/journals/key").json()
+    body = client.delete("/api/sources/elsevier/key").json()
 
     assert body["forgotten"] is True
-    assert read_key("ontologylab.literature") is None
+    assert read_key("ontologylab.elsevier") is None
 
 
 @needs_keychain
@@ -339,11 +346,11 @@ def test_a_forgotten_key_reads_back_as_disconnected(tmp_path) -> None:
     """Presence is resolved, not remembered — the row is still there."""
     client = _client(tmp_path)
     _connect(client)
-    client.delete("/api/sources/journals/key")
+    client.delete("/api/sources/elsevier/key")
 
     listed = client.get("/api/sources").json()["sources"]
 
-    assert listed[0]["id"] == "journals"
+    assert listed[0]["id"] == "elsevier"
     assert listed[0]["key_present"] is False
 
 
@@ -374,7 +381,7 @@ def test_reconnecting_replaces_the_stored_key(tmp_path) -> None:
 
     _connect(client, key=rotated)
 
-    assert read_key("ontologylab.literature") == rotated
+    assert read_key("ontologylab.elsevier") == rotated
 
 
 @needs_keychain

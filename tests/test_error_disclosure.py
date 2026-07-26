@@ -66,14 +66,20 @@ def test_a_summary_names_the_kind_and_quotes_nothing(exc, expected) -> None:
     assert expected in summary
 
 
-def test_every_summary_is_short_enough_to_be_a_label() -> None:
-    """A long summary is how a quoted message sneaks back in."""
-    for exc in (
-        EngineError("x" * 4000),
-        OSError("y" * 4000),
-        RuntimeError("z" * 4000),
+def test_a_summary_is_never_a_function_of_the_message_length() -> None:
+    """The real property: the summary does not vary with its input's text.
+
+    Asserting `len(...) < 120` only restated a property of this test's own
+    constants — every branch returns a literal. Two messages of wildly
+    different length and content must produce the identical summary, which
+    is what "quotes nothing" actually means.
+    """
+    for short, long in (
+        (EngineError("x"), EngineError("x" * 4000)),
+        (OSError("y"), OSError("y" * 4000)),
+        (RuntimeError("z"), RuntimeError("z" * 4000)),
     ):
-        assert len(summarize_failure(exc)) < 120
+        assert summarize_failure(short) == summarize_failure(long)
 
 
 def test_an_unknown_failure_still_names_its_type_not_its_message() -> None:

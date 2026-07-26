@@ -35,8 +35,13 @@ SOURCE_ID_RE = re.compile(r"[a-z0-9][a-z0-9_-]{0,31}")
 # Env var name (POSIX-ish) — the registry stores this, never the value.
 _ENV_NAME_RE = re.compile(r"[A-Z][A-Z0-9_]*")
 
-# Roles a source can fill. One entry per *capability*, not per vendor, so the
-# UI can say "journal access: connected" instead of listing three publishers.
+# Roles a source can fill — a *grouping* for the UI ("journal access"), so a
+# screen can show one section instead of three unrelated rows.
+#
+# A role never selects a credential. `id` does. These were briefly conflated
+# and the result was one key being sent to three different vendors, so the
+# distinction is load-bearing: role answers "where does this appear on the
+# screen", id answers "whose key is this".
 SOURCE_ROLES = ("literature",)
 
 

@@ -36,6 +36,8 @@ from ontologylab.connectors.paper_api import (
     PAPER_SOURCE_LABELS,
     KEYED_SOURCES,
     SOURCE_ORDER,
+    MissingSourceKey,
+    ResponseTooLarge,
     PaperApiConnector,
     UnsupportedPaperSource,
     available_sources,
@@ -74,7 +76,7 @@ from ontologylab.sources import (
     validate_source,
 )
 from ontologylab.server import settings as settings_mod
-from ontologylab.server.jobs import JobRegistry
+from ontologylab.server.jobs import JobAlreadyRunning, JobRegistry
 from ontologylab.server.schemas import (
     CollectRequest,
     CostSummary,
@@ -604,10 +606,12 @@ def create_source(body: SourceCreate) -> dict[str, Any]:
         return {"ok": False, "error_kind": "rejected",
                 "detail": f"key is longer than {MAX_SOURCE_KEY_LEN} characters"}
 
-    # A key with no home would be dropped on the floor. Default to the role
-    # bundle so the common case ("connect journal access") needs no account
-    # name from the user at all.
-    account = body.keychain_account or (f"ontologylab.{body.role}" if key else "")
+    # A key with no home would be dropped on the floor, so default one. It is
+    # derived from the source **id**, not the role: `ontologylab.{role}` gave
+    # every publisher the same account name, so connecting a second publisher
+    # overwrote the first one's key and then that single key was sent to all
+    # three vendors. One account per publisher, one key per account.
+    account = body.keychain_account or (f"ontologylab.{body.id}" if key else "")
     source = Source(
         id=body.id,
         role=body.role,
@@ -797,6 +801,16 @@ def collect(body: CollectRequest) -> dict[str, Any]:
         except UnsupportedPaperSource as exc:
             provenance.log("collect.unsupported", {"error": str(exc)})
             error = {"ok": False, "error_kind": "unsupported", "detail": str(exc)}
+        except MissingSourceKey as exc:
+            # Ordinary first-use, not a fault: the user picked a publisher
+            # they have not connected. `_classify` already names this kind for
+            # the research path, and this route's docstring promises the same
+            # typed answer — it raised a 500 instead.
+            provenance.log("collect.unconfigured", {"error": str(exc)})
+            error = {"ok": False, "error_kind": "unconfigured", "detail": str(exc)}
+        except ResponseTooLarge as exc:
+            provenance.log("collect.too_large", {"error": str(exc)})
+            error = {"ok": False, "error_kind": "too_large", "detail": str(exc)}
         except (URLError, ParseError) as exc:
             provenance.log("collect.fetch_failed", {"error": str(exc)})
             error = {"ok": False, "error_kind": "fetch_failed", "detail": str(exc)}
@@ -819,6 +833,11 @@ def collect(body: CollectRequest) -> dict[str, Any]:
                 "source": body.paper_source,
                 "query": paper_query,
                 "limit": body.limit,
+                # Without this the connector cannot find the registry, so a
+                # keyed source is refused as `unconfigured` even when its key
+                # is connected — the research path passed it, this one did
+                # not, and the two disagreed about the same configuration.
+                "data_dir": _data_dir,
             },
         )
         if fetched is None:
@@ -968,8 +987,16 @@ def start_research(body: ResearchRequest) -> dict[str, Any]:
         moments later and logs `research.start` into it, so recording every
         request eagerly would leave an empty run dir behind for each one and
         double-count research runs in the jobs listing.
+
+        All refusals share ONE directory. Minting a fresh `research-<ts>/`
+        per refusal was unbounded from the outside: `cost_summary` re-reads
+        every `data/jobs/*/provenance.jsonl` on each `GET /api/cost`, so
+        holding Enter on an empty topic box degraded that screen permanently.
+        A rejected request is not a run and should not look like one.
         """
-        provenance = Provenance(str(paths.new_job_dir(_data_dir, "research")), seed=0)
+        rejects = paths.jobs_dir(_data_dir) / "research-rejected"
+        rejects.mkdir(parents=True, exist_ok=True)
+        provenance = Provenance(str(rejects), seed=0)
         provenance.log(
             step,
             {"topic": loggable_collect_inputs([body.topic]),
@@ -1000,28 +1027,31 @@ def start_research(body: ResearchRequest) -> dict[str, Any]:
         _record("research.offline", {"error": detail})
         return {"ok": False, "error_kind": "offline", "detail": detail}
 
-    running = _registry().running_research()
-    if running is not None:
+    # No pre-check here: asking the registry "is one running?" and then
+    # asking it to create is two lock acquisitions, and two concurrent
+    # requests both pass. `create_research` decides under the same lock that
+    # registers the job, and says no by raising.
+    try:
+        job = _registry().create_research(
+            topic=body.topic,
+            sources=sources,
+            limit=body.limit,
+            engine=body.engine,
+            model=body.model,
+            max_engine_calls=body.max_engine_calls,
+            time_budget=body.time_budget,
+            seed=body.seed,
+        )
+    except JobAlreadyRunning as exc:
         return {
             "ok": False,
             "error_kind": "busy",
             "detail": (
-                f"research run {running.job_id} is still going; "
+                f"research run {exc.job_id} is still going; "
                 f"cancel it or wait for it to finish"
             ),
-            "job_id": running.job_id,
+            "job_id": exc.job_id,
         }
-
-    job = _registry().create_research(
-        topic=body.topic,
-        sources=sources,
-        limit=body.limit,
-        engine=body.engine,
-        model=body.model,
-        max_engine_calls=body.max_engine_calls,
-        time_budget=body.time_budget,
-        seed=body.seed,
-    )
     return {"ok": True, "job_id": job.job_id, "status": "running"}
 
 

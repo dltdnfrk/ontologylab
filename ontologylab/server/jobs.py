@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from contextlib import suppress
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -48,6 +49,17 @@ MAX_RETAINED_JOBS = 20
 # A job in one of these is done and may be evicted. `cancelled` belongs here:
 # the worker has stopped, so retaining it forever would defeat the bound.
 TERMINAL_STATUSES = frozenset({"complete", "failed", "cancelled"})
+
+
+class JobAlreadyRunning(Exception):
+    """Raised when an exclusive job is asked for while one is still running.
+
+    Carries the running job's id so the caller can point the user at it.
+    """
+
+    def __init__(self, job_id: str) -> None:
+        super().__init__(f"a job is already running: {job_id}")
+        self.job_id = job_id
 
 
 def summarize_failure(exc: BaseException) -> str:
@@ -217,9 +229,15 @@ class JobRegistry:
         *,
         engine: str,
         model: Optional[str],
+        exclusive: bool = False,
         **params: Any,
     ) -> Job:
         """Register a job of any kind, start its worker, and return it.
+
+        ``exclusive`` refuses the job when one of the same ``kind`` is already
+        running, raising `JobAlreadyRunning`. The check happens under this
+        registry's lock together with the registration — see the comment
+        inside.
 
         `create` and `create_research` differ only in which coroutine the
         worker awaits; everything around it — the job dir that doubles as the
@@ -239,6 +257,19 @@ class JobRegistry:
             _registry=self,
         )
         with self._lock:
+            # `exclusive` is checked HERE, not by the caller. The route used
+            # to call `running_research()` and then `create_research()` —
+            # two separate acquisitions of this lock, so two concurrent
+            # requests both saw "nothing running" and both started. Measured:
+            # 4 simultaneous POSTs, 4 accepted, 0 refused. Check-and-register
+            # has to be one critical section or it is decoration.
+            running = self._running_locked(kind) if exclusive else None
+            if running is not None:
+                # Nothing has started, so drop the directory we just claimed
+                # rather than leaving an empty one for `cost_summary` to walk.
+                with suppress(OSError):
+                    job_dir.rmdir()
+                raise JobAlreadyRunning(running.job_id)
             self._jobs[job.job_id] = job
             self._order.append(job.job_id)
             self._evict_locked()
@@ -301,6 +332,7 @@ class JobRegistry:
             self._research_async,
             engine=engine,
             model=model,
+            exclusive=True,
             topic=topic,
             sources=list(sources),
             limit=limit,
@@ -309,8 +341,23 @@ class JobRegistry:
             seed=seed,
         )
 
+    def _running_locked(self, kind: str) -> Job | None:
+        """A running job of this kind, if any. Caller must hold `self._lock`."""
+        for job_id in reversed(self._order):
+            job = self._jobs.get(job_id)
+            if job is not None and job.kind == kind and job.status == "running":
+                return job
+        return None
+
     def running_research(self) -> Job | None:
         """A research run already in flight, if any.
+
+        Read-only: for reporting. It must NOT be used to decide whether to
+        start one — that decision has to be made inside the same lock
+        acquisition that registers the new job, which is what `_spawn`'s
+        `exclusive` flag does. Calling this and then calling `create_research`
+        is a time-of-check/time-of-use gap, and it measured as one: four
+        concurrent requests, four accepted.
 
         Two runs on one topic pay twice for the same extraction. This bounds
         the server's own duplicates only: a concurrent `python -m ontologylab
@@ -319,12 +366,7 @@ class JobRegistry:
         `IntegrityError` that a genuine race produces.
         """
         with self._lock:
-            for job_id in reversed(self._order):
-                job = self._jobs.get(job_id)
-                if job is not None and job.kind == "research":
-                    if job.status == "running":
-                        return job
-        return None
+            return self._running_locked("research")
 
     def cancel(self, job_id: str) -> bool:
         """Ask one running job to stop. False if unknown or already finished."""
@@ -351,7 +393,12 @@ class JobRegistry:
         keep: list[str] = []
         for job_id in self._order:  # oldest first
             job = self._jobs.get(job_id)
-            finished = job is not None and job.status in TERMINAL_STATUSES
+            if job is None:
+                # No backing entry: drop the id instead of carrying it. Kept,
+                # it would make `list()` raise forever and every later pass
+                # would re-append it, so the registry could never heal.
+                continue
+            finished = job.status in TERMINAL_STATUSES
             if surplus > 0 and finished:
                 surplus -= 1
                 self._jobs.pop(job_id, None)
@@ -364,17 +411,27 @@ class JobRegistry:
             return self._jobs.get(job_id)
 
     def list(self) -> list[Job]:
-        """All jobs, newest first."""
+        """All jobs, newest first.
+
+        `.get`, not `[...]`: an id in `_order` with no entry in `_jobs` would
+        otherwise raise KeyError here, and this is the single read path behind
+        both `GET /api/jobs` and the SSE stream — so one desync would take the
+        dashboard's push *and* its polling fallback down until a restart. The
+        desync that produced it is fixed at the source (unique job dirs), but
+        a listing is the wrong place to discover that something else broke.
+        """
         with self._lock:
-            return [self._jobs[job_id] for job_id in reversed(self._order)]
+            jobs = [self._jobs.get(job_id) for job_id in reversed(self._order)]
+        return [job for job in jobs if job is not None]
 
     # ------------------------------------------------------------------
     # Worker (daemon thread)
     # ------------------------------------------------------------------
 
     def _run(self, job: Job, job_dir: Path, coroutine_factory, **params: Any) -> None:
+        stopped_reason = ""
         try:
-            asyncio.run(coroutine_factory(job, job_dir, **params))
+            stopped_reason = asyncio.run(coroutine_factory(job, job_dir, **params)) or ""
         except Exception as exc:  # noqa: BLE001 — job must record any failure
             # `job.error` and the progress log both reach the browser through
             # `as_status()` and the SSE stream, so neither may carry the
@@ -384,24 +441,34 @@ class JobRegistry:
             # is where a publisher key would sit. The full exception goes to
             # provenance, which stays on disk.
             summary = summarize_failure(exc)
-            Provenance(str(job_dir), seed=0).log(
-                "job.failed",
-                {"job_id": job.job_id, "type": type(exc).__name__, "error": str(exc)},
-            )
+            # Terminal status FIRST, before any I/O that could itself fail.
+            # It used to be set after the provenance write, so an OSError
+            # there (full disk, or the data dir moved out from under the
+            # server) left `status` at "running" forever: the thread was
+            # dead, `_evict_locked` would never reclaim it because it is not
+            # terminal, and an exclusive research run stayed permanently
+            # "busy" until a process restart.
             with job._lock:
                 job.status = "failed"
                 job.error = summary
                 job.finished_ts = time.time()
-            job.log(f"[ontologylab] extraction failed: {summary}")  # log() touches
+            with suppress(Exception):
+                Provenance(str(job_dir), seed=0).log(
+                    "job.failed",
+                    {"job_id": job.job_id, "type": type(exc).__name__,
+                     "error": str(exc)},
+                )
+            job.log(f"[ontologylab] {job.kind} failed: {summary}")  # log() touches
         else:
             with job._lock:
-                # A cancelled run did not complete its work, and reporting it
-                # as `complete` would tell the reviewer the document set was
-                # fully extracted. It is not a failure either — nothing broke
-                # — so it gets its own terminal state.
-                job.status = (
-                    "cancelled" if job._cancelled.is_set() else "complete"
-                )
+                # Derived from what the worker actually did, not from the
+                # flag. Reading the flag reported `cancelled` for a run that
+                # had already extracted every chunk — cancel arriving in the
+                # window between the last abort check and this line made a
+                # complete run look truncated, inviting the reviewer to pay
+                # for the same documents twice. `stopped_reason` is non-empty
+                # only when the loop really stopped early.
+                job.status = "cancelled" if stopped_reason else "complete"
                 job.finished_ts = time.time()
             self.touch()  # running → terminal transition
 
@@ -414,8 +481,13 @@ class JobRegistry:
         max_engine_calls: int,
         time_budget: float,
         seed: int,
-    ) -> None:
-        """Mirror of ``main._extract_async`` minus CLI printing/kill switch."""
+    ) -> str:
+        """Mirror of ``main._extract_async`` minus CLI printing/kill switch.
+
+        Returns why extraction stopped early, or "" when it ran to the end —
+        `_run` derives the terminal status from this rather than from the
+        cancellation flag, which can be set after the last unit of work.
+        """
         provenance = Provenance(str(job_dir), seed=seed)
         caps = Caps(
             SimpleNamespace(
@@ -433,7 +505,7 @@ class JobRegistry:
                 doc_ids = unprocessed_doc_ids(store)
             if not doc_ids:
                 job.log("[ontologylab] no unprocessed documents to extract")
-                return
+                return ""
 
             provenance.log(
                 "extract.start",
@@ -481,6 +553,7 @@ class JobRegistry:
                 f"[ontologylab] extraction done: {totals['nodes_new']} new nodes, "
                 f"{totals['edges_new']} new edges (proposed; review to verify)"
             )
+            return stopped_reason
         finally:
             store.close()
 
@@ -495,7 +568,7 @@ class JobRegistry:
         max_engine_calls: int,
         time_budget: float,
         seed: int,
-    ) -> None:
+    ) -> str:
         """Collect a topic across sources, then extract exactly what arrived.
 
         The two phases share one provenance run, so `cost_summary()` reports
@@ -519,7 +592,7 @@ class JobRegistry:
             job.set_phase("collect")
             if job._cancelled.is_set():
                 job.log("[ontologylab] cancelled before collecting")
-                return
+                return job.cancel_reason()
 
             # `data_dir` reaches the connector so a keyed publisher source can
             # resolve its credential; the keyless five ignore it.
@@ -541,7 +614,7 @@ class JobRegistry:
             if not batches and failures:
                 job.log("[ontologylab] no source answered; nothing to extract")
                 provenance.log("research.end", {"documents": 0, "created": 0})
-                return
+                return ""
 
             raw_docs = collapse_duplicates(batches, SOURCE_ORDER)
             job.log(
@@ -553,7 +626,7 @@ class JobRegistry:
                 # Stop before writing: nothing is extracted yet, so the run
                 # costs nothing and leaves the store as it was.
                 job.log("[ontologylab] cancelled before storing documents")
-                return
+                return job.cancel_reason()
 
             doc_ids: list[str] = []
             created_count = 0
@@ -583,13 +656,13 @@ class JobRegistry:
 
             if not doc_ids:
                 job.log("[ontologylab] nothing collected; no extraction to run")
-                return
+                return ""
 
             # ---------------- phase 2: extract ----------------
             job.set_phase("extract")
             if job._cancelled.is_set():
                 job.log("[ontologylab] cancelled before extracting")
-                return
+                return job.cancel_reason()
 
             # `doc_ids` is passed explicitly and is never allowed to fall back
             # to `unprocessed_doc_ids(store)`. That query is global: it would
@@ -648,8 +721,9 @@ class JobRegistry:
                 f"[ontologylab] research done: {totals['nodes_new']} new nodes, "
                 f"{totals['edges_new']} new edges (proposed; review to verify)"
             )
+            return stopped_reason
         finally:
             store.close()
 
 
-__all__ = ["Job", "JobRegistry"]
+__all__ = ["Job", "JobAlreadyRunning", "JobRegistry"]

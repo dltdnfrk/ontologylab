@@ -170,16 +170,18 @@ def _doc(text: str, doi: str | None = DOI, uri: str = "https://example/x"):
 
 
 def test_the_same_doi_written_four_ways_is_one_identity() -> None:
-    keys = {
-        _doc("x", normalize_doi(form)).dedupe_key
-        for form in (
-            DOI,
-            f"https://doi.org/{DOI}",
-            DOI.upper(),
-            f"doi:{DOI}.",
-        )
-    }
-    assert len(keys) == 1
+    """The four shapes the real sources actually return.
+
+    Calling `normalize_doi` here first made all four inputs the identical
+    string before `dedupe_key` ever saw them, so removing normalization from
+    the identity path was invisible to this test. The parsers normalize; this
+    asserts that they have to.
+    """
+    forms = (DOI, f"https://doi.org/{DOI}", DOI.upper(), f"doi:{DOI}.")
+    assert len({_doc("x", normalize_doi(form)).dedupe_key for form in forms}) == 1
+    # And the raw shapes must NOT already agree — otherwise the line above
+    # would hold with normalization deleted.
+    assert len({_doc("x", form).dedupe_key for form in forms}) > 1
 
 
 def test_documents_without_a_doi_stay_distinct_from_each_other() -> None:
@@ -269,5 +271,7 @@ def test_the_result_is_stable_across_repeated_runs() -> None:
         ("europepmc", [_doc("the longest abstract of the three")]),
     ]
     first = collapse_duplicates(batches, SOURCE_ORDER)
-    again = collapse_duplicates(batches, SOURCE_ORDER)
+    # Reversed, because passing the same order twice let "first arrival wins"
+    # — the precise instability the rule exists to prevent — pass this test.
+    again = collapse_duplicates(list(reversed(batches)), SOURCE_ORDER)
     assert [d.content_hash for d in first] == [d.content_hash for d in again]

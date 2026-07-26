@@ -198,6 +198,156 @@ def test_the_real_registration_path_evicts(tmp_path) -> None:
     )
 
 
+def test_concurrent_registrations_all_get_distinct_ids(tmp_path) -> None:
+    """The id comes from the job directory, and the stamp is per-second.
+
+    `exists()` then `mkdir(exist_ok=True)` let two threads claim one name.
+    Measured before the fix: 5 concurrent creates produced 3 ids — the extra
+    Job objects were overwritten in `_jobs` while their workers kept running,
+    unreachable and uncancellable, appending to a provenance log another job
+    was also writing.
+    """
+    import threading as _threading
+
+    registry = JobRegistry(tmp_path)
+    made: list[str] = []
+    lock = _threading.Lock()
+    start = _threading.Barrier(8)
+
+    def _create() -> None:
+        start.wait(10)
+        job = registry.create(
+            engine="mock", model=None, doc_ids=[],
+            max_engine_calls=1, time_budget=1.0, seed=0,
+        )
+        with lock:
+            made.append(job.job_id)
+
+    threads = [_threading.Thread(target=_create) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert len(made) == 8
+    assert len(set(made)) == 8, f"duplicate job ids: {sorted(made)}"
+
+
+def test_concurrent_exclusive_creates_admit_exactly_one(tmp_path) -> None:
+    """Check-then-create is not a guard; both halves must hold one lock.
+
+    Measured before the fix through the real app: 4 simultaneous research
+    POSTs, 4 accepted, 0 refused.
+    """
+    import threading as _threading
+
+    from ontologylab.server.jobs import JobAlreadyRunning
+
+    registry = JobRegistry(tmp_path)
+    gate = _threading.Event()
+
+    async def _held(job, job_dir, **params):
+        gate.wait(20)
+        return ""
+
+    registry._research_async = _held
+    accepted: list[str] = []
+    refused: list[str] = []
+    lock = _threading.Lock()
+    start = _threading.Barrier(6)
+
+    def _create() -> None:
+        start.wait(10)
+        try:
+            job = registry.create_research(
+                topic="t", sources=["arxiv"], limit=1, engine="mock",
+                model=None, max_engine_calls=1, time_budget=5.0, seed=0,
+            )
+        except JobAlreadyRunning as exc:
+            with lock:
+                refused.append(exc.job_id)
+        else:
+            with lock:
+                accepted.append(job.job_id)
+
+    threads = [_threading.Thread(target=_create) for _ in range(6)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+    gate.set()
+
+    assert len(accepted) == 1, f"{len(accepted)} runs started concurrently"
+    assert len(refused) == 5
+    assert set(refused) == set(accepted), "the refusal names the running run"
+
+
+def test_a_finished_run_is_complete_even_if_the_flag_is_set(tmp_path) -> None:
+    """The exact race, staged directly.
+
+    Cancel can land after the worker's last abort check but before `_run`
+    assigns the terminal status. Reading `job._cancelled` there reported a
+    fully-extracted run as `cancelled`; the worker's own return value is what
+    knows. This drives the real `_run` with a coroutine that sets the flag
+    and then reports it finished normally.
+    """
+    registry = JobRegistry(tmp_path)
+
+    async def _finishes_then_cancelled(job, job_dir, **params):
+        job._cancelled.set()  # the request thread wins the race
+        return ""             # ...but every chunk was already extracted
+
+    registry._extract_async = _finishes_then_cancelled
+    job = registry.create(
+        engine="mock", model=None, doc_ids=[],
+        max_engine_calls=1, time_budget=5.0, seed=0,
+    )
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline and job.status == "running":
+        time.sleep(0.02)
+
+    assert job.status == "complete", (
+        "a run that extracted everything was labelled cancelled"
+    )
+
+
+def test_a_run_that_really_stopped_early_is_cancelled(tmp_path) -> None:
+    """The other side: a non-empty reason must still read as cancelled."""
+    registry = JobRegistry(tmp_path)
+
+    async def _stopped(job, job_dir, **params):
+        return "cancelled by request"
+
+    registry._extract_async = _stopped
+    job = registry.create(
+        engine="mock", model=None, doc_ids=[],
+        max_engine_calls=1, time_budget=5.0, seed=0,
+    )
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline and job.status == "running":
+        time.sleep(0.02)
+
+    assert job.status == "cancelled"
+
+
+def test_listing_survives_an_order_entry_with_no_job(tmp_path) -> None:
+    """`list()` is the single read behind `GET /api/jobs` AND the SSE stream.
+
+    A `KeyError` here took both down — push and polling fallback — until the
+    process restarted, and the condition never healed on its own. The cause
+    (duplicate ids) is fixed at the source; this pins the tolerance, because
+    a listing is the wrong place to discover that something else broke.
+    """
+    registry = JobRegistry(tmp_path)
+    _register(registry, "job-real", "complete")
+    with registry._lock:
+        registry._order.append("job-vanished")  # in _order, not in _jobs
+
+    listed = registry.list()
+
+    assert [job.job_id for job in listed] == ["job-real"]
+
+
 def test_a_run_that_finishes_later_is_still_evictable(tmp_path) -> None:
     """Eviction happens on insert, so a job that finishes afterwards is only
     reconsidered when the next job arrives — and then it must be dropped."""

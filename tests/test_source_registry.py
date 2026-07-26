@@ -169,8 +169,9 @@ def test_a_connected_publisher_becomes_available(tmp_path, monkeypatch) -> None:
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("TEST_PUB_KEY", "a-key")
-    add_source(data_dir, Source(id="journals", role="literature",
-                                api_key_env="TEST_PUB_KEY"))
+    for name in ("elsevier", "springer", "core"):
+        add_source(data_dir, Source(id=name, role="literature",
+                                    api_key_env="TEST_PUB_KEY"))
     client = TestClient(create_app(data_dir=data_dir))
 
     body = client.get("/api/paper-sources").json()

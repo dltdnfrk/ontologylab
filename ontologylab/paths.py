@@ -114,6 +114,11 @@ def assert_network_allowed(what: str) -> None:
 
 _STAGE_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
+# How many suffixes to try within one second before giving up. Far above any
+# real burst; it exists so a filesystem that fails `mkdir` for some reason
+# other than "already there" cannot spin forever.
+MAX_JOB_DIR_ATTEMPTS = 1000
+
 
 def new_job_dir(data_dir: Path | str, stage: str) -> Path:
     """Create and return a fresh job directory ``data/jobs/<stage>-<ts>/``.
@@ -139,10 +144,23 @@ def new_job_dir(data_dir: Path | str, stage: str) -> Path:
         )
     stamp = time.strftime("%Y%m%d-%H%M%S")
     base = jobs_dir(data_dir)
-    job_dir = base / f"{stage}-{stamp}"
-    suffix = 1
-    while job_dir.exists():
-        suffix += 1
-        job_dir = base / f"{stage}-{stamp}-{suffix}"
-    job_dir.mkdir(parents=True, exist_ok=True)
-    return job_dir
+    base.mkdir(parents=True, exist_ok=True)
+    # `mkdir` decides the race, not a prior `exists()` check. The stamp has
+    # one-second resolution, so two jobs started in the same second collide
+    # routinely — and `exists()` then `mkdir(exist_ok=True)` let both threads
+    # win the same name. The server derives `job_id` from this directory, so
+    # the duplicate id meant one Job object replaced the other in the
+    # registry while its worker kept running: unreachable, uncancellable, and
+    # writing into a provenance log another job was also appending to.
+    for suffix in range(1, MAX_JOB_DIR_ATTEMPTS + 1):
+        name = f"{stage}-{stamp}" if suffix == 1 else f"{stage}-{stamp}-{suffix}"
+        job_dir = base / name
+        try:
+            job_dir.mkdir(exist_ok=False)
+        except FileExistsError:
+            continue
+        return job_dir
+    raise OSError(
+        f"could not allocate a job directory for {stage!r} after "
+        f"{MAX_JOB_DIR_ATTEMPTS} attempts"
+    )

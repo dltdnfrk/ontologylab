@@ -592,6 +592,119 @@ def test_cancelling_during_collect_stops_before_anything_is_stored(
     assert "extract.doc" not in _steps(data_dir), "extraction ran anyway"
 
 
+def test_cancelling_during_extraction_stops_spending_engine_calls(
+    tmp_path, monkeypatch
+) -> None:
+    """The research path's own `should_abort` seam.
+
+    Both other cancellation tests hold `fetch_sources` and cancel during
+    phase one, so the `if job._cancelled.is_set()` phase-boundary check
+    answers first and the seam inside `run_extraction` is never reached.
+    Replacing it with `lambda: ""` therefore survived the whole suite. This
+    gates the *engine* instead, so cancellation lands mid-extraction where
+    only the seam can stop it — and asserts the call count, because status
+    alone still reads `cancelled` with the seam removed.
+    """
+    from ontologylab.engines import MockEngine
+
+    class _GatedEngine:
+        def __init__(self) -> None:
+            self._inner = MockEngine(seed=0)
+            self.entered = threading.Event()
+            self.release = threading.Event()
+            self.calls = 0
+
+        def name(self) -> str:
+            return self._inner.name()
+
+        async def generate(self, prompt: str, *, model=None):
+            self.calls += 1
+            if self.calls == 1:
+                self.entered.set()
+                self.release.wait(20)
+            return await self._inner.generate(prompt, model=model)
+
+    engine = _GatedEngine()
+    monkeypatch.setattr(jobs_module, "get_engine", lambda *a, **k: engine)
+    # Long enough to chunk more than once, so a second engine call exists
+    # to be skipped. (Chunking targets 1500 tokens x 4 chars.)
+    long_paper = _paper("crossref", "10.1/long", extra=ABSTRACT * 3)
+    monkeypatch.setattr(
+        jobs_module, "fetch_sources", _fake_fetch([("crossref", [long_paper])])
+    )
+    client = _client(tmp_path)
+
+    job_id = client.post("/api/research", json={"topic": TOPIC}).json()["job_id"]
+    assert engine.entered.wait(20), "extraction never reached the engine"
+    client.post(f"/api/jobs/{job_id}/cancel")
+    engine.release.set()
+    job = routes._registry().get(job_id)
+    _await_terminal(job)
+
+    assert engine.calls == 1, (
+        f"{engine.calls} engine calls after cancelling; should_abort is not "
+        f"reaching run_extraction on the research path"
+    )
+    assert job.status == "cancelled"
+
+
+def test_an_uncancelled_research_run_spends_more_than_one_call(
+    tmp_path, monkeypatch
+) -> None:
+    """The control for the test above: without it, `calls == 1` could just
+    mean the document had one chunk."""
+    from ontologylab.engines import MockEngine
+
+    calls = {"n": 0}
+    inner = MockEngine(seed=0)
+
+    async def _counting(prompt: str, *, model=None):
+        calls["n"] += 1
+        return await inner.generate(prompt, model=model)
+
+    monkeypatch.setattr(
+        jobs_module, "get_engine",
+        lambda *a, **k: type("E", (), {"name": lambda s: "mock",
+                                       "generate": staticmethod(_counting)})(),
+    )
+    long_paper = _paper("crossref", "10.1/long", extra=ABSTRACT * 3)
+    monkeypatch.setattr(
+        jobs_module, "fetch_sources", _fake_fetch([("crossref", [long_paper])])
+    )
+    client = _client(tmp_path)
+
+    job = _run(client)
+
+    assert job.status == "complete"
+    assert calls["n"] > 1, "this document must chunk more than once"
+
+
+def test_a_run_that_finished_is_never_labelled_cancelled(
+    tmp_path, monkeypatch
+) -> None:
+    """Cancel arriving after the last unit of work must not rewrite history.
+
+    The status was read from `job._cancelled`, so a cancel landing in the
+    window between the final abort check and `_run`'s terminal assignment
+    reported a fully-extracted run as `cancelled` — telling the reviewer to
+    pay for the same documents again.
+    """
+    monkeypatch.setattr(
+        jobs_module,
+        "fetch_sources",
+        _fake_fetch([("crossref", [_paper("crossref", "10.1/a")])]),
+    )
+    client = _client(tmp_path)
+    job = _run(client)  # runs to completion, uncancelled
+    assert job.status == "complete"
+
+    # The worker has finished; setting the flag now must change nothing.
+    job._cancelled.set()
+
+    assert job.status == "complete"
+    assert job.totals["nodes_new"] > 0
+
+
 def test_a_cancelled_research_run_is_not_reported_complete(
     tmp_path, monkeypatch
 ) -> None:

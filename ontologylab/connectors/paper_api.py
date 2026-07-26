@@ -768,10 +768,44 @@ def resolve_source_key(source: str, data_dir: Any) -> str:
         from ontologylab.sources import load_sources, resolve_source_key as _resolve
     except ImportError:  # pragma: no cover — registry is optional
         return ""
+    # Matched on `id`, never on `role`. A role groups publishers for the UI
+    # ("journal access"), and an earlier version resolved on it — which meant
+    # the first literature row's key was returned for *every* publisher, so
+    # connecting Springer sent the Springer key to Elsevier in `X-ELS-APIKey`
+    # and to CORE as a bearer token. Handing a live credential to two other
+    # vendors is precisely what the redirect guard exists to prevent; it must
+    # not arrive through the front door instead.
     for entry in load_sources(data_dir):
-        if entry.role == "literature":
+        if entry.id == source:
             return _resolve(entry) or ""
     return ""
+
+
+REDACTED = "«redacted»"
+
+
+def redact_keys(text: str, data_dir: Any = None) -> str:
+    """Remove any configured publisher key from ``text``.
+
+    A fan-out failure's text is written verbatim into ``provenance.jsonl``
+    and mirrored into ``status.json`` as ``last_payload``. Both live under
+    ``data/``, which is the one place a key must never appear in plaintext —
+    that premise is the entire reason for keeping keys in the Keychain, and
+    an exception that happens to quote a request header would break it
+    silently and permanently, because the log is append-only.
+
+    Keys are header-only today, so nothing is known to leak; this exists so
+    that the guarantee does not depend on every future connector, HTTP
+    library and error message being careful. Scrubbing the value we already
+    hold is cheap and does not care where the text came from.
+    """
+    if not text or data_dir is None:
+        return text
+    for name in KEYED_SOURCES:
+        key = resolve_source_key(name, data_dir)
+        if key and key in text:
+            text = text.replace(key, REDACTED)
+    return text
 
 
 def available_sources(data_dir: Any = None) -> list[str]:
@@ -909,7 +943,11 @@ async def fetch_sources(
                 # as one would hide why nothing was fetched.
                 raise result
             failures.append(
-                SourceFailure(source=name, error=str(result), kind=_classify(result))
+                SourceFailure(
+                    source=name,
+                    error=redact_keys(str(result), data_dir),
+                    kind=_classify(result),
+                )
             )
             continue
         batches.append((name, result))
