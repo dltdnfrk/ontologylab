@@ -1,29 +1,51 @@
-"""Keyless paper-metadata API connectors (stdlib only).
+"""Paper-metadata API connectors (stdlib only).
 
-Fetches public metadata + abstracts from paper APIs — arXiv (Atom XML),
-Crossref, OpenAlex, Semantic Scholar, and Europe PMC (REST JSON); every
-endpoint is keyless. Each (source, query) pair is checked against the
-allowlist **before** any network I/O (deny-by-default), mirroring the
-web_crawl connector's enforcement point. Only titles and abstracts are
-ingested; full-text retrieval is out of scope.
+Fetches public metadata + abstracts from paper APIs. Five are keyless —
+arXiv (Atom XML), Crossref, OpenAlex, Semantic Scholar, Europe PMC (REST
+JSON) — and three are publisher APIs that carry a credential: Elsevier
+(Scopus), Springer Nature, and CORE.
+
+Each (source, query) pair is checked against the allowlist **before** any
+network I/O (deny-by-default), mirroring the web_crawl connector's
+enforcement point.
+
+Three properties hold the keyed half together:
+
+* **Fixed hosts.** Every endpoint is one constant, so `PAPER_API_HOSTS` is
+  derived from them and exact-match stays possible. Full text is reached
+  through publisher *APIs* for exactly this reason — crawling document pages
+  would mean following `doi.org -> publisher -> CDN`, whose intermediate
+  hosts cannot be enumerated ahead of time.
+* **Header-only credentials.** A key in a query string would reach the
+  offline-refusal message, `provenance.jsonl`, `status.json`'s last_payload
+  and the job log, none of which know a URL might be a secret. Elsevier and
+  Springer also accept a query parameter; that route is not offered here.
+* **Nothing crosses an origin.** `_AllowlistedPaperRedirect` re-checks every
+  redirect hop and drops any header outside `_REDIRECT_SAFE_HEADERS` when the
+  host changes, because `urllib` forwards credentials across origins where
+  `requests`/`urllib3` would not.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
 import xml.etree.ElementTree as ET
+from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
-from urllib.parse import quote_plus
-from urllib.request import Request, urlopen
+from urllib.parse import quote_plus, urlparse
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from ontologylab.connectors.allowlist import check_paper_query
-from ontologylab.paths import assert_network_allowed
+from ontologylab.connectors.allowlist import NotAllowlisted, check_paper_query
+from ontologylab.paths import NetworkBlocked, assert_network_allowed
 from ontologylab.connectors.base import (
     FETCH_TIMEOUT_S as _FETCH_TIMEOUT_S,
     USER_AGENT as _USER_AGENT,
     RawDocument,
+    normalize_doi,
 )
 
 _ATOM_NS = "{http://www.w3.org/2005/Atom}"
@@ -38,11 +60,35 @@ SEMANTIC_SCHOLAR_API_URL = (
 EUROPEPMC_API_URL = (
     "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 )
+# Publisher APIs — keyed, but still fixed hosts, which is what keeps them
+# inside the exact-match allowlist. Reaching full text by crawling document
+# pages instead would mean following doi.org -> publisher -> CDN, and those
+# intermediate hosts cannot be enumerated ahead of time.
+ELSEVIER_API_URL = "https://api.elsevier.com/content/search/scopus"
+SPRINGER_API_URL = "https://api.springernature.com/meta/v2/json"
+CORE_API_URL = "https://api.core.ac.uk/v3/search/works"
+
+# Scopus omits `dc:description` from its STANDARD view, so the abstract has
+# to be requested by name or the parser sees titles only.
+_ELSEVIER_FIELDS = (
+    "dc:title",
+    "dc:description",
+    "dc:creator",
+    "prism:doi",
+    "prism:publicationName",
+    "prism:url",
+)
+
 # DOI resolver base for items that carry a DOI but no URL field.
 DOI_BASE_URL = "https://doi.org/"
 DEFAULT_LIMIT = 5
 MAX_LIMIT = 25
 _MAX_LIMIT = MAX_LIMIT  # back-compat alias
+
+# The most a single paper API may hand back. 25 abstracts are a few hundred
+# kilobytes, so this is generous for a legitimate answer while keeping a
+# hostile or broken endpoint from being multiplied by a five-source fan-out.
+MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 
 # Canonical source names: the fetch dispatch, IMPLEMENTED_SOURCES, and the
 # default all reference these — never re-type the strings.
@@ -51,15 +97,15 @@ CROSSREF_SOURCE = "crossref"
 OPENALEX_SOURCE = "openalex"
 SEMANTIC_SCHOLAR_SOURCE = "semanticscholar"
 EUROPEPMC_SOURCE = "europepmc"
+ELSEVIER_SOURCE = "elsevier"
+SPRINGER_SOURCE = "springer"
+CORE_SOURCE = "core"
 DEFAULT_PAPER_SOURCE = ARXIV_SOURCE
 
-IMPLEMENTED_SOURCES: frozenset[str] = frozenset({
-    ARXIV_SOURCE,
-    CROSSREF_SOURCE,
-    OPENALEX_SOURCE,
-    SEMANTIC_SCHOLAR_SOURCE,
-    EUROPEPMC_SOURCE,
-})
+# IMPLEMENTED_SOURCES is DERIVED from _SOURCE_DISPATCH, further down this
+# file. It cannot be written here: the dispatch table references builders and
+# parsers defined below. Everything in this module reads the name at call
+# time, so the later binding is the one they see.
 
 # Crossref fields we request AND the exact keys parse_crossref reads —
 # dropping one here silently empties the corresponding parsed value, so the
@@ -81,18 +127,140 @@ def check_source_implemented(source: str) -> str:
     return source
 
 
-def _http_get_text(url: str) -> str:
+class ResponseTooLarge(Exception):
+    """Raised when a paper API answers with more bytes than we will read."""
+
+
+# Every host `_http_get_text` may ever reach, derived from the endpoint
+# constants rather than re-typed. A new source adds its constant to the
+# dispatch table and to this tuple in the same edit; there is no third place
+# to forget.
+PAPER_API_HOSTS: frozenset[str] = frozenset(
+    (urlparse(url).hostname or "").lower()
+    for url in (
+        ARXIV_API_URL,
+        CROSSREF_API_URL,
+        OPENALEX_API_URL,
+        SEMANTIC_SCHOLAR_API_URL,
+        EUROPEPMC_API_URL,
+        ELSEVIER_API_URL,
+        SPRINGER_API_URL,
+        CORE_API_URL,
+    )
+)
+
+# Request headers allowed to survive a cross-host redirect.
+#
+# An allowlist, not a denylist. The plan proposed dropping a named set
+# (`Authorization`, `X-Els-Apikey`, `X-Api-Key`), but that is backwards for
+# this module: publisher APIs each name their key header differently, and the
+# next one added would cross a host boundary in silence because nobody
+# remembered to extend the list. Deny-by-default is the rule everywhere else
+# in this package; a header is no different from a host.
+_REDIRECT_SAFE_HEADERS = frozenset({"user-agent", "accept", "accept-encoding"})
+
+
+def check_paper_host(url: str) -> str:
+    """Validate a paper-API URL's host; return it unchanged.
+
+    Exact match, https only. The scheme matters as much as the host: every
+    endpoint constant is https, so a redirect to `http://` on an allowlisted
+    host would still put a request — and, once step 4 lands, a key — on the
+    wire in clear text.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise NotAllowlisted(
+            f"paper API redirect to a non-https scheme "
+            f"({parsed.scheme!r}) is refused"
+        )
+    host = (parsed.hostname or "").lower()
+    if host not in PAPER_API_HOSTS:
+        raise NotAllowlisted(
+            f"paper API redirect to host {host!r} is not on the allowlist "
+            f"(allowed: {sorted(PAPER_API_HOSTS)})"
+        )
+    return url
+
+
+class _AllowlistedPaperRedirect(HTTPRedirectHandler):
+    """Re-checks every redirect hop, and never lets a credential leave a host.
+
+    Two separate holes, both open by default in urllib:
+
+    * **The hop itself.** Only the caller-supplied URL was ever checked, so
+      an allowlisted endpoint could 3xx the fetch to any origin at all. Same
+      defect `web_crawl._AllowlistedRedirectHandler` was written to close.
+
+    * **The credentials.** `HTTPRedirectHandler.redirect_request` strips only
+      `Content-Length` and `Content-Type`; every other header — including an
+      API key — is carried to the new host unchanged. Credential stripping on
+      a cross-origin redirect is requests/urllib3 behaviour, not urllib's.
+      Today nothing here sends a key, which is exactly why this must land
+      before step 4 rather than alongside it: one 302 from an endpoint to a
+      maintenance page or a CDN would put a publisher key in that host's
+      access log, with no attacker involved.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        check_paper_host(newurl)  # raises NotAllowlisted on a bad hop
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is None:
+            return None
+        old_host = (urlparse(req.full_url).hostname or "").lower()
+        new_host = (urlparse(newurl).hostname or "").lower()
+        if old_host != new_host:
+            for name in list(new.headers):
+                if name.lower() not in _REDIRECT_SAFE_HEADERS:
+                    del new.headers[name]
+        return new
+
+
+_opener = build_opener(_AllowlistedPaperRedirect())
+
+# The module-level seam the whole test suite patches — including the
+# `qa_round2` / `qa_redteam` conftest fixtures whose entire job is to make
+# any accidental real network call explode. Rebinding the name rather than
+# calling `_opener.open` at the call site keeps that safety net intact while
+# routing every fetch through the redirect guard above.
+urlopen = _opener.open
+
+
+def _http_get_text(url: str, headers: dict[str, str] | None = None) -> str:
     """Fetch one allowlist-checked API URL; separated for test monkeypatching.
 
     The single network boundary for BOTH paper sources (Atom or JSON).
+
+    `headers` carries a publisher credential and nothing else. It is a
+    keyword with a default so the ~25 existing monkeypatches spelled
+    `lambda url: FIXTURE` keep working; callers pass it only for the keyed
+    sources, which have their own fixtures.
+
+    The read is bounded. `MAX_RESPONSE_BYTES` is generous for the 25 abstracts
+    a request can ask for, and it is the one place that bounds *unknown*
+    input: a fan-out multiplies whatever a source sends by the number of
+    sources, and `ET.fromstring` expands internal entities. libexpat's own
+    amplification limit (100x, 8 MiB) stops the extreme case — that, not the
+    "no external entities" claim, is what actually protects the XML path —
+    but expansion only stays bounded if the input it multiplies is.
     """
     # Search terms leak research direction to third-party APIs; offline mode
-    # refuses the whole channel.
-    assert_network_allowed(f"paper API fetch ({url})")
-    request = Request(url, headers={"User-Agent": _USER_AGENT})
+    # refuses the whole channel. Only the host is named: a URL may carry a
+    # publisher key in a query parameter, and this message reaches the HTTP
+    # response, provenance, and the job log.
+    assert_network_allowed(f"paper API fetch ({urlparse(url).hostname})")
+    request = Request(url, headers={"User-Agent": _USER_AGENT, **(headers or {})})
     with urlopen(request, timeout=_FETCH_TIMEOUT_S) as response:
         charset = response.headers.get_content_charset() or "utf-8"
-        return response.read().decode(charset, errors="replace")
+        # Read one byte past the cap so an oversized body is detected rather
+        # than silently truncated into a half-parsed document.
+        payload = response.read(MAX_RESPONSE_BYTES + 1)
+    if len(payload) > MAX_RESPONSE_BYTES:
+        raise ResponseTooLarge(
+            f"{urlparse(url).hostname} returned more than "
+            f"{MAX_RESPONSE_BYTES} bytes"
+        )
+    return payload.decode(charset, errors="replace")
 
 
 def _build_query_url(query: str, limit: int) -> str:
@@ -160,9 +328,14 @@ def _normalize(text: str | None) -> str:
 
 def parse_atom(xml_text: str) -> list[RawDocument]:
     """Parse an arXiv Atom feed into RawDocuments (title + abstract only)."""
-    # Input is fetched from a single allowlisted host over the stdlib parser;
-    # ET.fromstring does no DTD/external-entity resolution beyond internal
-    # entities, so no hardened parser is needed for this trusted feed.
+    # Why the stdlib parser is enough here — stated accurately, because the
+    # earlier justification was not. `ET.fromstring` DOES expand internal
+    # entities, so "no external entities" was never the protection. What
+    # actually bounds a billion-laughs payload is libexpat's amplification
+    # limit (100x, 8 MiB threshold, expat >= 2.4), measured: a seven-stage
+    # bomb is refused with `ParseError: limit on input amplification factor
+    # breached`. A four-stage one stays under the threshold and parses, which
+    # is why `_http_get_text` caps the input that expansion multiplies.
     root = ET.fromstring(xml_text)
     documents: list[RawDocument] = []
     for entry in root.findall(f"{_ATOM_NS}entry"):
@@ -181,6 +354,10 @@ def parse_atom(xml_text: str) -> list[RawDocument]:
                 source_uri=source_uri,
                 title=title or None,
                 raw_text=f"{title}\n\n{abstract}",
+                # arXiv Atom entries carry no DOI. Leaving it None makes the
+                # entry de-duplicate on its `<id>` URL instead of colliding
+                # with every other DOI-less document under a shared key.
+                doi=None,
             )
         )
     return documents
@@ -224,6 +401,7 @@ def parse_crossref(json_text: str) -> list[RawDocument]:
                 source_uri=source_uri,
                 title=title or None,
                 raw_text=f"{title}\n\n{abstract}",
+                doi=normalize_doi(doi),
             )
         )
     return documents
@@ -271,6 +449,8 @@ def parse_openalex(json_text: str) -> list[RawDocument]:
             continue
         # OpenAlex serves `doi` as a full https://doi.org/... URL and `id`
         # as a canonical openalex.org URL — either is a provenance trail.
+        # The URL form is why `normalize_doi` strips resolver prefixes: this
+        # is the one source whose DOI does not arrive bare.
         source_uri = _normalize(item.get("doi")) or _normalize(item.get("id"))
         if not source_uri:
             continue
@@ -280,6 +460,7 @@ def parse_openalex(json_text: str) -> list[RawDocument]:
                 source_uri=source_uri,
                 title=title or None,
                 raw_text=f"{title}\n\n{abstract}",
+                doi=normalize_doi(item.get("doi")),
             )
         )
     return documents
@@ -311,6 +492,7 @@ def parse_semanticscholar(json_text: str) -> list[RawDocument]:
                 source_uri=source_uri,
                 title=title or None,
                 raw_text=f"{title}\n\n{abstract}",
+                doi=normalize_doi(doi),
             )
         )
     return documents
@@ -348,6 +530,7 @@ def parse_europepmc(json_text: str) -> list[RawDocument]:
                 source_uri=source_uri,
                 title=title or None,
                 raw_text=f"{title}\n\n{abstract}",
+                doi=normalize_doi(doi),
             )
         )
     return documents
@@ -355,18 +538,265 @@ def parse_europepmc(json_text: str) -> list[RawDocument]:
 
 # source -> (url builder, response parser). Adding a source = one endpoint
 # constant + one builder + one parser + one row here (+ the allowlist entry).
+# ---------------------------------------------------------------------------
+# Publisher APIs (keyed). Endpoints are fixed hosts, exactly like the keyless
+# five — which is the whole reason full text is reached through APIs and not
+# by crawling document pages, whose doi.org -> publisher -> CDN redirect
+# chains cannot be enumerated in advance.
+# ---------------------------------------------------------------------------
+
+
+def _build_elsevier_url(query: str, limit: int) -> str:
+    # `field` is required to get an abstract: the STANDARD view omits
+    # `dc:description`, so without this the parser would return titles only.
+    return (
+        f"{ELSEVIER_API_URL}"
+        f"?query={quote_plus(query)}"
+        f"&count={limit}"
+        "&field=" + ",".join(_ELSEVIER_FIELDS)
+    )
+
+
+def _build_springer_url(query: str, limit: int) -> str:
+    return f"{SPRINGER_API_URL}?q={quote_plus(query)}&p={limit}"
+
+
+def _build_core_url(query: str, limit: int) -> str:
+    return f"{CORE_API_URL}?q={quote_plus(query)}&limit={limit}"
+
+
+def parse_elsevier(json_text: str) -> list[RawDocument]:
+    """Parse a Scopus Search response (`search-results.entry`).
+
+    Scopus keys are OpenSearch/PRISM-namespaced, so the field names carry
+    their prefixes literally: `dc:title`, `dc:description`, `prism:doi`.
+    """
+    payload = _load_json(json_text, ELSEVIER_SOURCE)
+    entries = ((payload.get("search-results") or {}).get("entry")) or []
+    documents: list[RawDocument] = []
+    for item in entries:
+        if not isinstance(item, dict):
+            continue
+        # An error entry carries `error` instead of a record; skipping keeps
+        # one bad row from emptying an otherwise good page.
+        if item.get("error"):
+            continue
+        title = _normalize(item.get("dc:title"))
+        abstract = _normalize(item.get("dc:description"))
+        if not title and not abstract:
+            continue
+        doi = _normalize(item.get("prism:doi"))
+        source_uri = f"{DOI_BASE_URL}{doi}" if doi else _normalize(item.get("prism:url"))
+        if not source_uri:
+            continue
+        documents.append(
+            RawDocument(
+                source_kind="paper_api",
+                source_uri=source_uri,
+                title=title or None,
+                raw_text=f"{title}\n\n{abstract}",
+                doi=normalize_doi(doi),
+            )
+        )
+    return documents
+
+
+def parse_springer(json_text: str) -> list[RawDocument]:
+    """Parse a Springer Nature Meta v2 response (`records`)."""
+    payload = _load_json(json_text, SPRINGER_SOURCE)
+    records = payload.get("records") or []
+    documents: list[RawDocument] = []
+    for item in records:
+        if not isinstance(item, dict):
+            continue
+        title = _normalize(item.get("title"))
+        # `abstract` is a string on most records but an object with `p` on
+        # structured ones; neither shape is worth a crash.
+        raw_abstract = item.get("abstract")
+        if isinstance(raw_abstract, dict):
+            raw_abstract = raw_abstract.get("p") or ""
+        if isinstance(raw_abstract, list):
+            raw_abstract = " ".join(str(part) for part in raw_abstract)
+        abstract = _normalize(_MARKUP_TAG_RE.sub(" ", str(raw_abstract or "")))
+        if not title and not abstract:
+            continue
+        doi = _normalize(item.get("doi"))
+        source_uri = f"{DOI_BASE_URL}{doi}" if doi else _first_springer_url(item)
+        if not source_uri:
+            continue
+        documents.append(
+            RawDocument(
+                source_kind="paper_api",
+                source_uri=source_uri,
+                title=title or None,
+                raw_text=f"{title}\n\n{abstract}",
+                doi=normalize_doi(doi),
+                pdf_url=_first_springer_url(item, want_pdf=True) or None,
+            )
+        )
+    return documents
+
+
+def _first_springer_url(item: dict, *, want_pdf: bool = False) -> str:
+    """Springer's `url` is a list of {format, platform, value} objects."""
+    urls = item.get("url")
+    if not isinstance(urls, list):
+        return ""
+    for entry in urls:
+        if not isinstance(entry, dict):
+            continue
+        fmt = str(entry.get("format") or "").lower()
+        if want_pdf and fmt != "pdf":
+            continue
+        if not want_pdf and fmt == "pdf":
+            continue
+        value = _normalize(entry.get("value"))
+        if value:
+            return value
+    return ""
+
+
+def parse_core(json_text: str) -> list[RawDocument]:
+    """Parse a CORE v3 `search/works` response (`results`)."""
+    payload = _load_json(json_text, CORE_SOURCE)
+    results = payload.get("results") or []
+    documents: list[RawDocument] = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        title = _normalize(item.get("title"))
+        abstract = _normalize(item.get("abstract"))
+        if not title and not abstract:
+            continue
+        doi = _normalize(item.get("doi"))
+        source_uri = (
+            f"{DOI_BASE_URL}{doi}" if doi
+            else _normalize(item.get("fullTextIdentifier"))
+        )
+        if not source_uri:
+            continue
+        documents.append(
+            RawDocument(
+                source_kind="paper_api",
+                source_uri=source_uri,
+                title=title or None,
+                raw_text=f"{title}\n\n{abstract}",
+                doi=normalize_doi(doi),
+                pdf_url=_normalize(item.get("downloadUrl")) or None,
+            )
+        )
+    return documents
+
+
+# How each keyed source carries its credential. Header-only, deliberately:
+# a key in a query string reaches the offline-refusal message, the
+# provenance record, `status.json`'s last_payload and the job log, all of
+# which this system writes without knowing a URL might be a secret. Elsevier
+# and Springer both accept a query parameter as well; that route is not
+# offered here.
+_SOURCE_AUTH = {
+    ELSEVIER_SOURCE: lambda key: {"X-ELS-APIKey": key, "Accept": "application/json"},
+    SPRINGER_SOURCE: lambda key: {"X-API-Key": key, "Accept": "application/json"},
+    CORE_SOURCE: lambda key: {"Authorization": f"Bearer {key}",
+                              "Accept": "application/json"},
+}
+
+
 _SOURCE_DISPATCH = {
     ARXIV_SOURCE: (_build_query_url, parse_atom),
     CROSSREF_SOURCE: (_build_crossref_url, parse_crossref),
     OPENALEX_SOURCE: (_build_openalex_url, parse_openalex),
     SEMANTIC_SCHOLAR_SOURCE: (_build_semanticscholar_url, parse_semanticscholar),
     EUROPEPMC_SOURCE: (_build_europepmc_url, parse_europepmc),
+    ELSEVIER_SOURCE: (_build_elsevier_url, parse_elsevier),
+    SPRINGER_SOURCE: (_build_springer_url, parse_springer),
+    CORE_SOURCE: (_build_core_url, parse_core),
+}
+
+# Sources that cannot be queried without a credential. Kept derived from
+# `_SOURCE_AUTH` so a keyed source can never be added to the dispatch table
+# and then silently queried anonymously.
+KEYED_SOURCES: frozenset[str] = frozenset(_SOURCE_AUTH)
+
+# This dispatch table IS the registry. A paper source exists exactly when it
+# has a URL builder and a parser, so deriving the set from it removes the
+# possibility of a half-added source: one that answers
+# `check_source_implemented` but has nothing to fetch with, or one that can
+# fetch but is refused. Adding a sixth source is a single edit above.
+IMPLEMENTED_SOURCES: frozenset[str] = frozenset(_SOURCE_DISPATCH)
+
+# The order the UI offers, and the tie-break the fan-out planned in
+# docs uses when two sources return the same paper. Declaration order in
+# _SOURCE_DISPATCH is the single answer to both.
+SOURCE_ORDER: tuple[str, ...] = tuple(_SOURCE_DISPATCH)
+
+# Display names live beside the registry, not in the markup: the browser now
+# renders its picker from the API, and a label kept only in HTML would be a
+# fifth place a source has to be spelled out.
+PAPER_SOURCE_LABELS: dict[str, str] = {
+    ARXIV_SOURCE: "arXiv",
+    CROSSREF_SOURCE: "Crossref",
+    OPENALEX_SOURCE: "OpenAlex",
+    SEMANTIC_SCHOLAR_SOURCE: "Semantic Scholar",
+    EUROPEPMC_SOURCE: "Europe PMC (PubMed)",
+    ELSEVIER_SOURCE: "Elsevier (Scopus)",
+    SPRINGER_SOURCE: "Springer Nature",
+    CORE_SOURCE: "CORE",
 }
 
 
+class MissingSourceKey(Exception):
+    """Raised when a keyed publisher source has no credential configured.
+
+    Its own type because "not connected" is a configuration state, not a
+    fetch failure: `fetch_sources` reports it as `unconfigured` so a fan-out
+    does not tell the user their network is broken when they simply have not
+    connected Elsevier.
+    """
+
+
+def resolve_source_key(source: str, data_dir: Any) -> str:
+    """Return the credential for a keyed source, or "" when not connected.
+
+    Imported lazily: `sources` imports `keychain`, which shells out to
+    `security`, and the keyless five must not pay for that at import time —
+    nor should a non-macOS host fail to import this module at all.
+    """
+    if source not in KEYED_SOURCES or data_dir is None:
+        return ""
+    try:
+        from ontologylab.sources import load_sources, resolve_source_key as _resolve
+    except ImportError:  # pragma: no cover — registry is optional
+        return ""
+    for entry in load_sources(data_dir):
+        if entry.role == "literature":
+            return _resolve(entry) or ""
+    return ""
+
+
+def available_sources(data_dir: Any = None) -> list[str]:
+    """Sources a run can actually query right now, in declaration order.
+
+    The keyless five, plus any publisher source whose key is configured.
+    Querying an unconnected publisher would add three `unconfigured`
+    failures to every single research run — a permanent row of red for a
+    feature the user has not opted into. Not connecting Elsevier is a
+    choice, not a fault, so it should be silent.
+    """
+    return [
+        name
+        for name in SOURCE_ORDER
+        if name not in KEYED_SOURCES or resolve_source_key(name, data_dir)
+    ]
+
+
 class PaperApiConnector:
-    """Queries a keyless paper-metadata API (arXiv/Crossref/OpenAlex/
-    Semantic Scholar/Europe PMC)."""
+    """Queries a paper-metadata API.
+
+    Five are keyless (arXiv/Crossref/OpenAlex/Semantic Scholar/Europe PMC);
+    three are publisher APIs that carry a credential in a request header
+    (Elsevier/Springer/CORE).
+    """
 
     def name(self) -> str:
         return "paper_api"
@@ -383,5 +813,104 @@ class PaperApiConnector:
         check_paper_query(source, query)
         check_source_implemented(source)
         build_url, parse = _SOURCE_DISPATCH[source]
-        body = _http_get_text(build_url(query, limit))
+
+        headers: dict[str, str] = {}
+        if source in KEYED_SOURCES:
+            key = resolve_source_key(source, source_spec.get("data_dir"))
+            if not key:
+                # Refuse before the URL is built, let alone fetched. An
+                # anonymous request to a publisher API is a 401 at best and
+                # a silently empty page at worst, and either would read as
+                # "this source found nothing".
+                raise MissingSourceKey(
+                    f"paper source {source!r} needs a publisher key; "
+                    f"connect journal access first"
+                )
+            headers = _SOURCE_AUTH[source](key)
+
+        # `_http_get_text` is a blocking `urlopen`; this coroutine used to be
+        # `async` in name only, so gathering five sources ran them one after
+        # another — five serial 30s timeouts in the worst case. Handing the
+        # whole helper to a thread keeps its internals in order: the offline
+        # guard still runs inside it, before the socket, on that same thread.
+        url = build_url(query, limit)
+        # Passed only when there is one, so the many `lambda url: FIXTURE`
+        # monkeypatches in the suite keep matching the call.
+        if headers:
+            body = await asyncio.to_thread(_http_get_text, url, headers)
+        else:
+            body = await asyncio.to_thread(_http_get_text, url)
         return parse(body)
+
+
+@dataclass(frozen=True)
+class SourceFailure:
+    """One source that did not answer, and why — kept, not discarded."""
+
+    source: str
+    error: str
+    kind: str  # rejected | unsupported | too_large | unconfigured | fetch_failed
+
+
+def _classify(exc: BaseException) -> str:
+    if isinstance(exc, MissingSourceKey):
+        # Not a failure to report as one: the source is simply not
+        # connected, and calling that "fetch_failed" would send the user
+        # looking for a network problem they do not have.
+        return "unconfigured"
+    if isinstance(exc, UnsupportedPaperSource):
+        return "unsupported"
+    if isinstance(exc, NotAllowlisted):
+        return "rejected"
+    if isinstance(exc, ResponseTooLarge):
+        return "too_large"
+    return "fetch_failed"
+
+
+async def fetch_sources(
+    sources: Sequence[str],
+    query: str,
+    limit: int | None = None,
+    data_dir: Any = None,
+) -> tuple[list[tuple[str, list[RawDocument]]], list[SourceFailure]]:
+    """Query several sources at once; keep what answered, report what did not.
+
+    Returns `(batches, failures)` where `batches` is `(source, documents)` in
+    the order given — the shape `collapse_duplicates` needs to break ties by
+    declared source order.
+
+    Partial success is the point. Semantic Scholar rate-limits unauthenticated
+    clients aggressively, and the previous all-or-nothing behaviour meant one
+    429 discarded the other four sources' results. A failed source becomes a
+    `SourceFailure` the caller can report beside the documents it did get.
+
+    Offline mode is deliberately NOT handled here. Under
+    `return_exceptions=True` a `NetworkBlocked` would arrive once per source
+    and read as "five sources failed", losing the fact that the kill switch
+    is what stopped them. The caller checks `paths.offline_mode()` before
+    calling this, and the per-fetch `assert_network_allowed` stays as defence
+    in depth.
+    """
+    connector = PaperApiConnector()
+    specs = [
+        {"source": name, "query": query, "limit": limit, "data_dir": data_dir}
+        for name in sources
+    ]
+    results = await asyncio.gather(
+        *(connector.fetch(spec) for spec in specs),
+        return_exceptions=True,
+    )
+    batches: list[tuple[str, list[RawDocument]]] = []
+    failures: list[SourceFailure] = []
+    for name, result in zip(sources, results, strict=True):
+        if isinstance(result, BaseException):
+            if isinstance(result, NetworkBlocked):
+                # The kill switch is not a per-source failure; surfacing it
+                # as one would hide why nothing was fetched.
+                raise result
+            failures.append(
+                SourceFailure(source=name, error=str(result), kind=_classify(result))
+            )
+            continue
+        batches.append((name, result))
+    return batches, failures

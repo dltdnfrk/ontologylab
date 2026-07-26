@@ -102,9 +102,17 @@ def _iter_provenance_entries(job_dir: Path) -> list[dict[str, Any]]:
     return entries
 
 
-def cost_summary(root: Path = ROOT) -> CostSummary:
-    """Aggregate engine-call counts across data/jobs/*/provenance.jsonl."""
-    jobs_dir = default_data_dir(root) / "jobs"
+def cost_summary(root: Path = ROOT, data_dir: Path | None = None) -> CostSummary:
+    """Aggregate engine-call counts across <data_dir>/jobs/*/provenance.jsonl.
+
+    `data_dir` wins when given. Deriving the location from `root` alone was
+    wrong for every install that passes `--data-dir`, which is the shipped
+    launchd agent's configuration: the server wrote its jobs to Application
+    Support and this function read the repository's own `data/`, so the cost
+    screen reported a directory the running server never touched — usually
+    zero, and never the number the operator was looking for.
+    """
+    jobs_dir = (Path(data_dir) if data_dir is not None else default_data_dir(root)) / "jobs"
     total_calls = 0
     total_elapsed_s = 0.0
     per_engine: dict[str, dict[str, float]] = {}

@@ -153,6 +153,44 @@ first upgrade beyond it.
 - `ontologylab/connectors/web_crawl.py`: single-URL / small-URL-list fetcher (HTML → text
   extraction, e.g. via stdlib `html.parser` or a light dependency); every URL host is checked
   against `WEB_CRAWL_ALLOWED_HOSTS` before fetch.
+
+**Update (2026-07-26) — "keyless" is now a property of *some* sources, not of the design.**
+Five sources remain keyless (arXiv, Crossref, OpenAlex, Semantic Scholar, Europe PMC). Three
+publisher APIs now ship alongside them and carry credentials: **Elsevier (Scopus)**
+`api.elsevier.com` via `X-ELS-APIKey`, **Springer Nature** `api.springernature.com` via
+`X-API-Key`, and **CORE** `api.core.ac.uk` via `Authorization: Bearer`. Each is one fixed host,
+which is what keeps them inside an exact-match allowlist.
+
+A keyed source is queried **only when its key is connected**: `available_sources()` filters them
+out otherwise, so an unconfigured install never sees three permanent failures for a feature it
+has not opted into. Asking for one explicitly still answers, with `error_kind: "unconfigured"` —
+a configuration state, not a fetch failure.
+
+The allowlist grew two guarantees that a keyless connector never needed:
+
+- `PAPER_API_HOSTS` — every host `_http_get_text` may reach, **derived from the endpoint
+  constants**, and `check_paper_host` enforces exact match + https on every redirect hop.
+  Without it an allowlisted endpoint could 3xx a fetch to any origin at all.
+- **Credentials never cross an origin.** `urllib` forwards every header but `Content-Length` and
+  `Content-Type` to a redirect target, including an API key — credential stripping is
+  `requests`/`urllib3` behaviour, not `urllib`'s. `_AllowlistedPaperRedirect` drops everything
+  outside `_REDIRECT_SAFE_HEADERS` when the host changes. It is an allowlist because each
+  publisher names its key header differently and forgetting one fails silently.
+
+Keys themselves are **never** stored in the registry: `sources.json` holds a Keychain reference,
+resolved at request time, and the value is never serialized into any HTTP response (the
+`key_present` pattern `providers.json` already uses).
+
+Two things about the Keychain that were measured rather than assumed, both the hard way:
+
+- **`add-generic-password -U -T ...` against an existing item prompts** for the login password —
+  macOS treats setting an ACL on an item that already exists as a permission change. Rotation is
+  the commonest reason to write twice, so `keychain.write_key` deletes and re-creates instead,
+  keeping the previous value to restore if the create fails.
+- **A zero exit status does not mean "stored".** The rejected stdin transport (`-w` with the value
+  on stdin) exited 0 and stored an *empty* password at every length from 32 to 1024 bytes. Every
+  write is therefore verified by reading it back, and a timeout is resolved by that read rather
+  than reported as failure.
 - CLI: `python -m ontologylab.main collect --paper-query "..." [--paper-source arxiv] [--limit 5]`
   writes rows into `documents` via `kgstore.py`, logs each fetch via `provenance.py`.
   (Shipped shape: flag-style inputs — `--paper-query`/`--url`/`--file`, composable in one run —

@@ -1,12 +1,40 @@
 /* ==========================================================================
-   ontologylab — flat neutral UI, Pretendard, one restrained accent
-   (visual language studied from vibedesignlab.net). Offline, no CDN.
-   Tokens follow shadcn/ui semantic pairs (background/foreground per surface,
-   sidebar-*, chart-*, ring) so themes stay swappable — values unchanged.
-   Every functional selector the JS toggles is preserved:
+   ontologylab — 종이-잉크 작업대 UI. Pretendard 한 벌, 오프라인(No CDN).
+
+   설계 원칙 세 가지 (전부 실제 화면을 보고 고친 결과다):
+
+   1) 색은 뜻이 있을 때만 쓴다.
+      이전 팔레트는 차가운 회색 캔버스 + 밝은 인디고(#5b5bd6)였고, 그 인디고를
+      소제목·테두리·활성 탭·확신도 열에 장식으로 뿌렸다. 결과적으로 어느
+      SaaS 대시보드와도 구분되지 않았고, 색이 아무 정보도 나르지 않았다.
+      지금은 따뜻한 종이 위 잉크가 기본이고, 채도가 있는 색은 이 앱의
+      상태기계에만 배정한다 — 호박=제안(사람 눈 대기), 초록=검증됨,
+      진홍=거부. 상호작용(포커스·활성·주 버튼)은 그 셋과 겹치지 않는
+      깊은 잉크 네이비 하나로만 표시한다.
+
+   2) 서체는 한 벌로 간다.
+      이전에는 Outfit이 unicode-range로 ASCII를, Pretendard가 한글을 맡았는데
+      광학 굵기가 서로 달라서 한국어 문장 속 영문·숫자가 전부 굵게 보였다.
+      그래서 검토 화면에서 가장 굵게 읽히는 것이 하필 32자리 hex ID였다.
+      본문에서는 Outfit을 빼고 Pretendard가 라틴까지 덮는다.
+
+   3) 크기·굵기가 아니라 스케일이 위계를 만든다.
+      이전에는 0.7~0.87rem 사이 아홉 개의 임의값과 500/600/650/700 굵기가
+      섞여 있었다. 지금은 --fs-* 일곱 단계, --fw-* 세 단계, --sp-* 4px 그리드,
+      그리고 산문 폭 제한(--measure)만 쓴다. 새 값을 여기 없이 인라인으로
+      쓰지 말 것 — 그러면 다시 원래대로 돌아간다.
+
+   토큰은 shadcn/ui 의미쌍(background/foreground, sidebar-*, chart-*, ring)을
+   그대로 따르므로 테마 교체 지점은 :root 두 블록뿐이다.
+
+   JS가 토글하거나 질의하는 선택자는 이름을 바꾸지 말 것:
    .hidden  .active  .tab-panel  .inspector-open  .row-focused  .selected
    .journey-done  .empty-state-card  .conf-cell(--v)  .is-ok/.is-todo
-   .st-* / .kind-*  body[data-active-tab]  — do not rename these.
+   .st-* / .kind-*  .actions  .merge-actions  .row-check  .status-row
+   body[data-active-tab]
+   그래프는 특히 조심 — circle 의 fill/r 과 g.g-node·#graph-root 의 transform 은
+   JS가 매 프레임 속성으로 쓴다. CSS로 그 셋을 지정하면 타입별 색, 차수별
+   크기, 힘기반 배치가 한꺼번에 죽는다.
    ========================================================================== */
 
 /* ---------- 0. Bundled font (Pretendard, OFL) ----------
@@ -36,63 +64,81 @@
 :root {
   color-scheme: light dark;
 
-  /* 캔버스/글자 — 보랏빛이 살짝 도는 뉴트럴 (Pretendard 잉크 톤) */
-  --background: #fafafa;
-  --foreground: #1a191d;
+  /* 캔버스/글자 — 따뜻한 종이와 잉크.
+     차가운 회색 캔버스(#fafafa) + 밝은 인디고 포인트는 어느 SaaS 대시보드에나
+     있는 기본값이라 이 도구가 무엇인지 아무것도 말하지 않았다. 여기는 사람이
+     직접 검증해 지식을 쌓아 두는 작업대이므로 종이-잉크 쪽으로 옮긴다. */
+  --background: #f6f4f0;
+  --foreground: #201e1a;
 
-  /* 면(surface) 쌍 — 크롬 패널과 카드 모두 flat white */
-  --card: #ffffff;
-  --card-foreground: #1a191d;
-  --popover: #ffffff;
-  --popover-foreground: #1a191d;
+  /* 면(surface) 쌍 — 캔버스보다 한 단계 밝은 따뜻한 흰색 */
+  --card: #fffdfa;
+  --card-foreground: #201e1a;
+  --popover: #fffdfa;
+  --popover-foreground: #201e1a;
 
-  /* 주 버튼: 잉크 (Vercel/Attio) */
-  --primary: #17161a;
-  --primary-foreground: #ffffff;
+  /* 주 버튼: 잉크 */
+  --primary: #201e1a;
+  --primary-foreground: #fffdfa;
 
   /* 채움/칩/코드 배경 */
-  --secondary: #f4f4f6;
-  --secondary-foreground: #1a191d;
-  --muted: #f4f4f6;
-  --muted-foreground: #6e6b76;
+  --secondary: #ece8e1;
+  --secondary-foreground: #201e1a;
+  --muted: #ece8e1;
+  --muted-foreground: #6a635a;
 
-  /* 단일 포인트색: 절제된 인디고 (레퍼런스의 rgb(158,158,255) 계열) */
-  --accent: #5b5bd6;
-  --accent-foreground: #ffffff;
-  --accent-soft: rgba(91, 91, 214, 0.1);
+  /* 상호작용 단일 포인트색: 깊은 잉크 네이비.
+     상태 3색(호박·초록·진홍) 어느 것과도 겹치지 않아서, 색만 보고도
+     "내가 조작하는 것"과 "데이터가 말하는 것"이 구분된다. */
+  --accent: #1d3c61;
+  --accent-foreground: #fffdfa;
+  --accent-soft: rgba(29, 60, 97, 0.09);
 
-  --destructive: #d32f2f;
-  --destructive-foreground: #ffffff;
+  --destructive: #97302c;
+  --destructive-foreground: #fffdfa;
 
-  --border: #e5e3e8;                        /* hairline separator */
-  --input: #e5e3e8;
-  --ring: #5b5bd6;
+  --border: #e2dbd0;                        /* hairline separator */
+  --input: #e2dbd0;
+  --ring: #1d3c61;
 
-  /* 상태색은 기능 신호 전용 — 장식에 쓰지 않는다 */
-  --ok: #3d9a50;
-  --warn: #c77700;
-  --ok-text: #2e7d3f;
-  --warn-text: #a36200;
+  /* 확실성 = 선명도.
+     이 앱에서 사람이 하는 일은 "아직 못 믿을 것"을 "믿을 수 있는 것"으로
+     바꾸는 것 하나뿐이다. 그래서 그 축을 색상이 아니라 대비로 그린다 —
+     미검증 제안은 잉크가 옅고, 승인되면 완전한 잉크로 또렷해진다.
+     진행률이 숫자가 아니라 화면이 선명해지는 것으로 읽히고, 채도 있는
+     색은 결정(승인·거부)에만 남겨 둘 수 있다. */
+  --ink-draft: #6f675d;                     /* 미검증 — 옅은 잉크 */
+  --ink-verified: var(--foreground);        /* 검증됨 — 완전한 잉크 */
+
+  /* 상태색 = 이 앱의 상태기계 그 자체(제안 → 검증 / 거부).
+     장식에는 절대 쓰지 않는다 — 색이 보이면 언제나 뜻이 있다. */
+  --ok: #2f6b46;                            /* 검증됨 */
+  --warn: #94620f;                          /* 제안됨 — 사람 눈이 필요 */
+  --ok-text: #2a6040;
+  --warn-text: #7d520c;
+  --ok-soft: rgba(47, 107, 70, 0.1);
+  --warn-soft: rgba(148, 98, 15, 0.12);
+  --destructive-soft: rgba(151, 48, 44, 0.09);
 
   /* 앱 셸 크롬(헤더·파이프라인 바·캔버스) 면 — shadcn 확장 토큰.
      다크에선 카드보다 한 단계 가라앉아 헤어라인 없이도 깊이가 생긴다. */
-  --shell: #ffffff;
+  --shell: #fffdfa;
 
   /* 좌측 레일 전용 면 (shadcn sidebar 토큰) */
-  --sidebar: #ffffff;
-  --sidebar-foreground: #6e6b76;
-  --sidebar-primary: #5b5bd6;
-  --sidebar-accent: #f4f4f6;
-  --sidebar-accent-foreground: #1a191d;
-  --sidebar-border: #e5e3e8;
-  --sidebar-ring: #5b5bd6;
+  --sidebar: #f1eee8;
+  --sidebar-foreground: #6a635a;
+  --sidebar-primary: #1d3c61;
+  --sidebar-accent: #e6e1d8;
+  --sidebar-accent-foreground: #201e1a;
+  --sidebar-border: #e2dbd0;
+  --sidebar-ring: #1d3c61;
 
   /* 데이터 시각화 팔레트 (예약 — confidence bar 외 향후 차트용) */
-  --chart-1: #5b5bd6;
-  --chart-2: #3d9a50;
-  --chart-3: #c77700;
-  --chart-4: #d32f2f;
-  --chart-5: #6e6b76;
+  --chart-1: #1d3c61;
+  --chart-2: #2f6b46;
+  --chart-3: #94620f;
+  --chart-4: #97302c;
+  --chart-5: #6a635a;
 
   --shadow-float: none;                      /* 깊이는 면 값 차이와
                                                 헤어라인으로 표현 */
@@ -103,61 +149,117 @@
   --radius-md: var(--radius);                /* 10px */
   --radius-lg: calc(var(--radius) + 2px);    /* 12px */
 
-  --font: "Outfit", "Pretendard Variable", Pretendard, -apple-system,
+  /* 본문 서체는 한 벌만 쓴다.
+     이전에는 Outfit이 unicode-range로 ASCII만 담당하고 한글은 Pretendard가
+     받았는데, 두 서체의 광학 굵기가 달라서 한국어 문장 안의 영문·숫자가
+     전부 굵게 튀어 보였다("URL", "arXiv", "0.80", "part_of" …). 그래서 화면에서
+     가장 강조돼 보이는 것이 하필 가장 의미 없는 hex ID였다. Pretendard는
+     라틴까지 한 벌로 덮으므로 본문에서는 Outfit을 뺀다. Outfit은 굵기 대비가
+     의도인 워드마크에만 남긴다. */
+  --font: "Pretendard Variable", Pretendard, -apple-system,
           BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR",
           "Segoe UI", Helvetica, Arial, sans-serif;
+  /* ⚠ 워드마크 전용. Outfit은 unicode-range로 ASCII만 담당하므로, 한글이
+     섞이는 곳에 쓰면 영문만 굵게 튀는 원래 버그가 그대로 재발한다.
+     .brand h1("ontologylab")처럼 순수 ASCII 한 덩어리에만 쓸 것. */
+  --font-display: "Outfit", var(--font);
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* 타입 스케일 — 이전에는 0.7·0.74·0.78·0.82·0.83·0.84·0.85·0.86·0.87rem이
+     제각각 쓰여서 "크기를 조절했다"는 느낌만 있고 위계가 없었다.
+     여기서는 단계를 여섯으로 못박고, 각 단계에 줄간격·자간을 함께 묶는다. */
+  --fs-display: 21px;                        /* 화면 제목 */
+  --fs-lg: 17px;                             /* 섹션 제목 */
+  --fs-md: 15px;                             /* 소제목 */
+  --fs-base: 14px;                           /* 본문 */
+  --fs-sm: 13px;                             /* 보조·표 셀 */
+  --fs-xs: 12px;                             /* 캡션·메타 */
+  --fs-label: 11px;                          /* 아이브로우·레일 구분 */
+
+  --lh-tight: 1.24;
+  --lh-snug: 1.42;
+  --lh-body: 1.65;
+
+  --ls-display: -0.018em;                    /* 큰 글자는 좁혀야 덩어리로 읽힌다 */
+  --ls-tight: -0.008em;
+  --ls-label: 0.075em;                       /* 작은 대문자 라벨은 벌려야 읽힌다 */
+
+  /* 굵기는 세 단계만. 위계는 굵기가 아니라 색·크기·간격이 만든다. */
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-bold: 600;
+
+  /* 간격 스케일 (4px 그리드) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  /* 읽기 폭 — 본문이 화면 끝까지 늘어나면 한 줄이 120자를 넘어 눈이 줄을
+     잃는다. 산문은 measure로, 표·캔버스는 wide로 제한한다. */
+  --measure: 72ch;
+  --content-max: 1080px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0e0d11;
-    --foreground: #e5e3e8;
+    /* 라이트의 종이-잉크를 뒤집는다: 차가운 먹빛이 아니라 따뜻한 어둠 */
+    --background: #14120f;
+    --foreground: #ece7dd;
 
-    --card: #1a191e;
-    --card-foreground: #e5e3e8;
-    --popover: #1a191e;
-    --popover-foreground: #e5e3e8;
+    --card: #1d1a16;
+    --card-foreground: #ece7dd;
+    --popover: #1d1a16;
+    --popover-foreground: #ece7dd;
 
-    --primary: #f2f1f4;           /* 다크에선 화이트 버튼 + 잉크 글자 */
-    --primary-foreground: #131217;
+    --primary: #ece7dd;           /* 다크에선 밝은 버튼 + 잉크 글자 */
+    --primary-foreground: #14120f;
 
-    --secondary: #232127;
-    --secondary-foreground: #e5e3e8;
-    --muted: #232127;
-    --muted-foreground: #928f99;
+    --secondary: #272320;
+    --secondary-foreground: #ece7dd;
+    --muted: #272320;
+    --muted-foreground: #9a9186;
 
-    --accent: #9e9eff;
-    --accent-foreground: #0a090c; /* 밝은 인디고 위엔 잉크색 */
-    --accent-soft: rgba(158, 158, 255, 0.14);
+    --accent: #8fb0d9;            /* 어두운 면 위에서 읽히는 잉크 네이비 */
+    --accent-foreground: #12100d;
+    --accent-soft: rgba(143, 176, 217, 0.15);
 
-    --destructive: #e5534b;
-    --destructive-foreground: #0a090c;
+    --destructive: #d9736c;
+    --destructive-foreground: #12100d;
 
-    --border: #2a282f;
-    --input: #2a282f;
-    --ring: #9e9eff;
+    --border: #322d28;
+    --input: #322d28;
+    --ring: #8fb0d9;
 
-    --ok: #4caf6d;
-    --warn: #cf9f4a;
+    --ok: #6fb389;
+    --warn: #cfa257;
     --ok-text: var(--ok);
     --warn-text: var(--warn);
+    --ok-soft: rgba(111, 179, 137, 0.15);
+    --warn-soft: rgba(207, 162, 87, 0.18);
+    --destructive-soft: rgba(217, 115, 108, 0.15);
 
-    --shell: #141317;
+    --ink-draft: #918a80;
+    --ink-verified: var(--foreground);
 
-    --sidebar: #141317;
-    --sidebar-foreground: #928f99;
-    --sidebar-primary: #9e9eff;
-    --sidebar-accent: #232127;
-    --sidebar-accent-foreground: #e5e3e8;
-    --sidebar-border: #2a282f;
-    --sidebar-ring: #9e9eff;
+    --shell: #1a1713;
 
-    --chart-1: #9e9eff;
-    --chart-2: #4caf6d;
-    --chart-3: #cf9f4a;
-    --chart-4: #e5534b;
-    --chart-5: #928f99;
+    --sidebar: #1a1713;
+    --sidebar-foreground: #9a9186;
+    --sidebar-primary: #8fb0d9;
+    --sidebar-accent: #272320;
+    --sidebar-accent-foreground: #ece7dd;
+    --sidebar-border: #322d28;
+    --sidebar-ring: #8fb0d9;
+
+    --chart-1: #8fb0d9;
+    --chart-2: #6fb389;
+    --chart-3: #cfa257;
+    --chart-4: #d9736c;
+    --chart-5: #9a9186;
   }
 }
 
@@ -170,21 +272,78 @@ html, body { margin: 0; padding: 0; }
 body {
   color: var(--foreground);
   font-family: var(--font);
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
+  letter-spacing: var(--ls-tight);
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
   background: var(--background);
+  /* 한국어는 기본값(word-break:normal)이면 어절이 아니라 음절 단위로
+     끊긴다 — "낮다 / 고 틀린 게", "· 연 / 결 1개" 처럼. 어절을 지키고,
+     끊을 수 없는 긴 토큰(URL·해시)만 강제로 넘긴다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 a { color: var(--accent); }
 
-h1, h2, h3, h4 { letter-spacing: -0.01em; }
+/* 제목 위계는 크기·자간·줄간격이 함께 움직여야 생긴다.
+   (이전엔 크기와 굵기만 바뀌어서 전부 "굵은 글씨" 한 덩어리로 보였다.) */
+h1, h2, h3, h4 { font-weight: var(--fw-bold); text-wrap: balance; }
+h2 {
+  font-size: var(--fs-display);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-display);
+  margin: 0 0 var(--sp-2);
+}
+/* 제목 사다리: 21 → 17 → 15 → 14. 이전에는 h3와 h4가 둘 다 본문 크기라
+   섹션 제목과 그 하위 제목이 육안으로 같았고, --fs-lg 단계는 한 번도
+   렌더되지 않아 21px 다음이 곧장 14px로 떨어졌다. */
+h3 {
+  font-size: var(--fs-lg);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--ls-tight);
+  margin: var(--sp-6) 0 var(--sp-3);
+}
+
+h4 {
+  font-size: var(--fs-md);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--ls-tight);
+  margin: var(--sp-5) 0 var(--sp-2);
+}
+
+/* 숫자는 표·통계 어디서든 자리가 흔들리면 안 된다 */
+code, kbd, .conf-cell, td, .step-stat, .status-row code {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 본문 속 강조: 이전엔 <strong>이 유일한 강조 수단이라 한 문단에
+   대여섯 개씩 굵은 덩어리가 박혔다. 굵기는 한 단계만 올리고 잉크를
+   진하게 해서, 흐름을 끊지 않으면서 눈에 걸리게 한다. */
+p strong, li strong {
+  font-weight: var(--fw-medium);
+  color: var(--foreground);
+}
 
 .hidden { display: none !important; }
-.muted { color: var(--muted-foreground); font-size: 0.85rem; }
+.muted { color: var(--muted-foreground); font-size: var(--fs-sm); }
+
+/* <small>은 브라우저 기본이 0.83em이라 이미 작아진 부모 위에서 또 곱해진다.
+   .muted(13px) 안의 <small>이 10.8px까지 내려가 다음 단계 안내가 화면에서
+   가장 작은 글자가 됐다. 배율 대신 스케일 단계를 쓴다. */
+small { font-size: var(--fs-xs); }
 .ok-msg { color: var(--ok); }
 .err-msg { color: var(--destructive); }
+
+/* 아이브로우/구분 라벨 — 작게 + 자간을 벌려서 "제목이 아니라 라벨"로 읽히게 */
+.eyebrow {
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
 
 .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .row.space-between { justify-content: space-between; }
@@ -223,9 +382,17 @@ header.app-header {
   padding: 0.5rem 1.1rem;
 }
 
-.brand { display: flex; align-items: baseline; gap: 0.65rem; }
-.brand h1 { margin: 0; font-size: 1.02rem; font-weight: 700; }
-.brand p { margin: 0; font-size: 0.78rem; color: var(--muted-foreground); }
+.brand { display: flex; align-items: baseline; gap: var(--sp-3); }
+/* 워드마크만 Outfit을 쓴다 — 본문에서는 굵기가 튀어서 뺐지만, 여기서는
+   그 대비가 의도다(로고는 문장 속에 섞이지 않는다). */
+.brand h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-display);
+}
+.brand p { margin: 0; font-size: var(--fs-sm); color: var(--muted-foreground); }
 
 .header-status { display: flex; align-items: center; gap: 0.5rem; min-height: 2.1rem; }
 
@@ -249,8 +416,8 @@ nav.tabs .tab-btn {
   gap: 0.55rem;
   text-align: left;
   font: inherit;
-  font-size: 0.855rem;
-  font-weight: 500;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
   color: var(--sidebar-foreground);
   background: transparent;
   border: none;
@@ -270,15 +437,15 @@ nav.tabs .tab-btn:hover {
 nav.tabs .tab-btn.active {
   color: var(--sidebar-accent-foreground);
   background: var(--sidebar-accent);
-  font-weight: 600;
+  font-weight: var(--fw-bold);
 }
 nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--sidebar-primary); }
 
-.tab-btn-aux { font-size: 0.83rem; }
+.tab-btn-aux { font-size: var(--fs-sm); }
 
 .nav-group-label {
-  font-size: 0.68rem;
-  font-weight: 600;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted-foreground);
@@ -288,7 +455,7 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--sidebar-primary); }
 .nav-rail-footer {
   margin-top: auto;
   padding: 0.8rem 0.7rem 0.3rem;
-  font-size: 0.7rem;
+  font-size: var(--fs-label);
   color: var(--muted-foreground);
 }
 
@@ -299,8 +466,8 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--sidebar-primary); }
   border-radius: 999px;
   background: var(--accent);
   color: var(--accent-foreground);
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-bold);
   text-align: center;
 }
 
@@ -343,14 +510,14 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--sidebar-primary); }
 
 .step-no {
   color: var(--accent);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
-.step-name { font-weight: 500; font-size: 0.84rem; }
+.step-name { font-weight: var(--fw-medium); font-size: var(--fs-sm); }
 .step-desc { display: none; }
 
 .step-stat {
-  font-size: 0.74rem;
+  font-size: var(--fs-xs);
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
 }
@@ -378,56 +545,89 @@ main {
   grid-column: 2;
   grid-row: 3;
   overflow-y: auto;
-  padding: 1.6rem 2rem 2.6rem;
+  padding: var(--sp-6) var(--sp-6) var(--sp-7);
 }
 
-.tab-panel { display: none; max-width: 1020px; margin: 0 auto; }
+/* 비활성 탭은 반드시 display:none 이어야 한다 — 그래프의 rAF 루프가
+   #graph-svg의 폭 0을 보고 스스로 멈추는 데 이 값을 쓴다(app.js:1798). */
+.tab-panel { display: none; max-width: var(--content-max); margin: 0 auto; }
 .tab-panel.active { display: block; }
 
 .tab-panel h2 {
-  margin: 0 0 0.3rem;
-  font-size: 1.3rem;
-  font-weight: 700;
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-display);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-display);
+  line-height: var(--lh-tight);
 }
 
 .tab-panel h3 {
-  margin: 1.9rem 0 0.7rem;
-  font-size: 0.98rem;
-  font-weight: 650;
+  margin: var(--sp-6) 0 var(--sp-3);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-tight);
 }
 
+/* 산문은 폭을 묶는다. 패널이 1080px이라고 문장까지 1080px로 흐르면
+   한 줄이 100자를 넘어 눈이 다음 줄 첫머리를 잃는다. */
+.tab-intro,
+.tab-panel > p,
+.journey-body p,
+.empty-state-card p {
+  max-width: var(--measure);
+}
+
+/* 단 '문단처럼 생긴 상자'는 예외다 — 빈 상태 카드와 상태 박스는 <p>로
+   마크업돼 있어서 위 규칙에 걸리면 테두리 상자만 혼자 반쪽 폭이 되어
+   바로 위 결과 박스와 어긋나 보인다. 상자는 콘텐츠 폭을 따른다. */
+.tab-panel > p.empty-state-card,
+.tab-panel > p.status-box,
+.tab-panel > p.kbd-hint { max-width: none; }
+
 .tab-intro {
-  margin: 0.35rem 0 1.15rem;
-  padding: 0.75rem 1rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  border-radius: var(--radius-md);
+  margin: var(--sp-3) 0 var(--sp-5);
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
   color: var(--muted-foreground);
-  font-size: 0.87rem;
-  box-shadow: var(--shadow-soft);
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
 }
 
 /* ---------- 7. Controls ---------- */
 
-label { font-size: 0.78rem; color: var(--muted-foreground); }
+label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--muted-foreground);
+  letter-spacing: 0;
+}
 
+/* 입력칸은 테두리가 보여야 '칸'으로 읽힌다. 이전에는 투명 테두리 + 회색
+   채움이라, 폭이 제각각인 회색 덩어리가 떠 있는 것처럼 보였다. */
 input, select, textarea {
   font-family: inherit;
-  font-size: 0.9rem;
-  background: var(--muted);
+  font-size: var(--fs-base);
+  background: var(--card);
   color: var(--foreground);
-  border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--sp-3);
+  height: 34px;
+  line-height: normal;
   width: 100%;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+
+textarea { height: auto; padding: var(--sp-2) var(--sp-3); line-height: var(--lh-snug); }
+
+input::placeholder, textarea::placeholder { color: var(--muted-foreground); opacity: 0.72; }
 
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--accent);
-  background: var(--card);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 /* native checkboxes: don't inherit text-input chrome; keep visible focus */
@@ -446,22 +646,29 @@ input[type="checkbox"]:focus-visible, input[type="radio"]:focus-visible {
 
 button {
   font-family: inherit;
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   cursor: pointer;
 }
 
+/* 버튼 높이를 입력칸과 같은 34px로 맞춘다 — 툴바에서 버튼과 셀렉트가
+   1~3px씩 어긋나 줄이 들쭉날쭉해 보이던 원인. 라벨 길이는 런타임에
+   바뀌므로("선택 승인 (12)", "복사됨!") 폭은 절대 고정하지 않는다. */
 .btn,
 button.mcpb-btn {
   appearance: none;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   color: var(--foreground);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.38rem 0.85rem;
+  padding: 0 var(--sp-3);
+  height: 34px;
   font: inherit;
-  font-size: 0.83rem;
-  font-weight: 500;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease,
               opacity 0.15s ease;
@@ -474,9 +681,16 @@ button.mcpb-btn {
   background: var(--primary);
   border-color: var(--primary);
   color: var(--primary-foreground);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
-.btn-primary:hover, .btn.primary:hover { opacity: 0.88; }
+/* background를 다시 지정해야 한다. `.btn:hover`가 특이도 0,2,0으로
+   `.btn-primary`(0,1,0)를 이겨서 배경을 --muted로 덮는데, 글자색은
+   --primary-foreground(거의 흰색) 그대로 남는다 — 밝은 배경 위 흰 글씨라
+   hover하는 순간 라벨이 사라졌다. */
+.btn-primary:hover, .btn.primary:hover {
+  background: var(--primary);
+  opacity: 0.88;
+}
 
 .btn-danger, .btn.danger {
   background: transparent;
@@ -489,8 +703,14 @@ button.mcpb-btn {
   color: var(--destructive-foreground);
 }
 
+/* 비활성 버튼은 '가라앉아야' 한다. opacity만 낮추면 진한 버튼이 중간 회색
+   덩어리가 되어, 정작 지금 누를 수 있는 버튼보다 더 무거워 보인다
+   (검토 화면에서 disabled '선택 승인'이 활성 행 버튼을 압도했다). */
 .btn:disabled, button:disabled {
-  opacity: 0.45;
+  opacity: 1;
+  background: var(--muted);
+  border-color: var(--border);
+  color: var(--muted-foreground);
   cursor: not-allowed;
 }
 
@@ -503,7 +723,7 @@ button.mcpb-btn {
   font-size: inherit;
   cursor: pointer;
   text-decoration: none;
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
 .btn-link:hover { text-decoration: underline; background: none; }
 
@@ -515,35 +735,65 @@ button:focus-visible, .btn:focus-visible, .step:focus-visible,
 
 /* ---------- 8. Forms ---------- */
 
+/* 이전에는 auto-fit/minmax(210px)이라 폭에 따라 열 수가 제멋대로 잡혀서,
+   수집 폼(필드 5개)이 4열 + 홀로 남은 1개로 끊기고 그 오른쪽이 통째로
+   비었다. 열 수를 2로 못박고 폼 자체의 폭을 묶으면 남는 칸이 생겨도
+   의도된 배치로 읽힌다. */
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 0.8rem 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4) var(--sp-4);
+  align-items: end;
+  max-width: 680px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 1rem 1.1rem;
-  box-shadow: var(--shadow-soft);
+  padding: var(--sp-5);
 }
 
-.form-grid label { display: flex; flex-direction: column; gap: 0.35rem; }
+.form-grid label { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+/* 넓은 입력(URL·경로처럼 값이 긴 것)은 한 줄을 다 쓴다 */
+.form-grid label.span-2 { grid-column: 1 / -1; }
+
+/* 입력이 하나뿐인 폼(팩 빌드 등)은 2열을 유지할 이유가 없다 — 오른쪽
+   절반이 빈 채 남아 '칸이 하나 빠진' 것처럼 보인다. 내용에 맞춰 줄인다. */
+.form-grid:has(> label:only-of-type) {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 420px;
+}
 
 .form-actions {
   grid-column: 1 / -1;
   display: flex;
-  gap: 0.55rem;
+  gap: var(--sp-2);
   align-items: center;
   flex-wrap: wrap;
 }
 
+/* 툴바로 쓰이는 .form-actions 안에서는 라벨이 컨트롤 위가 아니라 옆에
+   붙어야 한다 — 세로 라벨 때문에 셀렉트만 키가 커져서 버튼들과 밑선이
+   어긋나 보이던 문제. */
+.form-actions label {
+  /* display를 반드시 먼저 지정해야 한다 — .form-actions가 flex라서 자식
+     label은 blockify되고, 그 상태에서는 아래 flex 속성이 전부 무시된다. */
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-2);
+  white-space: nowrap;
+}
+.form-actions label select,
+.form-actions label input { width: auto; min-width: 150px; }
+
 .tab-panel > .form-actions,
-.review-main > .form-actions { margin: 0.8rem 0; }
+.review-main > .form-actions { margin: var(--sp-4) 0; }
 
 .adv-opts { grid-column: 1 / -1; }
 .adv-opts summary {
   cursor: pointer;
   color: var(--muted-foreground);
-  font-size: 0.84rem;
+  font-size: var(--fs-sm);
 }
 .adv-opts label {
   display: flex;
@@ -557,13 +807,13 @@ button:focus-visible, .btn:focus-visible, .step:focus-visible,
 .help-details summary {
   cursor: pointer;
   color: var(--accent);
-  font-size: 0.87rem;
-  font-weight: 500;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
 }
 .help-details ol {
   margin: 0.55rem 0 0.3rem 1.3rem;
   color: var(--muted-foreground);
-  font-size: 0.86rem;
+  font-size: var(--fs-base);
 }
 
 /* ---------- 9. Status boxes / result feedback ---------- */
@@ -580,7 +830,7 @@ button:focus-visible, .btn:focus-visible, .step:focus-visible,
 .status-row { display: flex; gap: 0.5rem; padding: 0.14rem 0; }
 .status-row > span:first-child { color: var(--muted-foreground); min-width: 120px; }
 
-.result-box { font-size: 0.86rem; }
+.result-box { font-size: var(--fs-base); }
 .result-box.result-error { border-color: color-mix(in srgb, var(--destructive) 50%, transparent); color: var(--destructive); }
 
 .code-block {
@@ -593,12 +843,14 @@ button:focus-visible, .btn:focus-visible, .step:focus-visible,
   white-space: pre-wrap;
   word-break: break-word;
   font-family: var(--mono);
-  font-size: 0.78rem;
+  font-size: var(--fs-sm);
 }
 
 kbd {
   font-family: var(--mono);
-  font-size: 0.82em;
+  /* em은 부모 크기에 곱해져서 값이 렌더마다 달라진다(8.88px 같은 값이
+     생겨 읽을 수 없었다). 스케일 단계를 직접 쓴다. */
+  font-size: var(--fs-label);
   padding: 0.05em 0.4em;
   border: 1px solid var(--border);
   border-bottom-width: 2px;
@@ -617,10 +869,16 @@ kbd {
 }
 .table-scroll { max-height: 60vh; overflow: auto; }
 
+/* 행이 하나도 없으면 표 자체를 숨긴다. 이전에는 빈 헤더 띠가 먼저 깔리고
+   그 아래 빈 상태 카드가 따로 놓여서, 폭이 다른 두 덩어리가 겹쳐 쌓인
+   렌더 오류처럼 보였다(추출·커뮤니티·엔진 세 탭에서 동시에).
+   로딩 중에는 placeholder 행이 들어가므로 여기 걸리지 않는다. */
+.table-wrap:has(tbody:empty) { display: none; }
+
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.83rem;
+  font-size: var(--fs-sm);
 }
 
 th, td {
@@ -632,13 +890,19 @@ th, td {
 }
 .table-wrap tbody tr:last-child td { border-bottom: none; }
 
+/* uppercase는 쓰지 않는다. 한글에는 대소문자가 없어서 헤더 대부분은
+   그대로인데 영문 헤더(base_url)만 BASE_URL로 튀어, 같은 줄에서 두 가지
+   표기가 섞였다(게다가 아래 폼 레이블은 다시 소문자였다).
+   위계는 크기·자간·잉크 농도로 낸다. */
 th {
   color: var(--muted-foreground);
-  font-weight: 500;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
 }
+
+/* 숫자 열은 오른쪽 정렬해야 자릿수가 맞아 훑을 수 있다 */
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 .table-scroll thead th {
   position: sticky;
@@ -655,9 +919,12 @@ th {
 
 tbody tr.selected { background: var(--accent-soft); }
 
-td code {
+/* 인라인 코드는 어디에 있든 같아야 한다. 이전에는 표 안의 <code>만
+   규칙이 있어서, 본문 속 <code>는 브라우저 기본 monospace(환경에 따라
+   Courier)로 떨어져 한글 사이에서 혼자 튀었다. */
+code {
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: var(--fs-xs);
   color: var(--muted-foreground);
   background: var(--muted);
   padding: 0.06rem 0.4rem;
@@ -670,8 +937,8 @@ td code {
   display: inline-block;
   padding: 0.14rem 0.55rem;
   border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-bold);
   border: 1px solid var(--border);
   color: var(--muted-foreground);
   background: var(--muted);
@@ -685,6 +952,9 @@ td code {
   color: var(--destructive); border-color: transparent; background: color-mix(in srgb, var(--destructive) 10%, transparent);
 }
 .badge.st-running { color: var(--accent); border-color: transparent; background: var(--accent-soft); }
+/* 중단됨: 실패(빨강)도 완료(초록)도 아닌 중립. 사용자가 스스로 멈춘 것이라
+   경고색을 쓰면 뭔가 잘못됐다고 읽힌다. */
+.badge.st-cancelled { color: var(--muted); border-color: var(--line); background: transparent; }
 .badge.st-dismissed, .badge.st-stale { color: var(--muted-foreground); }
 
 .badge.badge-errkind { color: var(--destructive); border-color: color-mix(in srgb, var(--destructive) 40%, transparent); background: transparent; }
@@ -701,161 +971,396 @@ td code {
   flex-wrap: wrap;
   margin: 0;
   padding: 0.32rem 0.45rem 0.32rem 0.85rem;
-  font-size: 0.82rem;
+  font-size: var(--fs-sm);
   border-radius: var(--radius-sm);
   background: transparent;
   border: 1px solid var(--border);
 }
-.next-action strong { color: var(--accent); font-weight: 650; }
-.next-action .btn { padding: 0.26rem 0.7rem; font-size: 0.8rem; }
+.next-action strong { color: var(--accent); font-weight: var(--fw-bold); }
+.next-action .btn { padding: 0.26rem 0.7rem; font-size: var(--fs-sm); }
 
-#home-error { margin: 0; font-size: 0.82rem; }
+#home-error { margin: 0; font-size: var(--fs-sm); }
 
 /* ---------- 13. Review workbench ---------- */
 
-#tab-review { max-width: 1240px; }
+/* 검토는 근거를 곁에 두고 하는 작업이라 상시 2열이다. 근거 쪽이 더 넓은
+   건 의도 — 판단 재료(발췌문)가 주인공이고 큐는 훑는 목록이다. */
+#tab-review { max-width: 1280px; }
 
 #tab-review.active {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 46%);
+  gap: var(--sp-5);
   align-items: start;
 }
-#tab-review.active.inspector-open {
-  grid-template-columns: minmax(0, 1fr) 370px;
-}
 
-#entity-panel {
+.review-side {
   position: sticky;
   top: 0;
-  max-height: calc(100vh - 12rem);
+  max-height: calc(100vh - 10rem);
   overflow: auto;
+}
+
+#evidence-pane,
+#entity-panel {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 1rem 1.1rem;
-  box-shadow: var(--shadow-float);
+  padding: var(--sp-5);
 }
 
-#tab-review .table-scroll { max-height: calc(100vh - 430px); }
+.evidence-idle { margin: 0; }
 
+.ev-head { display: flex; align-items: center; gap: var(--sp-2); }
+.ev-label {
+  margin: var(--sp-2) 0 var(--sp-4);
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-tight);
+}
+.ev-endpoints { margin: calc(var(--sp-3) * -1) 0 var(--sp-4); }
+
+.ev-section {
+  margin: var(--sp-5) 0 var(--sp-2);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* 발췌문은 원문 그대로다 — 읽으라고 두는 것이므로 본문보다 크게. */
+.ev-excerpt {
+  margin: 0;
+  padding: var(--sp-4);
+  background: var(--background);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
+  white-space: pre-wrap;
+  color: var(--foreground);
+}
+/* 추출이 짚은 자리. 형광펜이 아니라 밑줄 — 색을 하나 더 쓰지 않고도
+   '여기'가 드러난다. */
+.ev-excerpt mark {
+  background: none;
+  color: inherit;
+  font-weight: var(--fw-bold);
+  box-shadow: inset 0 -0.45em 0 var(--warn-soft);
+}
+.ev-source { margin: var(--sp-2) 0 0; }
+.ev-noevidence { margin: 0; }
+
+.ev-meta { display: flex; gap: var(--sp-6); }
+.ev-meta > div { display: flex; flex-direction: column-reverse; gap: 1px; }
+.ev-meta span {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+}
+.ev-meta code {
+  background: none;
+  padding: 0;
+  font-family: var(--font);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+}
+.ev-disagree { margin: var(--sp-3) 0 0; color: var(--warn-text); }
+.ev-rationale { margin: var(--sp-2) 0 0; }
+
+/* 검토 표는 자체 스크롤을 두지 않는다. 페이지(main)와 표가 각각 스크롤되면
+   스크롤바가 두 개 겹치고, 15행 중 6.5행만 보이면서 행이 중간에서 잘려
+   "더 있다"는 단서조차 사라진다. 페이지 스크롤 하나로 통일하고, 헤더는
+   그대로 sticky로 붙는다(스크롤 주체가 main이 되므로 계속 동작). */
+#tab-review .table-scroll { max-height: none; overflow: visible; }
+
+/* j/k로 이동한 행이 sticky 헤더 밑에 숨지 않도록 여유를 준다 */
+#proposals-body tr { scroll-margin-top: 88px; }
+
+/* 부제는 본문을 도와야지 본문보다 크게 외치면 안 된다.
+   이전엔 포인트색 + 굵기 600이라 화면에서 가장 먼저 눈에 들어왔다. */
 .hitl-subtitle {
-  margin: -0.1rem 0 0.6rem;
-  color: var(--accent);
-  font-size: 0.85rem;
-  font-weight: 600;
+  margin: 0 0 var(--sp-3);
+  color: var(--muted-foreground);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-normal);
 }
 
+/* 집계는 '읽는 숫자'지 '누르는 칩'이 아니다. 이전에는 알약 테두리를 둘러서
+   입력 컨트롤처럼 보였다. 값을 위로 올려 크게 두고 이름을 아래 작게 깔면
+   숫자가 먼저 읽힌다. 검토 대기 둘만 제안 상태색을 입어, 지금 손봐야 할
+   숫자가 어느 것인지 색으로 바로 구분된다. */
 #counts-box {
   background: none;
   border: none;
   box-shadow: none;
   padding: 0;
-  margin: 0.8rem 0;
+  margin: var(--sp-4) 0 var(--sp-5);
   display: flex;
-  gap: 0.5rem;
+  gap: var(--sp-6);
   flex-wrap: wrap;
+  align-items: flex-start;
 }
 #counts-box .status-row {
-  display: inline-flex;
-  gap: 0.4rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.22rem 0.75rem;
-  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column-reverse;   /* code(값) 위, 라벨 아래 */
+  align-items: flex-start;
+  gap: 1px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
 }
-#counts-box .status-row > span:first-child { min-width: 0; }
+#counts-box .status-row > span:first-child {
+  min-width: 0;
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+}
+/* 값 없이 안내 문구 하나만 들어오는 경우("집계 없음"/"불러오는 중…").
+   위 규칙대로면 11~12px 흐린 글씨로 사라져 버리므로 본문 크기로 되돌린다. */
+#counts-box .status-row > span:only-child {
+  font-size: var(--fs-base);
+}
 #counts-box code {
   background: none;
+  padding: 0;
   font-family: var(--font);
-  font-weight: 700;
-  font-size: 0.85rem;
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-display);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-display);
   color: var(--foreground);
 }
+#counts-box .status-row.is-pending code { color: var(--warn-text); }
 
+/* 크리틱은 참고 채점일 뿐이라 큐 위의 목 좋은 자리를 차지할 이유가 없다.
+   테두리 상자를 걷고 한 줄로 눕혀서, 필요할 때만 눈에 들어오게 한다. */
 .critic-band {
-  background: var(--muted);
-  border-radius: var(--radius-md);
-  padding: 0.55rem 0.85rem;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-  margin: 0.8rem 0;
-  font-size: 0.85rem;
+  gap: var(--sp-3);
+  flex-wrap: nowrap;
+  margin: var(--sp-3) 0;
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
 }
-.critic-band-label { font-weight: 600; color: var(--muted-foreground); }
-.critic-band label { display: flex; align-items: center; gap: 0.4rem; }
-.critic-band select { width: auto; }
+/* "자동 승인되지 않아요" 안내는 이 밴드가 아니라 화면 부제에서 이미
+   한 번 말한다 — 같은 말을 두 번 하지 않는다. */
+.critic-band > .muted { display: none; }
+.critic-band-label { font-weight: var(--fw-medium); color: var(--foreground); }
+.critic-band label { display: flex; align-items: center; gap: var(--sp-2); }
+.critic-band select { width: auto; min-width: 120px; }
 
-.kbd-hint { text-align: right; margin: 0.3rem 0; }
+.kbd-hint { text-align: right; margin: var(--sp-2) 0; }
 
+/* 마지막 결정 옆의 되돌리기 — 영수증이 아니라 손잡이여야 한다.
+   이전에는 "승인됨: X" 라는 문구만 남고 되돌릴 방법이 없었다. */
+#review-last-action { display: flex; align-items: baseline; gap: var(--sp-2); }
+.undo-btn { font-size: var(--fs-sm); }
+
+/* 큐에 있는 건 전부 아직 미검증이므로 옅은 잉크로 깔린다. 커서가 놓인
+   행만 완전한 잉크로 올라온다 — "지금 내가 보고 있는 것"이 화면에서
+   유일하게 또렷하고, 큐가 비어갈수록 이 화면은 할 일이 없어진다. */
+#proposals-body td { color: var(--ink-draft); }
+#proposals-body tr.row-focused td { color: var(--ink-verified); }
 tr.row-focused {
   background: var(--accent-soft);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
-#proposals-table td { padding: 0.68rem 0.75rem; }
+#proposals-table td { padding: var(--sp-3); }
 
-#proposals-body .actions .btn { opacity: 0.4; }
-#proposals-body tr:hover .actions .btn,
-#proposals-body tr.row-focused .actions .btn { opacity: 1; }
+/* 좁은 열에 긴 이름이 들어오면 표가 컨테이너를 넘어 가로 스크롤이 생긴다.
+   데스크톱 전용이라 폭을 늘릴 수는 없으니 이름만 줄바꿈을 허용한다. */
+#proposals-table td:nth-child(3) { white-space: normal; }
+#proposals-body .actions .btn { padding: 0 var(--sp-2); }
 
+/* 행마다 승인/거부가 15줄 반복되면 화면이 버튼밭이 된다. 그렇다고
+   opacity 0.4로 흐리면 '비활성'으로 오독된다(실제로는 눌린다).
+   그래서 평소에는 테두리를 지운 조용한 글자 버튼으로 두고, 커서가
+   놓인 행에서만 테두리를 입혀 지금 결정할 대상을 분명히 한다. */
+/* 행마다 승인/거부가 15줄 반복되면 화면이 버튼밭이 되지만, 테두리까지
+   지우면 이번엔 '비활성'으로 오독된다(실제로는 눌린다). 이 표의 존재
+   이유가 바로 그 두 버튼이므로, 모든 행에서 눌 수 있게 보이되 무게만
+   낮춘다 — 승인은 테두리 있는 버튼, 거부는 고스트. 커서가 놓인 행에서만
+   승인이 채워져 '지금 결정할 대상'이 드러난다. */
+#proposals-body .actions .btn {
+  opacity: 1;
+  padding: 0 var(--sp-3);
+}
+#proposals-body .actions .btn-primary {
+  background: var(--card);
+  border-color: var(--border);
+  color: var(--foreground);
+}
+/* 거부는 승인과 같은 결정이므로 같은 무게로 보여야 한다. 앞서 테두리를
+   지웠더니 3순위인 '엔티티'(기본 .btn 테두리 유지)보다도 약해져서,
+   부차적 보기 버튼이 핵심 결정보다 눈에 띄는 역전이 생겼다. */
+#proposals-body .actions .btn-danger {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--destructive) 28%, transparent);
+  color: var(--destructive);
+}
+/* 3순위 '엔티티 보기'는 결정이 아니라 조회다 — 테두리를 빼서 뒤로 물린다 */
+#proposals-body .actions .btn:not(.btn-primary):not(.btn-danger) {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted-foreground);
+  padding: 0 var(--sp-2);
+}
+#proposals-body tr:hover .actions .btn:not(.btn-primary):not(.btn-danger),
+#proposals-body tr.row-focused .actions .btn:not(.btn-primary):not(.btn-danger) {
+  color: var(--foreground);
+  text-decoration: underline;
+}
+#proposals-body tr:hover .actions .btn-primary,
+#proposals-body tr.row-focused .actions .btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+#proposals-body tr:hover .actions .btn-danger,
+#proposals-body tr.row-focused .actions .btn-danger {
+  border-color: color-mix(in srgb, var(--destructive) 45%, transparent);
+  color: var(--destructive);
+}
+
+/* 확신도는 '값'이면서 '분포'다. 이전에는 셀 전체에 옅은 면이 깔려서
+   게이지가 아니라 실수로 하이라이트된 열처럼 보였다. 숫자는 그대로 두고
+   막대를 셀 아래쪽 2px 선으로 내려, 열을 훑으면 길이 차이가 먼저 읽힌다. */
+/* 게이지가 들어갈 자리를 열 폭으로 확보한다. 이 min-width가 없으면
+   자동 테이블 레이아웃이 "0.80"(48px)에 맞춰 열을 좁히고, 절대배치된
+   막대만 셀 밖으로 40px 삐져나가 옆 열(크리틱)을 침범한다. */
 .conf-cell {
+  position: relative;
+  min-width: 112px;                 /* 88px 막대 + 좌우 padding 24px */
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+/* 막대는 숫자 바로 아래에 붙인다. 셀 바닥에 두면 행 높이를 정하는 건
+   버튼이라 숫자와 20px 넘게 떨어져 밑줄처럼 보인다.
+   폭은 88px — 44px일 때는 0.80과 0.90의 차이가 4.4px뿐이라 눈으로
+   구분되지 않았다. 색은 중립 잉크를 쓴다: 이 화면에서 호박은 이미
+   '제안 상태'를 뜻하는데(노드 링·엣지), 게이지까지 호박이면 같은 색이
+   상태와 수치 두 가지를 가리켜 뜻이 흐려진다. 여기서 정보를 나르는 건
+   색이 아니라 길이다. */
+.conf-cell::after {
+  content: "";
+  position: absolute;
+  left: var(--sp-3);
+  top: 32px;                        /* 숫자와 조금 띄워야 밑줄로 안 읽힌다 */
+  width: 88px;
+  max-width: calc(100% - var(--sp-3) * 2);
+  height: 4px;
+  border-radius: 2px;
   background: linear-gradient(
     90deg,
-    var(--accent-soft) calc(var(--v, 0) * 100%),
-    transparent calc(var(--v, 0) * 100%)
+    var(--muted-foreground) calc(var(--v, 0) * 100%),
+    var(--border) calc(var(--v, 0) * 100%)
   );
-  border-radius: 6px;
-  font-variant-numeric: tabular-nums;
 }
 
 .actions { white-space: nowrap; }
 
+/* 문서 id는 참조지 내용이 아니다 — 고정폭 + 흐린 잉크로 뒤로 물린다.
+   (열 번호가 아니라 클래스로 잡는다: 열이 하나 늘면 nth-child는 조용히
+   엉뚱한 칸을 집는다.) */
+#proposals-body .doc-cell {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+}
+
+/* 관계의 양끝과 화살표. 화살표는 잉크를 빼서 두 이름이 먼저 읽히게 한다. */
+.ep-arrow {
+  display: inline-block;
+  margin: 0 var(--sp-2);
+  color: var(--muted-foreground);
+  font-weight: var(--fw-normal);
+}
+
 /* ---------- 14. Journey (home) ---------- */
 
-.journey { display: flex; flex-direction: column; gap: 0.7rem; margin: 1.1rem 0; }
+/* 네 걸음은 서로 이어진 하나의 절차다. 이전에는 똑같은 전폭 카드 4개가
+   쌓여 있어서 순서도 진행도 읽히지 않았고, 카드는 1080px인데 글은 700px에서
+   끝나 오른쪽이 통째로 비어 보였다. 번호를 세로선으로 꿰어 체크리스트로
+   만들면 카드 배경이 사라지므로 남는 폭이 여백으로 읽힌다. */
+.journey {
+  display: flex;
+  flex-direction: column;
+  margin: var(--sp-5) 0 var(--sp-6);
+  max-width: 760px;
+}
 
 .journey-step {
-  display: flex;
-  gap: 1rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 0.95rem 1.1rem;
-  transition: border-color 0.18s ease;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 0 var(--sp-4);
+  padding: 0 0 var(--sp-5);
+  position: relative;
 }
-.journey-step:hover { border-color: var(--muted-foreground); }
+
+/* 번호를 잇는 세로 스파인 (마지막 걸음 뒤로는 이어지지 않는다) */
+.journey-step::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 30px;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+}
+.journey-step:last-of-type { padding-bottom: 0; }
+.journey-step:last-of-type::before { display: none; }
 
 .journey-no {
-  flex: 0 0 auto;
-  width: 1.7rem;
-  height: 1.7rem;
-  font-size: 0.85rem;
+  position: relative;
+  z-index: 1;
+  width: 26px;
+  height: 26px;
+  font-size: var(--fs-xs);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--muted);
+  background: var(--background);
+  border: 1px solid var(--border);
   color: var(--muted-foreground);
-  font-weight: 700;
+  font-weight: var(--fw-medium);
 }
 
-.journey-done { border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
 .journey-done .journey-no {
   background: var(--ok);
+  border-color: var(--ok);
   color: var(--card);
   font-size: 0;
 }
-.journey-done .journey-no::after { content: "✓"; font-size: 0.95rem; }
+.journey-done .journey-no::after { content: "✓"; font-size: var(--fs-sm); }
 
-.journey-body { flex: 1; min-width: 0; }
-.journey-body > strong { font-size: 0.97rem; }
-.journey-body p { margin: 0.3rem 0 0.65rem; }
-.journey-actions { display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap; }
-.journey-done .journey-actions .btn-primary { opacity: 0.5; }
+.journey-body { min-width: 0; }
+.journey-body > strong {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-tight);
+}
+.journey-body p { margin: var(--sp-1) 0 var(--sp-3); color: var(--muted-foreground); }
+.journey-actions { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; }
+
+/* 끝난 걸음도 다시 실행할 수 있다. 이전에는 opacity:0.5 때문에 눌리는
+   버튼이 '비활성'처럼 보였다 — 흐리게 하는 대신 한 단계 조용한 버튼으로. */
+.journey-done .journey-body > strong { color: var(--muted-foreground); }
+.journey-done .journey-actions .btn-primary {
+  background: transparent;
+  color: var(--muted-foreground);
+  border-color: var(--border);
+}
+.journey-done .journey-actions .btn-primary:hover {
+  color: var(--foreground);
+  border-color: var(--muted-foreground);
+}
 
 #journey-done {
   padding: 1rem 1.2rem;
@@ -906,8 +1411,35 @@ tr.row-focused {
 }
 #job-detail h3, #community-detail h3, #entity-panel h3 { margin-top: 0; }
 
-#engines-list { padding-left: 1.2rem; }
-#engines-list li { margin: 0.3rem 0; }
+/* 브라우저 기본 검은 글머리표는 이 앱에서 여기만 썼다. 목록이 아니라
+   '상태 줄'로 보이게 하고, 쓸 수 있는지 여부를 상태색으로 표시한다. */
+/* 폭은 아래 프로바이더 폼(680px)에 맞춘다 — 520px로 두면 이 화면에만
+   있는 네 번째 폭이 생겨 오른쪽 끝이 또 하나 늘어난다. */
+#engines-list { list-style: none; padding: 0; margin: var(--sp-3) 0 0; max-width: 680px; }
+#engines-list li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+#engines-list li:last-child { border-bottom: none; }
+#engines-list .eng-name {
+  min-width: 96px;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  color: var(--foreground);
+}
+#engines-list .eng-state { font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+#engines-list li.is-available .eng-state { color: var(--ok-text); }
+#engines-list li.is-missing .eng-state { color: var(--muted-foreground); }
+/* 기본 모델 메타는 상태 바로 뒤에 붙인다. margin-left:auto로 오른쪽 끝에
+   밀어두면 목록 폭을 넓힐 때마다 이 한 줄만 400px 떨어져 외따로 뜬다
+   (네 행 중 claude 행에만 있는 값이라 더 두드러진다). */
+#engines-list .eng-model {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+}
 
 /* ---------- 17b. Graph browser ---------- */
 
@@ -936,39 +1468,74 @@ tr.row-focused {
 }
 #graph-svg:active { cursor: grabbing; }
 
+/* 엣지가 --border(헤어라인용 연베이지) 1.2px이라 캔버스에서 거의 보이지
+   않았다. 관계는 이 그래프의 절반이므로 노드와 같은 상태 언어를 준다:
+   점선 호박 = 제안, 실선 초록 = 승인. */
 .g-edge {
-  stroke: var(--border);
-  stroke-width: 1.2;
+  stroke: var(--warn);
+  stroke-opacity: 0.32;            /* 미검증 관계도 같이 가라앉는다 */
+  stroke-width: 1.4;
   stroke-dasharray: 4 3;           /* 기본(제안): 점선 */
 }
 .g-edge-verified {
-  stroke: var(--muted-foreground);
-  stroke-opacity: 0.55;
+  stroke: var(--ok);
+  stroke-opacity: 0.75;
   stroke-dasharray: none;
 }
 
+/* 링 색은 앱 전체와 같은 상태 언어를 쓴다: 호박=제안(사람 눈 대기),
+   초록=검증됨. 이전엔 둘 다 회색 점선이라, 그래프만 보고는 무엇이
+   아직 승인 전인지 알 수 없었다.
+   주의: circle의 fill/r 과 g의 transform 은 JS가 속성으로 직접 쓴다
+   (app.js:1756/1757/1790). CSS로 그 셋을 건드리면 타입별 색·차수별
+   크기·힘기반 배치가 통째로 죽는다. */
 .g-node { cursor: pointer; }
 .g-node circle {
   stroke: var(--card);
   stroke-width: 1.5;
   transition: opacity 0.15s ease;
 }
+/* 제안과 검증이 한 화면에 같이 있는 유일한 곳 — 여기서 '확실성 = 선명도'가
+   가장 잘 보인다. 미검증은 흐린 초안처럼 가라앉고, 승인된 것만 또렷하다.
+   검토를 진행할수록 그래프가 실제로 선명해진다. */
 .g-node.g-proposed circle {
-  stroke: var(--muted-foreground);
+  stroke: var(--warn);
+  stroke-width: 2;
   stroke-dasharray: 3 2;           /* 제안 노드: 점선 링 */
-  opacity: 0.8;
+  opacity: 0.55;
 }
-.g-node.g-selected circle {
-  stroke: var(--ring);
-  stroke-width: 2.5;
-  stroke-dasharray: none;
+.g-node.g-proposed text { fill: var(--ink-draft); }
+.g-node.g-verified circle {
+  stroke: var(--ok);
+  stroke-width: 2;
   opacity: 1;
 }
+.g-node.g-verified text { fill: var(--ink-verified); }
+/* 선택은 '상호작용 상태'라 '데이터 상태'를 덮으면 안 된다. 이전에는
+   선택 시 stroke와 dasharray를 갈아치워서, 검토 대기(호박 점선) 노드가
+   민무늬 네이비 원이 되어 승인된 것처럼 보였다. 상태 링(색·점선)은 그대로
+   두고, 네이비 후광만 바깥에 덧대 선택을 표시한다. */
+.g-node.g-selected circle {
+  opacity: 1;
+  filter: drop-shadow(0 0 3px var(--accent));
+}
+/* 라벨은 엣지 위에 얹힌다. 엣지를 상태색으로 진하게 바꾸고 나니 선이
+   글자를 관통해 읽기 어려워졌다 — 캔버스색 테두리를 글자 뒤에 깔아
+   선을 끊어준다(paint-order로 stroke를 fill보다 먼저 그린다). */
 .g-node text {
-  fill: var(--muted-foreground);
-  font-size: 10px;
+  /* 노드 이름은 이 화면에서 가장 중요한 정보다. 회색(muted)으로 깔면
+     정작 읽어야 할 것이 뒤로 물러난다. 크기도 10px은 스케일 밖이라
+     --fs-label(11px)로 맞춘다.
+     주의: JS가 라벨 y오프셋을 radius + 11 로 고정해 두었으므로(app.js)
+     여기서 크기를 더 키우면 원과 겹친다. */
+  fill: var(--foreground);
+  font-size: var(--fs-label);
   text-anchor: middle;
   pointer-events: none;
+  paint-order: stroke;
+  stroke: var(--card);
+  stroke-width: 3px;
+  stroke-linejoin: round;
 }
 .g-node.g-dim { opacity: 0.15; }
 
@@ -990,7 +1557,7 @@ tr.row-focused {
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--card);
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   color: var(--muted-foreground);
 }
 .g-chip i {
@@ -999,10 +1566,11 @@ tr.row-focused {
   border-radius: 50%;
   display: inline-block;
 }
-.g-chip .g-chip-dashed {
-  background: transparent;
-  border: 1.5px dashed var(--muted-foreground);
-}
+/* 범례 스와치는 캔버스의 링과 같은 색이어야 한다 — 회색으로 남겨 두면
+   범례가 실제 화면을 설명하지 못한다. */
+.g-chip .g-chip-ring { background: transparent; }
+.g-chip .g-chip-proposed { border: 1.5px dashed var(--warn); }
+.g-chip .g-chip-verified { border: 1.5px solid var(--ok); }
 
 #graph-info {
   position: absolute;
@@ -1016,32 +1584,16 @@ tr.row-focused {
   box-shadow: var(--shadow-float);
 }
 #graph-info .row { margin-top: 0.55rem; }
-#graph-info .btn { font-size: 0.78rem; padding: 0.3rem 0.65rem; }
+#graph-info .btn { font-size: var(--fs-sm); padding: 0.3rem 0.65rem; }
 
-@media (max-width: 900px) {
-  #graph-wrap { height: 60vh; min-height: 320px; }
-  #graph-info { position: static; width: auto; margin-top: 0.7rem; }
-}
+/* ---------- 18. Viewport floor / motion ---------- */
 
-/* ---------- 18. Responsive / motion ---------- */
-
-@media (max-width: 1100px) {
-  #tab-review.active.inspector-open { grid-template-columns: minmax(0, 1fr) 320px; }
-}
-
-@media (max-width: 900px) {
-  body { display: block; height: auto; overflow: visible; }
-  th, td { white-space: normal; }
-  td.actions { white-space: nowrap; }
-  header.app-header { flex-wrap: wrap; }
-  nav.tabs { flex-direction: row; overflow-x: auto; padding: 0.4rem 0.5rem; }
-  nav.tabs .tab-btn { width: auto; flex: 0 0 auto; }
-  .nav-group-label, .nav-rail-footer { display: none; }
-  main { padding: 1.1rem 1rem 2rem; }
-  #tab-review.active.inspector-open { grid-template-columns: minmax(0, 1fr); }
-  #entity-panel { position: static; max-height: none; }
-  #tab-review .table-scroll { max-height: 60vh; }
-}
+/* 데스크톱 웹앱 전용이다. 모바일 리플로우(레일을 가로 스크롤로 눕히고
+   검토를 1열로 접던 규칙들)는 걷어냈다 — 쓰지 않는 레이아웃을 두 벌
+   유지하면 한쪽은 반드시 조용히 썩고, 실제로 그중 일부는 이미 사라진
+   .inspector-open 열 규칙을 붙들고 있었다.
+   좁은 창에서는 무너뜨리는 대신 최소 폭을 지키고 창이 스크롤되게 둔다. */
+body { min-width: 1080px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

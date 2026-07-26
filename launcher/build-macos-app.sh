@@ -103,10 +103,25 @@ if is_ours "\$PORT"; then
   /usr/bin/open "\$URL"; exit 0
 fi
 
-# 4) Start the dashboard detached so it outlives this launcher process.
+# 4) Start it. If the autostart agent is installed, go through launchd rather
+#    than spawning our own copy — otherwise the two managers fight over the
+#    port: this process holds it, launchd's KeepAlive retries forever, and the
+#    user ends up with an orphan server nothing is supervising.
 cd "\$REPO"
-/usr/bin/nohup "\$PY" -m ontologylab.serve --port "\$PORT" > "\$LOG" 2>&1 &
-disown 2>/dev/null || true
+AGENT="at.ontologylab.server"
+AGENT_PLIST="\$HOME/Library/LaunchAgents/\$AGENT.plist"
+STARTED_VIA_LAUNCHD=0
+if [ -f "\$AGENT_PLIST" ]; then
+  if /bin/launchctl print "gui/\$(id -u)/\$AGENT" >/dev/null 2>&1; then
+    /bin/launchctl kickstart "gui/\$(id -u)/\$AGENT" >/dev/null 2>&1 && STARTED_VIA_LAUNCHD=1
+  else
+    /bin/launchctl bootstrap "gui/\$(id -u)" "\$AGENT_PLIST" >/dev/null 2>&1 && STARTED_VIA_LAUNCHD=1
+  fi
+fi
+if [ "\$STARTED_VIA_LAUNCHD" = "0" ]; then
+  /usr/bin/nohup "\$PY" -m ontologylab.serve --port "\$PORT" > "\$LOG" 2>&1 &
+  disown 2>/dev/null || true
+fi
 echo "\$PORT" > "\$PORTFILE"
 for _ in \$(seq 1 60); do
   is_ours "\$PORT" && { /usr/bin/open "\$URL"; exit 0; }
@@ -118,13 +133,32 @@ exit 0
 LAUNCH
 chmod +x "$CONTENTS/MacOS/launch"
 
-# --- companion "Stop" one-liner (Terminal) ---------------------------------
+# --- companion "Stop" (Terminal) -------------------------------------------
+# Stopping must unload the launchd autostart agent first when one is
+# installed. Killing only the process lets KeepAlive restart it within
+# seconds, so the stop button appears to do nothing.
 STOP="$OUT/Stop ontologylab.command"
 cat > "$STOP" <<STOPSH
 #!/bin/bash
-pkill -f "ontologylab.serve --port" && echo "ontologylab stopped." || echo "ontologylab was not running."
+AGENT="at.ontologylab.server"
+if /bin/launchctl print "gui/\$(id -u)/\$AGENT" >/dev/null 2>&1; then
+  /bin/launchctl bootout "gui/\$(id -u)/\$AGENT" 2>/dev/null
+  echo "Autostart agent unloaded — it loads again at your next login."
+fi
+
+# Then whatever the app icon started directly (a plain background process).
+if pkill -f "ontologylab.serve" 2>/dev/null; then
+  echo "ontologylab stopped."
+else
+  echo "ontologylab was not running."
+fi
 rm -f "$REPO/.launcher.port"
-sleep 1
+
+echo
+echo "Start again:      click the ontologylab app"
+echo "Re-enable autostart without waiting for a login:"
+echo "  launchctl bootstrap gui/\$(id -u) ~/Library/LaunchAgents/\$AGENT.plist"
+sleep 3
 STOPSH
 chmod +x "$STOP"
 

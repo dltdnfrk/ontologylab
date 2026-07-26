@@ -256,7 +256,11 @@ def test_check_source_implemented_still_guards_unimplemented():
     )
 
     assert IMPLEMENTED_SOURCES == frozenset({
+        # keyless
         "arxiv", "crossref", "openalex", "semanticscholar", "europepmc",
+        # publisher APIs (keyed) — implemented, but only queryable once a
+        # credential is connected; see `available_sources`.
+        "elsevier", "springer", "core",
     })
     with pytest.raises(UnsupportedPaperSource):
         check_source_implemented("not-a-real-source")

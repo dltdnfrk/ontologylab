@@ -10,6 +10,7 @@ import sqlite3
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -64,6 +65,38 @@ def create_app(
     app.state.jobs = jobs
 
     app.include_router(router)
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_error(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        """Report *what* was wrong with a request, never *what was sent*.
+
+        FastAPI's default 422 body carries an `input` field holding the
+        offending value, and `ctx` can hold values too. Measured on this
+        version: submitting `{"key": "<secret>"}` without the required `id`
+        answers with `input: {"key": "<secret>"}` — the whole body, echoed.
+        A wrong type on the key field echoes the key. `SecretStr` does not
+        help; the masking happens after validation, and this error is raised
+        before.
+
+        That was harmless while no endpoint received a secret. `POST
+        /api/sources` receives a publisher API key, so it is not any more.
+        Stripping here rather than reshaping one schema covers every future
+        endpoint as well — the field names and messages are still returned,
+        which is what a caller needs to fix the request.
+
+        `ctx` goes too. On this pydantic it holds constraints (`min_length`)
+        and an empty `error` object, so dropping it removes nothing a caller
+        can act on — but it is the field a custom validator's exception would
+        land in, and `msg` already carries that text in readable form.
+        """
+        safe = [
+            {key: value for key, value in error.items()
+             if key not in ("input", "ctx")}
+            for error in exc.errors()
+        ]
+        return JSONResponse(status_code=422, content={"detail": safe})
 
     @app.exception_handler(sqlite3.OperationalError)
     async def _sqlite_operational_error(

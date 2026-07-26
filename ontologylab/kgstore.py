@@ -617,6 +617,14 @@ class KGStore:
 
         Returns (document, created) — ``created`` False means an identical
         document already existed and was returned instead.
+
+        The SELECT below is a fast path, not the guarantee. Two collects that
+        overlap — a server job and a CLI run, or a fan-out that produced the
+        same paper twice — can both miss it and both reach the INSERT, where
+        ``UNIQUE (content_hash)`` refuses the second. That refusal carries
+        exactly the fact the SELECT was looking for, so it is recovered from
+        rather than raised: discarding a whole run's other documents over a
+        duplicate the caller already has would be data loss, not safety.
         """
         self._assert_writable()
         cur = self.conn.execute(
@@ -641,20 +649,36 @@ class KGStore:
             content_hash=content_hash,
             raw_text_path=rel_path,
         )
-        self.conn.execute(
-            "INSERT INTO documents "
-            "(id, source_kind, source_uri, title, fetched_ts, content_hash, raw_text_path) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                doc.id,
-                doc.source_kind,
-                doc.source_uri,
-                doc.title,
-                doc.fetched_ts,
-                doc.content_hash,
-                doc.raw_text_path,
-            ),
-        )
+        try:
+            self.conn.execute(
+                "INSERT INTO documents "
+                "(id, source_kind, source_uri, title, fetched_ts, content_hash, "
+                "raw_text_path) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    doc.id,
+                    doc.source_kind,
+                    doc.source_uri,
+                    doc.title,
+                    doc.fetched_ts,
+                    doc.content_hash,
+                    doc.raw_text_path,
+                ),
+            )
+        except sqlite3.IntegrityError:
+            # Another writer won the race on UNIQUE (content_hash). Return
+            # their row: the caller asked for this document to exist, and it
+            # does. The raw text just written is byte-identical (same hash),
+            # so the orphan file is inert and the existing row keeps pointing
+            # at its own copy.
+            self.conn.rollback()
+            row = self.conn.execute(
+                "SELECT * FROM documents WHERE content_hash = ?", (content_hash,)
+            ).fetchone()
+            if row is None:
+                # The constraint fired for something other than the hash.
+                raise
+            return self._row_to_document(row), False
         self.conn.commit()
         return doc, True
 
@@ -967,6 +991,52 @@ class KGStore:
         self._set_status(kind, item_id, "rejected", by=by, note=note)
         self.conn.commit()
         return {"kind": kind, "rejected_ids": [item_id]}
+
+    def reopen(
+        self, item_id: str, *, by: str = DEFAULT_ACTOR, note: str | None = None
+    ) -> dict[str, Any]:
+        """Put a decided row back in the review queue (undo of approve/reject).
+
+        Review is keyboard-driven and 'a'/'r' sit next to the 'j'/'k' cursor
+        keys, so a decision made a keystroke too early was previously
+        permanent — there was no way back to the queue at all.
+
+        Reopening a NODE is refused while a current verified edge still points
+        at it: approve() guarantees a verified edge has verified endpoints,
+        and silently unapproving one of them would leave that invariant broken
+        with nothing to notice it. Reject the edge (or invalidate it) first.
+        Edges have no dependents, so they always reopen.
+
+        Already-proposed rows are a no-op rather than an error — pressing undo
+        twice should not punish you.
+        """
+        self._assert_writable()
+        kind, row = self._find_kind(item_id)
+        if row["status"] == "proposed":
+            return {"kind": kind, "reopened_ids": [], "already_open": True}
+
+        if kind == "node":
+            blockers = self.conn.execute(
+                "SELECT id FROM edges WHERE status = 'verified' "
+                f"AND (src_node_id = ? OR dst_node_id = ?) "
+                f"AND {self._edge_current_sql()} LIMIT 5",
+                (item_id, item_id),
+            ).fetchall()
+            if blockers:
+                ids = ", ".join(b["id"][:10] for b in blockers)
+                raise KGStoreError(
+                    f"node {item_id} is an endpoint of verified edge(s) {ids} "
+                    "— reject or invalidate those first"
+                )
+
+        self.conn.execute(
+            ("UPDATE nodes SET " if kind == "node" else "UPDATE edges SET ")
+            + "status = 'proposed', verified_ts = NULL, verified_by = NULL, "
+            "review_note = COALESCE(?, review_note) WHERE id = ?",
+            (note, item_id),
+        )
+        self.conn.commit()
+        return {"kind": kind, "reopened_ids": [item_id], "already_open": False}
 
     def _set_status(
         self, kind: str, item_id: str, status: str, *, by: str, note: str | None
@@ -1455,7 +1525,129 @@ class KGStore:
                 and abs(conf - score) >= self.CRITIC_DISAGREEMENT_THRESHOLD
             )
             out.append(row)
+        self._label_edge_endpoints(out)
+        self._attach_evidence(out)
         return out
+
+    def _attach_evidence(self, rows: list[dict[str, Any]]) -> None:
+        """Attach the source excerpt each proposal was extracted from, in place.
+
+        The reviewer is asked to judge whether an extraction is true, and the
+        only thing that settles that is the sentence it came from. The critic
+        model has always been handed exactly this (critic.py builds it from
+        the same span), while the person holding the decision saw only a label
+        and a number — so the queue payload is where that asymmetry lives.
+
+        ``pending_review`` cannot supply it: the view predates spans and is
+        created with CREATE VIEW IF NOT EXISTS, so redefining it would leave
+        every existing database on the old definition. Spans are fetched here
+        instead, the same way endpoint names are.
+
+        Adds ``source_span``, ``excerpt`` and ``doc_title``. Every step fails
+        open to an empty excerpt — a deleted raw.txt must not break review.
+        """
+        if not rows:
+            return
+
+        spans: dict[str, dict | None] = {}
+        for kind, table in (("node", "nodes"), ("edge", "edges")):
+            ids = [r["id"] for r in rows if r.get("kind") == kind and r.get("id")]
+            for start in range(0, len(ids), 500):
+                chunk = ids[start : start + 500]
+                placeholders = ",".join("?" * len(chunk))
+                for row in self.conn.execute(
+                    f"SELECT id, source_span FROM {table} "
+                    f"WHERE id IN ({placeholders})",
+                    chunk,
+                ).fetchall():
+                    try:
+                        spans[row["id"]] = (
+                            json.loads(row["source_span"])
+                            if row["source_span"]
+                            else None
+                        )
+                    except (TypeError, ValueError):
+                        spans[row["id"]] = None
+
+        raw_cache: dict[str, str] = {}
+        title_cache: dict[str, str | None] = {}
+
+        def _raw(doc_id: str) -> str:
+            if doc_id not in raw_cache:
+                try:
+                    raw_cache[doc_id] = self.document_raw_text(doc_id)
+                except (KGStoreError, OSError):
+                    raw_cache[doc_id] = ""
+            return raw_cache[doc_id]
+
+        def _title(doc_id: str) -> str | None:
+            if doc_id not in title_cache:
+                try:
+                    title_cache[doc_id] = self.get_document(doc_id).title
+                except (UnknownItem, KGStoreError, OSError):
+                    title_cache[doc_id] = None
+            return title_cache[doc_id]
+
+        for row in rows:
+            span = spans.get(row.get("id"))
+            row["source_span"] = span
+            doc_id = row.get("source_doc_id")
+            if not doc_id:
+                row["excerpt"], row["doc_title"] = "", None
+                continue
+            row["doc_title"] = _title(doc_id)
+            row["excerpt"] = span_excerpt(_raw(doc_id), span)
+
+    def _label_edge_endpoints(self, rows: list[dict[str, Any]]) -> None:
+        """Rewrite edge labels from endpoint ids to endpoint NAMES, in place.
+
+        The ``pending_review`` view can only concatenate the two node ids
+        (``src -> dst``), so the review queue asked the user to approve
+        rows reading ``74116a11… -> 36d5bf4d…`` — the one screen where the
+        decision must be informed was the one screen showing nothing
+        decidable. Endpoint names are resolved here, in one batched lookup,
+        rather than in the view, so existing databases need no migration and
+        read-only packs keep working.
+
+        ``src_label``/``dst_label``/``src_id``/``dst_id`` are added alongside
+        so callers that need the raw ids still have them. A node that cannot
+        be resolved keeps its short id, which is still better than the full
+        hex string.
+        """
+        edges = [r for r in rows if r.get("kind") == "edge"]
+        if not edges:
+            return
+        endpoints: dict[str, tuple[str, str]] = {}
+        wanted: set[str] = set()
+        for row in edges:
+            label = row.get("label") or ""
+            src, sep, dst = label.partition(" -> ")
+            if not sep:
+                continue
+            endpoints[row["id"]] = (src, dst)
+            wanted.update((src, dst))
+        if not wanted:
+            return
+        names: dict[str, str] = {}
+        ids = list(wanted)
+        # Chunked so a large queue cannot exceed SQLite's variable limit.
+        for start in range(0, len(ids), 500):
+            chunk = ids[start : start + 500]
+            placeholders = ",".join("?" * len(chunk))
+            for row in self.conn.execute(
+                f"SELECT id, name FROM nodes WHERE id IN ({placeholders})", chunk
+            ).fetchall():
+                names[row["id"]] = row["name"]
+        for row in edges:
+            pair = endpoints.get(row["id"])
+            if pair is None:
+                continue
+            src, dst = pair
+            src_label = names.get(src, src[:10])
+            dst_label = names.get(dst, dst[:10])
+            row["src_id"], row["dst_id"] = src, dst
+            row["src_label"], row["dst_label"] = src_label, dst_label
+            row["label"] = f"{src_label} → {dst_label}"
 
     def record_critic_review(
         self,

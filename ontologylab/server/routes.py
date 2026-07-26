@@ -25,13 +25,20 @@ from fastapi.responses import StreamingResponse
 from ontologylab import paths
 from ontologylab.connectors.allowlist import (
     NotAllowlisted,
+    check_collect_file,
     check_paper_query,
     check_url,
+    loggable_collect_inputs,
 )
 from ontologylab.connectors.base import RawDocument
 from ontologylab.connectors.paper_api import (
+    DEFAULT_PAPER_SOURCE,
+    PAPER_SOURCE_LABELS,
+    KEYED_SOURCES,
+    SOURCE_ORDER,
     PaperApiConnector,
     UnsupportedPaperSource,
+    available_sources,
     check_source_implemented,
 )
 from ontologylab.connectors.web_crawl import WebCrawlConnector
@@ -49,6 +56,23 @@ from ontologylab.providers import (
     resolve_api_key,
 )
 from ontologylab.provenance import Provenance
+from ontologylab.keychain import (
+    KeychainError,
+    delete_key,
+    keychain_available,
+    read_key,
+    write_key,
+)
+from ontologylab.sources import (
+    Source,
+    SourceError,
+    add_source,
+    get_source,
+    load_sources,
+    remove_source,
+    source_public,
+    validate_source,
+)
 from ontologylab.server import settings as settings_mod
 from ontologylab.server.jobs import JobRegistry
 from ontologylab.server.schemas import (
@@ -66,7 +90,9 @@ from ontologylab.server.schemas import (
     ProviderCreate,
     ProviderModel,
     ProviderTestResult,
+    ResearchRequest,
     Settings,
+    SourceCreate,
 )
 
 router = APIRouter(prefix="/api")
@@ -120,6 +146,34 @@ def get_engines() -> list[EngineInfo]:
     return settings_mod.engines()
 
 
+@router.get("/paper-sources")
+def get_paper_sources() -> dict[str, Any]:
+    """List the paper sources this build can actually fetch from.
+
+    The browser renders its picker from this, so the option list cannot
+    drift from the dispatch table the fetcher uses. `SOURCE_ORDER` is the
+    declaration order in `paper_api._SOURCE_DISPATCH`, which is also the
+    tie-break order, so the UI offers them in the order the system prefers.
+
+    `available` says whether picking it would work right now: a publisher
+    source with no key connected is implemented but not usable, and offering
+    it as an ordinary choice would hand the user a guaranteed failure.
+    """
+    usable = set(available_sources(_data_dir))
+    return {
+        "sources": [
+            {
+                "id": source,
+                "label": PAPER_SOURCE_LABELS.get(source, source),
+                "keyed": source in KEYED_SOURCES,
+                "available": source in usable,
+            }
+            for source in SOURCE_ORDER
+        ],
+        "default": DEFAULT_PAPER_SOURCE,
+    }
+
+
 @router.get("/settings", response_model=Settings)
 def get_settings() -> Settings:
     return settings_mod.load_settings()
@@ -132,7 +186,9 @@ def put_settings(new_settings: Settings) -> Settings:
 
 @router.get("/cost", response_model=CostSummary)
 def get_cost() -> CostSummary:
-    return settings_mod.cost_summary()
+    # The active data dir, not the repository's — they differ on every
+    # install started with `--data-dir`, which the launchd agent always does.
+    return settings_mod.cost_summary(data_dir=_data_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -286,6 +342,25 @@ def reject_proposal(body: ProposalAction) -> dict[str, Any]:
     store = _open_store()
     try:
         result = store.reject(body.id, by=body.by, note=body.note)
+        return {"ok": True, **result}
+    except UnknownItem as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KGStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+@router.post("/proposals/reopen")
+def reopen_proposal(body: ProposalAction) -> dict[str, Any]:
+    """Undo one approve/reject by putting the row back in the review queue.
+
+    400 when a verified edge still depends on the node being reopened — the
+    message names the blocking edges so the UI can say what to do next.
+    """
+    store = _open_store()
+    try:
+        result = store.reopen(body.id, by=body.by, note=body.note)
         return {"ok": True, **result}
     except UnknownItem as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -496,6 +571,117 @@ def merge_candidate_dismiss(candidate_id: str, body: MergeDismiss) -> dict[str, 
 
 
 # ---------------------------------------------------------------------------
+# Publisher sources (registry holds a reference; the key lives in the Keychain)
+# ---------------------------------------------------------------------------
+
+# Longest key this will accept. Publisher keys are tens of characters; a
+# megabyte in this field is a mistake or an attempt to fill the Keychain,
+# and checking it here means the limit is enforced without a 422 that would
+# echo the value back.
+MAX_SOURCE_KEY_LEN = 4096
+
+
+@router.get("/sources")
+def list_sources() -> dict[str, Any]:
+    """Connected publisher sources. Presence only — never a key value."""
+    return {"sources": [source_public(s) for s in load_sources(_data_dir)]}
+
+
+@router.post("/sources")
+def create_source(body: SourceCreate) -> dict[str, Any]:
+    """Connect a source, storing its key in the Keychain.
+
+    Gate failures answer 200 with a typed `error_kind`, like `collect` — the
+    Sources screen renders them inline. Nothing here echoes the submitted
+    key, including on the failure paths: the messages are written here rather
+    than derived from an exception, because `security`'s command line
+    contains the key and its errors could quote it.
+    """
+    key = (body.key or "").strip()
+    if key and len(key) > MAX_SOURCE_KEY_LEN:
+        # Deliberately does not report the length back either — that is a
+        # small oracle, and the user knows what they pasted.
+        return {"ok": False, "error_kind": "rejected",
+                "detail": f"key is longer than {MAX_SOURCE_KEY_LEN} characters"}
+
+    # A key with no home would be dropped on the floor. Default to the role
+    # bundle so the common case ("connect journal access") needs no account
+    # name from the user at all.
+    account = body.keychain_account or (f"ontologylab.{body.role}" if key else "")
+    source = Source(
+        id=body.id,
+        role=body.role,
+        keychain_account=account,
+        api_key_env=body.api_key_env,
+        label=body.label,
+    )
+    try:
+        validate_source(source)
+    except SourceError as exc:
+        return {"ok": False, "error_kind": "rejected", "detail": str(exc)}
+
+    if key:
+        if not keychain_available():
+            return {
+                "ok": False,
+                "error_kind": "unsupported",
+                "detail": (
+                    "this machine has no macOS Keychain; set the key as an "
+                    "environment variable and give its name as api_key_env"
+                ),
+            }
+        try:
+            write_key(account, key)
+        except KeychainError as exc:
+            # H2 applies here, and this is the one place it bites hardest:
+            # `security` is invoked with the key on its command line, so an
+            # error about that invocation is the most likely thing in the
+            # system to quote it. `keychain.py` writes its own messages and
+            # is tested not to include the key — but forwarding a foreign
+            # string means a future edit there silently reopens this. Scrub
+            # rather than trust, the same way the Keychain write verifies
+            # rather than trusting its exit status.
+            detail = str(exc)
+            if key in detail:
+                detail = "the Keychain rejected the key"
+            return {"ok": False, "error_kind": "failed", "detail": detail}
+
+    add_source(_data_dir, source)
+    return {"ok": True, "source": source_public(source)}
+
+
+@router.delete("/sources/{source_id}")
+def delete_source(source_id: str) -> dict[str, Any]:
+    """Disconnect a source. The stored key is left alone.
+
+    Removing a configuration row and destroying a credential are different
+    decisions, so they are different requests. `key_retained` tells the UI
+    whether to offer the second one.
+    """
+    source = get_source(_data_dir, source_id)
+    removed = remove_source(_data_dir, source_id)
+    retained = bool(
+        source is not None
+        and source.keychain_account
+        and read_key(source.keychain_account) is not None
+    )
+    return {"ok": True, "removed": removed, "key_retained": retained}
+
+
+@router.delete("/sources/{source_id}/key")
+def forget_source_key(source_id: str) -> dict[str, Any]:
+    """Delete the stored key itself, leaving the registry entry in place.
+
+    Separated from the row deletion because it is the destructive half, and
+    because a user rotating a key wants exactly this and nothing else.
+    """
+    source = get_source(_data_dir, source_id)
+    if source is None or not source.keychain_account:
+        return {"ok": True, "forgotten": False, "reason": "no stored key"}
+    return {"ok": True, "forgotten": delete_key(source.keychain_account)}
+
+
+# ---------------------------------------------------------------------------
 # Documents / collect (Sources screen)
 # ---------------------------------------------------------------------------
 
@@ -529,12 +715,15 @@ def collect(body: CollectRequest) -> dict[str, Any]:
     """
     job_dir = paths.new_job_dir(_data_dir, "collect")
     provenance = Provenance(str(job_dir), seed=0)
+    # Logged before the gates so a rejected attempt still leaves a trace,
+    # and bounded because that ordering means these values have passed no
+    # validation yet (M2 — see `loggable_collect_inputs`).
     provenance.log(
         "collect.start",
         {
-            "urls": body.urls,
-            "files": body.files,
-            "paper_queries": body.paper_queries,
+            "urls": loggable_collect_inputs(body.urls),
+            "files": loggable_collect_inputs(body.files),
+            "paper_queries": loggable_collect_inputs(body.paper_queries),
         },
     )
 
@@ -551,6 +740,8 @@ def collect(body: CollectRequest) -> dict[str, Any]:
     try:
         for url in body.urls:
             check_url(url)
+        for file_arg in body.files:
+            check_collect_file(file_arg, _data_dir)
         for paper_query in body.paper_queries:
             check_paper_query(body.paper_source, paper_query)
             check_source_implemented(body.paper_source)
@@ -560,6 +751,32 @@ def collect(body: CollectRequest) -> dict[str, Any]:
     except UnsupportedPaperSource as exc:
         provenance.log("collect.unsupported", {"error": str(exc)})
         return {"ok": False, "error_kind": "unsupported", "detail": str(exc)}
+
+    # Offline is checked HERE — after the allowlist gate, before any fetch.
+    #
+    # After, because `NotAllowlisted` above logs `collect.rejected`, and
+    # offline mode is the normal resting state for this system. Checking
+    # offline first would mean that for as long as the kill switch is on,
+    # every allowlist violation returns before it is recorded — the audit
+    # trail for a security boundary would go silent exactly while the system
+    # is at its most locked down. A boundary violation must be logged
+    # regardless of whether the network was reachable.
+    #
+    # Before the fetch, because the connectors raise `NetworkBlocked` per
+    # source. Under a fan-out's `return_exceptions=True` that arrives five
+    # times and reads as "five sources failed" — a network problem — instead
+    # of "the operator turned egress off". The per-fetch
+    # `assert_network_allowed` stays as defence in depth.
+    # Only a request that would actually leave the machine is refused: the
+    # kill switch governs egress, and collecting a local file is not egress.
+    needs_network = bool(body.urls or body.paper_queries)
+    if needs_network and paths.offline_mode():
+        detail = (
+            "offline mode (ONTOLOGYLAB_OFFLINE) blocks network collection; "
+            "unset it to fetch, or collect local files instead"
+        )
+        provenance.log("collect.offline", {"error": detail})
+        return {"ok": False, "error_kind": "offline", "detail": detail}
 
     error: dict[str, Any] | None = None
 
@@ -727,9 +944,109 @@ def start_extract(body: ExtractRequest) -> dict[str, Any]:
     return {"job_id": job.job_id, "status": "running"}
 
 
+@router.post("/research")
+def start_research(body: ResearchRequest) -> dict[str, Any]:
+    """Collect a topic across sources and extract it, as one job.
+
+    Every gate runs here, synchronously, before a job exists. `Job` carries
+    only `error: str` — there is nowhere on it to put an `error_kind`, so a
+    rejection routed through the worker would reach the dashboard as an
+    untyped failure and lose the badge the Sources screen renders. This
+    mirrors `collect`'s gate order exactly: shape, then allowlist, then
+    offline.
+    """
+    # Default to what can actually be queried: the keyless five plus any
+    # publisher source that is connected. An explicit list is honoured as
+    # given, so asking for `elsevier` without a key still answers with a
+    # typed `unconfigured` rather than silently dropping it.
+    sources = body.sources or available_sources(_data_dir)
+
+    def _record(step: str, payload: dict[str, Any]) -> None:
+        """Write a refusal to provenance, creating its run dir on demand.
+
+        Only refusals land here. An accepted request gets its own job dir
+        moments later and logs `research.start` into it, so recording every
+        request eagerly would leave an empty run dir behind for each one and
+        double-count research runs in the jobs listing.
+        """
+        provenance = Provenance(str(paths.new_job_dir(_data_dir, "research")), seed=0)
+        provenance.log(
+            step,
+            {"topic": loggable_collect_inputs([body.topic]),
+             "sources": sources, **payload},
+        )
+
+    try:
+        for source in sources:
+            check_paper_query(source, body.topic)
+            check_source_implemented(source)
+    except NotAllowlisted as exc:
+        _record("research.rejected", {"error": str(exc)})
+        return {"ok": False, "error_kind": "rejected", "detail": str(exc)}
+    except UnsupportedPaperSource as exc:
+        _record("research.unsupported", {"error": str(exc)})
+        return {"ok": False, "error_kind": "unsupported", "detail": str(exc)}
+
+    # After the allowlist gate, before any fetch — the same ordering and the
+    # same reason as `collect`: a boundary violation must be recorded even
+    # while the kill switch is on, and a fan-out under
+    # `return_exceptions=True` would otherwise report the kill switch as
+    # five separate source failures.
+    if paths.offline_mode():
+        detail = (
+            "offline mode (ONTOLOGYLAB_OFFLINE) blocks network collection; "
+            "unset it to run a research topic"
+        )
+        _record("research.offline", {"error": detail})
+        return {"ok": False, "error_kind": "offline", "detail": detail}
+
+    running = _registry().running_research()
+    if running is not None:
+        return {
+            "ok": False,
+            "error_kind": "busy",
+            "detail": (
+                f"research run {running.job_id} is still going; "
+                f"cancel it or wait for it to finish"
+            ),
+            "job_id": running.job_id,
+        }
+
+    job = _registry().create_research(
+        topic=body.topic,
+        sources=sources,
+        limit=body.limit,
+        engine=body.engine,
+        model=body.model,
+        max_engine_calls=body.max_engine_calls,
+        time_budget=body.time_budget,
+        seed=body.seed,
+    )
+    return {"ok": True, "job_id": job.job_id, "status": "running"}
+
+
 @router.get("/jobs")
 def list_jobs() -> dict[str, Any]:
     return {"jobs": [job.as_status() for job in _registry().list()]}
+
+
+@router.post("/jobs/{job_id}/cancel")
+def cancel_job(job_id: str) -> dict[str, Any]:
+    """Ask a running job to stop at its next checkpoint.
+
+    Returns 200 either way: `cancelled` false means the job was unknown or
+    had already reached a terminal state, which is not an error the caller
+    can act on. Cancelling twice is harmless.
+
+    This is a request, not a kill — the worker stops between chunks, and a
+    blocking fetch already in flight runs to its socket timeout first.
+    """
+    job = _registry().get(job_id)
+    if job is None:
+        return {"ok": True, "cancelled": False, "reason": "unknown job"}
+    if not job.cancel():
+        return {"ok": True, "cancelled": False, "reason": f"already {job.status}"}
+    return {"ok": True, "cancelled": True, "job": job.as_status()}
 
 
 # Seconds each stream iteration waits for a change before emitting a

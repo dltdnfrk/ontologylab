@@ -9,6 +9,7 @@ library only.
 from __future__ import annotations
 
 import os
+import re
 import time
 from pathlib import Path
 
@@ -71,6 +72,18 @@ def providers_path(data_dir: Path | str) -> Path:
     return Path(data_dir) / "providers.json"
 
 
+def sources_path(data_dir: Path | str) -> Path:
+    """Return the publisher-source registry file under ``data_dir``.
+
+    Same posture as ``providers_path``, and for a sharper reason: this
+    directory was found to be syncing to iCloud, so the registry stores only
+    a Keychain *account* name (or an env-var name), never a key. A collect
+    is also forbidden from reading anything under here at all — see
+    ``connectors.allowlist.check_collect_file``.
+    """
+    return Path(data_dir) / "sources.json"
+
+
 # Global network kill switch. When ``ONTOLOGYLAB_OFFLINE`` is set to a truthy
 # value the app refuses every outbound network egress (API-backed LLM engines
 # and the paper/web connectors) — a hard, auditable guarantee that private
@@ -99,8 +112,31 @@ def assert_network_allowed(what: str) -> None:
         )
 
 
+_STAGE_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+
+
 def new_job_dir(data_dir: Path | str, stage: str) -> Path:
-    """Create and return a fresh job directory ``data/jobs/<stage>-<ts>/``."""
+    """Create and return a fresh job directory ``data/jobs/<stage>-<ts>/``.
+
+    ``stage`` names the kind of work, not the work itself, so it is held to a
+    narrow shape. Every caller passes a literal (``collect``, ``extract``,
+    ``build-pack``), and unvalidated the value went straight into the path:
+    ``new_job_dir(data, "../../../../escaped")`` created a directory four
+    levels above the store.
+
+    Nothing does that today. The reason to close it now is that a research
+    run makes a *user-supplied topic* a first-class concept, and wanting to
+    tell runs apart in a job listing (``research-<topic>-...``) is the
+    obvious next step. Refusing anything but a stage token makes that idea
+    fail loudly at the call site instead of writing wherever the topic
+    points. A topic belongs in a Job field or a provenance payload, never in
+    a path component.
+    """
+    if not _STAGE_RE.match(stage):
+        raise ValueError(
+            f"stage must match {_STAGE_RE.pattern} (got {stage!r}); "
+            f"caller-supplied text such as a topic is not a path component"
+        )
     stamp = time.strftime("%Y%m%d-%H%M%S")
     base = jobs_dir(data_dir)
     job_dir = base / f"{stage}-{stamp}"

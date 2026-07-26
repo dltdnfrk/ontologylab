@@ -30,8 +30,10 @@ from xml.etree.ElementTree import ParseError
 from ontologylab import paths
 from ontologylab.connectors.allowlist import (
     NotAllowlisted,
+    check_collect_file,
     check_paper_query,
     check_url,
+    loggable_collect_inputs,
 )
 from ontologylab.connectors.base import RawDocument
 from ontologylab.connectors.paper_api import (
@@ -44,10 +46,9 @@ from ontologylab.connectors.web_crawl import WebCrawlConnector
 from ontologylab.engines import EngineError, engine_name_arg, get_engine
 from ontologylab.expansion import expand_query
 from ontologylab.extractor import (
-    PROMPT_VERSION,
-    build_extraction_prompt,
-    chunk_document,
-    parse_and_validate_extraction,
+    TOTALS_KEYS,
+    run_extraction,
+    unprocessed_doc_ids,
 )
 from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError
 from ontologylab.packbuilder import build_pack
@@ -77,9 +78,16 @@ def cmd_collect(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir)
     job_dir = paths.new_job_dir(data_dir, "collect")
     provenance = Provenance(str(job_dir), seed=0)
+    # Bounded for the same reason as the route's copy: `collect.start` is
+    # logged before the gates, so these values have passed no validation yet
+    # (M2 — see `loggable_collect_inputs`).
     provenance.log(
         "collect.start",
-        {"urls": args.url, "files": args.file, "paper_queries": args.paper_query},
+        {
+            "urls": loggable_collect_inputs(args.url or []),
+            "files": loggable_collect_inputs(args.file or []),
+            "paper_queries": loggable_collect_inputs(args.paper_query or []),
+        },
     )
 
     if not (args.url or args.file or args.paper_query):
@@ -95,6 +103,8 @@ def cmd_collect(args: argparse.Namespace) -> int:
     try:
         for url in args.url:
             check_url(url)
+        for file_arg in args.file or []:
+            check_collect_file(file_arg, data_dir)
         for paper_query in args.paper_query or []:
             check_paper_query(args.paper_source, paper_query)
             check_source_implemented(args.paper_source)
@@ -216,19 +226,8 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
     kill_switch.install()
 
     engine = get_engine(args.engine, args.model, seed=args.seed, data_dir=data_dir)
-    schema = store.get_schema()
 
-    if args.doc_ids:
-        doc_ids = args.doc_ids
-    else:
-        # default: every document with no extracted rows yet
-        doc_ids = [
-            r["id"]
-            for r in store.conn.execute(
-                "SELECT id FROM documents WHERE id NOT IN "
-                "(SELECT DISTINCT source_doc_id FROM nodes)"
-            )
-        ]
+    doc_ids = args.doc_ids or unprocessed_doc_ids(store)
     if not doc_ids:
         print("[ontologylab] no unprocessed documents to extract")
         return 0
@@ -237,76 +236,32 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
         "extract.start",
         {"engine": args.engine, "model": args.model, "doc_ids": doc_ids},
     )
-    totals = {"nodes_new": 0, "nodes_merged": 0, "edges_new": 0, "edges_merged": 0}
-    stopped_reason = ""
-    for doc_id in doc_ids:
-        doc = store.get_document(doc_id)
-        raw_text = store.document_raw_text(doc_id)
-        chunks = chunk_document(raw_text)
-        provenance.log(
-            "extract.doc", {"doc_id": doc_id, "chunks": len(chunks)}
-        )
-        for chunk in chunks:
-            stop, reason = caps.should_stop(
-                {
-                    "elapsed": provenance.elapsed_s,
-                    "engine_calls": provenance.engine_calls,
-                }
-            )
-            if stop:
-                stopped_reason = reason
-                break
-            if kill_switch.triggered():
-                stopped_reason = "kill switch triggered"
-                break
-            prompt = build_extraction_prompt(schema, chunk.text)
-            try:
-                raw_response, usage = await engine.generate(prompt, model=args.model)
-            except EngineError as exc:
-                provenance.log(
-                    "extract.engine_error",
-                    {"doc_id": doc_id, "chunk": chunk.index, "error": str(exc)},
-                )
-                print(
-                    f"[ontologylab] engine error on {doc_id}#{chunk.index}: {exc}",
-                    file=sys.stderr,
-                )
-                continue
-            provenance.track_engine_call(
-                "extract", float(usage.get("elapsed") or 0.0), usage
-            )
-            try:
-                result = parse_and_validate_extraction(raw_response, schema, chunk)
-            except EngineError as exc:
-                # malformed/off-schema response: rejected + logged, never
-                # inserted, never a crash (M4 acceptance criterion)
-                provenance.log(
-                    "extract.parse_rejected",
-                    {"doc_id": doc_id, "chunk": chunk.index, "error": str(exc)},
-                )
-                continue
-            for warning in result.warnings:
-                provenance.log(
-                    "extract.warning",
-                    {"doc_id": doc_id, "chunk": chunk.index, "warning": warning},
-                )
-            stats = store.insert_proposed(
-                result.entities,
-                result.relations,
-                source_doc_id=doc_id,
-                extractor_engine=args.engine,
-                extractor_model=args.model,
-                prompt_version=PROMPT_VERSION,
-            )
-            for key in totals:
-                totals[key] += stats[key]
-            print(
-                f"[ontologylab] {doc_id}#{chunk.index}: "
-                f"+{stats['nodes_new']} nodes (+{stats['nodes_merged']} merged), "
-                f"+{stats['edges_new']} edges"
-            )
-        if stopped_reason:
-            break
+    totals = dict.fromkeys(TOTALS_KEYS, 0)
+
+    def _accumulate(stats: dict[str, int]) -> None:
+        for key in totals:
+            totals[key] += stats[key]
+
+    def _print(message: str) -> None:
+        # Engine errors are the only progress line that belongs on stderr;
+        # they are the ones a caller redirecting stdout still needs to see.
+        stream = sys.stderr if "engine error" in message else sys.stdout
+        print(message, file=stream)
+
+    stopped_reason = await run_extraction(
+        store,
+        engine,
+        provenance,
+        caps,
+        doc_ids,
+        extractor_engine=args.engine,
+        extractor_model=args.model,
+        on_progress=_print,
+        on_stats=_accumulate,
+        should_abort=lambda: (
+            "kill switch triggered" if kill_switch.triggered() else ""
+        ),
+    )
 
     provenance.log("extract.end", {"totals": totals, "stopped": stopped_reason})
     kill_switch.uninstall()

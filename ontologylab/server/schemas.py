@@ -31,6 +31,25 @@ class CollectRequest(BaseModel):
     limit: int = Field(PAPER_DEFAULT_LIMIT, ge=1, le=PAPER_MAX_LIMIT)
 
 
+class ResearchRequest(BaseModel):
+    """Collect a topic across paper sources, then extract what arrived.
+
+    An empty `sources` means every implemented source. `topic` is validated
+    by `check_paper_query` in the route before a job exists, so a bad topic
+    comes back as a typed `rejected` response rather than as a job that
+    fails a moment later — the classification has nowhere to live on `Job`.
+    """
+
+    topic: str
+    sources: list[str] = Field(default_factory=list)
+    limit: int = Field(PAPER_DEFAULT_LIMIT, ge=1, le=PAPER_MAX_LIMIT)
+    engine: str = "mock"
+    model: Optional[str] = None
+    max_engine_calls: int = Field(DEFAULT_MAX_ENGINE_CALLS, ge=1)
+    time_budget: float = Field(DEFAULT_TIME_BUDGET_S, gt=0)
+    seed: int = DEFAULT_SEED
+
+
 class ExtractRequest(BaseModel):
     """Start a background extraction job (Extraction Jobs screen)."""
 
@@ -40,6 +59,37 @@ class ExtractRequest(BaseModel):
     max_engine_calls: int = Field(DEFAULT_MAX_ENGINE_CALLS, ge=1)
     time_budget: float = Field(DEFAULT_TIME_BUDGET_S, gt=0)
     seed: int = DEFAULT_SEED
+
+
+class SourceCreate(BaseModel):
+    """Connect a publisher API (Sources screen).
+
+    ``key`` is write-only: it goes straight into the Keychain and is never
+    stored in the registry, returned, or logged. It deliberately carries **no
+    Field constraints** — a failed constraint produces a 422 whose `input`
+    holds the offending value, and the value here is an API key. Its shape is
+    checked inside the route, where the message is written by hand.
+    (`app.create_app` also strips `input` from every validation error, so
+    this is belt and braces on the one endpoint that receives a secret.)
+    """
+
+    id: str
+    role: str = "literature"
+    label: str = ""
+    key: Optional[str] = None
+    keychain_account: str = ""
+    api_key_env: str = ""
+
+
+class SourceModel(BaseModel):
+    """Public view of one connected source — presence only, never a key."""
+
+    id: str
+    role: str
+    keychain_account: str = ""
+    api_key_env: str = ""
+    label: str = ""
+    key_present: bool = False
 
 
 class PackBuildRequest(BaseModel):
@@ -169,8 +219,11 @@ class JobStatus(BaseModel):
     """Status snapshot of one background extraction job (Extraction Jobs screen)."""
 
     job_id: str
-    kind: str = "extract"
-    status: str  # "running" | "complete" | "failed"
+    kind: str = "extract"  # "extract" | "research"
+    status: str  # "running" | "complete" | "failed" | "cancelled"
+    # Which half of a research run is executing. Kept out of `status` so the
+    # dashboard's running→terminal edge detection keeps working.
+    phase: str = ""
     engine: str
     model: Optional[str] = None
     started_ts: float

@@ -18,6 +18,11 @@
     });
     // 파이프라인 스트립의 현재 단계 마커 (CSS가 body[data-active-tab]로 그림)
     document.body.dataset.activeTab = name;
+    // 탭을 옮기면 맨 위에서 시작한다. 스크롤 위치를 물려받으면 새 화면의
+    // 제목이 뷰포트 밖으로 밀리고, 첫 문단이 sticky 파이프라인 바에
+    // 가로로 잘린 채 나타난다.
+    var main = document.querySelector("main");
+    if (main) main.scrollTop = 0;
   }
 
   document.querySelectorAll(".tab-btn").forEach(function (btn) {
@@ -49,22 +54,56 @@
       box.innerHTML = "<div class='status-row'><span>집계 없음</span></div>";
       return;
     }
+    // 값이 위, 이름이 아래로 읽히도록 CSS가 뒤집는다(#counts-box). 그래서
+    // 라벨 끝의 콜론은 빼고, 검토 대기 두 칸은 '제안됨' 상태색을 입도록
+    // 표시한다 — 이 화면에서 실제로 행동해야 하는 숫자가 그 둘이다.
+    // 한 대상에 이름 하나. 예전엔 같은 것을 개념·노드·엔티티 세 가지로
+    // 불러서, 화면마다 다른 단어를 다시 배워야 했다.
     box.innerHTML =
-      "<div class='status-row'><span>개념(노드) 검토 대기:</span> <code>" +
+      "<div class='status-row is-pending'><span>개념 대기</span> <code>" +
       (counts.nodes_proposed || 0) +
       "</code></div>" +
-      "<div class='status-row'><span>관계(엣지) 검토 대기:</span> <code>" +
+      "<div class='status-row is-pending'><span>관계 대기</span> <code>" +
       (counts.edges_proposed || 0) +
       "</code></div>" +
-      "<div class='status-row'><span>개념 승인됨:</span> <code>" +
+      "<div class='status-row'><span>개념 승인</span> <code>" +
       (counts.nodes_verified || 0) +
       "</code></div>" +
-      "<div class='status-row'><span>관계 승인됨:</span> <code>" +
+      "<div class='status-row'><span>관계 승인</span> <code>" +
       (counts.edges_verified || 0) +
       "</code></div>" +
-      "<div class='status-row'><span>문서:</span> <code>" +
+      "<div class='status-row'><span>문서</span> <code>" +
       (counts.documents || 0) +
       "</code></div>";
+  }
+
+  /* 초 단위를 사람이 읽는 시간으로. 1072.9433485820264 → "17분 53초" */
+  function fmtDuration(seconds) {
+    var s = Math.round(Number(seconds) || 0);
+    if (s < 60) return s + "초";
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + "분 " + (s % 60) + "초";
+    return Math.floor(m / 60) + "시간 " + (m % 60) + "분";
+  }
+
+  /* 엔진 탭의 비용 요약을 읽을 수 있는 줄글로 만든다(JSON 덤프 대체) */
+  function formatCost(cost) {
+    if (!cost) return "아직 실행 기록이 없어요.";
+    var lines = [
+      "엔진 호출  " + (cost.total_engine_calls || 0) + "회",
+      "총 소요    " + fmtDuration(cost.total_elapsed_s),
+    ];
+    // API가 주는 키는 engine_calls / elapsed_s 다. 예전에 calls / elapsed 로
+    // 읽어서 총계는 25회인데 엔진별 내역은 전부 0회로 나왔다.
+    var per = cost.per_engine || {};
+    Object.keys(per).forEach(function (name) {
+      var v = per[name] || {};
+      lines.push(
+        "  · " + name + "  " + (v.engine_calls || 0) + "회 · " +
+        fmtDuration(v.elapsed_s)
+      );
+    });
+    return lines.join("\n");
   }
 
   function itemLabel(item) {
@@ -76,14 +115,79 @@
     return item.id ? item.id.slice(0, 12) : "—";
   }
 
+  /* 검토 표의 '이름 / 엔드포인트' 셀. 관계는 서버가 준 src_label/dst_label로
+     양끝과 화살표를 나눠 감싼다 — 화살표까지 같은 잉크로 굵게 찍으면
+     "A → B"가 한 덩어리로 뭉쳐 어느 쪽이 출발인지 눈에 안 들어온다. */
+  function itemLabelHtml(item) {
+    if (item.kind === "edge" && item.src_label && item.dst_label) {
+      return (
+        "<strong class='ep'>" + escapeHtml(item.src_label) + "</strong>" +
+        "<span class='ep-arrow' aria-hidden='true'>→</span>" +
+        "<strong class='ep'>" + escapeHtml(item.dst_label) + "</strong>"
+      );
+    }
+    return "<strong>" + escapeHtml(itemLabel(item)) + "</strong>";
+  }
+
   // 승인/거부는 요청이 겹치면 이중 POST가 되므로 전역 1건씩만 처리
   var actPending = false;
 
-  function setLastAction(text) {
+  /* 마지막 결정 하나를 되돌릴 수 있게 들고 있는다. 'a'/'r'이 커서 키
+     'j'/'k' 바로 옆이라 한 박자 이른 결정이 자주 나는데, 지금까지는
+     그 결정이 그대로 확정이었다. */
+  var lastDecision = null;   // {ids: [...], label}
+
+  function setLastAction(text, decision) {
     var el = $("#review-last-action");
+    lastDecision = decision || null;
     if (!el) return;
-    el.textContent = text;
+    el.textContent = "";
+    el.appendChild(document.createTextNode(text));
+    if (decision) {
+      var undo = document.createElement("button");
+      undo.type = "button";
+      undo.className = "btn btn-link undo-btn";
+      undo.textContent = "되돌리기 (u)";
+      undo.addEventListener("click", undoLastDecision);
+      el.appendChild(document.createTextNode(" "));
+      el.appendChild(undo);
+    }
     el.classList.remove("hidden");
+  }
+
+  async function undoLastDecision() {
+    if (!lastDecision || actPending) return;
+    var target = lastDecision;
+    actPending = true;
+    try {
+      // 승인은 cascade로 관계와 양끝 개념을 함께 확정할 수 있으므로,
+      // 되돌리기도 그 묶음 전체를 되돌려야 반쪽만 풀리지 않는다.
+      // 역순으로 — 관계가 먼저 큐로 돌아가야 끝점 개념도 풀 수 있다
+      // (승인된 관계가 매달린 개념은 서버가 되돌리기를 거부한다).
+      var ids = target.ids.slice().reverse();
+      for (var i = 0; i < ids.length; i++) {
+        await api("/api/proposals/reopen", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: ids[i] }),
+        });
+      }
+      $("#review-error").classList.add("hidden");
+      setLastAction(
+        "되돌렸어요: " + target.label +
+          (ids.length > 1 ? " (" + ids.length + "건)" : ""),
+        null
+      );
+      await loadProposals(reviewCursor);
+    } catch (err) {
+      // 승인된 관계가 매달린 개념은 되돌릴 수 없다 — 서버가 막는 이유를
+      // 그대로 보여줘야 무엇을 먼저 해야 하는지 알 수 있다.
+      var el = $("#review-error");
+      el.textContent = friendlyError(err);
+      el.classList.remove("hidden");
+    } finally {
+      actPending = false;
+    }
   }
 
   async function act(kind, id) {
@@ -94,15 +198,21 @@
     var row = reviewRows.filter(function (r) { return r.id === id; })[0];
     var keepIdx = reviewCursor;
     try {
-      await api(path, {
+      var res = await api(path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: id, cascade: kind === "approve" }),
       });
       $("#review-error").classList.add("hidden");
+      var label = (row && row.label) || id.slice(0, 12);
+      // 서버가 실제로 확정한 id 전부를 받는다 — 관계를 승인하면 cascade로
+      // 끝점 개념까지 함께 확정되므로, 영수증도 되돌리기도 그 수를 알아야
+      // 한다("1건 승인"이라 적고 3건을 바꾸면 안 된다).
+      var touched = (res && (res.approved_ids || res.rejected_ids)) || [id];
       setLastAction(
-        (kind === "approve" ? "승인됨: " : "거부됨: ") +
-          ((row && row.label) || id.slice(0, 12))
+        (kind === "approve" ? "승인됨: " : "거부됨: ") + label +
+          (touched.length > 1 ? " (끝점 포함 " + touched.length + "건)" : ""),
+        { ids: touched, label: label }
       );
       await loadProposals(keepIdx);
     } catch (err) {
@@ -128,16 +238,93 @@
     var row = reviewRows[reviewCursor];
     row.tr.classList.add("row-focused");
     row.tr.scrollIntoView({ block: "nearest" });
+    renderEvidence(row.item);
+  }
+
+  /* 근거 패널 — 지금 커서가 놓인 항목이 '어느 문장에서 나왔는지'를 보여준다.
+     서버가 스팬을 >>> <<< 로 감싸 주므로 그 자리를 <mark>로 바꿔 칠한다.
+     추가 요청은 없다: 큐 응답에 이미 발췌가 실려 온다. */
+  function renderEvidence(item) {
+    var pane = $("#evidence-pane");
+    if (!pane) return;
+    if (!item) {
+      pane.innerHTML =
+        "<p class='muted evidence-idle'>검토할 항목이 없어요.</p>";
+      return;
+    }
+    var html =
+      "<div class='ev-head'>" +
+      "<span class='badge st-proposed'>" + kindKo(item.kind) + "</span>" +
+      "<code>" + escapeHtml(item.type_name || "") + "</code>" +
+      "</div>" +
+      "<h3 class='ev-label'>" + itemLabelHtml(item) + "</h3>";
+
+    if (item.kind === "edge") {
+      // 엔드포인트 상태를 미리 보여야 '끝점이 아직 승인 안 됨' 오류가
+      // 눌러 보기 전에 예측된다 (approve는 양끝이 verified여야 통과).
+      html +=
+        "<p class='ev-endpoints muted'><small>" +
+        escapeHtml(item.src_label || "?") + " → " +
+        escapeHtml(item.dst_label || "?") +
+        " · 승인하면 양끝 개념도 함께 승인돼요</small></p>";
+    }
+
+    html += "<h4 class='ev-section'>근거</h4>";
+    if (item.excerpt) {
+      html +=
+        "<blockquote class='ev-excerpt'>" + markExcerpt(item.excerpt) +
+        "</blockquote>" +
+        "<p class='ev-source muted'><small>" +
+        escapeHtml(item.doc_title || item.source_doc_id || "") +
+        "</small></p>";
+    } else {
+      html +=
+        "<p class='muted ev-noevidence'><small>이 항목엔 남은 출처 문장이 " +
+        "없어요 — 원문이 지워졌거나 스팬이 기록되지 않았어요.</small></p>";
+    }
+
+    html +=
+      "<h4 class='ev-section'>판단 재료</h4>" +
+      "<div class='ev-meta'>" +
+      "<div><span>확신도</span><code>" +
+      (item.confidence == null ? "—" : Number(item.confidence).toFixed(2)) +
+      "</code></div>" +
+      "<div><span>크리틱</span><code>" +
+      (item.critic_score == null ? "—" : Number(item.critic_score).toFixed(2)) +
+      "</code></div>" +
+      "</div>";
+    if (item.critic_disagreement) {
+      html +=
+        "<p class='ev-disagree'><small>⚠ 추출기와 크리틱의 판단이 갈려요 —" +
+        " 근거를 특히 꼼꼼히 보세요.</small></p>";
+    }
+    if (item.critic_rationale) {
+      html +=
+        "<p class='muted ev-rationale'><small>" +
+        escapeHtml(String(item.critic_rationale)) + "</small></p>";
+    }
+    pane.innerHTML = html;
+  }
+
+  /* span_excerpt가 넣어 준 >>> <<< 마커를 <mark>로 바꾼다.
+     이스케이프를 먼저 하고 마커를 치환해야 원문 속 꺾쇠가 태그로 새지 않는다. */
+  function markExcerpt(excerpt) {
+    return escapeHtml(String(excerpt))
+      .replace(/&gt;&gt;&gt;/g, "<mark>")
+      .replace(/&lt;&lt;&lt;/g, "</mark>");
   }
 
   document.addEventListener("keydown", function (ev) {
     // never hijack typing in inputs
     var tag = (ev.target.tagName || "").toLowerCase();
     if (tag === "input" || tag === "textarea" || tag === "select") return;
-    // ③ 검토 탭이 보일 때만 동작 — 다른 탭에서 보이지 않는 행이
+    // ② 검토 탭이 보일 때만 동작 — 다른 탭에서 보이지 않는 행이
     // 조용히 승인/거부되는 사고 방지 (승인은 눈으로 보고 하는 행위)
     var reviewPanel = document.getElementById("tab-review");
     if (!reviewPanel || !reviewPanel.classList.contains("active")) return;
+    // 되돌리기는 큐가 비어 있어도 되어야 한다 — 마지막 한 건을 잘못
+    // 승인해 큐가 0이 된 순간이 바로 가장 되돌리고 싶은 때다.
+    if (ev.key === "u") { undoLastDecision(); ev.preventDefault(); return; }
     if (!reviewRows.length) return;
     if (ev.key === "j") focusRow(reviewCursor + 1);
     else if (ev.key === "k") focusRow(reviewCursor - 1);
@@ -145,10 +332,10 @@
       act("approve", reviewRows[reviewCursor].id);
     else if (ev.key === "r" && reviewCursor >= 0)
       act("reject", reviewRows[reviewCursor].id);
-    else if (ev.key === "s") focusRow(reviewCursor + 1); // skip
-    else if (ev.key === "e" && reviewCursor >= 0) {
+    // 'd' = 자세히. 이전의 's'(건너뛰기)는 'j'와 완전히 같은 동작이라
+    // 아무것도 미루지 않았다 — 있으나 마나 한 키라 없앴다.
+    else if (ev.key === "d" && reviewCursor >= 0) {
       var focused = reviewRows[reviewCursor];
-      // entity view applies to nodes; for an edge, no-op
       if (focused.kind === "node") loadEntityPanel(focused.id);
       else return;
     } else return;
@@ -161,7 +348,7 @@
     var err = $("#review-error");
     err.classList.add("hidden");
     empty.classList.add("hidden");
-    showTableLoading(tbody, 8);
+    showTableLoading(tbody, 5);   // 선택/종류/이름/확신도/작업
     reviewRows = [];
     reviewCursor = -1;
     try {
@@ -178,22 +365,9 @@
         var tr = document.createElement("tr");
         var conf =
           item.confidence == null ? "—" : Number(item.confidence).toFixed(2);
-        /* Advisory display ONLY: the critic score never pre-selects or
-           pre-checks a decision (anchoring-bias guard). */
-        var critic = "—";
-        if (item.critic_score != null) {
-          critic = Number(item.critic_score).toFixed(2);
-          if (item.critic_disagreement) {
-            critic +=
-              " <span class='badge' role='img'" +
-              " aria-label='추출기·크리틱 판단 불일치'>⚠</span>";
-          }
-          if (item.critic_rationale) {
-            var rationale = String(item.critic_rationale);
-            if (rationale.length > 80) rationale = rationale.slice(0, 80) + "…";
-            critic += "<br><small class='muted'>" + escapeHtml(rationale) + "</small>";
-          }
-        }
+        /* 크리틱 점수·근거는 근거 패널(renderEvidence)에서 보여준다. 표에
+           같이 두면 좁은 칸에 80자로 잘린 이유가 들어가 읽히지도 않고,
+           결정 직전에 점수부터 눈에 들어와 앵커링을 만든다. */
         tr.innerHTML =
           "<td><input type='checkbox' class='row-check' data-id='" +
           escapeHtml(item.id || "") +
@@ -201,24 +375,21 @@
           "<td>" +
           kindKo(item.kind) +
           "</td>" +
-          "<td>" +
-          escapeHtml(item.type_name || item.entity_type || item.relation_type || "") +
+          "<td title='" + escapeHtml(item.id || "") + "'>" +
+          itemLabelHtml(item) +
           "</td>" +
-          "<td title='" + escapeHtml(item.id || "") + "'><strong>" +
-          escapeHtml(itemLabel(item)) +
-          "</strong></td>" +
           "<td class='conf-cell' style='--v:" +
           (item.confidence == null ? 0 : Number(item.confidence)) +
           "'>" +
           conf +
           "</td>" +
-          "<td>" +
-          critic +
-          "</td>" +
-          "<td title='" + escapeHtml(item.source_doc_id || "") + "'><small>" +
-          escapeHtml(item.doc_title || (item.source_doc_id || "").slice(0, 10)) +
-          "</small></td>" +
           "<td class='actions'></td>";
+        // 행을 클릭하면 근거 패널이 그 항목으로 옮겨간다 (결정은 버튼/키로만)
+        tr.addEventListener("click", function (ev) {
+          if (ev.target.closest("button, input")) return;
+          var at = reviewRows.findIndex(function (r) { return r.id === item.id; });
+          if (at >= 0) focusRow(at);
+        });
         var actions = tr.querySelector(".actions");
         var approveBtn = document.createElement("button");
         approveBtn.className = "btn btn-primary";
@@ -238,8 +409,8 @@
         if (item.kind === "node") {
           var focusBtn = document.createElement("button");
           focusBtn.className = "btn";
-          focusBtn.textContent = "엔티티";
-          focusBtn.title = "엔티티 중심 보기: 모든 멘션과 관계";
+          focusBtn.textContent = "자세히";
+          focusBtn.title = "이 개념의 모든 출처와 관계를 함께 보기";
           focusBtn.addEventListener("click", function () {
             loadEntityPanel(item.id);
           });
@@ -247,12 +418,14 @@
           actions.appendChild(focusBtn);
         }
         tbody.appendChild(tr);
+        // item 전체를 들고 있어야 근거 패널이 추가 요청 없이 즉시 그려진다
         reviewRows.push({
-          id: item.id, kind: item.kind, tr: tr, label: itemLabel(item),
+          id: item.id, kind: item.kind, tr: tr, label: itemLabel(item), item: item,
         });
       });
       var idx = typeof keepIndex === "number" ? keepIndex : 0;
       if (reviewRows.length) focusRow(Math.min(idx, reviewRows.length - 1));
+      else renderEvidence(null);
     } catch (e) {
       err.textContent = friendlyError(e);
       err.classList.remove("hidden");
@@ -325,17 +498,26 @@
     try {
       var engines = await api("/api/engines");
       list.innerHTML = "";
+      // 가용성이 이 화면의 전부인데 이전에는 전부 같은 검은 글머리표라
+      // 쓸 수 있는 엔진과 없는 엔진이 구분되지 않았다. 상태색을 입힌다.
       engines.forEach(function (eng) {
         var li = document.createElement("li");
-        li.textContent =
-          eng.name +
-          " — " +
-          (eng.available ? "사용 가능" : "미설치") +
-          (eng.default_model ? " (기본 모델: " + eng.default_model + ")" : "");
+        li.className = eng.available ? "is-available" : "is-missing";
+        li.innerHTML =
+          "<span class='eng-name'>" + escapeHtml(eng.name) + "</span>" +
+          "<span class='eng-state'>" +
+          (eng.available ? "사용 가능" : "미설치") + "</span>" +
+          (eng.default_model
+            ? "<span class='eng-model'>기본 모델 " +
+              escapeHtml(eng.default_model) + "</span>"
+            : "");
         list.appendChild(li);
       });
+      // 날것 JSON을 그대로 뿌리면 total_elapsed_s가 유효숫자 16자리로
+      // 나와(1072.9433485820264) 화면에서 가장 큰 덩어리가 가장 안 읽히는
+      // 요소가 된다. 사람이 읽는 단위로 정리해서 보여준다.
       var cost = await api("/api/cost");
-      $("#cost-pre").textContent = JSON.stringify(cost, null, 2);
+      $("#cost-pre").textContent = formatCost(cost);
     } catch (e) {
       list.innerHTML = "<li class='err-msg'>" + e.message + "</li>";
     }
@@ -571,7 +753,13 @@
     proposed: "검토 대기", verified: "승인됨", rejected: "거부됨",
     invalidated: "무효화됨", merged: "병합됨", dismissed: "기각",
     stale: "만료", running: "실행 중", complete: "완료", failed: "실패",
+    // 취소는 실패가 아니다 — 아무것도 고장나지 않았고, 그때까지의 결과는
+    // 그대로 남는다. 그래서 별도 상태이고 별도 라벨이다.
+    cancelled: "중단됨",
   };
+  // 리서치 런의 단계. `status`에 넣지 않는 이유는 applyJobs의
+  // running→종료 엣지 검출이 세 값 전제 위에 서 있기 때문 (조용히 깨진다).
+  var PHASE_KO = { collect: "모으는 중", extract: "뽑는 중" };
   function statusKo(s) {
     var k = String(s || "").toLowerCase();
     return STATUS_KO[k] || s || "—";
@@ -719,7 +907,7 @@
             "</code>개 · 중복 건너뜀 <code>" +
             escapeHtml(String(res.duplicates != null ? res.duplicates : "?")) +
             "</code>개 <button type='button' class='btn btn-primary'" +
-            " data-goto='jobs'>다음: ② 추출 실행 →</button>"
+            " data-goto='review'>다음: ② 검토하러 가기 →</button>"
         );
         await loadDocuments();
       } else {
@@ -745,11 +933,13 @@
   var jobsStreamRetryMs = 2000;
   var selectedJobId = null;
   var extractEnginesLoaded = false;
+  var paperSourcesLoaded = false;
   // running→complete/failed 전환 감지용 (완료 순간 안내를 띄우기 위해)
   var prevJobStatuses = {};
 
-  async function populateEngineSelect() {
-    var sel = $("#extract-engine");
+  async function populateEngineSelect(selector) {
+    var sel = $(selector || "#extract-engine");
+    if (!sel) return;
     try {
       var engines = (await api("/api/engines")) || [];
       sel.innerHTML = "";
@@ -766,6 +956,32 @@
       if (firstAvailable) sel.value = firstAvailable.name;
     } catch (_) {
       sel.innerHTML = "<option value='mock'>mock</option>";
+    }
+  }
+
+  async function populatePaperSourceSelect() {
+    // The dispatch table in paper_api is the registry; this select renders
+    // whatever it holds. On failure the picker stays empty rather than
+    // offering a guessed source that would fail the allowlist on submit.
+    var sel = $("#collect-paper-source");
+    try {
+      var body = (await api("/api/paper-sources")) || {};
+      var sources = body.sources || [];
+      sel.innerHTML = "";
+      sources.forEach(function (src) {
+        var opt = document.createElement("option");
+        opt.value = src.id;
+        // 키가 필요한데 아직 연결 안 된 소스는 고를 수는 있게 두되 비활성으로
+        // 표시한다 — 목록에서 아예 빼면 "연결하면 쓸 수 있다"는 사실 자체가
+        // 화면 어디에도 나타나지 않는다.
+        opt.textContent = src.label +
+          (src.keyed && !src.available ? " — 저널 접근 연결 필요" : "");
+        opt.disabled = src.available === false;
+        sel.appendChild(opt);
+      });
+      if (body.default) sel.value = body.default;
+    } catch (_) {
+      sel.innerHTML = "";
     }
   }
 
@@ -811,7 +1027,13 @@
         "<td>" + escapeHtml(job.engine || "") +
         (job.model ? " <small class='muted'>" + escapeHtml(job.model) + "</small>" : "") +
         "</td>" +
-        "<td>" + statusBadge(job.status) + "</td>" +
+        "<td>" + statusBadge(job.status) +
+        // 실행 중인 리서치 런만 단계를 덧붙인다. 끝난 작업에 "뽑는 중"이
+        // 남아 있으면 아직 도는 것처럼 읽힌다.
+        (job.status === "running" && PHASE_KO[job.phase]
+          ? " <small class='muted'>" + escapeHtml(PHASE_KO[job.phase]) + "</small>"
+          : "") +
+        "</td>" +
         "<td><small>" + escapeHtml(totalsSummary(job.totals)) + "</small></td>" +
         "<td><small>" + escapeHtml(fmtTs(job.started_ts)) + "</small></td>" +
         "<td><small>" + escapeHtml(fmtTs(job.finished_ts)) + "</small></td>";
@@ -838,21 +1060,39 @@
     // running → 종료 전환 감지: 완료 순간에 다음 단계 안내 + 검토 배지 갱신
     jobs.forEach(function (job) {
       var prev = prevJobStatuses[job.job_id];
+      // 리서치 런의 결과는 리서치 상자에, 수동 추출은 추출 상자에.
+      var box = job.kind === "research" ? $("#research-result") : $("#extract-result");
       if (prev === "running" && job.status === "complete") {
         showResult(
-          $("#extract-result"),
-          "<span class='ok-msg'>추출 완료!</span> " +
+          box,
+          "<span class='ok-msg'>" +
+            (job.kind === "research" ? "리서치 완료!" : "추출 완료!") +
+            "</span> " +
             escapeHtml(totalsSummary(job.totals)) +
             " <button type='button' class='btn btn-primary'" +
-            " data-goto='review'>③ 검토하러 가기 →</button>"
+            " data-goto='review'>② 검토하러 가기 →</button>"
         );
         loadProposals();
       } else if (prev === "running" && job.status === "failed") {
         showResult(
-          $("#extract-result"),
-          statusBadge("failed") + " " + escapeHtml(job.error || "추출 실패"),
+          box,
+          statusBadge("failed") + " " + escapeHtml(job.error || "실패"),
           true
         );
+      } else if (prev === "running" && job.status === "cancelled") {
+        // 취소는 실패가 아니다. 여기까지 나온 제안은 그대로 남아 있으므로
+        // 검토로 갈 수 있다고 알려준다.
+        showResult(
+          box,
+          statusBadge("cancelled") +
+            " 중단했어요 — 여기까지 나온 결과는 그대로 있어요. " +
+            escapeHtml(totalsSummary(job.totals))
+        );
+        loadProposals();
+      }
+      if (job.kind === "research" && job.job_id === researchJobId &&
+          job.status !== "running") {
+        setResearchRunning(null);
       }
       prevJobStatuses[job.job_id] = job.status;
     });
@@ -956,6 +1196,197 @@
     }
   });
 
+  /* -- 저널 접근: 연결/미연결 이진 상태. 값은 절대 되받지 않는다 -- */
+
+  async function loadSources() {
+    var tbody = $("#sources-body");
+    if (!tbody) return;
+    var badge = $("#sources-badge");
+    try {
+      var res = await api("/api/sources");
+      var sources = (res && res.sources) || [];
+      tbody.innerHTML = "";
+      $("#sources-list-empty").classList.toggle("hidden", sources.length > 0);
+      var anyConnected = false;
+      sources.forEach(function (s) {
+        if (s.key_present) anyConnected = true;
+        // 서버는 key_present만 보낸다 — 여기서 그릴 수 있는 값 자체가 없다.
+        var keyBadge = s.key_present
+          ? "<span class='badge st-verified'>연결됨</span>"
+          : "<span class='badge st-proposed'>미연결</span>";
+        var tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td><code>" + escapeHtml(s.id) + "</code>" +
+          (s.label ? " <small class='muted'>" + escapeHtml(s.label) + "</small>" : "") +
+          "</td>" +
+          "<td>" + escapeHtml(s.role) + "</td>" +
+          "<td>" + keyBadge + "</td>" +
+          "<td class='actions'>" +
+          "<button type='button' class='btn source-forget-btn' data-id='" +
+          escapeHtml(s.id) + "'>키 지우기</button> " +
+          "<button type='button' class='btn btn-danger source-remove-btn' data-id='" +
+          escapeHtml(s.id) + "'>연결 해제</button>" +
+          "</td>";
+        tbody.appendChild(tr);
+      });
+      if (badge) {
+        badge.textContent = anyConnected ? "연결됨" : "미연결";
+        badge.className = "badge " + (anyConnected ? "st-verified" : "st-proposed");
+      }
+    } catch (e) {
+      tbody.innerHTML = "";
+      showResult($("#source-result"), escapeHtml(friendlyError(e)), true);
+    }
+  }
+
+  $("#source-form").addEventListener("submit", async function (ev) {
+    ev.preventDefault();
+    var box = $("#source-result");
+    var keyField = $("#source-key");
+    var key = keyField.value;
+    var id = $("#source-id").value.trim() || "journals";
+    if (!key.trim()) {
+      showResult(box, "키를 붙여넣어주세요.", true);
+      return;
+    }
+    $("#source-submit").disabled = true;
+    showResult(box, "<span class='muted'>키체인에 저장 중…</span>");
+    try {
+      var res = await apiSend("/api/sources", {
+        id: id, role: "literature", key: key,
+      });
+      if (res && res.ok) {
+        showResult(box, "<span class='ok-msg'>연결됐어요.</span> 키는 키체인에만 있고 여기엔 다시 나타나지 않아요.");
+        await loadSources();
+      } else {
+        showResult(
+          box,
+          errorKindBadge(res && res.error_kind) + " " +
+            escapeHtml((res && res.detail) || "연결 실패."),
+          true
+        );
+      }
+    } catch (e) {
+      showResult(box, escapeHtml(friendlyError(e)), true);
+    } finally {
+      // 성공이든 실패든 즉시 비운다. 남겨두면 DOM에 평문 키가 계속 머문다.
+      keyField.value = "";
+      key = "";
+      $("#source-submit").disabled = false;
+    }
+  });
+
+  $("#sources-body").addEventListener("click", async function (ev) {
+    if (!ev.target.closest) return;
+    var forget = ev.target.closest(".source-forget-btn");
+    var remove = ev.target.closest(".source-remove-btn");
+    if (!forget && !remove) return;
+    var id = (forget || remove).dataset.id;
+    var box = $("#source-result");
+    try {
+      if (forget) {
+        var f = await api("/api/sources/" + encodeURIComponent(id) + "/key",
+                          { method: "DELETE" });
+        showResult(box, f && f.forgotten
+          ? "키를 지웠어요. 설정은 남아 있으니 새 키를 넣으면 다시 연결돼요."
+          : "지울 키가 없었어요.");
+      } else {
+        var r = await api("/api/sources/" + encodeURIComponent(id),
+                          { method: "DELETE" });
+        // 연결 해제는 설정만 지운다 — 자격증명 파기는 별도 결정이라 별도 버튼이다.
+        showResult(box, r && r.key_retained
+          ? "연결을 해제했어요. 저장된 키는 키체인에 <strong>그대로</strong> 있어요 — 지우려면 다시 연결한 뒤 <em>키 지우기</em>를 눌러주세요."
+          : "연결을 해제했어요.");
+      }
+      await loadSources();
+    } catch (e) {
+      showResult(box, escapeHtml(friendlyError(e)), true);
+    }
+  });
+
+  /* -- 리서치 런: 주제 한 줄 → 수집 + 추출 한 작업 -- */
+
+  // 실행 중인 리서치 작업 id. "중단" 버튼이 무엇을 취소해야 하는지 알아야
+  // 하는데, 서버는 한 번에 하나만 허용하므로 하나면 충분하다.
+  var researchJobId = null;
+
+  function setResearchRunning(jobId) {
+    researchJobId = jobId;
+    $("#research-cancel").classList.toggle("hidden", !jobId);
+    $("#research-submit").disabled = !!jobId;
+  }
+
+  $("#research-form").addEventListener("submit", async function (ev) {
+    ev.preventDefault();
+    var box = $("#research-result");
+    var topic = $("#research-topic").value.trim();
+    if (!topic) {
+      showResult(box, "주제를 한 줄 적어주세요.", true);
+      return;
+    }
+    var payload = {
+      topic: topic,
+      engine: $("#research-engine").value || "mock",
+      limit: toInt($("#research-limit").value, 5),
+      /* mirror paths.DEFAULT_MAX_ENGINE_CALLS / DEFAULT_TIME_BUDGET_S */
+      max_engine_calls: 500,
+      time_budget: 7200,
+    };
+    $("#research-submit").disabled = true;
+    showResult(box, "<span class='muted'>리서치 시작 중…</span>");
+    try {
+      var res = await apiSend("/api/research", payload);
+      if (res && res.ok && res.job_id) {
+        selectedJobId = res.job_id;
+        setResearchRunning(res.job_id);
+        showResult(
+          box,
+          "<span class='muted'>모으는 중…</span> 작업 <code>" +
+            escapeHtml(String(res.job_id).slice(0, 12)) +
+            "</code>"
+        );
+        await loadJobs();
+      } else {
+        // 게이트 실패는 200 + error_kind로 온다 — 배지로 분류를 보여준다.
+        $("#research-submit").disabled = false;
+        showResult(
+          box,
+          errorKindBadge(res && res.error_kind) +
+            " " +
+            escapeHtml((res && res.detail) || "리서치 시작 실패."),
+          true
+        );
+      }
+    } catch (e) {
+      $("#research-submit").disabled = false;
+      showResult(box, escapeHtml(friendlyError(e)), true);
+    }
+  });
+
+  $("#research-cancel").addEventListener("click", async function () {
+    if (!researchJobId) return;
+    var box = $("#research-result");
+    $("#research-cancel").disabled = true;
+    try {
+      var res = await apiSend(
+        "/api/jobs/" + encodeURIComponent(researchJobId) + "/cancel", {}
+      );
+      // 취소는 요청이지 강제 종료가 아니다. 워커는 다음 청크 경계에서 멈추고,
+      // 이미 날아간 fetch는 소켓 타임아웃까지 돈다 — 그래서 여기서 상태를
+      // 바꾸지 않고, 작업 스트림이 cancelled를 알려줄 때까지 기다린다.
+      if (res && res.cancelled) {
+        showResult(box, "<span class='muted'>중단 요청함 — 다음 구간에서 멈춰요…</span>");
+      } else {
+        showResult(box, "<span class='muted'>이미 끝난 작업이에요.</span>");
+        setResearchRunning(null);
+      }
+    } catch (e) {
+      showResult(box, escapeHtml(friendlyError(e)), true);
+    } finally {
+      $("#research-cancel").disabled = false;
+    }
+  });
+
   /* -- Packs -- */
 
   async function loadPacks() {
@@ -975,9 +1406,9 @@
             "<tr>" +
             "<td><code>" + escapeHtml(pack.pack_id || "") + "</code></td>" +
             "<td><small>" + escapeHtml(fmtTs(pack.created_ts)) + "</small></td>" +
-            "<td>" + escapeHtml(String(counts.documents || 0)) + "</td>" +
-            "<td>" + escapeHtml(String(counts.nodes_verified || 0)) + "</td>" +
-            "<td>" + escapeHtml(String(counts.edges_verified || 0)) + "</td>" +
+            "<td class='num'>" + escapeHtml(String(counts.documents || 0)) + "</td>" +
+            "<td class='num'>" + escapeHtml(String(counts.nodes_verified || 0)) + "</td>" +
+            "<td class='num'>" + escapeHtml(String(counts.edges_verified || 0)) + "</td>" +
             "<td>" + escapeHtml(pack.search_tier || "—") + "</td>" +
             "<td><code>" + escapeHtml(String(pack.content_hash || "").slice(0, 12)) + "</code></td>" +
             "<td><button type='button' class='btn mcpb-btn' data-pack='" +
@@ -1335,7 +1766,9 @@
     var err = $("#entity-panel-error");
     err.classList.add("hidden");
     panel.classList.remove("hidden");
-    // 검토 그리드를 2열로 확장해 큐 옆에 근거 패널을 도킹
+    // 자세히 보기는 같은 자리(우측 열)에서 근거 패널을 대신한다 — 두 패널이
+    // 겹쳐 쌓이면 어느 쪽이 지금 항목인지 알 수 없다.
+    $("#evidence-pane").classList.add("hidden");
     document.getElementById("tab-review").classList.add("inspector-open");
     body.innerHTML = "<p class='muted'>불러오는 중…</p>";
     var ctx;
@@ -1605,7 +2038,7 @@
 
   /* -- Lazy loading + refresh wiring -- */
 
-  /* -- 그래프 자유 탐색 (읽기 전용 — 결정은 항상 ③ 검토에서) ---------- */
+  /* -- 그래프 자유 탐색 (읽기 전용 — 결정은 항상 ② 검토에서) ---------- */
 
   var SVG_NS = "http://www.w3.org/2000/svg";
   var gNodes = [];            // {id,name,entity_type,status,x,y,vx,vy,fx,fy}
@@ -1618,6 +2051,8 @@
   var gView = { x: 0, y: 0, k: 1 };
   var gTypeColor = {};
   var graphLoadedOnce = false;
+  var gFitPending = false;    // 배치가 가라앉으면 한 번 화면에 맞출지 여부
+                              // (사용자가 팬/줌하면 취소된다)
 
   function graphPalette() {
     var css = getComputedStyle(document.documentElement);
@@ -1804,8 +2239,43 @@
       positionGraph();
       gRaf = requestAnimationFrame(graphLoop);
     } else {
+      // 배치가 가라앉으면 한 번만 화면에 맞춘다. 스프링 길이가 90px로
+      // 고정이라, 캔버스가 커도 그래프는 가운데 작게 뭉쳐 있고 나머지가
+      // 통째로 빈 채로 남았다.
+      if (gFitPending) { gFitPending = false; fitGraphToView(); }
       gRaf = null;
     }
+  }
+
+  /* 노드 바운딩 박스를 캔버스에 맞춰 gView(팬/줌)를 다시 잡는다.
+     드래그·휠이 쓰는 것과 같은 gView를 갱신하므로 좌표 변환이 어긋나지
+     않는다 — SVG에 viewBox나 CSS transform을 더하면 그 둘이 깨진다. */
+  function fitGraphToView() {
+    var nodes = Object.keys(gIndex).map(function (id) { return gIndex[id]; });
+    if (nodes.length === 0) return;
+    // graphSize()는 rect가 0일 때 900x520 대체값을 채워 주므로 그 반환값으로는
+    // '보이지 않는 상태'를 알 수 없다. 실제 rect를 직접 본다.
+    if ($("#graph-svg").getBoundingClientRect().width === 0) return;
+    var size = graphSize();
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    nodes.forEach(function (n) {
+      if (typeof n.x !== "number" || typeof n.y !== "number") return;
+      if (n.x < minX) minX = n.x;
+      if (n.x > maxX) maxX = n.x;
+      if (n.y < minY) minY = n.y;
+      if (n.y > maxY) maxY = n.y;
+    });
+    if (!isFinite(minX) || !isFinite(minY)) return;
+    var pad = 64;                       // 라벨이 잘리지 않도록 여백
+    var w = Math.max(maxX - minX, 1), h = Math.max(maxY - minY, 1);
+    var k = Math.min((size.w - pad * 2) / w, (size.h - pad * 2) / h);
+    // 휠 줌 범위[0.2, 4]보다 상한을 좁게 — 노드가 서너 개뿐일 때 화면을
+    // 꽉 채우겠다고 과확대되면 오히려 맥락이 사라진다.
+    k = Math.min(1.6, Math.max(0.2, k));
+    gView.k = k;
+    gView.x = size.w / 2 - ((minX + maxX) / 2) * k;
+    gView.y = size.h / 2 - ((minY + maxY) / 2) * k;
+    positionGraph();
   }
 
   function reheatGraph(alpha) {
@@ -1821,7 +2291,13 @@
         "<span class='g-chip'><i style='background:" + gTypeColor[type] +
         "'></i>" + escapeHtml(type) + "</span>";
     });
-    html += "<span class='g-chip g-chip-hint'><i class='g-chip-dashed'></i>점선 테두리 = 제안(미검증)</span>";
+    // 링 색은 앱 전체의 상태 언어와 같다(호박=제안, 초록=검증됨). 범례가
+    // 그 둘을 다 보여줘야 그래프만 보고도 무엇이 아직 승인 전인지 안다.
+    html +=
+      "<span class='g-chip g-chip-hint'><i class='g-chip-ring g-chip-proposed'></i>" +
+      "점선 테두리 = 제안(미검증)</span>" +
+      "<span class='g-chip g-chip-hint'><i class='g-chip-ring g-chip-verified'></i>" +
+      "실선 테두리 = 승인됨</span>";
     box.innerHTML = html;
   }
 
@@ -1888,6 +2364,7 @@
       var data = await api(url);
       gNodes = []; gEdges = []; gIndex = {}; gDegree = {};
       gSelected = null; gView = { x: 0, y: 0, k: 1 }; gTypeColor = {};
+      gFitPending = true;   // 이번 배치가 가라앉으면 화면에 맞춘다
       $("#graph-info").classList.add("hidden");
       var empty = !(data.nodes || []).length;
       $("#graph-empty").classList.toggle("hidden", !empty);
@@ -1941,6 +2418,10 @@
       } else if (panStart) {
         gView.x = panStart.vx + (ev.clientX - panStart.px);
         gView.y = panStart.vy + (ev.clientY - panStart.py);
+        // 사용자가 직접 시야를 잡았으면 자동 맞춤을 취소한다. 배치가
+        // 가라앉기까지 4초 남짓 걸리는데, 그 사이(혹은 탭을 옮겼다 와서
+        // 대기 중이던 fit이 살아있을 때) 맞춰 둔 화면이 튕겨 나갔다.
+        gFitPending = false;
         positionGraph();
       }
     });
@@ -1967,6 +2448,7 @@
       var rect = svg.getBoundingClientRect();
       var mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
       var k2 = Math.min(4, Math.max(0.2, gView.k * Math.exp(-ev.deltaY * 0.0015)));
+      gFitPending = false;          // 팬과 같은 이유 — 직접 잡은 배율을 지키다
       // 커서 아래 지점을 고정한 채 스케일
       gView.x = mx - ((mx - gView.x) / gView.k) * k2;
       gView.y = my - ((my - gView.y) / gView.k) * k2;
@@ -1995,13 +2477,19 @@
   var tabLoaders = {
     review: loadProposals,
     merge: loadMergeCandidates,
-    sources: loadDocuments,
-    jobs: function () {
+    // 수집과 추출이 한 화면이 되면서 두 로더도 하나가 된다. 둘 중 하나만
+    // 돌면 화면 절반이 비어 있게 되므로 항상 같이 부른다.
+    sources: function () {
+      if (!paperSourcesLoaded) {
+        paperSourcesLoaded = true;
+        populatePaperSourceSelect();
+      }
       if (!extractEnginesLoaded) {
         extractEnginesLoaded = true;
-        populateEngineSelect();
+        populateEngineSelect("#extract-engine");
+        populateEngineSelect("#research-engine");
       }
-      return loadJobs();
+      return Promise.all([loadDocuments(), loadJobs(), loadSources()]);
     },
     packs: loadPacks,
     mcp: loadMcp,
@@ -2046,11 +2534,13 @@
     var btn = $("#next-action-btn");
     btn.textContent = btnLabel;
     btn.dataset.goto = gotoTab;
-    box.classList.remove("hidden");
+    // 이미 그 화면에 서 있으면 안내하지 않는다 — ② 검토 화면에서
+    // "② 검토로 가기" 버튼이 떠 있는 건 화면 안의 같은 동작과 중복이다.
+    box.classList.toggle("hidden", document.body.dataset.activeTab === gotoTab);
   }
 
   var HOME_STATS = [
-    "#stat-sources", "#stat-jobs", "#stat-review", "#stat-packs", "#stat-mcp",
+    "#stat-sources", "#stat-review", "#stat-packs", "#stat-mcp",
   ];
 
   function setStat(sel, text, state) {
@@ -2109,13 +2599,18 @@
 
       updateReviewBadge(c);
       renderJourney(docs, pending, verified, packs.length);
-      setStat("#stat-sources", "문서 " + docs + "개",
-        docs ? "is-ok" : "is-todo");
+      // 수집과 추출이 한 단계가 되면서 이 칸도 둘을 같이 말해야 한다.
+      // 진행 여부는 '작업 이력'이 아니라 '제안이 존재하는가'로 판정한다.
+      // 작업 이력은 서버가 재시작되면 비므로, 이력만 보면 제안 15건이
+      // 쌓여 있는데도 "아직 없음"이라고 말하게 된다 — 실제로 홈의 ✓ 체크와
+      // 파이프라인 바가 같은 화면에서 서로 반대를 주장했다.
+      var extracted = pending + verified > 0;
       setStat(
-        "#stat-jobs",
-        running ? "추출 진행 중…"
-          : jobs.length ? "실행 " + jobs.length + "회" : "아직 없음",
-        running || !jobs.length ? "is-todo" : "is-ok"
+        "#stat-sources",
+        running ? "진행 중…"
+          : docs ? "문서 " + docs + "개" + (extracted ? " · 제안 있음" : "")
+          : "아직 없음",
+        running || !docs || !extracted ? "is-todo" : "is-ok"
       );
       setStat(
         "#stat-review",
@@ -2129,34 +2624,34 @@
 
       // 다음 할 일 추천 (파이프라인 상태 기반)
       if (docs === 0) {
-        setNextAction("먼저 문서를 하나 넣어보세요.", "sources", "① 수집으로 가기");
+        setNextAction("먼저 문서를 하나 넣어보세요.", "sources", "① 리서치로 가기");
       } else if (pending > 0) {
         setNextAction(
           "AI 제안 " + pending + "건이 기다리고 있어요.",
-          "review", "③ 검토로 가기"
+          "review", "② 검토로 가기"
         );
       } else if (running) {
         setNextAction(
-          "추출이 돌아가는 중이에요. 끝나면 ③ 검토에 올라와요.",
-          "jobs", "② 추출 상태 보기"
+          "돌아가는 중이에요. 끝나면 ② 검토에 올라와요.",
+          "sources", "① 리서치 상태 보기"
         );
       } else if (verified === 0 && jobs.length > 0) {
         setNextAction(
           "제안을 모두 처리했어요! 새 문서를 넣거나 다시 추출해보세요.",
-          "sources", "① 수집으로 가기"
+          "sources", "① 리서치로 가기"
         );
       } else if (verified === 0) {
-        setNextAction("이제 AI에게 초안을 맡겨볼까요?", "jobs", "② 추출로 가기");
+        setNextAction("이제 AI에게 초안을 맡겨볼까요?", "sources", "① 리서치로 가기");
       } else if (packs.length === 0) {
         setNextAction(
           "승인한 지식 " + verified + "건을 팩으로 묶어보세요.",
-          "packs", "④ 팩 빌드하러 가기"
+          "packs", "③ 팩 빌드하러 가기"
         );
       } else {
         setNextAction(
           "팩이 준비됐어요! 새로 승인한 게 있으면 ④에서 다시 만들고, " +
             "아니면 ⑤에서 연결해요.",
-          "mcp", "⑤ 연결로 가기"
+          "mcp", "④ 연결로 가기"
         );
       }
     } catch (_) {
@@ -2203,6 +2698,7 @@
   $("#home-retry-btn").addEventListener("click", loadHome);
   $("#entity-panel-close").addEventListener("click", function () {
     $("#entity-panel").classList.add("hidden");
+    $("#evidence-pane").classList.remove("hidden");
     document.getElementById("tab-review").classList.remove("inspector-open");
   });
 
@@ -2268,7 +2764,7 @@
         }
       }
       out.textContent =
-        "추출이 오래 걸리네요 — ② 추출 화면에서 진행 상황을 볼 수 있어요.";
+        "오래 걸리네요 — ① 리서치 화면에서 진행 상황을 볼 수 있어요.";
     } catch (e) {
       out.textContent = friendlyError(e);
     } finally {

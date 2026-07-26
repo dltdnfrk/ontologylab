@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -437,3 +438,132 @@ def parse_and_validate_extraction(
         )
 
     return ExtractionResult(entities=entities, relations=relations, warnings=warnings)
+
+
+TOTALS_KEYS: tuple[str, ...] = (
+    "nodes_new",
+    "nodes_merged",
+    "edges_new",
+    "edges_merged",
+)
+
+
+def unprocessed_doc_ids(store: Any) -> list[str]:
+    """Return documents with no extracted rows yet.
+
+    This is a *global* query. A caller that already knows which documents it
+    produced must pass those ids instead of relying on this, or it will pull
+    in older documents and any produced concurrently by another run.
+    """
+    return [
+        row["id"]
+        for row in store.conn.execute(
+            "SELECT id FROM documents WHERE id NOT IN "
+            "(SELECT DISTINCT source_doc_id FROM nodes)"
+        )
+    ]
+
+
+async def run_extraction(
+    store: Any,
+    engine: Any,
+    provenance: Any,
+    caps: Any,
+    doc_ids: list[str],
+    *,
+    extractor_engine: str,
+    extractor_model: str | None,
+    on_progress: Callable[[str], None],
+    on_stats: Callable[[dict[str, int]], None],
+    should_abort: Callable[[], str] | None = None,
+) -> str:
+    """Extract every chunk of every document; return why it stopped, or "".
+
+    The CLI and the server worker ran near-identical copies of this loop and
+    a third caller (the research run) would have made three. They differ in
+    exactly four ways, so those four are the parameters:
+
+    * **progress** — the CLI prints, the worker appends to a job log.
+    * **stats** — the CLI accumulates locally, the worker must take its job
+      lock. Accumulation is the caller's, so neither has to know the other's
+      locking discipline.
+    * **abort** — `should_abort` returns a non-empty reason to stop. The CLI
+      passes its kill switch; the server has none yet, and giving it one is
+      now a matter of passing this argument rather than editing a loop.
+    * **store lifetime** — owned by the caller, because sqlite connections
+      are thread-bound and the worker must open its own inside the thread.
+
+    Budget checks run *before* each engine call, so a spent budget costs
+    nothing. An engine or parse failure on one chunk is logged and skipped:
+    one malformed response must not discard the document's other chunks.
+    """
+    schema = store.get_schema()
+    stopped_reason = ""
+    for doc_id in doc_ids:
+        raw_text = store.document_raw_text(doc_id)
+        chunks = chunk_document(raw_text)
+        provenance.log("extract.doc", {"doc_id": doc_id, "chunks": len(chunks)})
+        for chunk in chunks:
+            stop, reason = caps.should_stop(
+                {
+                    "elapsed": provenance.elapsed_s,
+                    "engine_calls": provenance.engine_calls,
+                }
+            )
+            if stop:
+                stopped_reason = reason
+                break
+            if should_abort is not None:
+                aborted = should_abort()
+                if aborted:
+                    stopped_reason = aborted
+                    break
+            prompt = build_extraction_prompt(schema, chunk.text)
+            try:
+                raw_response, usage = await engine.generate(
+                    prompt, model=extractor_model
+                )
+            except EngineError as exc:
+                provenance.log(
+                    "extract.engine_error",
+                    {"doc_id": doc_id, "chunk": chunk.index, "error": str(exc)},
+                )
+                on_progress(
+                    f"[ontologylab] engine error on {doc_id}#{chunk.index}: {exc}"
+                )
+                continue
+            provenance.track_engine_call(
+                "extract", float(usage.get("elapsed") or 0.0), usage
+            )
+            try:
+                result = parse_and_validate_extraction(raw_response, schema, chunk)
+            except EngineError as exc:
+                # malformed/off-schema response: rejected + logged, never
+                # inserted, never a crash (M4 acceptance criterion)
+                provenance.log(
+                    "extract.parse_rejected",
+                    {"doc_id": doc_id, "chunk": chunk.index, "error": str(exc)},
+                )
+                continue
+            for warning in result.warnings:
+                provenance.log(
+                    "extract.warning",
+                    {"doc_id": doc_id, "chunk": chunk.index, "warning": warning},
+                )
+            stats = store.insert_proposed(
+                result.entities,
+                result.relations,
+                source_doc_id=doc_id,
+                extractor_engine=extractor_engine,
+                extractor_model=extractor_model,
+                prompt_version=PROMPT_VERSION,
+            )
+            on_stats(stats)
+            on_progress(
+                f"[ontologylab] {doc_id}#{chunk.index}: "
+                f"+{stats['nodes_new']} nodes (+{stats['nodes_merged']} merged), "
+                f"+{stats['edges_new']} edges"
+            )
+        if stopped_reason:
+            break
+    return stopped_reason
