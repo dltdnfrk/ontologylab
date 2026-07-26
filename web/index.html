@@ -160,11 +160,15 @@
           <!-- bounds mirror paper_api.DEFAULT_LIMIT / MAX_LIMIT -->
           <input type="number" id="research-limit" value="5" min="1" max="25" />
         </label>
+        <!-- 텍스트는 반드시 하나의 span으로 감싼다. 라벨이 flex 컨테이너라
+             벌거벗은 텍스트 노드와 <strong>이 각각 flex 항목이 되어, 한 문장이
+             "오픈액세스 논문은 / 전문 / 까지 읽기"로 쪼개져 세로로 쌓였다. -->
         <label class="span-2 check-line">
           <input type="checkbox" id="research-fulltext" checked />
-          오픈액세스 논문은 <strong>전문</strong>까지 읽기
-          <small class="muted">— 초록만 읽으면 결론은 알아도 근거는 못 봐요.
-            읽을 양이 크게 늘어나니 추출도 오래 걸려요.</small>
+          <span>오픈액세스 논문은 <strong>전문</strong>까지 읽기
+            <small class="muted">— 초록만 읽으면 결론은 알아도 근거는 못 봐요.
+              읽을 양이 크게 늘어나니 추출도 오래 걸려요.</small>
+          </span>
         </label>
         <div class="form-actions">
           <button type="submit" id="research-submit" class="btn btn-primary">리서치 시작</button>
@@ -353,9 +357,9 @@
         </div>
         <div id="critic-result" class="status-box result-box hidden"></div>
         <p id="review-last-action" class="muted hidden"></p>
-        <p class="muted kbd-hint"><small><kbd>j</kbd>/<kbd>k</kbd> 이동 ·
-          <kbd>a</kbd> 승인 · <kbd>r</kbd> 거부 · <kbd>u</kbd> 되돌리기 ·
-          <kbd>d</kbd> 자세히</small></p>
+        <!-- 단축키 안내는 하단 상태바로 옮겼다. 목록 위에 떠 있으면 스크롤과
+             함께 사라지는데, 정작 필요한 순간은 스크롤을 내려 훑기 시작한
+             뒤다. 상태바는 항상 자리에 있다. -->
         <!-- 타입·크리틱·문서 열은 근거 패널로 옮겼다. 표는 훑는 용도라
              좁아야 하고, 판단 재료는 옆에서 한꺼번에 보이는 편이 낫다. -->
         <div class="table-wrap table-scroll">
@@ -675,6 +679,18 @@
       <div id="settings-result" class="status-box result-box hidden"></div>
     </section>
   </main>
+
+  <!-- 상태바 — 에디터의 그 줄. 왼쪽은 지금 이 화면에서 쓸 수 있는 키,
+       오른쪽은 이 저장소가 지금 어떤 상태인지. 둘 다 스크롤과 무관하게
+       항상 같은 자리에 있어야 쓸모가 있다. -->
+  <footer class="statusbar" role="status">
+    <div class="statusbar-keys" id="statusbar-keys"></div>
+    <div class="statusbar-state">
+      <span id="statusbar-store" class="muted">—</span>
+      <span class="statusbar-sep" aria-hidden="true">·</span>
+      <span class="muted">로컬 전용</span>
+    </div>
+  </footer>
 
   <script src="/static/app.js"></script>
 </body>

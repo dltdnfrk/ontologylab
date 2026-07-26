@@ -23,6 +23,31 @@
     // 가로로 잘린 채 나타난다.
     var main = document.querySelector("main");
     if (main) main.scrollTop = 0;
+    renderStatusKeys(name);
+  }
+
+  /* 화면마다 쓸 수 있는 키가 다르다. 검토에만 있는 단축키를 모든 탭에서
+     보여주면 상태바가 장식이 되고, 장식은 아무도 읽지 않는다. */
+  var TAB_KEYS = {
+    review: [
+      ["j / k", "이동"], ["a", "승인"], ["r", "거부"],
+      ["u", "되돌리기"], ["d", "자세히"],
+    ],
+    graph: [["클릭", "펼치기"], ["esc", "선택 해제"]],
+  };
+
+  function renderStatusKeys(tab) {
+    var box = document.getElementById("statusbar-keys");
+    if (!box) return;
+    var keys = TAB_KEYS[tab] || [];
+    box.innerHTML = keys
+      .map(function (pair) {
+        return (
+          "<span><kbd>" + escapeHtml(pair[0]) + "</kbd>" +
+          escapeHtml(pair[1]) + "</span>"
+        );
+      })
+      .join("");
   }
 
   document.querySelectorAll(".tab-btn").forEach(function (btn) {
@@ -2622,6 +2647,15 @@
         packs.length ? "is-ok" : "is-todo");
       setStat("#stat-mcp", packs.length ? "연결 가능" : "팩 필요",
         packs.length ? "is-ok" : "is-todo");
+
+      // 상태바 오른쪽: 저장소가 지금 어떤 상태인지 한 줄로. 어느 화면에
+      // 있든 같은 자리에서 읽히므로 탭을 옮겨 확인할 필요가 없다.
+      var storeEl = document.getElementById("statusbar-store");
+      if (storeEl) {
+        storeEl.textContent =
+          "문서 " + docs + " · 대기 " + pending +
+          " · 승인 " + verified + " · 팩 " + packs.length;
+      }
 
       // 다음 할 일 추천 (파이프라인 상태 기반)
       if (docs === 0) {

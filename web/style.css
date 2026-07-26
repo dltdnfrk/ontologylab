@@ -189,6 +189,17 @@
   --fw-medium: 500;
   --fw-bold: 600;
 
+  /* 밀도 — 크롬은 낮게, 데이터는 촘촘하게.
+     이 도구에서 사람이 실제로 하는 일은 목록을 훑으며 승인/거부를 누르는
+     것이다. 그런데 검토 화면은 첫 제안이 나오기까지 세로로 380px을 크롬에
+     썼다(헤더 60 + 파이프라인 60 + 제목/부제 70 + 집계 80 + 툴바 두 줄 90).
+     한 화면에 제안이 세 개 들어가는 목록은 목록이 아니라 카드 더미다.
+     에디터가 그렇듯 크롬은 낮고 조용하게, 대비는 데이터에 준다. */
+  --h-chrome: 44px;      /* 헤더 · 파이프라인 스트립 */
+  --h-control: 28px;     /* 버튼 · 입력 · 셀렉트 — 한 값에서 파생 */
+  --h-row: 34px;         /* 표 한 행 */
+  --h-statusbar: 26px;
+
   /* 간격 스케일 (4px 그리드) */
   --sp-1: 4px;
   --sp-2: 8px;
@@ -353,11 +364,41 @@ small { font-size: var(--fs-xs); }
 body {
   display: grid;
   grid-template-columns: 232px minmax(0, 1fr);
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
 }
+
+/* ---------- 상태바 ---------- */
+
+.statusbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  height: var(--h-statusbar);
+  padding: 0 var(--sp-4);
+  background: var(--sidebar);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-label);
+  color: var(--muted-foreground);
+  user-select: none;
+}
+.statusbar-keys { display: flex; align-items: center; gap: var(--sp-3); }
+.statusbar-keys span { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.statusbar-keys kbd {
+  /* 상태바 안에서는 키캡이 아니라 글자다 — 26px 줄에 테두리 두 겹이
+     들어가면 줄이 꽉 차서 상태바가 툴바처럼 보인다. */
+  border: none;
+  background: var(--muted);
+  padding: 0.05em 0.35em;
+  font-size: var(--fs-label);
+  color: var(--foreground);
+}
+.statusbar-state { display: flex; align-items: center; gap: var(--sp-2); }
+.statusbar-sep { opacity: 0.4; }
 
 /* glass chrome: the four floating panels */
 header.app-header,
@@ -379,7 +420,8 @@ header.app-header {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.5rem 1.1rem;
+  height: var(--h-chrome);
+  padding: 0 var(--sp-4);
 }
 
 .brand { display: flex; align-items: baseline; gap: var(--sp-3); }
@@ -403,8 +445,8 @@ nav.tabs {
   grid-row: 2 / 4;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 0.8rem 0.6rem;
+  gap: 1px;
+  padding: var(--sp-2) var(--sp-2);
   overflow-y: auto;
 }
 
@@ -416,13 +458,14 @@ nav.tabs .tab-btn {
   gap: 0.55rem;
   text-align: left;
   font: inherit;
-  font-size: var(--fs-base);
+  font-size: var(--fs-sm);
   font-weight: var(--fw-medium);
   color: var(--sidebar-foreground);
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
-  padding: 0.42rem 0.6rem;
+  height: var(--h-control);
+  padding: 0 var(--sp-2);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
@@ -447,9 +490,9 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--sidebar-primary); }
   font-size: var(--fs-label);
   font-weight: var(--fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--ls-label);
   color: var(--muted-foreground);
-  margin: 0.9rem 0.7rem 0.3rem;
+  margin: var(--sp-4) var(--sp-2) var(--sp-1);
 }
 
 .nav-rail-footer {
@@ -476,8 +519,11 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--sidebar-primary); }
 .pipeline-bar {
   grid-column: 2;
   grid-row: 2;
+  display: flex;
+  align-items: center;
+  height: 38px;
   overflow-x: auto;
-  padding: 0.5rem 0.9rem;
+  padding: 0 var(--sp-3);
 }
 
 .pipeline {
@@ -500,7 +546,8 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--sidebar-primary); }
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  padding: 0.34rem 0.85rem;
+  height: 26px;
+  padding: 0 var(--sp-3);
   cursor: pointer;
   transition: background 0.18s ease, border-color 0.18s ease,
               box-shadow 0.18s ease;
@@ -608,16 +655,24 @@ label {
    채움이라, 폭이 제각각인 회색 덩어리가 떠 있는 것처럼 보였다. */
 input, select, textarea {
   font-family: inherit;
-  font-size: var(--fs-base);
+  font-size: var(--fs-sm);
   background: var(--card);
   color: var(--foreground);
   border: 1px solid var(--input);
   border-radius: var(--radius-sm);
-  padding: 0 var(--sp-3);
-  height: 34px;
+  padding: 0 var(--sp-2);
+  height: var(--h-control);
   line-height: normal;
   width: 100%;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* 사용자가 값을 *입력*하는 칸은 본문 크기를 유지한다. 툴바의 셀렉트는
+   훑는 것이지만 주제 한 줄은 이 화면에서 사람이 쓰는 유일한 문장이다. */
+#research-topic, #collect-paper-query, #collect-urls, #collect-files {
+  height: 32px;
+  font-size: var(--fs-base);
+  padding: 0 var(--sp-3);
 }
 
 textarea { height: auto; padding: var(--sp-2) var(--sp-3); line-height: var(--lh-snug); }
@@ -650,31 +705,43 @@ button {
   cursor: pointer;
 }
 
-/* 버튼 높이를 입력칸과 같은 34px로 맞춘다 — 툴바에서 버튼과 셀렉트가
+/* 버튼 높이를 입력칸과 같은 --h-control로 맞춘다 — 툴바에서 버튼과 셀렉트가
    1~3px씩 어긋나 줄이 들쭉날쭉해 보이던 원인. 라벨 길이는 런타임에
-   바뀌므로("선택 승인 (12)", "복사됨!") 폭은 절대 고정하지 않는다. */
+   바뀌므로("선택 승인 (12)", "복사됨!") 폭은 절대 고정하지 않는다.
+   기본은 고스트다: 테두리도 채움도 없이 떠 있다가 hover에서만 면이 생긴다.
+   툴바에 버튼이 여섯 개인데 전부 테두리를 두르면 여섯 개의 상자가 되고,
+   그중 무엇이 지금 중요한지는 아무것도 말해주지 않는다. */
 .btn,
 button.mcpb-btn {
   appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: var(--sp-1);
   background: transparent;
   color: var(--foreground);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  padding: 0 var(--sp-3);
-  height: 34px;
+  padding: 0 var(--sp-2);
+  height: var(--h-control);
   font: inherit;
   font-size: var(--fs-sm);
   font-weight: var(--fw-medium);
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease,
-              opacity 0.15s ease;
+  transition: background 0.12s ease, border-color 0.12s ease,
+              opacity 0.12s ease;
 }
 
-.btn:hover { background: var(--muted); }
+/* 테두리를 갖는 건 '지금 누를 만한 것' 뿐이다. */
+button.mcpb-btn,
+.btn-primary, .btn.primary,
+#collect-submit, #extract-submit, #research-submit, #research-cancel,
+.journey-actions .btn, .form-actions .btn {
+  border-color: var(--border);
+}
+
+.btn:hover { background: var(--muted); border-color: var(--border); }
 .btn:active { opacity: 0.85; }
 
 .btn-primary, .btn.primary {
@@ -688,10 +755,20 @@ button.mcpb-btn {
    --primary-foreground(거의 흰색) 그대로 남는다 — 밝은 배경 위 흰 글씨라
    hover하는 순간 라벨이 사라졌다. */
 /* Checkbox rows read as a sentence, not as a form field: the box sits on
-   the baseline of its own label instead of above a block of help text. */
-.check-line { display: flex; align-items: baseline; gap: 0.5rem; font-weight: 400; }
+   the baseline of its own label instead of above a block of help text.
+   The label's text MUST be wrapped in a single element — a bare text node
+   next to a <strong> becomes two separate flex items and the sentence
+   breaks into a vertical stack. */
+.check-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-normal);
+  color: var(--foreground);
+}
 .check-line input[type="checkbox"] { flex: none; margin: 0; }
-.check-line small { display: block; margin-top: 0.15rem; }
+.check-line small { display: block; margin-top: 2px; }
 
 .btn-primary:hover, .btn.primary:hover {
   background: var(--primary);
@@ -889,11 +966,16 @@ table {
 
 th, td {
   text-align: left;
-  padding: 0.55rem 0.75rem;
+  padding: 0 var(--sp-3);
+  height: var(--h-row);
   border-bottom: 1px solid var(--border);
-  vertical-align: top;
+  vertical-align: middle;
   white-space: nowrap;
 }
+/* 행 높이를 padding이 아니라 height로 잡는다. padding으로 잡으면 셀 내용이
+   두 줄이 되는 순간(관계는 이름 두 개가 들어간다) 행마다 높이가 달라져
+   목록이 계단처럼 어긋난다 — j/k로 훑을 때 다음 행이 어디 있을지 눈이
+   예측하지 못하는 이유였다. */
 .table-wrap tbody tr:last-child td { border-bottom: none; }
 
 /* uppercase는 쓰지 않는다. 한글에는 대소문자가 없어서 헤더 대부분은
@@ -1177,25 +1259,48 @@ tr.row-focused {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
-#proposals-table td { padding: var(--sp-3); }
+/* 개체명은 그래프의 식별자다 — 산문이 아니라 값이므로 고정폭으로 둔다.
+   `HiFiCas9`/`HypaCas9`처럼 대소문자와 숫자가 섞인 이름은 비례폭에서
+   글자마다 폭이 달라 훑을 때 형태가 잡히지 않는다. 고정폭이면 목록에서
+   같은 접두사가 세로로 정렬돼 변형끼리 한눈에 묶인다. */
+.ep {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0;
+}
+.ep-arrow { color: var(--muted-foreground); margin: 0 var(--sp-1); }
 
-/* 좁은 열에 긴 이름이 들어오면 표가 컨테이너를 넘어 가로 스크롤이 생긴다.
-   데스크톱 전용이라 폭을 늘릴 수는 없으니 이름만 줄바꿈을 허용한다. */
-#proposals-table td:nth-child(3) { white-space: normal; }
-#proposals-body .actions .btn { padding: 0 var(--sp-2); }
-
-/* 행마다 승인/거부가 15줄 반복되면 화면이 버튼밭이 된다. 그렇다고
-   opacity 0.4로 흐리면 '비활성'으로 오독된다(실제로는 눌린다).
-   그래서 평소에는 테두리를 지운 조용한 글자 버튼으로 두고, 커서가
-   놓인 행에서만 테두리를 입혀 지금 결정할 대상을 분명히 한다. */
-/* 행마다 승인/거부가 15줄 반복되면 화면이 버튼밭이 되지만, 테두리까지
+/* 이름 열은 한 줄로 못박고 넘치면 자른다. 줄바꿈을 허용했더니 관계 행만
+   두 줄이 되어(이름 두 개 + 화살표) 행 높이가 44px과 34px로 갈렸고, j/k로
+   훑을 때 다음 행 위치를 눈이 예측하지 못했다. 전체 이름은 오른쪽 근거
+   패널이 항상 보여주므로, 목록에서 잘리는 것은 정보 손실이 아니다. */
+/* 고정 레이아웃 — 이름 열이 나머지를 전부 가져간다. auto 레이아웃에서는
+   nowrap인 다른 열들이 내용만큼 벌어지고 이름만 밀려서, 정작 읽어야 할
+   `HiFiCas9 → Hyp…`가 가장 좁은 열이 됐다. 사람이 승인 여부를 판단하는
+   대상이 화면에서 제일 먼저 잘리면 목록의 뜻이 없다. */
+#proposals-table { table-layout: fixed; }
+#proposals-table th:nth-child(1), #proposals-table td:nth-child(1) { width: 34px; }
+#proposals-table th:nth-child(2), #proposals-table td:nth-child(2) { width: 52px; }
+#proposals-table th:nth-child(4), #proposals-table td:nth-child(4) { width: 112px; }
+#proposals-table th:nth-child(5), #proposals-table td:nth-child(5) { width: 132px; }
+#proposals-table td:nth-child(3) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 행마다 승인/거부가 37줄 반복되면 화면이 버튼밭이 되지만, 테두리까지
    지우면 이번엔 '비활성'으로 오독된다(실제로는 눌린다). 이 표의 존재
    이유가 바로 그 두 버튼이므로, 모든 행에서 눌 수 있게 보이되 무게만
    낮춘다 — 승인은 테두리 있는 버튼, 거부는 고스트. 커서가 놓인 행에서만
-   승인이 채워져 '지금 결정할 대상'이 드러난다. */
+   승인이 채워져 '지금 결정할 대상'이 드러난다.
+   결정의 주된 수단은 어차피 a/r 키다(하단 상태바 참조). 버튼은 그 사실을
+   모르는 사람을 위한 두 번째 길이므로 목록을 지배해서는 안 된다. */
 #proposals-body .actions .btn {
   opacity: 1;
-  padding: 0 var(--sp-3);
+  height: 24px;
+  padding: 0 var(--sp-2);
+  font-size: var(--fs-xs);
 }
 #proposals-body .actions .btn-primary {
   background: var(--card);
@@ -1241,26 +1346,26 @@ tr.row-focused {
    자동 테이블 레이아웃이 "0.80"(48px)에 맞춰 열을 좁히고, 절대배치된
    막대만 셀 밖으로 40px 삐져나가 옆 열(크리틱)을 침범한다. */
 .conf-cell {
-  position: relative;
-  min-width: 112px;                 /* 88px 막대 + 좌우 padding 24px */
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 108px;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
   color: var(--foreground);
 }
-/* 막대는 숫자 바로 아래에 붙인다. 셀 바닥에 두면 행 높이를 정하는 건
-   버튼이라 숫자와 20px 넘게 떨어져 밑줄처럼 보인다.
-   폭은 88px — 44px일 때는 0.80과 0.90의 차이가 4.4px뿐이라 눈으로
-   구분되지 않았다. 색은 중립 잉크를 쓴다: 이 화면에서 호박은 이미
-   '제안 상태'를 뜻하는데(노드 링·엣지), 게이지까지 호박이면 같은 색이
-   상태와 수치 두 가지를 가리켜 뜻이 흐려진다. 여기서 정보를 나르는 건
-   색이 아니라 길이다. */
+/* 막대는 숫자 *옆*이다. 아래에 절대배치하면 행 높이를 버튼이 정하던
+   시절의 32px 오프셋에 묶여, 행이 조밀해지는 순간 셀 밖으로 삐져나온다.
+   flex 항목으로 두면 행 높이가 어떻게 바뀌든 숫자와 같은 줄에 남는다.
+   색은 중립 잉크를 쓴다: 이 화면에서 호박은 이미 '제안 상태'를 뜻하는데
+   (노드 링·엣지), 게이지까지 호박이면 같은 색이 상태와 수치 두 가지를
+   가리켜 뜻이 흐려진다. 여기서 정보를 나르는 건 색이 아니라 길이다. */
 .conf-cell::after {
   content: "";
-  position: absolute;
-  left: var(--sp-3);
-  top: 32px;                        /* 숫자와 조금 띄워야 밑줄로 안 읽힌다 */
-  width: 88px;
-  max-width: calc(100% - var(--sp-3) * 2);
-  height: 4px;
+  flex: none;
+  width: 52px;
+  height: 3px;
   border-radius: 2px;
   background: linear-gradient(
     90deg,
