@@ -294,6 +294,23 @@ def get_triage(alpha: float = Query(0.05, gt=0.0, lt=1.0)) -> dict[str, Any]:
         store.close()
 
 
+@router.get("/review/calibration")
+def get_calibration() -> dict[str, Any]:
+    """How honest the extractor's confidence numbers are, measured.
+
+    Raw ECE against review outcomes plus the fitted isotonic curve.
+    Read-only like the triage line: calibrated values annotate and order,
+    stored confidences are never rewritten (the claim is provenance).
+    """
+    from ontologylab.calibration import calibration_report
+
+    store = _open_store()
+    try:
+        return calibration_report(store)
+    finally:
+        store.close()
+
+
 @router.get("/proposals")
 def list_proposals(
     kind: str | None = Query(None, description="node | edge"),

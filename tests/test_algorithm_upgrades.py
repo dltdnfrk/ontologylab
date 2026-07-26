@@ -464,3 +464,217 @@ def test_the_endpoint_is_read_only(tmp_path) -> None:
     finally:
         store.close()
     assert statuses == 0
+
+
+# --------------------------------------------------------------------------
+# Math upgrades round 2: bootstrap CI, calibration, CPM
+# --------------------------------------------------------------------------
+
+
+def test_bootstrap_interval_contains_the_point_estimate(tmp_path, store, doc) -> None:
+    from ontologylab.evaluation import bootstrap_f1_interval
+
+    a, b = make_entity("ApiGateway"), make_entity("RateLimiter")
+    insert(store, doc, [a, b])
+    gold = _gold(tmp_path, entities=["ApiGateway", "RateLimiter", "Ghost"])
+
+    report = evaluate_store(store, gold)
+
+    ci = report.entity_f1_ci
+    assert ci["low"] <= report.entity["f1"] <= ci["high"]
+    # Deterministic: the same store+gold yields the same interval.
+    assert evaluate_store(store, gold).entity_f1_ci == ci
+    # Degenerate perfection has no sampling variability on the upper end.
+    assert bootstrap_f1_interval(frozenset(), set()) == {"low": 1.0, "high": 1.0}
+
+
+def test_bootstrap_interval_narrows_with_more_data() -> None:
+    """The whole point of an interval: n=10 must be wider than n=1000."""
+    from ontologylab.evaluation import bootstrap_f1_interval
+
+    small_gold = frozenset(f"g{i}" for i in range(10))
+    small_found = set(list(small_gold)[:7]) | {"x1", "x2"}
+    big_gold = frozenset(f"g{i}" for i in range(1000))
+    big_found = set(list(big_gold)[:700]) | {f"x{i}" for i in range(200)}
+
+    small = bootstrap_f1_interval(small_gold, small_found)
+    big = bootstrap_f1_interval(big_gold, big_found)
+
+    assert (small["high"] - small["low"]) > (big["high"] - big["low"]) * 2
+
+
+def test_pava_pools_adjacent_violators_to_the_known_fit() -> None:
+    """Hand-checkable case: labels 1,0 at ascending confidence pool to 0.5."""
+    from ontologylab.calibration import fit_isotonic
+
+    calibrator = fit_isotonic([(0.1, 1), (0.2, 0), (0.8, 1)])
+
+    assert calibrator.values == (0.5, 1.0)
+    assert calibrator.predict(0.15) == 0.5
+    assert calibrator.predict(0.9) == 1.0
+    assert calibrator.predict(0.0) == 0.5  # below the first block
+    # Equal-mean neighbours pool into ONE block: the exposed curve is the
+    # minimal step function, not one step per tie group.
+    flat = fit_isotonic([(0.1, 0), (0.1, 1), (0.5, 0), (0.5, 1)])
+    assert flat.values == (0.5,)
+
+
+def test_pava_output_is_monotone_on_noisy_input() -> None:
+    from ontologylab.calibration import fit_isotonic
+
+    rng = random.Random(7)
+    pairs = [
+        (round(rng.random(), 3), 1 if rng.random() < 0.5 else 0)
+        for _ in range(300)
+    ]
+    calibrator = fit_isotonic(pairs)
+
+    values = list(calibrator.values)
+    assert values == sorted(values)
+    assert all(values[i] < values[i + 1] for i in range(len(values) - 1)), (
+        "PAVA blocks must be strictly increasing — equal neighbours "
+        "should have been pooled"
+    )
+    grid = [calibrator.predict(x / 100) for x in range(101)]
+    assert grid == sorted(grid)
+
+
+def test_ece_is_the_hand_computed_weighted_gap() -> None:
+    """One bin claims 0.9 and delivers 0.5; the other is perfect."""
+    from ontologylab.calibration import expected_calibration_error
+
+    pairs = [(0.9, 1), (0.9, 0)] + [(0.1, 0)] * 2
+    report = expected_calibration_error(pairs)
+
+    # bin(0.9): |0.9 - 0.5| = 0.4, weight 1/2; bin(0.1): |0.1 - 0| = 0.1,
+    # weight 1/2 → ECE = 0.25
+    assert report["ece"] == pytest.approx(0.25)
+    assert report["n"] == 4
+
+
+def test_perfectly_calibrated_confidences_score_near_zero_ece() -> None:
+    from ontologylab.calibration import expected_calibration_error
+
+    rng = random.Random(7)
+    pairs = []
+    for _ in range(4000):
+        confidence = rng.random()
+        pairs.append((confidence, 1 if rng.random() < confidence else 0))
+
+    assert expected_calibration_error(pairs)["ece"] < 0.05
+
+
+def test_calibration_report_declines_on_thin_data(store, doc) -> None:
+    from ontologylab.calibration import calibration_report
+
+    entity = make_entity("LonelyItem")
+    insert(store, doc, [entity])
+    row = store.conn.execute(
+        "SELECT id FROM nodes WHERE name = 'LonelyItem'"
+    ).fetchone()
+    store.approve(row["id"])
+
+    report = calibration_report(store)
+
+    assert report["available"] is False
+    assert report["curve"] is None
+    assert report["n"] == 1
+
+
+def test_calibration_reads_real_review_outcomes(store, doc) -> None:
+    """Overconfident extractor: claims ~0.9, humans reject half."""
+    from ontologylab.calibration import calibration_report
+
+    entities = [
+        make_entity(f"CalItem{i:02d}Q", confidence=0.9) for i in range(24)
+    ]
+    insert(store, doc, entities)
+    for index, entity in enumerate(entities):
+        row = store.conn.execute(
+            "SELECT id FROM nodes WHERE name = ?", (entity.name,)
+        ).fetchone()
+        if index % 2 == 0:
+            store.approve(row["id"])
+        else:
+            store.reject(row["id"])
+
+    report = calibration_report(store)
+
+    assert report["available"] is True
+    assert report["n"] == 24
+    assert report["raw"]["ece"] == pytest.approx(0.4), (
+        "claimed 0.9, observed 0.5 — the gap is the point"
+    )
+    assert report["curve"]["values"][-1] == pytest.approx(0.5)
+
+
+def test_the_calibration_endpoint_is_read_only(tmp_path) -> None:
+    from fastapi.testclient import TestClient
+
+    from ontologylab.server import routes
+    from ontologylab.server.app import create_app
+
+    data_dir = tmp_path / "data"
+    routes.attach_data_dir(data_dir)
+    client = TestClient(create_app(data_dir=data_dir))
+
+    body = client.get("/api/review/calibration").json()
+
+    assert body["available"] is False
+    assert body["n"] == 0
+
+
+def _ring_of_triangles(count: int):
+    nodes, edges = [], []
+    for k in range(count):
+        a, b, c = f"t{k:02d}a", f"t{k:02d}b", f"t{k:02d}c"
+        nodes += [a, b, c]
+        edges += [(a, b), (b, c), (a, c)]
+    for k in range(count):
+        edges.append((f"t{k:02d}c", f"t{(k + 1) % count:02d}a"))
+    return nodes, edges
+
+
+def test_cpm_escapes_the_resolution_limit_modularity_hits() -> None:
+    """Fortunato & Barthélemy (PNAS 2007), reproduced as a fixture.
+
+    A ring of 20 triangles has L=80 edges; modularity cannot resolve
+    communities with fewer than ~√(L/2)≈6.3 internal edges, and a triangle
+    has 3 — so modularity-Leiden merges triangles (8 communities measured
+    here), while CPM at γ=0.3 recovers all 20. This is the reason the CPM
+    option exists; if modularity ever starts finding 20, this test will
+    say the escape hatch is no longer needed.
+    """
+    nodes, edges = _ring_of_triangles(20)
+
+    modularity = detect_communities(nodes, edges, algorithm="leiden")
+    cpm = detect_communities(
+        nodes, edges, algorithm="leiden-cpm", resolution=0.3
+    )
+
+    assert len(cpm) == 20
+    assert all(len(community) == 3 for community in cpm)
+    assert len(modularity) < 20, "the resolution limit itself"
+
+
+def test_cpm_demands_an_explicit_resolution() -> None:
+    """γ→0 degenerates to one giant community; a silent default would be a
+    resolution limit with extra steps."""
+    nodes, edges = _ring_of_triangles(3)
+
+    with pytest.raises(ValueError):
+        detect_communities(nodes, edges, algorithm="leiden-cpm")
+    with pytest.raises(ValueError):
+        detect_communities(nodes, edges, algorithm="leiden-cpm", resolution=0.0)
+
+
+def test_cpm_is_deterministic_and_keeps_the_output_contract() -> None:
+    nodes, edges = _ring_of_triangles(5)
+
+    first = detect_communities(nodes, edges, algorithm="leiden-cpm", resolution=0.3)
+    second = detect_communities(
+        nodes, list(reversed(edges)), algorithm="leiden-cpm", resolution=0.3
+    )
+
+    assert first == second
+    assert first == sorted(first, key=lambda m: (-len(m), m[0]))

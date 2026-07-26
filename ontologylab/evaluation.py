@@ -29,6 +29,7 @@ two evaluation scripts end up disagreeing about the same run.
 from __future__ import annotations
 
 import json
+import random
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -125,6 +126,80 @@ def store_view(
     return entities, triples
 
 
+# Bootstrap parameters. 2000 resamples puts the Monte-Carlo error of a 95%
+# percentile bound well under a point of F1; the seed makes every report of
+# the same store+gold identical, which is what lets two runs be compared.
+BOOTSTRAP_RESAMPLES = 2000
+BOOTSTRAP_SEED = 7
+CONFIDENCE_LEVEL = 0.95
+
+
+def bootstrap_f1_interval(
+    gold: frozenset,
+    found: set,
+    *,
+    n_resamples: int = BOOTSTRAP_RESAMPLES,
+    seed: int = BOOTSTRAP_SEED,
+    confidence: float = CONFIDENCE_LEVEL,
+) -> dict[str, float]:
+    """Percentile-bootstrap interval for F1 over the evaluation units.
+
+    A gold set a person can actually write has tens of triples, and at that
+    size the difference between F1 0.72 and 0.75 is routinely noise. A point
+    estimate cannot say so; an interval can — "improved" becomes a claim
+    about non-overlapping intervals instead of a mood, which was the whole
+    reason P0 exists.
+
+    The resampling unit is the individual outcome (each true positive,
+    false positive and false negative), drawn with replacement — the case
+    bootstrap. It treats items as independent, which ignores that triples
+    from one document rise and fall together; the interval is therefore, if
+    anything, a little narrow. Stated here so nobody mistakes it for a
+    document-level bootstrap.
+    """
+    true_positives = len(gold & found)
+    false_positives = len(found - gold)
+    false_negatives = len(gold - found)
+    total = true_positives + false_positives + false_negatives
+    if total == 0:
+        # Nothing to find and nothing found: F1 is 1.0 by the module's
+        # convention, with no sampling variability to speak of.
+        return {"low": 1.0, "high": 1.0}
+
+    outcomes = (
+        ["tp"] * true_positives
+        + ["fp"] * false_positives
+        + ["fn"] * false_negatives
+    )
+    rng = random.Random(seed)
+    f1_samples: list[float] = []
+    for _ in range(n_resamples):
+        tp = fp = fn = 0
+        for _ in range(total):
+            outcome = outcomes[rng.randrange(total)]
+            if outcome == "tp":
+                tp += 1
+            elif outcome == "fp":
+                fp += 1
+            else:
+                fn += 1
+        precision = tp / (tp + fp) if tp + fp else 0.0
+        recall = tp / (tp + fn) if tp + fn else 0.0
+        f1_samples.append(
+            2 * precision * recall / (precision + recall)
+            if (precision + recall) > 0
+            else 0.0
+        )
+    f1_samples.sort()
+    tail = (1.0 - confidence) / 2.0
+    low_index = int(tail * n_resamples)
+    high_index = min(n_resamples - 1, int((1.0 - tail) * n_resamples) - 1)
+    return {
+        "low": round(f1_samples[low_index], 4),
+        "high": round(f1_samples[high_index], 4),
+    }
+
+
 def _prf(gold: frozenset, found: set) -> dict[str, float]:
     """Precision/recall/F1 with the zero conventions from the module doc."""
     if not gold and not found:
@@ -147,6 +222,8 @@ class Report:
     entity: dict[str, float]
     triple: dict[str, float]
     counts: dict[str, int]
+    entity_f1_ci: dict[str, float] = field(default_factory=dict)
+    triple_f1_ci: dict[str, float] = field(default_factory=dict)
     missing_triples: list[tuple[str, str, str]] = field(default_factory=list)
     spurious_triples: list[tuple[str, str, str]] = field(default_factory=list)
 
@@ -154,6 +231,8 @@ class Report:
         return {
             "entity": {k: round(v, 4) for k, v in self.entity.items()},
             "triple": {k: round(v, 4) for k, v in self.triple.items()},
+            "entity_f1_ci": dict(self.entity_f1_ci),
+            "triple_f1_ci": dict(self.triple_f1_ci),
             "counts": dict(self.counts),
             "missing_triples": [list(t) for t in self.missing_triples],
             "spurious_triples": [list(t) for t in self.spurious_triples],
@@ -170,6 +249,8 @@ def evaluate_store(
     return Report(
         entity=_prf(gold.entities, found_entities),
         triple=_prf(gold.triples, found_triples),
+        entity_f1_ci=bootstrap_f1_interval(gold.entities, found_entities),
+        triple_f1_ci=bootstrap_f1_interval(gold.triples, found_triples),
         counts={
             "gold_entities": len(gold.entities),
             "found_entities": len(found_entities),
@@ -184,6 +265,7 @@ def evaluate_store(
 __all__ = [
     "Gold",
     "GoldError",
+    "bootstrap_f1_interval",
     "MAX_EXAMPLES",
     "Report",
     "evaluate_store",

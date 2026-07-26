@@ -69,6 +69,7 @@ def detect_communities(
     *,
     max_iterations: int = MAX_ITERATIONS,
     algorithm: str = "auto",
+    resolution: float | None = None,
 ) -> list[list[str]]:
     """Partition nodes into communities.
 
@@ -79,6 +80,19 @@ def detect_communities(
     propagation otherwise; the explicit names force one backend (Leiden
     raises if unavailable rather than silently degrading — a caller that
     asks by name is asking for the guarantee, not the label).
+
+    ``"leiden-cpm"`` swaps the objective from modularity to the Constant
+    Potts Model, and exists because modularity has a proven blind spot:
+    Fortunato & Barthélemy (PNAS 2007) showed it cannot resolve communities
+    with fewer than ~√(L/2) internal edges, so as a corpus grows, small
+    real clusters get absorbed into big ones — the test suite reproduces
+    this with a ring of triangles that modularity merges pairwise and CPM
+    separates. CPM is resolution-limit-free but demands an explicit
+    ``resolution`` γ (the internal edge density below which a group no
+    longer counts as a community; 0.1–0.5 is sensible for entity graphs).
+    There is deliberately no default: γ→0 degenerates to one giant
+    community, and a silently-chosen constant would just be a resolution
+    limit with extra steps.
     """
     known = set(node_ids)
     ordered = sorted(known)
@@ -91,13 +105,22 @@ def detect_communities(
 
     if algorithm == "auto":
         algorithm = community_algorithm()
-    if algorithm == "leiden":
+    if algorithm in ("leiden", "leiden-cpm"):
         if not _leiden_available():
             raise RuntimeError(
-                "leiden was requested by name but leidenalg/igraph are not "
-                "installed; pip install 'ontologylab[graph]'"
+                f"{algorithm} was requested by name but leidenalg/igraph are "
+                "not installed; pip install 'ontologylab[graph]'"
             )
-        groups = _leiden(ordered, sorted(undirected))
+        if algorithm == "leiden-cpm":
+            if resolution is None or resolution <= 0.0:
+                raise ValueError(
+                    "leiden-cpm needs an explicit resolution > 0 — γ is the "
+                    "internal edge density below which a group stops being a "
+                    "community, and no constant is right for every graph"
+                )
+            groups = _leiden(ordered, sorted(undirected), resolution=resolution)
+        else:
+            groups = _leiden(ordered, sorted(undirected))
     elif algorithm == "label_propagation":
         groups = _label_propagation(ordered, undirected, max_iterations)
     else:
@@ -105,11 +128,17 @@ def detect_communities(
     return sorted(groups, key=lambda m: (-len(m), m[0]))
 
 
-def _leiden(ordered_ids: list[str], edges: list[tuple[str, str]]) -> list[list[str]]:
-    """Leiden with modularity, seeded — connected communities, guaranteed.
+def _leiden(
+    ordered_ids: list[str],
+    edges: list[tuple[str, str]],
+    *,
+    resolution: float | None = None,
+) -> list[list[str]]:
+    """Leiden, seeded — connected communities, guaranteed.
 
-    Vertices are added in sorted-id order and the refinement RNG is seeded,
-    so the partition is a pure function of the graph.
+    Objective: modularity when ``resolution`` is None, CPM at that γ
+    otherwise. Vertices are added in sorted-id order and the refinement RNG
+    is seeded, so the partition is a pure function of the graph (and γ).
     """
     import igraph
     import leidenalg
@@ -119,12 +148,21 @@ def _leiden(ordered_ids: list[str], edges: list[tuple[str, str]]) -> list[list[s
         n=len(ordered_ids),
         edges=[(index[a], index[b]) for a, b in edges],
     )
-    partition = leidenalg.find_partition(
-        graph,
-        leidenalg.ModularityVertexPartition,
-        seed=LEIDEN_SEED,
-        n_iterations=-1,  # run to convergence, not a fixed pass count
-    )
+    if resolution is None:
+        partition = leidenalg.find_partition(
+            graph,
+            leidenalg.ModularityVertexPartition,
+            seed=LEIDEN_SEED,
+            n_iterations=-1,  # run to convergence, not a fixed pass count
+        )
+    else:
+        partition = leidenalg.find_partition(
+            graph,
+            leidenalg.CPMVertexPartition,
+            resolution_parameter=resolution,
+            seed=LEIDEN_SEED,
+            n_iterations=-1,
+        )
     return [sorted(ordered_ids[i] for i in community) for community in partition]
 
 

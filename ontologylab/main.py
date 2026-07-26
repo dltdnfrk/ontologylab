@@ -580,9 +580,11 @@ def cmd_eval(args: argparse.Namespace) -> int:
     print(f"[ontologylab] eval vs {gold.path} ({scope})")
     for unit in ("entity", "triple"):
         scores = getattr(report, unit)
+        interval = getattr(report, f"{unit}_f1_ci")
         print(
             f"  {unit:>7}: P={scores['precision']:.3f} "
-            f"R={scores['recall']:.3f} F1={scores['f1']:.3f}"
+            f"R={scores['recall']:.3f} F1={scores['f1']:.3f} "
+            f"[{interval['low']:.3f}, {interval['high']:.3f}]"
         )
     counts = report.counts
     print(
