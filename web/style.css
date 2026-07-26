@@ -48,127 +48,123 @@
   font-display: swap;
 }
 
-/* 라틴·숫자·ASCII 부호만 Outfit(YC의 서체, OFL) — 한글과 문장 속
-   특수부호(— · …)는 unicode-range 밖이라 Pretendard가 그대로 담당한다. */
-@font-face {
-  font-family: "Outfit";
-  src: url("/static/fonts/OutfitVariable.woff2") format("woff2-variations");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0020-007E;
-}
 
 /* ---------- 1. Design tokens ---------- */
 
 :root {
-  color-scheme: light dark;
+  /* 라이트 분기는 두지 않는다. 거래 단말에 라이트 모드가 없는 것과
+     같은 이유다 — 이 화면은 오래 들여다보며 목록을 훑는 곳이고, OS 설정에
+     따라 팔레트가 갈리면 상태 3색(초록·빨강·호박)의 대비도 함께 갈린다.
+     그 세 색은 이 앱의 상태기계 그 자체라 배경이 바뀌면 뜻이 흔들린다. */
+  color-scheme: dark;
 
-  /* 캔버스/글자 — 따뜻한 종이와 잉크.
-     차가운 회색 캔버스(#fafafa) + 밝은 인디고 포인트는 어느 SaaS 대시보드에나
-     있는 기본값이라 이 도구가 무엇인지 아무것도 말하지 않았다. 여기는 사람이
-     직접 검증해 지식을 쌓아 두는 작업대이므로 종이-잉크 쪽으로 옮긴다. */
-  --background: #f6f4f0;
-  --foreground: #201e1a;
+  /* 캔버스/글자 — 거래 터미널의 근사 블랙.
+     이전 팔레트는 따뜻한 종이-잉크였다. 그건 "읽고 판단하는 책상"의
+     은유였고 지금도 틀린 은유는 아니지만, 이 도구가 실제로 하는 일은
+     장시간 목록을 훑으며 승인/거부를 누르는 것이다 — 블룸버그 단말에
+     가깝지 참고서에 가깝지 않다. 검정은 순수 흑색이 아니라 아주 옅은
+     녹색기를 띤다(#0C0E0E): 순흑은 OLED에서 경계가 사라지고, 미세한
+     색조가 있어야 그 위에 놓인 면이 면으로 읽힌다. */
+  --background: #0c0e0e;
+  --foreground: #f2f5f2;
 
-  /* 면(surface) 쌍 — 캔버스보다 한 단계 밝은 따뜻한 흰색 */
-  --card: #fffdfa;
-  --card-foreground: #201e1a;
-  --popover: #fffdfa;
-  --popover-foreground: #201e1a;
+  /* 면(surface) — 캔버스보다 한 단계 뜬 값. 헤어라인 없이도 깊이가 생긴다. */
+  --card: #121515;
+  --card-foreground: #f2f5f2;
+  --popover: #1d2121;
+  --popover-foreground: #f2f5f2;
 
-  /* 주 버튼: 잉크 */
-  --primary: #201e1a;
-  --primary-foreground: #fffdfa;
+  /* 주 버튼: 흰 채움에 검은 글씨.
+     상태 3색(초록·빨강·호박) 어느 것과도 겹치지 않는 유일한 값이라,
+     "내가 조작하는 것"과 "데이터가 말하는 것"이 색만으로 갈린다.
+     단말의 주 버튼이 흰색인 것도 같은 이유다. */
+  --primary: #f2f5f2;
+  --primary-foreground: #0c0e0e;
 
   /* 채움/칩/코드 배경 */
-  --secondary: #ece8e1;
-  --secondary-foreground: #201e1a;
-  --muted: #ece8e1;
-  --muted-foreground: #6a635a;
+  --secondary: #1d2121;
+  --secondary-foreground: #f2f5f2;
+  --muted: #1d2121;
+  --muted-foreground: #909c8c;
 
-  /* 상호작용 단일 포인트색: 깊은 잉크 네이비.
-     상태 3색(호박·초록·진홍) 어느 것과도 겹치지 않아서, 색만 보고도
-     "내가 조작하는 것"과 "데이터가 말하는 것"이 구분된다. */
-  --accent: #1d3c61;
-  --accent-foreground: #fffdfa;
-  --accent-soft: rgba(29, 60, 97, 0.09);
+  /* 상호작용 단일 포인트색.
+     여기서는 색상(hue)이 아니라 밝기다. 초록을 포인트로 쓰면 '승인됨'과
+     충돌하고, 빨강은 '거부'와 충돌한다. 단말이 흰색을 쓰는 이유가 그것이다 —
+     초록·빨강은 손대지 않고 남겨 둬야 값이 말을 한다. */
+  --accent: #f2f5f2;
+  --accent-foreground: #0c0e0e;
+  --accent-soft: rgba(242, 245, 242, 0.09);
 
-  --destructive: #97302c;
-  --destructive-foreground: #fffdfa;
+  --destructive: #ff284e;                   /* 하락 빨강 */
+  --destructive-foreground: #0c0e0e;
 
-  --border: #e2dbd0;                        /* hairline separator */
-  --input: #e2dbd0;
-  --ring: #1d3c61;
+  --border: #2c3333;                        /* hairline separator */
+  --input: #2c3333;
+  --ring: #f2f5f2;
 
   /* 확실성 = 선명도.
      이 앱에서 사람이 하는 일은 "아직 못 믿을 것"을 "믿을 수 있는 것"으로
-     바꾸는 것 하나뿐이다. 그래서 그 축을 색상이 아니라 대비로 그린다 —
-     미검증 제안은 잉크가 옅고, 승인되면 완전한 잉크로 또렷해진다.
-     진행률이 숫자가 아니라 화면이 선명해지는 것으로 읽히고, 채도 있는
-     색은 결정(승인·거부)에만 남겨 둘 수 있다. */
-  --ink-draft: #6f675d;                     /* 미검증 — 옅은 잉크 */
-  --ink-verified: var(--foreground);        /* 검증됨 — 완전한 잉크 */
+     바꾸는 것 하나뿐이다. 미검증 제안은 잉크가 옅고, 승인되면 또렷해진다. */
+  --ink-draft: #7d8a7d;                     /* 미검증 — 가라앉은 글자 */
+  --ink-verified: var(--foreground);        /* 검증됨 — 완전한 글자 */
 
   /* 상태색 = 이 앱의 상태기계 그 자체(제안 → 검증 / 거부).
-     장식에는 절대 쓰지 않는다 — 색이 보이면 언제나 뜻이 있다. */
-  --ok: #2f6b46;                            /* 검증됨 */
-  --warn: #94620f;                          /* 제안됨 — 사람 눈이 필요 */
-  --ok-text: #2a6040;
-  --warn-text: #7d520c;
-  --ok-soft: rgba(47, 107, 70, 0.1);
-  --warn-soft: rgba(148, 98, 15, 0.12);
-  --destructive-soft: rgba(151, 48, 44, 0.09);
+     단말의 상승/하락 두 색을 그대로 가져온다. 우연이 아니라 같은 구조다 —
+     승인은 장부에 오르는 것이고 거부는 빠지는 것이다. 장식에는 절대
+     쓰지 않는다: 색이 보이면 언제나 뜻이 있다. */
+  --ok: #00c805;                            /* 상승 초록 = 검증됨 */
+  --warn: #d4a017;                          /* 제안됨 — 사람 눈이 필요 */
+  --ok-text: #2ee06a;
+  --warn-text: #e0b84a;
+  --ok-soft: rgba(0, 200, 5, 0.13);
+  --warn-soft: rgba(212, 160, 23, 0.16);
+  --destructive-soft: rgba(255, 40, 78, 0.14);
 
-  /* 앱 셸 크롬(헤더·파이프라인 바·캔버스) 면 — shadcn 확장 토큰.
-     다크에선 카드보다 한 단계 가라앉아 헤어라인 없이도 깊이가 생긴다. */
-  --shell: #fffdfa;
+  /* 앱 셸 크롬(헤더·캔버스) 면 */
+  --shell: #0f1212;
 
-  /* 좌측 레일 전용 면 (shadcn sidebar 토큰) */
-  --sidebar: #f1eee8;
-  --sidebar-foreground: #6a635a;
-  --sidebar-primary: #1d3c61;
-  --sidebar-accent: #e6e1d8;
-  --sidebar-accent-foreground: #201e1a;
-  --sidebar-border: #e2dbd0;
-  --sidebar-ring: #1d3c61;
+  /* 좌측 레일 — 캔버스보다 가라앉아 콘텐츠가 앞으로 나온다 */
+  --sidebar: #0a0c0c;
+  --sidebar-foreground: #909c8c;
+  --sidebar-primary: #f2f5f2;
+  --sidebar-accent: #1d2121;
+  --sidebar-accent-foreground: #f2f5f2;
+  --sidebar-border: #2c3333;
+  --sidebar-ring: #f2f5f2;
 
-  /* 데이터 시각화 팔레트 (예약 — confidence bar 외 향후 차트용) */
-  --chart-1: #1d3c61;
-  --chart-2: #2f6b46;
-  --chart-3: #94620f;
-  --chart-4: #97302c;
-  --chart-5: #6a635a;
+  /* 데이터 시각화 팔레트 */
+  --chart-1: #00c805;
+  --chart-2: #ff284e;
+  --chart-3: #d4a017;
+  --chart-4: #909c8c;
+  --chart-5: #f2f5f2;
 
   --shadow-float: none;                      /* 깊이는 면 값 차이와
                                                 헤어라인으로 표현 */
   --shadow-soft: none;
 
-  --radius: 10px;
-  --radius-sm: calc(var(--radius) - 3px);    /* 7px */
-  --radius-md: var(--radius);                /* 10px */
-  --radius-lg: calc(var(--radius) + 2px);    /* 12px */
+  /* 단말은 둥글지 않다. 값을 담는 상자는 각져야 격자로 읽힌다. */
+  --radius: 4px;
+  --radius-sm: 3px;
+  --radius-md: var(--radius);
+  --radius-lg: 6px;
 
-  /* 본문 서체는 한 벌만 쓴다.
-     이전에는 Outfit이 unicode-range로 ASCII만 담당하고 한글은 Pretendard가
-     받았는데, 두 서체의 광학 굵기가 달라서 한국어 문장 안의 영문·숫자가
-     전부 굵게 튀어 보였다("URL", "arXiv", "0.80", "part_of" …). 그래서 화면에서
-     가장 강조돼 보이는 것이 하필 가장 의미 없는 hex ID였다. Pretendard는
-     라틴까지 한 벌로 덮으므로 본문에서는 Outfit을 뺀다. Outfit은 굵기 대비가
-     의도인 워드마크에만 남긴다. */
+  /* 본문 서체는 한 벌만 쓴다. Pretendard는 라틴까지 한 벌로 덮으므로
+     한국어 문장 안의 영문·숫자가 따로 놀지 않는다.
+     Terminal X는 APK Narrative(상용)를 쓰지만 그 인상을 만드는 건 서체
+     이름이 아니라 규율이다 — 400 굵기, 좁은 자간, 큰 크기. 아래 --fw-*
+     와 --ls-*가 그 규율이고, Pretendard는 같은 계열(neo-grotesque)이라
+     그 규율을 그대로 받는다. */
   --font: "Pretendard Variable", Pretendard, -apple-system,
           BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR",
           "Segoe UI", Helvetica, Arial, sans-serif;
-  /* ⚠ 워드마크 전용. Outfit은 unicode-range로 ASCII만 담당하므로, 한글이
-     섞이는 곳에 쓰면 영문만 굵게 튀는 원래 버그가 그대로 재발한다.
-     .brand h1("ontologylab")처럼 순수 ASCII 한 덩어리에만 쓸 것. */
-  --font-display: "Outfit", var(--font);
+  /* 워드마크도 본문과 같은 서체를 쓴다. Terminal X의 로고가 그렇듯,
+     구분은 서체 교체가 아니라 자간과 크기로 만든다. */
+  --font-display: var(--font);
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* 타입 스케일 — 이전에는 0.7·0.74·0.78·0.82·0.83·0.84·0.85·0.86·0.87rem이
-     제각각 쓰여서 "크기를 조절했다"는 느낌만 있고 위계가 없었다.
-     여기서는 단계를 여섯으로 못박고, 각 단계에 줄간격·자간을 함께 묶는다. */
-  --fs-display: 21px;                        /* 화면 제목 */
+  /* 타입 스케일 */
+  --fs-display: 22px;                        /* 화면 제목 */
   --fs-lg: 17px;                             /* 섹션 제목 */
   --fs-md: 15px;                             /* 소제목 */
   --fs-base: 14px;                           /* 본문 */
@@ -176,28 +172,28 @@
   --fs-xs: 12px;                             /* 캡션·메타 */
   --fs-label: 11px;                          /* 아이브로우·레일 구분 */
 
-  --lh-tight: 1.24;
-  --lh-snug: 1.42;
-  --lh-body: 1.65;
+  --lh-tight: 1.2;
+  --lh-snug: 1.4;
+  --lh-body: 1.62;
 
-  --ls-display: -0.018em;                    /* 큰 글자는 좁혀야 덩어리로 읽힌다 */
-  --ls-tight: -0.008em;
-  --ls-label: 0.075em;                       /* 작은 대문자 라벨은 벌려야 읽힌다 */
+  /* 큰 글자일수록 좁힌다. Terminal X의 h1이 35px에 -0.35px(= -0.01em)이라
+     비율을 그대로 따른다. */
+  --ls-display: -0.012em;
+  --ls-tight: -0.006em;
+  --ls-label: 0.08em;                        /* 작은 라벨은 벌려야 읽힌다 */
 
-  /* 굵기는 세 단계만. 위계는 굵기가 아니라 색·크기·간격이 만든다. */
+  /* 굵기는 두 단계로 충분하다.
+     단말의 h1은 700이 아니라 400이다 — 위계를 굵기로 만들면 화면이
+     굵은 덩어리로 뒤덮이고, 정작 값(숫자)이 묻힌다. 크기와 색으로
+     위계를 내고 굵기는 거의 쓰지 않는다. */
   --fw-normal: 400;
   --fw-medium: 500;
-  --fw-bold: 600;
+  --fw-bold: 500;
 
-  /* 밀도 — 크롬은 낮게, 데이터는 촘촘하게.
-     이 도구에서 사람이 실제로 하는 일은 목록을 훑으며 승인/거부를 누르는
-     것이다. 그런데 검토 화면은 첫 제안이 나오기까지 세로로 380px을 크롬에
-     썼다(헤더 60 + 파이프라인 60 + 제목/부제 70 + 집계 80 + 툴바 두 줄 90).
-     한 화면에 제안이 세 개 들어가는 목록은 목록이 아니라 카드 더미다.
-     에디터가 그렇듯 크롬은 낮고 조용하게, 대비는 데이터에 준다. */
-  --h-chrome: 44px;      /* 헤더 · 파이프라인 스트립 */
-  --h-control: 28px;     /* 버튼 · 입력 · 셀렉트 — 한 값에서 파생 */
-  --h-row: 34px;         /* 표 한 행 */
+  /* 밀도 */
+  --h-chrome: 44px;
+  --h-control: 28px;
+  --h-row: 34px;
   --h-statusbar: 26px;
 
   /* 간격 스케일 (4px 그리드) */
@@ -209,70 +205,11 @@
   --sp-6: 32px;
   --sp-7: 48px;
 
-  /* 읽기 폭 — 본문이 화면 끝까지 늘어나면 한 줄이 120자를 넘어 눈이 줄을
-     잃는다. 산문은 measure로, 표·캔버스는 wide로 제한한다. */
+  /* 읽기 폭 */
   --measure: 72ch;
   --content-max: 1080px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* 라이트의 종이-잉크를 뒤집는다: 차가운 먹빛이 아니라 따뜻한 어둠 */
-    --background: #14120f;
-    --foreground: #ece7dd;
-
-    --card: #1d1a16;
-    --card-foreground: #ece7dd;
-    --popover: #1d1a16;
-    --popover-foreground: #ece7dd;
-
-    --primary: #ece7dd;           /* 다크에선 밝은 버튼 + 잉크 글자 */
-    --primary-foreground: #14120f;
-
-    --secondary: #272320;
-    --secondary-foreground: #ece7dd;
-    --muted: #272320;
-    --muted-foreground: #9a9186;
-
-    --accent: #8fb0d9;            /* 어두운 면 위에서 읽히는 잉크 네이비 */
-    --accent-foreground: #12100d;
-    --accent-soft: rgba(143, 176, 217, 0.15);
-
-    --destructive: #d9736c;
-    --destructive-foreground: #12100d;
-
-    --border: #322d28;
-    --input: #322d28;
-    --ring: #8fb0d9;
-
-    --ok: #6fb389;
-    --warn: #cfa257;
-    --ok-text: var(--ok);
-    --warn-text: var(--warn);
-    --ok-soft: rgba(111, 179, 137, 0.15);
-    --warn-soft: rgba(207, 162, 87, 0.18);
-    --destructive-soft: rgba(217, 115, 108, 0.15);
-
-    --ink-draft: #918a80;
-    --ink-verified: var(--foreground);
-
-    --shell: #1a1713;
-
-    --sidebar: #1a1713;
-    --sidebar-foreground: #9a9186;
-    --sidebar-primary: #8fb0d9;
-    --sidebar-accent: #272320;
-    --sidebar-accent-foreground: #ece7dd;
-    --sidebar-border: #322d28;
-    --sidebar-ring: #8fb0d9;
-
-    --chart-1: #8fb0d9;
-    --chart-2: #6fb389;
-    --chart-3: #cfa257;
-    --chart-4: #d9736c;
-    --chart-5: #9a9186;
-  }
-}
 
 /* ---------- 2. Base ---------- */
 
@@ -640,8 +577,9 @@ header.app-header {
 }
 
 .brand { display: flex; align-items: baseline; gap: var(--sp-3); }
-/* 워드마크만 Outfit을 쓴다 — 본문에서는 굵기가 튀어서 뺐지만, 여기서는
-   그 대비가 의도다(로고는 문장 속에 섞이지 않는다). */
+/* 워드마크도 본문과 같은 서체다. 예전에는 Outfit(별도 표시용 서체)을
+   썼는데, Terminal X의 로고가 그렇듯 구분은 서체 교체가 아니라 자간과
+   크기로 만드는 편이 조용하다 — 그리고 서체가 하나면 어긋날 일이 없다. */
 .brand h1 {
   margin: 0;
   font-family: var(--font-display);
