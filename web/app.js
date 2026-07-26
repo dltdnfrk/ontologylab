@@ -1532,35 +1532,61 @@
     if (!tbody) return;
     var badge = $("#sources-badge");
     try {
-      var res = await api("/api/sources");
-      var sources = (res && res.sources) || [];
+      // 목록의 출처는 /api/sources(= 연결된 것)가 아니라 /api/paper-sources
+      // (= 연결할 수 있는 것)다. 전자는 이미 연결한 것만 보여주므로, 아직
+      // 연결하지 않은 소스는 화면 어디에도 나타나지 않았다.
+      var body = (await api("/api/paper-sources")) || {};
+      var all = body.sources || [];
+      var connectable = all.filter(function (s) { return s.connectable; });
+      var registry = ((await api("/api/sources")) || {}).sources || [];
+      var registered = {};
+      registry.forEach(function (r) { registered[r.id] = r; });
+
       tbody.innerHTML = "";
-      $("#sources-list-empty").classList.toggle("hidden", sources.length > 0);
+      $("#sources-list-empty").classList.toggle("hidden", connectable.length > 0);
       var anyConnected = false;
-      sources.forEach(function (s) {
+      connectable.forEach(function (s) {
         if (s.key_present) anyConnected = true;
         // 서버는 key_present만 보낸다 — 여기서 그릴 수 있는 값 자체가 없다.
         var keyBadge = s.key_present
           ? "<span class='badge st-verified'>연결됨</span>"
           : "<span class='badge st-proposed'>미연결</span>";
+        // 키가 없을 때 실제로 벌어지는 일. 같은 '미연결'이라도 결과가
+        // 다르므로 배지 하나로 뭉뚱그리지 않는다.
+        var consequence = s.keyed
+          ? "<span class='muted'>응답 없음 — 전문 불가</span>"
+          : "<span class='muted'>익명 한도 공유 — <code>429</code> 잦음</span>";
+        var actions = "";
+        if (s.key_present) {
+          actions =
+            "<button type='button' class='btn source-forget-btn' data-id='" +
+            escapeHtml(s.id) + "'>키 지우기</button>";
+          if (registered[s.id]) {
+            actions +=
+              " <button type='button' class='btn btn-danger source-remove-btn'" +
+              " data-id='" + escapeHtml(s.id) + "'>연결 해제</button>";
+          }
+        }
         var tr = document.createElement("tr");
         tr.innerHTML =
-          "<td><code>" + escapeHtml(s.id) + "</code>" +
-          (s.label ? " <small class='muted'>" + escapeHtml(s.label) + "</small>" : "") +
-          "</td>" +
-          "<td>" + escapeHtml(s.role) + "</td>" +
+          "<td>" + escapeHtml(s.label || s.id) +
+          " <code class='muted'>" + escapeHtml(s.id) + "</code></td>" +
           "<td>" + keyBadge + "</td>" +
-          "<td class='actions'>" +
-          "<button type='button' class='btn source-forget-btn' data-id='" +
-          escapeHtml(s.id) + "'>키 지우기</button> " +
-          "<button type='button' class='btn btn-danger source-remove-btn' data-id='" +
-          escapeHtml(s.id) + "'>연결 해제</button>" +
-          "</td>";
+          "<td>" + consequence + "</td>" +
+          "<td class='actions'>" + actions + "</td>";
         tbody.appendChild(tr);
       });
+
+      populateSourceSelect(connectable);
       if (badge) {
-        badge.textContent = anyConnected ? "연결됨" : "미연결";
-        badge.className = "badge " + (anyConnected ? "st-verified" : "st-proposed");
+        var pending = connectable.filter(function (s) {
+          return s.keyed && !s.key_present;
+        }).length;
+        badge.textContent = anyConnected
+          ? (pending ? pending + "곳 남음" : "연결됨")
+          : "미연결";
+        badge.className = "badge " + (anyConnected && !pending
+          ? "st-verified" : "st-proposed");
       }
     } catch (e) {
       tbody.innerHTML = "";
@@ -1568,12 +1594,35 @@
     }
   }
 
+  /* 연결 폼의 선택지도 같은 응답에서 만든다. 손으로 적은 이름은 어떤
+     소스와도 매칭되지 않아 조용히 죽은 키가 되므로 입력 자체를 없앴다. */
+  function populateSourceSelect(connectable) {
+    var sel = $("#source-id");
+    if (!sel) return;
+    var previous = sel.value;
+    sel.innerHTML = "";
+    connectable.forEach(function (s) {
+      var opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent =
+        (s.label || s.id) +
+        (s.key_present ? " — 연결됨 (다시 넣으면 교체)"
+                       : s.keyed ? " — 필요" : " — 선택");
+      sel.appendChild(opt);
+    });
+    if (previous) sel.value = previous;
+  }
+
   $("#source-form").addEventListener("submit", async function (ev) {
     ev.preventDefault();
     var box = $("#source-result");
     var keyField = $("#source-key");
     var key = keyField.value;
-    var id = $("#source-id").value.trim() || "journals";
+    var id = $("#source-id").value;
+    if (!id) {
+      showResult(box, "소스를 골라주세요.", true);
+      return;
+    }
     if (!key.trim()) {
       showResult(box, "키를 붙여넣어주세요.", true);
       return;

@@ -34,6 +34,7 @@ from ontologylab.connectors.base import RawDocument
 from ontologylab.connectors.paper_api import (
     DEFAULT_PAPER_SOURCE,
     PAPER_SOURCE_LABELS,
+    CONNECTABLE_SOURCES,
     KEYED_SOURCES,
     SOURCE_ORDER,
     MissingSourceKey,
@@ -42,6 +43,7 @@ from ontologylab.connectors.paper_api import (
     UnsupportedPaperSource,
     available_sources,
     check_source_implemented,
+    resolve_source_key,
 )
 from ontologylab.connectors.web_crawl import WebCrawlConnector
 from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError, UnknownItem
@@ -167,7 +169,14 @@ def get_paper_sources() -> dict[str, Any]:
             {
                 "id": source,
                 "label": PAPER_SOURCE_LABELS.get(source, source),
+                # `keyed` means "refuses without a key" — the picker
+                # disables those. `connectable` is wider: OpenAlex and
+                # Semantic Scholar work anonymously but share a rate-limited
+                # pool, so they stay selectable while still being offered a
+                # key on the settings screen.
                 "keyed": source in KEYED_SOURCES,
+                "connectable": source in CONNECTABLE_SOURCES,
+                "key_present": bool(resolve_source_key(source, _data_dir)),
                 "available": source in usable,
             }
             for source in SOURCE_ORDER

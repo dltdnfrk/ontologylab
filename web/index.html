@@ -200,30 +200,37 @@
       </details>
 
       <details class="adv-opts">
-        <summary>저널 접근 — 출판사 API 키 연결
+        <summary>논문 소스 — API 키 연결
           <span id="sources-badge" class="badge st-proposed">미연결</span></summary>
-        <p class="muted">전문(full text)까지 닿으려면 출판사 API 키가 필요해요.
-          키는 이 컴퓨터의 <strong>macOS 키체인에 암호화되어</strong> 저장되고,
-          <code>data/</code> 어디에도 값이 남지 않아요 — 여기 목록에도 다시
-          나타나지 않고 <em>연결됨/미연결</em>만 보여요.</p>
+        <p class="muted">키는 이 컴퓨터의 <strong>macOS 키체인에 암호화되어</strong>
+          저장되고, <code>data/</code> 어디에도 값이 남지 않아요 — 여기 목록에도
+          다시 나타나지 않고 <em>연결됨/미연결</em>만 보여요.</p>
+        <p class="muted">두 종류예요. <strong>출판사</strong>는 키가 없으면 아예
+          응답하지 않아 전문(full text)에 닿을 수 없고,
+          <strong>공개 API</strong>는 키 없이도 되지만 익명 요청은 다른 모든
+          익명 사용자와 같은 한도를 나눠 써서 <code>429</code>로 되돌아오곤 해요.
+          연결해두면 그 소스만의 한도를 받습니다.</p>
         <div class="table-wrap">
           <table id="sources-table">
             <thead>
               <tr>
-                <th>연결</th>
-                <th>역할</th>
+                <th>소스</th>
                 <th>키</th>
+                <th>없을 때</th>
                 <th>작업</th>
               </tr>
             </thead>
             <tbody id="sources-body"></tbody>
           </table>
         </div>
-        <p id="sources-list-empty" class="muted hidden">아직 연결된 저널 접근이 없어요.</p>
+        <p id="sources-list-empty" class="muted hidden">연결 가능한 소스가 없어요.</p>
 
         <form id="source-form" class="form-grid" autocomplete="off">
-          <label>이름
-            <input type="text" id="source-id" placeholder="journals" autocomplete="off" />
+          <label>소스
+            <!-- 자유 입력이 아니라 선택. 키는 소스 id로만 조회되므로
+                 이름을 직접 적게 두면 키체인에는 저장되고 어떤 소스도
+                 읽지 않는 상태가 조용히 만들어진다. -->
+            <select id="source-id"></select>
           </label>
           <label>API 키
             <!-- type=password + autocomplete=off: the value must not linger

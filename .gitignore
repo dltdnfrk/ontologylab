@@ -9,3 +9,8 @@ __pycache__/
 # launcher runtime state (machine-specific)
 .launcher.port
 .launcher.log
+
+# Holds absolute paths to whatever temp data dir last ran the preview, so it
+# is per-machine by nature. Narrowed deliberately: `.claude/agent-memory/` is
+# tracked, and ignoring the parent would make this file contradict the tree.
+.claude/launch.json

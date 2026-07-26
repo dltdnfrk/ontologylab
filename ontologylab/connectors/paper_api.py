@@ -1,9 +1,17 @@
 """Paper-metadata API connectors (stdlib only).
 
-Fetches public metadata + abstracts from paper APIs. Five are keyless —
-arXiv (Atom XML), Crossref, OpenAlex, Semantic Scholar, Europe PMC (REST
-JSON) — and three are publisher APIs that carry a credential: Elsevier
-(Scopus), Springer Nature, and CORE.
+Fetches public metadata + abstracts from paper APIs, in three categories:
+
+* **Keyless** — arXiv (Atom XML), Crossref, Europe PMC (REST JSON). No
+  credential exists to give them.
+* **Optionally keyed** — OpenAlex and Semantic Scholar answer anonymously
+  but share one pool with every other anonymous client, and both were
+  measured returning `429 Too Many Requests` on an ordinary query from an
+  unconfigured install. A key moves them out of that pool; its absence is
+  not an error.
+* **Keyed** — Elsevier (Scopus), Springer Nature, CORE. These refuse
+  outright without a credential, so an unconfigured install does not
+  query them at all rather than collecting three failures per run.
 
 Each (source, query) pair is checked against the allowlist **before** any
 network I/O (deny-by-default), mirroring the web_crawl connector's
@@ -16,10 +24,15 @@ Three properties hold the keyed half together:
   through publisher *APIs* for exactly this reason — crawling document pages
   would mean following `doi.org -> publisher -> CDN`, whose intermediate
   hosts cannot be enumerated ahead of time.
-* **Header-only credentials.** A key in a query string would reach the
-  offline-refusal message, `provenance.jsonl`, `status.json`'s last_payload
-  and the job log, none of which know a URL might be a secret. Elsevier and
-  Springer also accept a query parameter; that route is not offered here.
+* **Credentials travel in headers wherever the API offers a header.** A key
+  in a query string would reach the offline-refusal message,
+  `provenance.jsonl`, `status.json`'s last_payload and the job log, none of
+  which know a URL might be a secret. Elsevier and Springer also accept a
+  query parameter; that route is not offered here. OpenAlex documents no
+  header form at all, so it is the one exception — and it is contained
+  rather than waived: `_with_query_key` splices the key on inside
+  `_http_get_text`, after every string that might be logged has already
+  been built without it.
 * **Nothing crosses an origin.** `_AllowlistedPaperRedirect` re-checks every
   redirect hop and drops any header outside `_REDIRECT_SAFE_HEADERS` when the
   host changes, because `urllib` forwards credentials across origins where
@@ -252,7 +265,31 @@ _opener = build_opener(_AllowlistedPaperRedirect())
 urlopen = _opener.open
 
 
-def _http_get_text(url: str, headers: dict[str, str] | None = None) -> str:
+def _with_query_key(url: str, param: str, key: str) -> str:
+    """Append a credential query parameter at the moment of the request.
+
+    This module's rule is that credentials travel in headers, because a URL
+    reaches the offline-refusal message, `provenance.jsonl`, `status.json`'s
+    `last_payload` and the job log, none of which know a URL might hold a
+    secret. Elsevier and Springer both offer a query-parameter route and it
+    is deliberately not used.
+
+    OpenAlex leaves no choice: its documented mechanism is `api_key=` and
+    there is no header form. So the exception is contained rather than
+    waived: this returns a string that goes straight into `urlopen` and is
+    bound to no name that anything else reads. Its one caller is the line
+    below `assert_network_allowed`, so the keyless `url` remains what the
+    guard, the size error and any raised exception are built from.
+    """
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}{param}={quote_plus(key)}"
+
+
+def _http_get_text(
+    url: str,
+    headers: dict[str, str] | None = None,
+    query_key: tuple[str, str] | None = None,
+) -> str:
     """Fetch one allowlist-checked API URL; separated for test monkeypatching.
 
     The single network boundary for BOTH paper sources (Atom or JSON).
@@ -261,6 +298,15 @@ def _http_get_text(url: str, headers: dict[str, str] | None = None) -> str:
     keyword with a default so the ~25 existing monkeypatches spelled
     `lambda url: FIXTURE` keep working; callers pass it only for the keyed
     sources, which have their own fixtures.
+
+    `query_key` is the one credential that cannot travel in a header
+    (OpenAlex documents no header form). It arrives separately, rather than
+    already spliced into `url`, precisely so that `url` — the value the
+    offline guard names, the size error quotes, and any exception raised
+    below carries — is keyless for the whole of this function. Splicing it
+    upstream would put the secret in `HTTPError.url` and in every message
+    built from the URL, leaving `redact_keys` as the only thing between a
+    credential and an append-only log.
 
     The read is bounded. `MAX_RESPONSE_BYTES` is generous for the 25 abstracts
     a request can ask for, and it is the one place that bounds *unknown*
@@ -275,7 +321,11 @@ def _http_get_text(url: str, headers: dict[str, str] | None = None) -> str:
     # publisher key in a query parameter, and this message reaches the HTTP
     # response, provenance, and the job log.
     assert_network_allowed(f"paper API fetch ({urlparse(url).hostname})")
-    request = Request(url, headers={"User-Agent": _USER_AGENT, **(headers or {})})
+    # Last possible moment, and deliberately not rebound onto `url`: the
+    # credential exists on `target`, which is handed to `Request` and never
+    # read again. Everything below still quotes `url`.
+    target = url if query_key is None else _with_query_key(url, *query_key)
+    request = Request(target, headers={"User-Agent": _USER_AGENT, **(headers or {})})
     with urlopen(request, timeout=_FETCH_TIMEOUT_S) as response:
         charset = response.headers.get_content_charset() or "utf-8"
         # Read one byte past the cap so an oversized body is detected rather
@@ -766,6 +816,31 @@ _SOURCE_DISPATCH = {
 # and then silently queried anonymously.
 KEYED_SOURCES: frozenset[str] = frozenset(_SOURCE_AUTH)
 
+# Sources that answer WITHOUT a key but answer better WITH one.
+#
+# A third category, because the existing two could not express this. A
+# publisher source refuses outright when unconfigured; these do not — they
+# fall back to a shared anonymous pool and get 429ed out of it. Measured on
+# this machine with no keys configured: OpenAlex and Semantic Scholar both
+# returned `429 Too Many Requests` on an ordinary query, which is exactly
+# the "did not answer (fetch_failed)" pair seen in a live research run.
+# Treating them as required-key sources would hide them from a fresh
+# install; leaving them keyless leaves two of eight sources rate-limited.
+#
+# Each entry says how the credential travels. Header is preferred and used
+# wherever the API offers it; `query` exists only because OpenAlex documents
+# no header form (see `_with_query_key`).
+_OPTIONAL_AUTH: dict[str, tuple[str, str]] = {
+    OPENALEX_SOURCE: ("query", "api_key"),
+    SEMANTIC_SCHOLAR_SOURCE: ("header", "x-api-key"),
+}
+OPTIONAL_KEY_SOURCES: frozenset[str] = frozenset(_OPTIONAL_AUTH)
+
+# Every source that can carry a credential at all — the set the settings
+# screen offers to connect. Derived, so a new source cannot be added to one
+# table and forgotten in the other.
+CONNECTABLE_SOURCES: frozenset[str] = KEYED_SOURCES | OPTIONAL_KEY_SOURCES
+
 # This dispatch table IS the registry. A paper source exists exactly when it
 # has a URL builder and a parser, so deriving the set from it removes the
 # possibility of a half-added source: one that answers
@@ -804,13 +879,18 @@ class MissingSourceKey(Exception):
 
 
 def resolve_source_key(source: str, data_dir: Any) -> str:
-    """Return the credential for a keyed source, or "" when not connected.
+    """Return the credential for a connectable source, or "" if none.
+
+    Covers both categories: publisher sources that REQUIRE a key and the
+    optional-key sources that merely prefer one. The caller decides what an
+    empty string means — a refusal for the former, an anonymous request for
+    the latter.
 
     Imported lazily: `sources` imports `keychain`, which shells out to
-    `security`, and the keyless five must not pay for that at import time —
-    nor should a non-macOS host fail to import this module at all.
+    `security`, and the sources that need no key must not pay for that at
+    import time — nor should a non-macOS host fail to import this module.
     """
-    if source not in KEYED_SOURCES or data_dir is None:
+    if source not in CONNECTABLE_SOURCES or data_dir is None:
         return ""
     try:
         from ontologylab.sources import load_sources, resolve_source_key as _resolve
@@ -842,14 +922,17 @@ def redact_keys(text: str, data_dir: Any = None) -> str:
     an exception that happens to quote a request header would break it
     silently and permanently, because the log is append-only.
 
-    Keys are header-only today, so nothing is known to leak; this exists so
-    that the guarantee does not depend on every future connector, HTTP
-    library and error message being careful. Scrubbing the value we already
-    hold is cheap and does not care where the text came from.
+    Most keys travel in headers; OpenAlex has no header form and is spliced
+    into the URL inside `_http_get_text`, so no logged string should carry it
+    by construction. This is the belt to that braces: the guarantee should
+    not depend on every future connector, HTTP library and error message
+    being careful. Scrubbing the value we already hold is cheap and does not
+    care where the text came from — and it iterates every CONNECTABLE
+    source, so an optional key is scrubbed exactly like a required one.
     """
     if not text or data_dir is None:
         return text
-    for name in KEYED_SOURCES:
+    for name in CONNECTABLE_SOURCES:
         key = resolve_source_key(name, data_dir)
         if key and key in text:
             text = text.replace(key, REDACTED)
@@ -897,8 +980,10 @@ class PaperApiConnector:
         build_url, parse = _SOURCE_DISPATCH[source]
 
         headers: dict[str, str] = {}
+        data_dir = source_spec.get("data_dir")
+        query_key: tuple[str, str] | None = None
         if source in KEYED_SOURCES:
-            key = resolve_source_key(source, source_spec.get("data_dir"))
+            key = resolve_source_key(source, data_dir)
             if not key:
                 # Refuse before the URL is built, let alone fetched. An
                 # anonymous request to a publisher API is a 401 at best and
@@ -909,6 +994,18 @@ class PaperApiConnector:
                     f"connect journal access first"
                 )
             headers = _SOURCE_AUTH[source](key)
+        elif source in OPTIONAL_KEY_SOURCES:
+            # No key is not an error here — it is the anonymous pool, which
+            # works until it does not. Measured: OpenAlex and Semantic
+            # Scholar both 429 from it on an ordinary query. So the key is
+            # used when present and its absence is silent.
+            key = resolve_source_key(source, data_dir)
+            if key:
+                where, name = _OPTIONAL_AUTH[source]
+                if where == "header":
+                    headers = {name: key}
+                else:
+                    query_key = (name, key)
 
         # `_http_get_text` is a blocking `urlopen`; this coroutine used to be
         # `async` in name only, so gathering five sources ran them one after
@@ -916,9 +1013,17 @@ class PaperApiConnector:
         # whole helper to a thread keeps its internals in order: the offline
         # guard still runs inside it, before the socket, on that same thread.
         url = build_url(query, limit)
-        # Passed only when there is one, so the many `lambda url: FIXTURE`
-        # monkeypatches in the suite keep matching the call.
-        if headers:
+        # `url` is keyless and stays that way. A query credential is handed
+        # to the fetcher as data, not spliced into the string, so nothing
+        # from here down — the failure text this coroutine raises, the
+        # provenance line it becomes — can carry it.
+        # Both extras are passed only when there is one, so the many
+        # `lambda url: FIXTURE` monkeypatches in the suite keep matching.
+        if headers and query_key is not None:
+            body = await asyncio.to_thread(_http_get_text, url, headers, query_key)
+        elif query_key is not None:
+            body = await asyncio.to_thread(_http_get_text, url, None, query_key)
+        elif headers:
             body = await asyncio.to_thread(_http_get_text, url, headers)
         else:
             body = await asyncio.to_thread(_http_get_text, url)
