@@ -687,6 +687,12 @@ button.mcpb-btn {
    `.btn-primary`(0,1,0)를 이겨서 배경을 --muted로 덮는데, 글자색은
    --primary-foreground(거의 흰색) 그대로 남는다 — 밝은 배경 위 흰 글씨라
    hover하는 순간 라벨이 사라졌다. */
+/* Checkbox rows read as a sentence, not as a form field: the box sits on
+   the baseline of its own label instead of above a block of help text. */
+.check-line { display: flex; align-items: baseline; gap: 0.5rem; font-weight: 400; }
+.check-line input[type="checkbox"] { flex: none; margin: 0; }
+.check-line small { display: block; margin-top: 0.15rem; }
+
 .btn-primary:hover, .btn.primary:hover {
   background: var(--primary);
   opacity: 0.88;

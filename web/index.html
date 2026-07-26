@@ -160,6 +160,12 @@
           <!-- bounds mirror paper_api.DEFAULT_LIMIT / MAX_LIMIT -->
           <input type="number" id="research-limit" value="5" min="1" max="25" />
         </label>
+        <label class="span-2 check-line">
+          <input type="checkbox" id="research-fulltext" checked />
+          오픈액세스 논문은 <strong>전문</strong>까지 읽기
+          <small class="muted">— 초록만 읽으면 결론은 알아도 근거는 못 봐요.
+            읽을 양이 크게 늘어나니 추출도 오래 걸려요.</small>
+        </label>
         <div class="form-actions">
           <button type="submit" id="research-submit" class="btn btn-primary">리서치 시작</button>
           <button type="button" id="research-cancel" class="btn hidden">중단</button>

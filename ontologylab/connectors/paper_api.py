@@ -60,6 +60,32 @@ SEMANTIC_SCHOLAR_API_URL = (
 EUROPEPMC_API_URL = (
     "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 )
+# Full text for the PMC open-access subset, served from the SAME host as the
+# search above. That is the whole reason this is the full-text route: it adds
+# no host to the allowlist, needs no PDF parser (the payload is JATS XML),
+# and keeps the "fixed endpoints only" property that ruled out crawling
+# doi.org -> publisher -> CDN. `{pmcid}` is the only interpolated part and it
+# is validated by `_PMCID_RE` before it ever reaches a URL.
+EUROPEPMC_FULLTEXT_URL = (
+    "https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
+)
+# PMC identifiers are "PMC" followed by digits. Anchored because this value
+# comes from a third-party API response and is interpolated into a path.
+_PMCID_RE = re.compile(r"^PMC[0-9]{1,12}$")
+
+
+def europepmc_fulltext_url(pmcid: str) -> str:
+    """URL for one PMC article's full text, or "" when the id is not one.
+
+    Refusing an unrecognised id here means a malformed or hostile `pmcid`
+    can never become a path segment.
+    """
+    pmcid = (pmcid or "").strip()
+    if not _PMCID_RE.match(pmcid):
+        return ""
+    return EUROPEPMC_FULLTEXT_URL.format(pmcid=pmcid)
+
+
 # Publisher APIs — keyed, but still fixed hosts, which is what keeps them
 # inside the exact-match allowlist. Reaching full text by crawling document
 # pages instead would mean following doi.org -> publisher -> CDN, and those
@@ -515,6 +541,26 @@ def parse_europepmc(json_text: str) -> list[RawDocument]:
         doi = _normalize(item.get("doi"))
         src = _normalize(item.get("source"))
         ext_id = _normalize(item.get("id"))
+        # `resultType=core` already carries the open-access flags; the
+        # earlier parser read the response and threw them away, so every
+        # collect stopped at the abstract even for articles whose full text
+        # was one request further on. `inEPMC` is the one that matters:
+        # isOpenAccess can be Y while the text lives somewhere Europe PMC
+        # does not serve, and only the EPMC-hosted subset is reachable
+        # without leaving the allowlisted host.
+        fulltext_url = ""
+        if _normalize(item.get("inEPMC")).upper() == "Y":
+            fulltext_url = europepmc_fulltext_url(_normalize(item.get("pmcid")))
+        oa_pdf = ""
+        for entry in (item.get("fullTextUrlList") or {}).get("fullTextUrl", []):
+            if not isinstance(entry, dict):
+                continue
+            if (
+                _normalize(entry.get("documentStyle")).lower() == "pdf"
+                and _normalize(entry.get("availability")).lower() == "open access"
+            ):
+                oa_pdf = _normalize(entry.get("url"))
+                break
         source_uri = (
             f"{DOI_BASE_URL}{doi}" if doi
             else (
@@ -531,6 +577,8 @@ def parse_europepmc(json_text: str) -> list[RawDocument]:
                 title=title or None,
                 raw_text=f"{title}\n\n{abstract}",
                 doi=normalize_doi(doi),
+                pdf_url=oa_pdf or None,
+                fulltext_url=fulltext_url or None,
             )
         )
     return documents

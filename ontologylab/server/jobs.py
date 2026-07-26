@@ -30,6 +30,7 @@ from typing import Any, Optional
 from ontologylab import paths
 from ontologylab.connectors.allowlist import loggable_collect_inputs
 from ontologylab.connectors.base import collapse_duplicates
+from ontologylab.connectors.fulltext import enrich_with_fulltext
 from ontologylab.connectors.paper_api import SOURCE_ORDER, fetch_sources
 from ontologylab.engines import EngineError, get_engine
 from ontologylab.extractor import run_extraction, unprocessed_doc_ids
@@ -318,6 +319,7 @@ class JobRegistry:
         max_engine_calls: int,
         time_budget: float,
         seed: int,
+        fulltext: bool = True,
     ) -> Job:
         """Register a collect-then-extract run over one topic.
 
@@ -336,6 +338,7 @@ class JobRegistry:
             topic=topic,
             sources=list(sources),
             limit=limit,
+            fulltext=fulltext,
             max_engine_calls=max_engine_calls,
             time_budget=time_budget,
             seed=seed,
@@ -568,6 +571,7 @@ class JobRegistry:
         max_engine_calls: int,
         time_budget: float,
         seed: int,
+        fulltext: bool = True,
     ) -> str:
         """Collect a topic across sources, then extract exactly what arrived.
 
@@ -621,6 +625,20 @@ class JobRegistry:
                 f"[ontologylab] collected {len(raw_docs)} document(s) from "
                 f"{len(batches)} source(s)"
             )
+
+            if fulltext:
+                # After de-duplication, so one request per surviving work
+                # rather than one per source that mentioned it.
+                enriched, ft_stats = await asyncio.to_thread(
+                    enrich_with_fulltext, raw_docs
+                )
+                raw_docs = enriched
+                provenance.log("collect.fulltext", ft_stats)
+                if ft_stats["eligible"]:
+                    job.log(
+                        f"[ontologylab] full text for {ft_stats['fetched']}"
+                        f"/{ft_stats['eligible']} open-access document(s)"
+                    )
 
             if job._cancelled.is_set():
                 # Stop before writing: nothing is extracted yet, so the run

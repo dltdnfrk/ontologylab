@@ -1328,6 +1328,7 @@
       topic: topic,
       engine: $("#research-engine").value || "mock",
       limit: toInt($("#research-limit").value, 5),
+      fulltext: $("#research-fulltext").checked,
       /* mirror paths.DEFAULT_MAX_ENGINE_CALLS / DEFAULT_TIME_BUDGET_S */
       max_engine_calls: 500,
       time_budget: 7200,

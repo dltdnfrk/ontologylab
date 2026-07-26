@@ -61,6 +61,12 @@ class RawDocument:
     raw_text: str
     doi: str | None = None
     pdf_url: str | None = None
+    # An allowlisted endpoint that serves this work's FULL TEXT, distinct
+    # from `pdf_url`: a PDF link points wherever the publisher hosts it and
+    # so cannot be reached without giving up exact-match host checking,
+    # whereas this is always one of the fixed API hosts already in use.
+    # Empty for everything outside the open-access subset.
+    fulltext_url: str | None = None
 
     @property
     def content_hash(self) -> str:

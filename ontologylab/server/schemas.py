@@ -43,6 +43,12 @@ class ResearchRequest(BaseModel):
     topic: str
     sources: list[str] = Field(default_factory=list)
     limit: int = Field(PAPER_DEFAULT_LIMIT, ge=1, le=PAPER_MAX_LIMIT)
+    # Fetch open-access full text where it exists, instead of stopping at
+    # the abstract. Default on: the body is where methods and measurements
+    # live, and an abstract states conclusions without the evidence for
+    # them. It costs one extra request per open-access hit and a much
+    # larger extraction budget, so it remains switchable.
+    fulltext: bool = True
     engine: str = "mock"
     model: Optional[str] = None
     max_engine_calls: int = Field(DEFAULT_MAX_ENGINE_CALLS, ge=1)

@@ -1071,6 +1071,7 @@ def start_research(body: ResearchRequest) -> dict[str, Any]:
             topic=body.topic,
             sources=sources,
             limit=body.limit,
+            fulltext=body.fulltext,
             engine=body.engine,
             model=body.model,
             max_engine_calls=body.max_engine_calls,
