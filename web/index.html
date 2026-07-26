@@ -295,7 +295,10 @@
 
       <div id="job-detail" class="hidden">
         <h3 id="job-detail-title">작업</h3>
-        <pre id="job-progress" class="code-block">—</pre>
+        <!-- 평평한 <pre> 덤프였다. 리서치 런 하나가 20줄을 쏟는데 그중
+             10줄이 청크별 진행이라, 정작 읽어야 할 "어느 소스가 실패했나"가
+             그 안에 묻혔다. 단계별로 접고 요약을 헤더에 올린다. -->
+        <div id="job-progress" class="job-log">—</div>
       </div>
 
       <h3>수집된 문서</h3>
@@ -679,6 +682,24 @@
       <div id="settings-result" class="status-box result-box hidden"></div>
     </section>
   </main>
+
+  <!-- ⌘K 명령 팔레트. 탭이 열 개인데 이동 수단이 마우스뿐이었고, 개체
+       이름으로 찾아가는 길은 아예 없었다(entity_lookup은 MCP·CLI에서만
+       닿았다). 화면 이동과 개체 검색을 한 입력창에 합친다 — 사용자는
+       "무엇을 찾는지"만 치면 되고 그게 화면인지 개체인지는 이 창이 판단한다. -->
+  <div id="palette" class="palette-backdrop hidden" role="dialog" aria-modal="true"
+       aria-label="명령 팔레트">
+    <div class="palette">
+      <input type="text" id="palette-input" autocomplete="off" spellcheck="false"
+        placeholder="화면 이동, 또는 개체 이름 검색…" aria-controls="palette-list" />
+      <ul id="palette-list" class="palette-list" role="listbox"></ul>
+      <div class="palette-foot">
+        <span><kbd>↑</kbd><kbd>↓</kbd> 이동</span>
+        <span><kbd>↵</kbd> 열기</span>
+        <span><kbd>esc</kbd> 닫기</span>
+      </div>
+    </div>
+  </div>
 
   <!-- 상태바 — 에디터의 그 줄. 왼쪽은 지금 이 화면에서 쓸 수 있는 키,
        오른쪽은 이 저장소가 지금 어떤 상태인지. 둘 다 스크롤과 무관하게

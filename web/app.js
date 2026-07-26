@@ -39,7 +39,9 @@
   function renderStatusKeys(tab) {
     var box = document.getElementById("statusbar-keys");
     if (!box) return;
-    var keys = TAB_KEYS[tab] || [];
+    // ⌘K는 어느 화면에서나 열리므로 항상 첫 자리에 둔다. 팔레트는 발견되지
+    // 않으면 없는 것과 같고, 발견될 자리는 여기뿐이다.
+    var keys = [["⌘K", "찾기"]].concat(TAB_KEYS[tab] || []);
     box.innerHTML = keys
       .map(function (pair) {
         return (
@@ -339,7 +341,155 @@
       .replace(/&lt;&lt;&lt;/g, "</mark>");
   }
 
+  /* ---------- 명령 팔레트 (⌘K) ----------------------------------------
+     화면 이동과 개체 검색을 한 입력창에 합친다. 사용자는 "무엇을 찾는지"만
+     치고, 그게 탭 이름인지 개체 이름인지는 여기서 판단한다.
+     화면 목록은 즉시(로컬), 개체는 디바운스 뒤 /api/search로. */
+
+  var PALETTE_TABS = [
+    ["sources", "① 리서치", "주제 한 줄로 수집 + 추출"],
+    ["review", "② 검토", "제안 승인 / 거부"],
+    ["packs", "③ 팩", "승인한 지식 묶기"],
+    ["mcp", "④ 연결", "Claude에 물려주기"],
+    ["home", "홈", ""],
+    ["merge", "병합", "중복 개체 정리"],
+    ["communities", "커뮤니티", "주요 테마"],
+    ["graph", "그래프", "자유 탐색"],
+    ["engines", "엔진", "AI 연결"],
+    ["settings", "설정", ""],
+  ];
+
+  var paletteItems = [];      // [{kind, label, meta, run}]
+  var paletteCursor = 0;
+  var paletteSeq = 0;         // 늦게 온 응답이 새 입력을 덮어쓰지 못하게
+
+  function paletteOpen() {
+    var box = $("#palette");
+    if (!box.classList.contains("hidden")) return;
+    box.classList.remove("hidden");
+    var input = $("#palette-input");
+    input.value = "";
+    input.focus();
+    paletteRender(paletteLocal(""));
+  }
+
+  function paletteClose() {
+    $("#palette").classList.add("hidden");
+  }
+
+  function paletteLocal(query) {
+    var q = query.trim().toLowerCase();
+    return PALETTE_TABS.filter(function (row) {
+      return !q || row[1].toLowerCase().indexOf(q) >= 0 ||
+        row[0].indexOf(q) >= 0 || (row[2] || "").toLowerCase().indexOf(q) >= 0;
+    }).map(function (row) {
+      return {
+        kind: "화면", label: row[1], meta: row[2], prose: true,
+        run: function () { showTab(row[0]); maybeLoadTab(row[0]); },
+      };
+    });
+  }
+
+  function paletteRender(items) {
+    paletteItems = items;
+    paletteCursor = 0;
+    var list = $("#palette-list");
+    if (!items.length) {
+      list.innerHTML = "<li class='palette-empty'>일치하는 화면이나 개체가 없어요.</li>";
+      return;
+    }
+    list.innerHTML = items
+      .map(function (item, index) {
+        return (
+          "<li class='palette-item' role='option' data-index='" + index + "'" +
+          " aria-selected='" + (index === 0 ? "true" : "false") + "'>" +
+          "<span class='pi-kind'>" + escapeHtml(item.kind) + "</span>" +
+          "<span class='pi-name" + (item.prose ? " pi-prose" : "") + "'>" +
+          escapeHtml(item.label) + "</span>" +
+          "<span class='pi-meta'>" + escapeHtml(item.meta || "") + "</span></li>"
+        );
+      })
+      .join("");
+  }
+
+  function paletteMove(delta) {
+    if (!paletteItems.length) return;
+    var next = (paletteCursor + delta + paletteItems.length) % paletteItems.length;
+    paletteCursor = next;
+    $("#palette-list").querySelectorAll(".palette-item").forEach(function (el, i) {
+      el.setAttribute("aria-selected", i === next ? "true" : "false");
+      if (i === next && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+    });
+  }
+
+  function paletteRun(index) {
+    var item = paletteItems[index];
+    if (!item) return;
+    paletteClose();
+    item.run();
+  }
+
+  async function paletteSearch(query) {
+    var local = paletteLocal(query);
+    var q = query.trim();
+    // 개체 검색은 두 글자부터. 한 글자로는 거의 모든 개체가 걸려서 화면
+    // 항목이 결과 아래로 밀려나고, 팔레트가 이동 수단이 아니게 된다.
+    if (q.length < 2) { paletteRender(local); return; }
+    paletteRender(local);
+    var seq = ++paletteSeq;
+    try {
+      var data = await api("/api/search?q=" + encodeURIComponent(q) + "&limit=8");
+      if (seq !== paletteSeq) return;   // 더 최신 입력이 이미 렌더됨
+      var hits = ((data && data.results) || []).map(function (row) {
+        return {
+          kind: row.status === "verified" ? "승인됨" : "제안",
+          label: row.name,
+          meta: row.entity_type || "",
+          run: function () {
+            showTab("review");
+            maybeLoadTab("review");
+            loadEntityPanel(row.id);
+          },
+        };
+      });
+      if (seq === paletteSeq) paletteRender(local.concat(hits));
+    } catch (_) {
+      /* 검색 실패는 조용히 — 화면 이동은 계속 되어야 한다 */
+    }
+  }
+
+  (function wirePalette() {
+    var input = $("#palette-input");
+    var debounce = null;
+    input.addEventListener("input", function () {
+      clearTimeout(debounce);
+      var value = input.value;
+      debounce = setTimeout(function () { paletteSearch(value); }, 120);
+    });
+    input.addEventListener("keydown", function (ev) {
+      if (ev.key === "ArrowDown") { paletteMove(1); ev.preventDefault(); }
+      else if (ev.key === "ArrowUp") { paletteMove(-1); ev.preventDefault(); }
+      else if (ev.key === "Enter") { paletteRun(paletteCursor); ev.preventDefault(); }
+      else if (ev.key === "Escape") { paletteClose(); ev.preventDefault(); }
+    });
+    $("#palette-list").addEventListener("click", function (ev) {
+      var li = ev.target.closest ? ev.target.closest(".palette-item") : null;
+      if (li) paletteRun(Number(li.dataset.index));
+    });
+    // 바깥 클릭으로 닫기 — 모달인데 빠져나갈 길이 esc뿐이면 갇힌 느낌이 든다
+    $("#palette").addEventListener("mousedown", function (ev) {
+      if (ev.target === $("#palette")) paletteClose();
+    });
+  })();
+
   document.addEventListener("keydown", function (ev) {
+    // ⌘K / Ctrl+K는 입력칸 안에서도 열려야 한다 — 주제를 치다가 다른 개체를
+    // 확인하고 싶어지는 건 흔한 흐름이고, 그때 마우스를 잡게 하면 안 된다.
+    if ((ev.metaKey || ev.ctrlKey) && (ev.key === "k" || ev.key === "K")) {
+      paletteOpen();
+      ev.preventDefault();
+      return;
+    }
     // never hijack typing in inputs
     var tag = (ev.target.tagName || "").toLowerCase();
     if (tag === "input" || tag === "textarea" || tag === "select") return;
@@ -1018,14 +1168,100 @@
     );
   }
 
+  /* 진행 로그를 단계별로 묶는다. 리서치 런 하나가 20줄을 쏟고 그중 절반이
+     청크별 진행이라, 정작 읽어야 할 "어느 소스가 실패했나"가 그 안에
+     묻혔다. 헤더가 요약을 담고 본문은 접힌다 — 단, 실패한 줄은 어느
+     그룹에서도 접히지 않는다. 접혀서 안 보이는 실패는 없는 실패와 같다. */
+
+  var CHUNK_LINE_RE = /#\d+:/;                       // "…#3: +2 nodes …"
+  // `error`가 빠져 있었다. 추출기가 청크마다 내는 `engine error on <doc>#3:`
+  // 이 정확히 그 형태라, 가장 흔한 실패가 청크 줄로 분류돼 요약 뒤로
+  // 접혔다 — 접혀서 안 보이는 실패는 없는 실패와 같다.
+  var TROUBLE_RE =
+    /(did not answer|failed|error|rejected|오류|실패|stopped early|cancel)/i;
+
+  function groupProgress(lines) {
+    var groups = [];
+    var current = null;
+    lines.forEach(function (raw) {
+      var line = String(raw).replace(/^\[ontologylab\]\s*/, "");
+      var phase = line.match(/^(\S+) phase started$/);
+      if (phase) {
+        current = { title: phase[1], lines: [], chunks: 0, trouble: 0 };
+        groups.push(current);
+        return;
+      }
+      if (!current) {
+        current = { title: "", lines: [], chunks: 0, trouble: 0 };
+        groups.push(current);
+      }
+      var bad = TROUBLE_RE.test(line);
+      if (bad) current.trouble += 1;
+      // 청크 줄은 세기만 하고 본문에서 뺀다 — 개별 값이 아니라 총계가
+      // 정보다. 다만 문제가 있는 줄이면 청크여도 남긴다.
+      if (CHUNK_LINE_RE.test(line) && !bad) {
+        current.chunks += 1;
+        return;
+      }
+      current.lines.push({ text: line, bad: bad });
+    });
+    return groups;
+  }
+
+  var PHASE_KO_LOG = { collect: "수집", extract: "추출" };
+
   function renderJobDetail(job) {
     $("#job-detail").classList.remove("hidden");
     $("#job-detail-title").textContent =
       "작업 " + String(job.job_id || "").slice(0, 12) + " — " + statusKo(job.status);
+
     var lines = (job.progress || []).slice();
     if (job.error) lines.push("오류: " + job.error);
-    /* textContent: progress lines are server/crawl-derived, never innerHTML */
-    $("#job-progress").textContent = lines.length ? lines.join("\n") : "(진행 내역 없음)";
+    var box = $("#job-progress");
+    box.textContent = "";
+    if (!lines.length) {
+      box.textContent = "(진행 내역 없음)";
+      return;
+    }
+
+    groupProgress(lines).forEach(function (group) {
+      var details = document.createElement("details");
+      details.className = "log-group";
+      // 문제가 있는 단계는 펼친 채로 연다. 사용자가 로그를 여는 이유는
+      // 대개 뭔가 잘못됐기 때문이고, 그때 한 번 더 클릭하게 만들 이유가 없다.
+      if (group.trouble > 0) details.open = true;
+
+      var summary = document.createElement("summary");
+      var name = document.createElement("span");
+      name.className = "log-title";
+      name.textContent = PHASE_KO_LOG[group.title] || group.title || "진행";
+      summary.appendChild(name);
+
+      var meta = document.createElement("span");
+      meta.className = "log-meta";
+      var bits = [];
+      if (group.chunks) bits.push("청크 " + group.chunks);
+      bits.push(group.lines.length + "줄");
+      meta.textContent = bits.join(" · ");
+      summary.appendChild(meta);
+
+      if (group.trouble) {
+        var warn = document.createElement("span");
+        warn.className = "log-trouble";
+        warn.textContent = group.trouble + " 실패";
+        summary.appendChild(warn);
+      }
+      details.appendChild(summary);
+
+      group.lines.forEach(function (entry) {
+        var row = document.createElement("div");
+        row.className = "log-line" + (entry.bad ? " log-line-bad" : "");
+        /* textContent: 서버·크롤 유래 문자열이므로 절대 innerHTML이 아니다 */
+        row.textContent = entry.text;
+        details.appendChild(row);
+      });
+      box.appendChild(details);
+    });
   }
 
   async function selectJob(jobId) {

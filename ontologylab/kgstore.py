@@ -2027,6 +2027,47 @@ class KGStore:
                     results.append(item)
         return results[:limit]
 
+    def name_search(
+        self,
+        query: str,
+        *,
+        limit: int = 8,
+        include_proposed: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Substring name search, ranked exact → prefix → contained.
+
+        `entity_lookup` resolves an identity: it wants the node the caller
+        already means, so it matches the normalized name exactly, then
+        aliases, then falls back to FTS. That is the wrong shape for a
+        finder. FTS tokenizes on word boundaries, so `Cas9` does not match
+        `HiFiCas9` — typing three letters of a name a user can see on screen
+        returned nothing, which makes a command palette useless for the one
+        thing it exists to do.
+
+        This matches on the same `normalized_name` key entity resolution
+        uses, so the palette and the store agree on what "the same name"
+        means, and the ranking puts an exact hit above a prefix above a
+        substring — the order a person scanning a dropdown expects.
+        """
+        key = normalize_name(query)
+        if not key:
+            return []
+        status_sql = _status_clause(include_proposed)
+        rows = self.conn.execute(
+            f"""
+            SELECT *,
+                   CASE WHEN normalized_name = ?      THEN 0
+                        WHEN normalized_name LIKE ?   THEN 1
+                        ELSE 2 END AS rank_bucket
+            FROM nodes
+            WHERE {status_sql} AND normalized_name LIKE ?
+            ORDER BY rank_bucket, LENGTH(name), name
+            LIMIT ?
+            """,
+            (key, key + "%", "%" + key + "%", limit),
+        ).fetchall()
+        return [_node_dict(row) for row in rows]
+
     def semantic_search(
         self,
         query: str,

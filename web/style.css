@@ -370,6 +370,160 @@ body {
   overflow: hidden;
 }
 
+/* ---------- 작업 로그 (접이식) ---------- */
+
+.job-log {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--muted-foreground);
+}
+.log-group { border-bottom: 1px solid var(--border); }
+.log-group:last-child { border-bottom: none; }
+.log-group > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--h-row);
+  padding: 0 var(--sp-2);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.log-group > summary::-webkit-details-marker { display: none; }
+/* 접힘 표시는 직접 그린다 — 기본 삼각형은 브라우저마다 크기·색이 달라
+   같은 줄의 고정폭 글자와 축이 맞지 않는다. */
+.log-group > summary::before {
+  content: "▸";
+  flex: none;
+  width: 1em;
+  color: var(--muted-foreground);
+  transition: transform 0.12s ease;
+}
+.log-group[open] > summary::before { transform: rotate(90deg); }
+.log-group > summary:hover { background: var(--muted); }
+.log-title {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--foreground);
+}
+.log-meta { color: var(--muted-foreground); }
+/* 실패 개수는 헤더에서 접힌 채로도 읽혀야 한다 — 접어서 안 보이는 실패는
+   없는 실패와 같다. */
+.log-trouble {
+  margin-left: auto;
+  color: var(--warn-text);
+  font-weight: var(--fw-medium);
+}
+.log-line {
+  padding: 2px var(--sp-2) 2px calc(var(--sp-2) + 1em + var(--sp-2));
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-line-bad { color: var(--warn-text); }
+
+/* ---------- 명령 팔레트 (⌘K) ---------- */
+
+.palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  /* 화면 중앙이 아니라 위쪽 1/6 지점. 목록이 아래로 자라야 하는데 중앙에
+     두면 결과가 늘어날 때마다 입력창이 위로 밀려, 방금 친 글자가 눈앞에서
+     움직인다. */
+  padding-top: 12vh;
+  background: color-mix(in srgb, var(--background) 62%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.palette {
+  width: min(560px, calc(100vw - var(--sp-6)));
+  max-height: 62vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+#palette-input {
+  height: 44px;                       /* 팔레트에서만 큰 입력 — 시선의 출발점 */
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--fs-md);
+  padding: 0 var(--sp-4);
+}
+#palette-input:focus { box-shadow: none; border-color: var(--border); }
+
+.palette-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--sp-1);
+  overflow-y: auto;
+  flex: 1;
+}
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+.palette-item[aria-selected="true"] { background: var(--accent-soft); }
+.palette-item .pi-kind {
+  flex: none;
+  width: 40px;
+  font-size: var(--fs-label);
+  color: var(--muted-foreground);
+}
+/* 개체 이름은 목록 어디서든 식별자로 읽혀야 한다 — 표와 같은 규칙. */
+.palette-item .pi-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+}
+.palette-item .pi-name.pi-prose {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+}
+.palette-item .pi-meta { flex: none; font-size: var(--fs-label); color: var(--muted-foreground); }
+.palette-empty {
+  padding: var(--sp-4);
+  color: var(--muted-foreground);
+  font-size: var(--fs-sm);
+}
+.palette-group {
+  padding: var(--sp-3) var(--sp-3) var(--sp-1);
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.palette-foot {
+  display: flex;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-label);
+  color: var(--muted-foreground);
+}
+.palette-foot span { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.palette-foot kbd { border: none; background: var(--muted); }
+
 /* ---------- 상태바 ---------- */
 
 .statusbar {

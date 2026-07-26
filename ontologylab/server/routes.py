@@ -412,6 +412,47 @@ def reopen_proposal(body: ProposalAction) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+@router.get("/search")
+def search_entities(
+    q: str = Query(..., min_length=1, max_length=200),
+    limit: int = Query(8, ge=1, le=25),
+) -> dict[str, Any]:
+    """Name search across the graph, for the command palette.
+
+    `KGStore.entity_lookup` has existed since the MCP server was written and
+    was reachable only from there and the CLI — the browser had no way to
+    ask "where is this entity?" at all, which is why the dashboard's only
+    navigation was clicking through ten tabs.
+
+    Proposals are included. The palette's most useful question during a
+    review session is "have I seen this name before?", and answering it
+    only for already-approved nodes would hide precisely the items the
+    reviewer is deciding about right now. `status` rides along so the
+    caller can show which is which.
+    """
+    store = _open_store()
+    try:
+        matches = store.name_search(q, limit=limit, include_proposed=True)
+    except KGStoreError:
+        # An unparseable query is an empty result, not a 500: this runs on
+        # every keystroke.
+        matches = []
+    finally:
+        store.close()
+    return {
+        "results": [
+            {
+                "id": item["id"],
+                "name": item["name"],
+                "entity_type": item["entity_type"],
+                "status": item["status"],
+                "score": item.get("match_score"),
+            }
+            for item in matches
+        ]
+    }
+
+
 @router.get("/entity/{entity_id}/review")
 def entity_review(entity_id: str) -> dict[str, Any]:
     store = _open_store()
