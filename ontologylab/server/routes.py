@@ -453,6 +453,27 @@ def search_entities(
     }
 
 
+@router.get("/provenance/{kind}/{item_id}")
+def get_provenance(kind: str, item_id: str) -> dict[str, Any]:
+    """Why the graph believes one node or edge.
+
+    Every field here has been stored since the first schema and none of it
+    reached the browser: which engine and model proposed it, under which
+    prompt version, from which span of which document, and who approved it.
+    "Why does the KG believe this?" is the question this whole tool is built
+    around, and answering it required opening sqlite.
+    """
+    store = _open_store()
+    try:
+        return store.provenance(kind, item_id)
+    except UnknownItem as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KGStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
 @router.get("/entity/{entity_id}/review")
 def entity_review(entity_id: str) -> dict[str, Any]:
     store = _open_store()

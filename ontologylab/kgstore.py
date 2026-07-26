@@ -2027,6 +2027,81 @@ class KGStore:
                     results.append(item)
         return results[:limit]
 
+    def provenance(self, kind: str, item_id: str) -> dict[str, Any]:
+        """Everything known about where one node or edge came from.
+
+        The columns have been carried since the first schema — extractor
+        engine and model, prompt version, the source document and span, who
+        approved it and when — and none of them left the database. The
+        review screen showed the evidence excerpt and nothing else, so the
+        question this tool exists to answer ("why does the graph believe
+        this?") could only be answered by opening sqlite.
+
+        Returned as one record rather than assembled by the caller, because
+        a lineage split across three requests is a lineage nobody reads.
+        """
+        if kind not in ("node", "edge"):
+            raise KGStoreError(f"unknown kind {kind!r}: expected node or edge")
+        table = "nodes" if kind == "node" else "edges"
+        row = self.conn.execute(
+            f"SELECT * FROM {table} WHERE id = ?", (item_id,)
+        ).fetchone()
+        if row is None:
+            raise UnknownItem(f"unknown {kind} id {item_id!r}")
+
+        keys = row.keys()
+        record: dict[str, Any] = {
+            "kind": kind,
+            "id": row["id"],
+            "status": row["status"],
+            "confidence": row["confidence"],
+            "extraction": {
+                "engine": row["extractor_engine"],
+                "model": row["extractor_model"] if "extractor_model" in keys else None,
+                "prompt_version": row["prompt_version"] if "prompt_version" in keys else None,
+                "created_ts": row["created_ts"],
+            },
+            "review": {
+                "verified_by": row["verified_by"] if "verified_by" in keys else None,
+                "verified_ts": row["verified_ts"] if "verified_ts" in keys else None,
+                "note": row["review_note"] if "review_note" in keys else None,
+            },
+        }
+        record["label"] = (
+            row["name"] if kind == "node" else row["relation_type"]
+        )
+
+        # The document is the anchor of the whole claim; without its title
+        # and URI the engine/model line is trivia.
+        doc_row = self.conn.execute(
+            "SELECT id, title, source_uri, source_kind, fetched_ts "
+            "FROM documents WHERE id = ?",
+            (row["source_doc_id"],),
+        ).fetchone()
+        record["document"] = dict(doc_row) if doc_row is not None else None
+
+        span = json.loads(row["source_span"]) if row["source_span"] else None
+        record["source_span"] = span
+        record["excerpt"] = (
+            span_excerpt(self.document_raw_text(row["source_doc_id"]), span)
+            if span else None
+        )
+
+        # Advisory only, and labelled as such wherever it surfaces: the
+        # critic never approved anything and its score is not part of the
+        # lineage, only of the queue's ordering.
+        record["critic"] = None
+        if self._table_exists("critic_reviews"):
+            critic = self.conn.execute(
+                "SELECT engine, model, score, rationale, created_ts "
+                "FROM critic_reviews WHERE kind = ? AND item_id = ? "
+                "ORDER BY created_ts DESC LIMIT 1",
+                (kind, item_id),
+            ).fetchone()
+            if critic is not None:
+                record["critic"] = dict(critic)
+        return record
+
     def name_search(
         self,
         query: str,

@@ -370,6 +370,57 @@ body {
   overflow: hidden;
 }
 
+/* ---------- 계보(provenance) ---------- */
+
+.prov {
+  margin-top: var(--sp-5);
+  border-top: 1px solid var(--border);
+  padding-top: var(--sp-3);
+}
+.prov > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  user-select: none;
+}
+.prov > summary::-webkit-details-marker { display: none; }
+.prov > summary::before {
+  content: "▸";
+  transition: transform 0.12s ease;
+}
+.prov[open] > summary::before { transform: rotate(90deg); }
+.prov > summary:hover { color: var(--foreground); }
+
+/* 라벨은 산문, 값은 값. 값을 고정폭으로 두면 엔진명·프롬프트 버전·타임
+   스탬프가 세로로 정렬돼 두 항목의 계보를 비교할 수 있다. */
+.prov-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px var(--sp-4);
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-xs);
+}
+.prov-list dt { color: var(--muted-foreground); }
+.prov-list dd {
+  margin: 0;
+  font-family: var(--mono);
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+
+/* 계보 행은 표의 일부가 아니라 앞 행에 딸린 서랍이다 — 행 높이·격자에서
+   빠지고, 접혀 있을 때는 한 줄만 차지한다. */
+.pack-prov-row td {
+  height: auto;
+  padding: 0 var(--sp-3) var(--sp-2);
+  white-space: normal;
+}
+.pack-prov-row .prov { margin-top: 0; border-top: none; padding-top: 0; }
+
 /* ---------- 작업 로그 (접이식) ---------- */
 
 .job-log {

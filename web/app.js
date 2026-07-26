@@ -330,8 +330,76 @@
         "<p class='muted ev-rationale'><small>" +
         escapeHtml(String(item.critic_rationale)) + "</small></p>";
     }
+    // 계보는 접어 둔다. 대부분의 결정은 근거 문장만 보고 내려지고, 엔진·
+    // 프롬프트 버전까지 늘 펼쳐 두면 정작 읽어야 할 발췌문이 아래로 밀린다.
+    // 다만 "왜 이걸 믿는가"는 이 도구의 질문 자체이므로 한 번의 클릭 거리에
+    // 둔다 — 지금까지는 sqlite를 열어야 닿았다.
+    html +=
+      "<details class='prov' data-kind='" + escapeHtml(item.kind || "") +
+      "' data-id='" + escapeHtml(item.id || "") + "'>" +
+      "<summary>계보 — 이 항목을 무엇이 언제 만들었나</summary>" +
+      "<div class='prov-body muted'><small>여는 중…</small></div></details>";
     pane.innerHTML = html;
   }
+
+  function fmtProvenance(record) {
+    var rows = [];
+    var ex = record.extraction || {};
+    var rv = record.review || {};
+    var doc = record.document || {};
+    rows.push(["추출 엔진", ex.model ? ex.engine + " · " + ex.model : ex.engine]);
+    rows.push(["프롬프트", ex.prompt_version || "—"]);
+    rows.push(["추출 시각", fmtTs(ex.created_ts)]);
+    rows.push(["출처 문서", doc.title || doc.id || "—"]);
+    rows.push(["문서 URI", doc.source_uri || "—"]);
+    if (record.source_span) {
+      rows.push(["문서 내 위치",
+        record.source_span.start + "–" + record.source_span.end]);
+    }
+    rows.push([
+      "승인",
+      rv.verified_ts
+        ? (rv.verified_by || "?") + " · " + fmtTs(rv.verified_ts)
+        : "아직 승인 안 됨",
+    ]);
+    if (record.critic) {
+      rows.push([
+        "크리틱 (참고)",
+        Number(record.critic.score).toFixed(2) + " · " + (record.critic.engine || ""),
+      ]);
+    }
+    return (
+      "<dl class='prov-list'>" +
+      rows
+        .map(function (pair) {
+          return "<dt>" + escapeHtml(pair[0]) + "</dt><dd>" +
+            escapeHtml(String(pair[1] == null ? "—" : pair[1])) + "</dd>";
+        })
+        .join("") +
+      "</dl>"
+    );
+  }
+
+  // 펼칠 때 한 번만 가져온다 — 큐를 훑는 동안 모든 항목의 계보를 미리
+  // 부르면 행마다 요청이 하나씩 붙는다.
+  document.addEventListener("toggle", async function (ev) {
+    var box = ev.target;
+    if (!box.classList || !box.classList.contains("prov")) return;
+    if (!box.open || box.dataset.loaded === "1") return;
+    box.dataset.loaded = "1";
+    var body = box.querySelector(".prov-body");
+    try {
+      var record = await api(
+        "/api/provenance/" + encodeURIComponent(box.dataset.kind) +
+        "/" + encodeURIComponent(box.dataset.id)
+      );
+      body.innerHTML = fmtProvenance(record);
+      body.classList.remove("muted");
+    } catch (e) {
+      body.textContent = "계보를 불러오지 못했어요: " + (e.message || e);
+      box.dataset.loaded = "";   // 다시 열면 재시도
+    }
+  }, true);   // toggle은 버블링하지 않는다 — 캡처 단계에서 받아야 한다
 
   /* span_excerpt가 넣어 준 >>> <<< 마커를 <mark>로 바꾼다.
      이스케이프를 먼저 하고 마커를 치환해야 원문 속 꺾쇠가 태그로 새지 않는다. */
@@ -1672,10 +1740,35 @@
             "<td class='num'>" + escapeHtml(String(counts.nodes_verified || 0)) + "</td>" +
             "<td class='num'>" + escapeHtml(String(counts.edges_verified || 0)) + "</td>" +
             "<td>" + escapeHtml(pack.search_tier || "—") + "</td>" +
-            "<td><code>" + escapeHtml(String(pack.content_hash || "").slice(0, 12)) + "</code></td>" +
+            // 지문은 전체를 title로 단다. 12자만 보이면 두 팩이 같은지
+            // 눈으로 비교할 수는 있어도, 다른 곳에 붙여넣어 확인할 수 없다.
+            "<td><code title='" +
+            escapeHtml(String(pack.content_hash || "")) + "'>" +
+            escapeHtml(String(pack.content_hash || "").slice(0, 12)) + "</code></td>" +
             "<td><button type='button' class='btn mcpb-btn' data-pack='" +
             escapeHtml(pack.pack_id || "") + "'>.mcpb</button></td>" +
-            "</tr>"
+            "</tr>" +
+            // 팩의 계보 — 노드/엣지의 것과 같은 질문의 아티팩트 판이다.
+            // "이 상자에 뭐가 어떤 스키마로 들어갔고 어느 빌드가 만들었나".
+            // manifest는 이미 브라우저에 와 있으므로 추가 요청이 없다.
+            "<tr class='pack-prov-row'><td colspan='8'>" +
+            "<details class='prov'><summary>계보 — 무엇이 이 팩에 들어갔나</summary>" +
+            "<dl class='prov-list'>" +
+            "<dt>스키마</dt><dd>" + escapeHtml(pack.schema_label || "—") +
+            " (v" + escapeHtml(String(pack.schema_version_id || "?")) + ")</dd>" +
+            "<dt>빌드 작업</dt><dd>" + escapeHtml(pack.source_job_id || "—") + "</dd>" +
+            "<dt>개체 종류</dt><dd>" +
+            escapeHtml(String(counts.entity_types || 0)) + "종</dd>" +
+            "<dt>관계 종류</dt><dd>" +
+            escapeHtml(String(counts.relation_types || 0)) + "종</dd>" +
+            "<dt>커뮤니티</dt><dd>" +
+            escapeHtml(String(counts.communities || 0)) + "개</dd>" +
+            "<dt>임베딩</dt><dd>" +
+            escapeHtml(pack.embedding_model || "없음 (어휘 검색만)") + "</dd>" +
+            "<dt>빌드 버전</dt><dd>" +
+            escapeHtml(pack.ontologylab_version || "—") + "</dd>" +
+            "<dt>지문</dt><dd>" + escapeHtml(pack.content_hash || "—") + "</dd>" +
+            "</dl></details></td></tr>"
           );
         })
         .join("");
