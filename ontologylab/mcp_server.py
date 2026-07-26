@@ -342,6 +342,19 @@ class PackSession:
             if ephemeral:
                 store.close()
 
+    def _active_reranker(self):
+        """Second-stage reranker, resolved once per server, cached-only.
+
+        `auto` never downloads (HF_HUB_OFFLINE during load): an MCP query
+        must not be the thing that opens a network connection. No cached
+        model → None → results keep their RRF order.
+        """
+        if not hasattr(self, "_reranker_resolved"):
+            from ontologylab.rerankers import get_reranker
+
+            self._reranker_resolved = get_reranker("auto")
+        return self._reranker_resolved
+
     def _active_embedder(self):
         """The session embedder, but only when the ACTIVE pack was embedded
         by the same model — a model-A pack is never scored with model-B."""
@@ -372,6 +385,7 @@ class PackSession:
                 entity_type=entity_type,
                 min_score=min_score,
                 include_proposed=include_proposed,
+                reranker=self._active_reranker(),
             )
             return results, "fts5+vec-rrf"
         results = store.semantic_search(
@@ -462,6 +476,7 @@ class PackSession:
                 min_score=min_score,
                 include_proposed=include_proposed,
                 extra_lexical_queries=[" ".join(variants)] if variants else None,
+                reranker=self._active_reranker(),
             )
             tier = "fts5+vec-rrf"
         else:

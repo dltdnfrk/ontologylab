@@ -10,6 +10,27 @@ like the same real-world entity under one of four signals:
 - **embedding cosine** — both nodes carry embeddings from the SAME model
   and their cosine similarity clears a high threshold.
 
+**Candidate pairs come from blocking, not from the full cross product.**
+The original scan compared every pair within an entity type — O(n²) in the
+expensive signals, which stops being "fine at local scale" around a few
+thousand nodes. Pairs are now generated two ways and unioned:
+
+- a **character-3-gram inverted index** over normalized names and alias
+  keys: any pair similar enough for the lexical signals shares 3-grams, so
+  it lands in at least one common block. Grams shared by too many nodes are
+  skipped as blocking keys (they'd rebuild the cross product); a genuinely
+  similar pair shares many grams, so it survives losing its hottest ones.
+- **embedding nearest neighbours** (when numpy is importable): top-k
+  cosine neighbours per node among same-model embeddings, so semantically
+  close but lexically unrelated duplicates ("AMI" / "heart attack") are
+  still found — the one recall case gram blocking cannot cover.
+
+Blocking is standard ER practice precisely because the alternative is not
+"perfect recall" but "a scan nobody runs": the cross product at 10k nodes
+is 50M signal evaluations. The known loss is pathological pairs whose
+similarity ≥ threshold but who share no 3-gram — constructible, not
+observed in real entity names.
+
 The scanner only *proposes*: every pair lands in ``merge_candidates`` for a
 human to merge or dismiss (dismissed pairs are never re-proposed). Nothing
 here mutates the graph.
@@ -18,6 +39,7 @@ here mutates the graph.
 from __future__ import annotations
 
 from difflib import SequenceMatcher
+from itertools import combinations
 from typing import Any
 
 from ontologylab.embeddings import cosine, unpack_vector
@@ -30,6 +52,15 @@ CONTAINMENT_MIN_LEN = 4
 CONTAINMENT_SCORE = 0.85
 SHARED_ALIAS_SCORE = 0.95
 EMBEDDING_COSINE_THRESHOLD = 0.90
+
+# Blocking parameters. 3-grams rather than 4: the shortest pair the name
+# signal can accept still shares a 3-gram. A gram block larger than
+# MAX_GRAM_BLOCK is skipped as a key — at that frequency it is a stop-gram
+# carrying no evidence of sameness. VECTOR_NEIGHBOURS bounds the embedding
+# candidate list per node.
+BLOCK_NGRAM = 3
+MAX_GRAM_BLOCK = 64
+VECTOR_NEIGHBOURS = 5
 
 
 def _pair_signals(
@@ -73,6 +104,86 @@ def _pair_signals(
     return score, reasons
 
 
+def _block_keys(node: dict[str, Any]) -> set[str]:
+    """Blocking keys for one node: exact strings + character 3-grams.
+
+    The exact ``a:`` keys are never frequency-capped, so the shared-alias
+    signal keeps perfect candidate recall even when every gram of that
+    alias is hot.
+    """
+    keys: set[str] = set()
+    for text in {node["normalized_name"], *node["alias_keys"]}:
+        if not text:
+            continue
+        keys.add(f"a:{text}")
+        if len(text) >= BLOCK_NGRAM:
+            keys.update(
+                f"g:{text[i:i + BLOCK_NGRAM]}"
+                for i in range(len(text) - BLOCK_NGRAM + 1)
+            )
+    return keys
+
+
+def _blocked_pairs(group: list[dict[str, Any]]) -> set[tuple[int, int]]:
+    """Candidate index pairs from the gram/exact inverted index."""
+    blocks: dict[str, list[int]] = {}
+    for index, node in enumerate(group):
+        for key in _block_keys(node):
+            blocks.setdefault(key, []).append(index)
+
+    pairs: set[tuple[int, int]] = set()
+    for key, members in blocks.items():
+        if key.startswith("g:") and len(members) > MAX_GRAM_BLOCK:
+            continue  # stop-gram: no evidence, near-quadratic cost
+        for i, j in combinations(members, 2):
+            pairs.add((i, j))
+    return pairs
+
+
+def _vector_pairs(group: list[dict[str, Any]]) -> set[tuple[int, int]]:
+    """Top-k cosine neighbours per node, per embedding model.
+
+    numpy arrives with sentence-transformers; when neither is installed the
+    embeddings were made by the hash embedder and this quietly contributes
+    nothing — the lexical blocks still stand, which matches the hash
+    embedder's nature (character-driven, so its high-cosine pairs are
+    lexically close and already blocked).
+    """
+    try:
+        import numpy
+    except ImportError:  # pragma: no cover — environment-dependent
+        return set()
+
+    by_model: dict[str, list[int]] = {}
+    for index, node in enumerate(group):
+        if node["embedding"] is not None and node["embedding_model"]:
+            by_model.setdefault(node["embedding_model"], []).append(index)
+
+    pairs: set[tuple[int, int]] = set()
+    for indices in by_model.values():
+        if len(indices) < 2:
+            continue
+        matrix = numpy.array(
+            [group[i]["embedding"] for i in indices], dtype=numpy.float32
+        )
+        norms = numpy.linalg.norm(matrix, axis=1, keepdims=True)
+        norms[norms == 0.0] = 1.0
+        unit = matrix / norms
+        take = min(VECTOR_NEIGHBOURS + 1, len(indices))
+        # Chunked so the similarity matrix never materializes at n×n for
+        # large stores; 512×n float32 stays small.
+        for start in range(0, len(indices), 512):
+            sims = unit[start:start + 512] @ unit.T
+            top = numpy.argsort(-sims, axis=1)[:, :take]
+            for row, neighbours in enumerate(top):
+                a = indices[start + row]
+                for column in neighbours:
+                    b = indices[int(column)]
+                    if a != b:
+                        pairs.add((min(a, b), max(a, b)))
+    return pairs
+
+
 def scan_merge_candidates(
     store: KGStore,
     *,
@@ -81,9 +192,11 @@ def scan_merge_candidates(
 ) -> dict[str, Any]:
     """Scan proposed+verified nodes for duplicate pairs; record candidates.
 
-    O(n²) within each entity type — fine at local single-user scale. Returns
-    scan stats; the candidates themselves are read back via
-    ``store.merge_candidates_pending()``.
+    Candidate pairs come from blocking (see module docstring); the signal
+    evaluation itself is unchanged. Returns scan stats — ``pairs_checked``
+    is the number actually scored, ``pairs_possible`` the cross-product it
+    replaced, so the reduction is visible rather than assumed. Candidates
+    are read back via ``store.merge_candidates_pending()``.
     """
     rows = store.conn.execute(
         "SELECT id, entity_type, name, normalized_name, aliases_json, "
@@ -113,24 +226,30 @@ def scan_merge_candidates(
             }
         )
 
-    stats = {"nodes": len(rows), "pairs_checked": 0, "candidates_new": 0,
-             "candidates_existing": 0}
+    stats = {
+        "nodes": len(rows),
+        "pairs_possible": 0,
+        "pairs_checked": 0,
+        "candidates_new": 0,
+        "candidates_existing": 0,
+    }
     for group in by_type.values():
-        for i in range(len(group)):
-            for j in range(i + 1, len(group)):
-                stats["pairs_checked"] += 1
-                score, reasons = _pair_signals(
-                    group[i],
-                    group[j],
-                    name_threshold=name_threshold,
-                    cosine_threshold=cosine_threshold,
-                )
-                if not reasons:
-                    continue
-                created = store.record_merge_candidate(
-                    group[i]["id"], group[j]["id"], score=score, reasons=reasons
-                )
-                stats["candidates_new" if created else "candidates_existing"] += 1
+        stats["pairs_possible"] += len(group) * (len(group) - 1) // 2
+        candidate_pairs = _blocked_pairs(group) | _vector_pairs(group)
+        for i, j in sorted(candidate_pairs):
+            stats["pairs_checked"] += 1
+            score, reasons = _pair_signals(
+                group[i],
+                group[j],
+                name_threshold=name_threshold,
+                cosine_threshold=cosine_threshold,
+            )
+            if not reasons:
+                continue
+            created = store.record_merge_candidate(
+                group[i]["id"], group[j]["id"], score=score, reasons=reasons
+            )
+            stats["candidates_new" if created else "candidates_existing"] += 1
     return stats
 
 

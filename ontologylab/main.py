@@ -553,6 +553,84 @@ def cmd_critic(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def cmd_eval(args: argparse.Namespace) -> int:
+    """Score the store's extractions against a hand-written gold file.
+
+    Exit codes: 0 = evaluated (and above any --min-triple-f1 gate),
+    2 = bad gold file, 3 = below the gate. 3 is distinct so CI can tell
+    "quality regressed" from "the harness itself broke".
+    """
+    from ontologylab.evaluation import GoldError, evaluate_store, load_gold
+
+    try:
+        gold = load_gold(args.gold)
+    except GoldError as exc:
+        print(f"[ontologylab] BAD GOLD FILE: {exc}", file=sys.stderr)
+        return 2
+
+    store = _open_store(args)
+    try:
+        report = evaluate_store(
+            store, gold, include_proposed=not args.verified_only
+        )
+    finally:
+        store.close()
+
+    scope = "verified only" if args.verified_only else "proposed+verified"
+    print(f"[ontologylab] eval vs {gold.path} ({scope})")
+    for unit in ("entity", "triple"):
+        scores = getattr(report, unit)
+        print(
+            f"  {unit:>7}: P={scores['precision']:.3f} "
+            f"R={scores['recall']:.3f} F1={scores['f1']:.3f}"
+        )
+    counts = report.counts
+    print(
+        f"  found {counts['found_entities']} entities / "
+        f"{counts['found_triples']} triples; gold has "
+        f"{counts['gold_entities']} / {counts['gold_triples']}"
+    )
+    for label, examples in (
+        ("missing", report.missing_triples),
+        ("spurious", report.spurious_triples),
+    ):
+        for src, relation, dst in examples:
+            print(f"  {label}: ({src}) -[{relation}]-> ({dst})")
+
+    if args.min_triple_f1 is not None and report.triple["f1"] < args.min_triple_f1:
+        print(
+            f"[ontologylab] BELOW GATE: triple F1 {report.triple['f1']:.3f} "
+            f"< {args.min_triple_f1}",
+            file=sys.stderr,
+        )
+        return 3
+    return 0
+
+
+def cmd_rerank_download(args: argparse.Namespace) -> int:
+    """Fetch the reranker model once, explicitly.
+
+    Query paths load cached-only (HF_HUB_OFFLINE), so this command is the
+    single place the model may come over the network — an opt-in egress,
+    same posture as `pip install 'ontologylab[embed]'`.
+    """
+    from ontologylab.paths import assert_network_allowed
+    from ontologylab.rerankers import DEFAULT_RERANK_MODEL, CrossEncoderReranker
+
+    try:
+        assert_network_allowed(f"reranker model download ({DEFAULT_RERANK_MODEL})")
+    except Exception as exc:
+        print(f"[ontologylab] BLOCKED: {exc}", file=sys.stderr)
+        return 2
+    try:
+        reranker = CrossEncoderReranker(DEFAULT_RERANK_MODEL, allow_download=True)
+    except Exception as exc:  # noqa: BLE001 — network/model failures reported
+        print(f"[ontologylab] download failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"[ontologylab] reranker ready: {reranker.name()}")
+    return 0
+
+
 def cmd_merge_scan(args: argparse.Namespace) -> int:
     from ontologylab.merge import scan_merge_candidates
 
@@ -793,6 +871,16 @@ def cmd_search(args: argparse.Namespace) -> int:
                 # 3신호 하이브리드: 벡터 신호는 원 쿼리만 임베딩하고,
                 # 확장 변형은 변형들"만"으로 독립 lexical 랭킹을 만들어
                 # 융합에 참여한다 (원 쿼리를 다시 섞으면 lexical 2배 가중)
+                from ontologylab.rerankers import get_reranker
+
+                reranker = get_reranker(args.rerank)
+                if args.rerank not in ("none",) and reranker is None:
+                    print(
+                        "[ontologylab] reranker unavailable (model not "
+                        "cached); keeping RRF order. Download once with "
+                        "`ontologylab rerank-download`.",
+                        file=sys.stderr,
+                    )
                 results = store.hybrid_search(
                     args.query,
                     embedder,
@@ -802,6 +890,7 @@ def cmd_search(args: argparse.Namespace) -> int:
                     extra_lexical_queries=(
                         [" ".join(variants)] if variants else None
                     ),
+                    reranker=reranker,
                 )
             else:
                 results = store.semantic_search(
@@ -1087,6 +1176,31 @@ def build_arg_parser() -> argparse.ArgumentParser:
     _add_data_dir(p_critic)
     p_critic.set_defaults(func=cmd_critic)
 
+    p_eval = sub.add_parser(
+        "eval",
+        help="Score extractions against a gold JSON file "
+             "(triple-level precision/recall/F1).",
+    )
+    p_eval.add_argument("--gold", required=True, help="Path to the gold JSON file.")
+    p_eval.add_argument(
+        "--verified-only", action="store_true",
+        help="Score only human-approved items (measures the reviewer, "
+             "not the extractor).",
+    )
+    p_eval.add_argument(
+        "--min-triple-f1", type=float, default=None,
+        help="Exit 3 when triple F1 falls below this (CI gate).",
+    )
+    _add_data_dir(p_eval)
+    p_eval.set_defaults(func=cmd_eval)
+
+    p_rrd = sub.add_parser(
+        "rerank-download",
+        help="Download the search reranker model once (explicit egress).",
+    )
+    _add_data_dir(p_rrd)
+    p_rrd.set_defaults(func=cmd_rerank_download)
+
     p_merge_scan = sub.add_parser(
         "merge-scan",
         help="Scan for fuzzy duplicate entities -> merge candidates "
@@ -1172,6 +1286,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_search.add_argument("--type", default=None, help="Entity type filter.")
     p_search.add_argument("--include-proposed", action="store_true",
                           help="Include unverified (proposed) rows.")
+    p_search.add_argument(
+        "--rerank", default="auto", choices=["auto", "none"],
+        help="Second-stage cross-encoder over the fused shortlist "
+             "(auto = use the cached model if present, never download).",
+    )
     p_search.add_argument("--expand", action="store_true",
                           help="Expand the query with LLM lexical variants "
                                "(fails open to plain lexical search).")

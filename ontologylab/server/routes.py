@@ -276,6 +276,24 @@ async def test_provider(provider_id: str) -> ProviderTestResult:
 # ---------------------------------------------------------------------------
 
 
+@router.get("/review/triage")
+def get_triage(alpha: float = Query(0.05, gt=0.0, lt=1.0)) -> dict[str, Any]:
+    """The conformal triage line for the review queue, if history supports one.
+
+    Read-only by construction: the threshold orders and badges the queue,
+    it never approves. When there are not yet enough rejected-and-scored
+    items the response says so (`available: false`) with how many are
+    needed — an honest absence rather than an uncalibrated number.
+    """
+    from ontologylab.conformal import triage
+
+    store = _open_store()
+    try:
+        return triage(store, alpha=alpha).to_dict()
+    finally:
+        store.close()
+
+
 @router.get("/proposals")
 def list_proposals(
     kind: str | None = Query(None, description="node | edge"),

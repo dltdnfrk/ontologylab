@@ -1,15 +1,29 @@
 """W12 community detection + summaries, computed ONCE at pack build time.
 
 Answers corpus-level questions BFS can't ("what are the main themes of this
-pack?"): the verified subgraph is partitioned into communities by
-**deterministic label propagation** (pure stdlib — no igraph/leidenalg
-dependency at local scale), each community gets a summary, and the MCP
-server exposes them read-only. Computing at build time keeps the immutable-
-pack philosophy intact: a pack's communities never shift under a client.
+pack?"): the verified subgraph is partitioned into communities, each
+community gets a summary, and the MCP server exposes them read-only.
+Computing at build time keeps the immutable-pack philosophy intact: a
+pack's communities never shift under a client.
 
-Determinism: nodes are visited in sorted-id order and label ties break to
-the smallest label, so the same graph always yields the same partition
-(no RNG involved).
+**The partition algorithm is Leiden** (Traag, Waltman & van Eck,
+*Scientific Reports* 2019) when ``leidenalg``/``igraph`` are installed —
+``pip install 'ontologylab[graph]'``. Leiden is what the reference
+architecture for this pipeline (GraphRAG) uses, and the paper's finding is
+the reason: even Louvain leaves up to 25% of communities badly connected
+and up to 16% outright disconnected, while Leiden **guarantees** connected
+communities. A community summary is a claim that its members belong
+together; a disconnected community makes that claim false on its face.
+
+Without the optional dependency the module falls back to the original
+deterministic label propagation — honest but weaker (no objective
+function, no connectivity guarantee) — and ``community_algorithm()``
+reports which one is active so a pack build can record it.
+
+Determinism either way: Leiden runs with a fixed seed over vertices added
+in sorted-id order; label propagation visits nodes in sorted-id order and
+breaks label ties to the smallest label. The same graph always yields the
+same partition.
 
 Summaries are **extractive by default** (top members by degree + relation-
 type counts — honest, no model involved, labeled ``extractive``). An
@@ -26,6 +40,24 @@ from typing import Any, Callable, Optional
 MAX_ITERATIONS = 20
 TOP_MEMBERS = 5
 
+# Fixed seed for Leiden's internal refinement RNG. Any constant works; it
+# exists so two builds of the same graph produce the same partition.
+LEIDEN_SEED = 7
+
+
+def _leiden_available() -> bool:
+    try:  # pragma: no cover - trivially environment-dependent
+        import igraph  # noqa: F401
+        import leidenalg  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def community_algorithm() -> str:
+    """Which partitioner a build on this machine will use."""
+    return "leiden" if _leiden_available() else "label_propagation"
+
 # A summarizer takes (member_names_by_degree, relation_type_counts) and
 # returns summary text, or None to keep the extractive fallback.
 Summarizer = Callable[[list[str], dict[str, int]], Optional[str]]
@@ -36,19 +68,81 @@ def detect_communities(
     edge_pairs: list[tuple[str, str]],
     *,
     max_iterations: int = MAX_ITERATIONS,
+    algorithm: str = "auto",
 ) -> list[list[str]]:
-    """Partition nodes via deterministic label propagation.
+    """Partition nodes into communities.
 
-    Returns member-id lists, largest community first (ties: smallest member
-    id). Isolated nodes come out as singleton communities.
+    Returns member-id lists (each sorted), largest community first (ties:
+    smallest member id). Isolated nodes come out as singleton communities.
+
+    ``algorithm``: ``"auto"`` uses Leiden when installed and label
+    propagation otherwise; the explicit names force one backend (Leiden
+    raises if unavailable rather than silently degrading — a caller that
+    asks by name is asking for the guarantee, not the label).
     """
     known = set(node_ids)
     ordered = sorted(known)
-    adjacency: dict[str, set[str]] = defaultdict(set)
+    # One canonical edge set for both backends: undirected, deduplicated,
+    # self-loops and unknown endpoints dropped.
+    undirected: set[tuple[str, str]] = set()
     for src, dst in edge_pairs:
         if src in known and dst in known and src != dst:
-            adjacency[src].add(dst)
-            adjacency[dst].add(src)
+            undirected.add((min(src, dst), max(src, dst)))
+
+    if algorithm == "auto":
+        algorithm = community_algorithm()
+    if algorithm == "leiden":
+        if not _leiden_available():
+            raise RuntimeError(
+                "leiden was requested by name but leidenalg/igraph are not "
+                "installed; pip install 'ontologylab[graph]'"
+            )
+        groups = _leiden(ordered, sorted(undirected))
+    elif algorithm == "label_propagation":
+        groups = _label_propagation(ordered, undirected, max_iterations)
+    else:
+        raise ValueError(f"unknown community algorithm {algorithm!r}")
+    return sorted(groups, key=lambda m: (-len(m), m[0]))
+
+
+def _leiden(ordered_ids: list[str], edges: list[tuple[str, str]]) -> list[list[str]]:
+    """Leiden with modularity, seeded — connected communities, guaranteed.
+
+    Vertices are added in sorted-id order and the refinement RNG is seeded,
+    so the partition is a pure function of the graph.
+    """
+    import igraph
+    import leidenalg
+
+    index = {node_id: i for i, node_id in enumerate(ordered_ids)}
+    graph = igraph.Graph(
+        n=len(ordered_ids),
+        edges=[(index[a], index[b]) for a, b in edges],
+    )
+    partition = leidenalg.find_partition(
+        graph,
+        leidenalg.ModularityVertexPartition,
+        seed=LEIDEN_SEED,
+        n_iterations=-1,  # run to convergence, not a fixed pass count
+    )
+    return [sorted(ordered_ids[i] for i in community) for community in partition]
+
+
+def _label_propagation(
+    ordered: list[str],
+    undirected: set[tuple[str, str]],
+    max_iterations: int,
+) -> list[list[str]]:
+    """The original stdlib fallback: deterministic label propagation.
+
+    Kept verbatim in behaviour for installs without the optional graph
+    dependency. No objective function and no connectivity guarantee — which
+    is why Leiden replaces it whenever it can.
+    """
+    adjacency: dict[str, set[str]] = defaultdict(set)
+    for src, dst in undirected:
+        adjacency[src].add(dst)
+        adjacency[dst].add(src)
 
     labels = {node_id: node_id for node_id in ordered}
     for _ in range(max_iterations):
@@ -69,7 +163,7 @@ def detect_communities(
     groups: dict[str, list[str]] = defaultdict(list)
     for node_id in ordered:
         groups[labels[node_id]].append(node_id)
-    return sorted(groups.values(), key=lambda m: (-len(m), m[0]))
+    return list(groups.values())
 
 
 def extractive_summary(

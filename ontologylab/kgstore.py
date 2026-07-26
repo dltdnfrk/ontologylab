@@ -2266,8 +2266,18 @@ class KGStore:
         min_score: float = 0.0,
         include_proposed: bool = False,
         extra_lexical_queries: list[str] | None = None,
+        reranker: Any | None = None,
     ) -> list[dict[str, Any]]:
         """BM25 + vector fused with Reciprocal Rank Fusion (§5.4 tier-2).
+
+        ``reranker`` (anything with ``score(query, texts) -> list[float]``)
+        adds a second stage: the fused shortlist (3×top_k) is re-scored
+        jointly against the query and re-ordered. RRF alone never reads the
+        query against a candidate — it only merges ranks — which is the gap
+        second-stage rerankers exist to close. With a reranker,
+        ``match_score`` is the sigmoid of the cross-encoder logit (still
+        0..1, higher is better); ties break by id, so the ordering stays a
+        pure function of the store.
 
         All backends run status-filtered, their ranked id lists are fused
         with RRF (k=60), and match_score carries the normalized 0..1 fused
@@ -2316,6 +2326,7 @@ class KGStore:
             for item in ranked
         }
         fused = rrf_fuse([[i["id"] for i in ranked] for ranked in all_lists])
+        shortlist_size = top_k * 3 if reranker is not None else top_k
         results = []
         for item_id, fused_score in fused:
             if fused_score < min_score:
@@ -2323,9 +2334,36 @@ class KGStore:
             item = dict(by_id[item_id])
             item["match_score"] = round(fused_score, MATCH_SCORE_PRECISION)
             results.append(item)
-            if len(results) >= top_k:
+            if len(results) >= shortlist_size:
                 break
-        return results
+        if reranker is None or not results:
+            return results
+
+        from ontologylab.rerankers import sigmoid
+
+        texts = [
+            " | ".join(
+                str(part)
+                for part in (
+                    item["name"],
+                    item["entity_type"],
+                    *item.get("aliases", []),
+                    *(f"{k}: {v}" for k, v in item.get("properties", {}).items()),
+                )
+            )
+            for item in results
+        ]
+        scores = reranker.score(query, texts)
+        order = sorted(
+            range(len(results)),
+            key=lambda i: (-scores[i], results[i]["id"]),
+        )
+        reranked = []
+        for i in order[:top_k]:
+            item = results[i]
+            item["match_score"] = round(sigmoid(scores[i]), MATCH_SCORE_PRECISION)
+            reranked.append(item)
+        return reranked
 
     def graph_query(
         self,
