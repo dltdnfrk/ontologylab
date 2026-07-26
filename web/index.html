@@ -9,13 +9,21 @@
 <body data-active-tab="home">
   <header class="app-header">
     <div class="brand">
-      <h1>ontologylab</h1>
-      <p>문서 → AI 초안 → 사람 승인 → 검증된 팩</p>
+      <h1>ONTOLOGYLAB</h1>
     </div>
+    <!-- 커맨드 라인. 단말의 이동 수단은 메뉴가 아니라 명령줄이고, 이 앱의
+         명령줄은 이미 있다(⌘K 팔레트). 헤더 한가운데 놓아 발견되게 한다 —
+         진짜 입력창처럼 그리되 클릭하면 팔레트가 열리는 버튼이다. -->
+    <button type="button" id="cmdk-open" class="cmdline" aria-haspopup="dialog"
+            aria-label="명령 팔레트 열기">
+      <span class="cmdline-prompt" aria-hidden="true">&gt;</span>
+      <span class="cmdline-hint">이동 · 검색 · 리서치 주제</span>
+      <kbd>⌘K</kbd>
+    </button>
     <div class="header-status">
       <div id="next-action" class="next-action hidden">
-        <strong>지금 할 일:</strong> <span id="next-action-text"></span>
-        <button type="button" id="next-action-btn" class="btn btn-primary"></button>
+        <span id="next-action-text" class="hidden"></span>
+        <button type="button" id="next-action-btn" class="btn"></button>
       </div>
       <p id="home-error" class="err-msg hidden">서버 연결 안 됨 ·
         <button type="button" id="home-retry-btn" class="btn btn-link">다시 시도</button></p>
@@ -40,109 +48,81 @@
 
 
   <main>
-    <!-- ================= 홈 (따라하기) ================= -->
+    <!-- ================= 홈 (현황판) ================= -->
+    <!-- 단말의 첫 화면은 인사말이 아니라 현황이다. 온보딩 체크리스트는
+         한 바퀴 돈 다음 날부터 매일 보는 죽은 화면이 됐다 — 같은 안내를
+         "시작" 패널의 동작 세 개로 압축하고, 나머지 화면을 데이터에 준다. -->
     <section id="tab-home" class="tab-panel active" data-tab-panel="home">
-      <h2>안녕하세요!</h2>
-      <p class="tab-intro">ontologylab은 문서를 읽혀서 <strong>믿을 수 있는
-        지식</strong>으로 바꾸는 도구예요. AI가 초안을 만들고, 여기서 직접 승인한
-        것만 지식이 돼요. 아래 네 걸음이면 한 바퀴 다 돌아요 — 진행되는 만큼
-        체크가 켜져요.</p>
+      <div class="board">
+        <div class="panel board-span">
+          <div class="panel-head">
+            <span class="panel-label">검토 큐</span>
+            <span id="board-queue-n" class="panel-figure">0</span>
+            <button type="button" class="btn-link panel-act" data-goto="review">검토 열기 →</button>
+          </div>
+          <ul id="board-queue-list" class="board-list"></ul>
+          <p id="board-queue-empty" class="board-empty hidden">대기 중인 제안 없음</p>
+        </div>
 
-      <div class="journey">
-        <div class="journey-step" id="jstep-collect">
-          <span class="journey-no" aria-hidden="true">1</span>
-          <div class="journey-body">
-            <strong>문서 하나 넣어보기</strong>
-            <p class="muted">뭐든 좋아요. 처음이면 준비된 샘플(우리 가게 주문
-              시스템 이야기)로 가볍게 시작해보세요.</p>
-            <div class="journey-actions">
-              <button type="button" id="journey-sample-btn" class="btn btn-primary">샘플 문서로 해볼래요</button>
-              <button type="button" class="btn btn-link" data-goto="sources">내 문서를 넣을래요 →</button>
-            </div>
-            <p id="journey-sample-result" class="muted hidden"></p>
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-label">실행</span>
+            <span id="board-live" class="live-dot hidden" title="실행 중"></span>
+            <button type="button" class="btn-link panel-act" data-goto="sources">리서치 →</button>
+          </div>
+          <ul id="board-runs-list" class="board-list"></ul>
+          <p id="board-runs-empty" class="board-empty hidden">실행 이력 없음</p>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-label">저장소</span>
+            <button type="button" class="btn-link panel-act" data-goto="graph">그래프 →</button>
+          </div>
+          <div class="kpi-grid">
+            <div class="kpi"><span class="kpi-n" id="kpi-docs">0</span><span class="kpi-l">문서</span></div>
+            <div class="kpi"><span class="kpi-n is-pending" id="kpi-pending">0</span><span class="kpi-l">대기</span></div>
+            <div class="kpi"><span class="kpi-n" id="kpi-verified">0</span><span class="kpi-l">승인</span></div>
+            <div class="kpi"><span class="kpi-n" id="kpi-packs">0</span><span class="kpi-l">팩</span></div>
           </div>
         </div>
-        <div class="journey-step" id="jstep-extract">
-          <span class="journey-no" aria-hidden="true">2</span>
-          <div class="journey-body">
-            <strong>AI에게 초안 맡기기</strong>
-            <p class="muted">넣은 문서에서 개념과 관계를 뽑아 와요. 여기서 나온 건
-              아직 <em>제안</em>일 뿐이라 지식이 아니에요.</p>
-            <div class="journey-actions">
-              <button type="button" id="journey-extract-btn" class="btn btn-primary">지금 추출해볼래요</button>
-              <button type="button" class="btn btn-link" data-goto="sources">리서치 화면으로 →</button>
-            </div>
-            <p id="journey-extract-result" class="muted hidden"></p>
+
+        <div class="panel board-span">
+          <div class="panel-head">
+            <span class="panel-label">시작</span>
+            <span class="panel-note">승인한 것만 지식이 됨 · 전부 이 컴퓨터에만 저장</span>
           </div>
-        </div>
-        <div class="journey-step" id="jstep-review">
-          <span class="journey-no" aria-hidden="true">3</span>
-          <div class="journey-body">
-            <strong>맞으면 승인, 아니면 거부</strong>
-            <p class="muted">여기가 이 도구의 심장이에요. 직접 승인한 것만
-              지식으로 남아요 — AI는 절대 대신 결정하지 않아요.</p>
-            <div class="journey-actions">
-              <button type="button" class="btn btn-primary" data-goto="review">검토하러 갈래요</button>
-            </div>
+          <div class="panel-body row">
+            <button type="button" id="journey-sample-btn" class="btn">샘플 문서 넣기</button>
+            <button type="button" id="journey-extract-btn" class="btn">추출 실행</button>
+            <button type="button" class="btn" data-goto="packs">팩 빌드</button>
+            <button type="button" class="btn" data-goto="mcp">Claude 연결</button>
           </div>
-        </div>
-        <div class="journey-step" id="jstep-pack">
-          <span class="journey-no" aria-hidden="true">4</span>
-          <div class="journey-body">
-            <strong>승인한 지식을 팩으로 묶기</strong>
-            <p class="muted">팩은 Claude 같은 AI에게 물려줄 수 있는
-              <em>검증된 지식 상자</em>예요.</p>
-            <div class="journey-actions">
-              <button type="button" class="btn btn-primary" data-goto="packs">팩 만들러 갈래요</button>
-            </div>
-          </div>
+          <p id="journey-sample-result" class="muted panel-body-note hidden"></p>
+          <p id="journey-extract-result" class="muted panel-body-note hidden"></p>
         </div>
       </div>
-      <p id="journey-done" class="ok-msg hidden">한 바퀴 완주! 이제
-        <button type="button" class="btn btn-link" data-goto="mcp">④ 연결</button>에서
-        Claude에 물려주거나, 새 문서로 지식을 더 쌓아보세요.</p>
-
-      <p class="muted"><small>모든 데이터는 이 컴퓨터에만 저장돼요. 연습용
-        데이터는 마음껏 만졌다가 언제든 지우고 다시 시작할 수 있어요.</small></p>
-      <p class="muted"><small>보조 도구 — <strong>병합</strong>: 중복 정리 ·
-        <strong>커뮤니티</strong>: 개념 묶음 보기 ·
-        <strong>엔진</strong>: 쓸 수 있는 AI 확인 · <strong>설정</strong>: 기본값</small></p>
     </section>
 
-    <!-- ================= ① 리서치 (소스) ================= -->
+    <!-- ================= 리서치 ================= -->
     <section id="tab-sources" class="tab-panel" data-tab-panel="sources">
-      <h2>① 리서치 — 뭘 알고 싶으세요?</h2>
-      <p class="tab-intro">주제 한 줄이면 돼요. 연결된 논문 소스에서 모으고,
-        모은 것만 골라 AI가 개념과 관계를 <strong>제안</strong>으로 뽑아줘요.
-        아직 확정은 아니에요 — ② 검토에서 직접 승인해야 지식이 돼요.
-        엔진 <code>mock</code>은 인터넷 없이 도는 연습용이에요.</p>
-
-      <form id="research-form" class="form-grid">
-        <label class="span-2">주제
-          <input type="text" id="research-topic"
-                 placeholder="아무 주제나 한 줄로 (예: knowledge graph extraction)" />
-        </label>
-        <label>엔진
-          <select id="research-engine"></select>
-        </label>
-        <label>소스당 최대 개수
-          <!-- bounds mirror paper_api.DEFAULT_LIMIT / MAX_LIMIT -->
-          <input type="number" id="research-limit" value="5" min="1" max="25" />
-        </label>
+      <!-- 런 바. 주제 → 실행이 이 화면의 전부이므로 폼 격자가 아니라
+           한 줄이다 — 옵션은 값이 보이는 컨트롤로 같은 줄에 붙는다. -->
+      <form id="research-form" class="runbar">
+        <input type="text" id="research-topic"
+               placeholder="리서치 주제 (예: knowledge graph extraction)" />
+        <select id="research-engine" title="추출 엔진"></select>
+        <!-- bounds mirror paper_api.DEFAULT_LIMIT / MAX_LIMIT -->
+        <input type="number" id="research-limit" value="5" min="1" max="25"
+               title="소스당 최대 논문 수" />
         <!-- 텍스트는 반드시 하나의 span으로 감싼다. 라벨이 flex 컨테이너라
-             벌거벗은 텍스트 노드와 <strong>이 각각 flex 항목이 되어, 한 문장이
-             "오픈액세스 논문은 / 전문 / 까지 읽기"로 쪼개져 세로로 쌓였다. -->
-        <label class="span-2 check-line">
+             벌거벗은 텍스트 노드는 각각 flex 항목이 되어 세로로 쌓인다. -->
+        <label class="check-line" title="끄면 초록만 읽어요 — 결론은 알아도 근거는 못 봐요. 켜면 오픈액세스 논문의 전문까지 읽어 추출이 오래 걸려요.">
           <input type="checkbox" id="research-fulltext" checked />
-          <span>오픈액세스 논문은 <strong>전문</strong>까지 읽기
-            <small class="muted">— 초록만 읽으면 결론은 알아도 근거는 못 봐요.
-              읽을 양이 크게 늘어나니 추출도 오래 걸려요.</small>
-          </span>
+          <span>전문</span>
         </label>
-        <div class="form-actions">
-          <button type="submit" id="research-submit" class="btn btn-primary">리서치 시작</button>
-          <button type="button" id="research-cancel" class="btn hidden">중단</button>
-        </div>
+        <button type="submit" id="research-submit" class="btn btn-primary">시작</button>
+        <button type="button" id="research-cancel" class="btn hidden">중단</button>
       </form>
       <div id="research-result" class="status-box result-box hidden"></div>
 
@@ -199,114 +179,72 @@
         <div id="extract-result" class="status-box result-box hidden"></div>
       </details>
 
-      <details class="adv-opts">
-        <summary>논문 소스 — API 키 연결
-          <span id="sources-badge" class="badge st-proposed">미연결</span></summary>
-        <p class="muted">키는 이 컴퓨터의 <strong>macOS 키체인에 암호화되어</strong>
-          저장되고, <code>data/</code> 어디에도 값이 남지 않아요 — 여기 목록에도
-          다시 나타나지 않고 <em>연결됨/미연결</em>만 보여요.</p>
-        <p class="muted">두 종류예요. <strong>출판사</strong>는 키가 없으면 아예
-          응답하지 않아 전문(full text)에 닿을 수 없고,
-          <strong>공개 API</strong>는 키 없이도 되지만 익명 요청은 다른 모든
-          익명 사용자와 같은 한도를 나눠 써서 <code>429</code>로 되돌아오곤 해요.
-          연결해두면 그 소스만의 한도를 받습니다.</p>
-        <div class="table-wrap">
-          <table id="sources-table">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-label">실행</span>
+          <span class="panel-note" title="+ 새로 추가 / ~ 기존과 병합">실시간</span>
+          <button type="button" id="jobs-refresh-btn" class="btn-link panel-act">새로고침</button>
+        </div>
+        <div class="table-wrap table-scroll panel-table">
+          <table id="jobs-table">
             <thead>
               <tr>
-                <th>소스</th>
-                <th>키</th>
-                <th>없을 때</th>
                 <th>작업</th>
+                <th>엔진</th>
+                <th>상태</th>
+                <th title="+ 새로 추가 / ~ 기존과 병합">결과</th>
+                <th>시작</th>
+                <th>종료</th>
               </tr>
             </thead>
-            <tbody id="sources-body"></tbody>
+            <tbody id="jobs-body"></tbody>
           </table>
         </div>
-        <p id="sources-list-empty" class="muted hidden">연결 가능한 소스가 없어요.</p>
-
-        <form id="source-form" class="form-grid" autocomplete="off">
-          <label>소스
-            <!-- 자유 입력이 아니라 선택. 키는 소스 id로만 조회되므로
-                 이름을 직접 적게 두면 키체인에는 저장되고 어떤 소스도
-                 읽지 않는 상태가 조용히 만들어진다. -->
-            <select id="source-id"></select>
-          </label>
-          <label>API 키
-            <!-- type=password + autocomplete=off: the value must not linger
-                 in the browser's save-password flow, and JS clears the field
-                 the moment the request returns. -->
-            <input type="password" id="source-key" placeholder="붙여넣기"
-                   autocomplete="off" spellcheck="false" />
-          </label>
-          <div class="form-actions">
-            <button type="submit" id="source-submit" class="btn btn-primary">연결</button>
+        <p id="jobs-empty" class="board-empty hidden">실행 이력 없음 —
+          위에 주제를 넣고 <strong>시작</strong></p>
+        <p id="jobs-error" class="err-msg panel-body-note hidden"></p>
+        <div id="job-detail" class="hidden">
+          <div class="panel-head panel-head-sub">
+            <span class="panel-label" id="job-detail-title">작업</span>
           </div>
-        </form>
-        <div id="source-result" class="status-box result-box hidden"></div>
-      </details>
-
-      <h3>실행 이력</h3>
-      <div class="form-actions">
-        <button type="button" id="jobs-refresh-btn" class="btn">새로고침</button>
-      </div>
-      <div class="table-wrap table-scroll">
-        <table id="jobs-table">
-          <thead>
-            <tr>
-              <th>작업</th>
-              <th>엔진</th>
-              <th>상태</th>
-              <th title="+ 새로 추가 / ~ 기존과 병합">결과</th>
-              <th>시작</th>
-              <th>종료</th>
-            </tr>
-          </thead>
-          <tbody id="jobs-body"></tbody>
-        </table>
-      </div>
-      <p id="jobs-empty" class="muted hidden empty-state-card">아직 실행한 적이 없어요.
-        위에 주제를 한 줄 넣고 <strong>리서치 시작</strong>을 눌러보세요.</p>
-      <p id="jobs-error" class="err-msg hidden"></p>
-
-      <div id="job-detail" class="hidden">
-        <h3 id="job-detail-title">작업</h3>
-        <!-- 평평한 <pre> 덤프였다. 리서치 런 하나가 20줄을 쏟는데 그중
-             10줄이 청크별 진행이라, 정작 읽어야 할 "어느 소스가 실패했나"가
-             그 안에 묻혔다. 단계별로 접고 요약을 헤더에 올린다. -->
-        <div id="job-progress" class="job-log">—</div>
+          <!-- 평평한 <pre> 덤프였다. 리서치 런 하나가 20줄을 쏟는데 그중
+               10줄이 청크별 진행이라, 정작 읽어야 할 "어느 소스가 실패했나"가
+               그 안에 묻혔다. 단계별로 접고 요약을 헤더에 올린다. -->
+          <div id="job-progress" class="job-log">—</div>
+        </div>
       </div>
 
-      <h3>수집된 문서</h3>
-      <div class="form-actions">
-        <button type="button" id="sources-refresh-btn" class="btn">새로고침</button>
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-label">문서</span>
+          <button type="button" id="sources-refresh-btn" class="btn-link panel-act">새로고침</button>
+        </div>
+        <div class="table-wrap table-scroll panel-table">
+          <table id="documents-table">
+            <thead>
+              <tr>
+                <th>종류</th>
+                <th>제목</th>
+                <th>URI</th>
+                <th>수집 시각</th>
+              </tr>
+            </thead>
+            <tbody id="documents-body"></tbody>
+          </table>
+        </div>
+        <p id="sources-empty" class="board-empty hidden">문서 없음 —
+          주제 리서치나 <strong>직접 넣기</strong>로 수집</p>
+        <p id="sources-error" class="err-msg panel-body-note hidden"></p>
       </div>
-      <div class="table-wrap table-scroll">
-        <table id="documents-table">
-          <thead>
-            <tr>
-              <th>종류</th>
-              <th>제목</th>
-              <th>URI</th>
-              <th>수집 시각</th>
-            </tr>
-          </thead>
-          <tbody id="documents-body"></tbody>
-        </table>
-      </div>
-      <p id="sources-empty" class="muted hidden empty-state-card">아직 문서가 없어요 —
-        URL 하나면 시작돼요. 위 폼에 URL이나 파일 경로를 넣고
-        <strong>수집</strong>을 눌러보세요. (홈의 샘플 버튼도 있어요!)</p>
-      <p id="sources-error" class="err-msg hidden"></p>
-      <p class="muted"><small>다음 단계: 제안이 올라왔다면
-        <button type="button" class="btn btn-link" data-goto="review">② 검토로 이동 →</button></small></p>
     </section>
 
     <!-- ================= ② 검토 (워크벤치) ================= -->
     <section id="tab-review" class="tab-panel" data-tab-panel="review">
       <div class="review-main">
-        <h2>② 검토</h2>
-        <p class="hitl-subtitle">승인한 것만 팩에 들어감 · 크리틱은 참고 점수, 결정은 사용자</p>
+        <div class="screen-head">
+          <h2>검토</h2>
+          <span class="panel-note">승인한 것만 팩에 들어감 · 크리틱은 참고, 결정은 사용자</span>
+        </div>
 
         <div class="status-box" id="counts-box">
           <div class="status-row"><span>집계 불러오는 중…</span></div>
@@ -381,15 +319,12 @@
 
     <!-- ================= ③ 팩 ================= -->
     <section id="tab-packs" class="tab-panel" data-tab-panel="packs">
-      <h2>③ 팩 — 승인한 지식을 상자에 담아요</h2>
-      <p class="tab-intro">③에서 승인한 개념·관계만 모아
-        <strong>팩</strong>으로 만들어요. 팩은 만든 순간의 스냅샷이라, 나중에
-        승인한 건 자동으로 안 들어가요 — 새 승인분이 생기면 새 이름으로 다시
-        만들면 돼요. AI(MCP)는 이 팩만 읽을 수 있어서, 검증 안 된 내용은
-        절대 새어 나가지 않아요.</p>
+      <div class="screen-head">
+        <h2>팩</h2>
+        <span class="panel-note">승인분만 담는 스냅샷 · MCP는 팩만 읽음</span>
+      </div>
 
       <h3>팩 빌드</h3>
-      <p class="muted"><small>이 팩에는 직접 승인한 항목만 들어가요.</small></p>
       <form id="pack-build-form" class="form-grid">
         <label>이름
           <input type="text" id="pack-name" placeholder="my-pack" required />
@@ -447,10 +382,10 @@
 
     <!-- ================= ④ 연결 (MCP) ================= -->
     <section id="tab-mcp" class="tab-panel" data-tab-panel="mcp">
-      <h2>④ 연결 — Claude에게 지식을 물려줘요</h2>
-      <p class="tab-intro">만든 팩을 Claude Desktop / Claude Code 같은 AI 도구에
-        연결해요. 팩 카드의 <strong>연결 설정 복사</strong>를 눌러 나온 내용을
-        도구 설정에 붙여넣으면 끝이에요. AI는 팩을 읽기만 할 수 있어요.</p>
+      <div class="screen-head">
+        <h2>연결</h2>
+        <span class="panel-note">팩 카드의 설정을 복사해 Claude에 붙여넣기 · AI는 읽기만</span>
+      </div>
       <details class="help-details">
         <summary>Claude Desktop에 붙여넣는 방법</summary>
         <ol>
@@ -474,11 +409,10 @@
 
     <!-- ================= 병합 (보조) ================= -->
     <section id="tab-merge" class="tab-panel" data-tab-panel="merge">
-      <h2>병합 — 같은 개념 합치기</h2>
-      <p class="tab-intro">같은 개념이 다른 이름으로 두 번 들어왔을 때
-        (예: "RateLimiter"와 "Rate Limiter") 하나로 합쳐요. 스캐너는 후보를
-        <em>제안</em>만 하고, 합칠지 말지는 항상 직접 정해요.
-        아니라고 한 쌍은 다시 물어보지 않아요.</p>
+      <div class="screen-head">
+        <h2>병합</h2>
+        <span class="panel-note">스캐너는 제안만 · 합칠지는 직접 결정 · 거절한 쌍은 다시 안 물음</span>
+      </div>
       <div class="form-actions">
         <button type="button" id="merge-scan-btn" class="btn btn-primary">중복 스캔</button>
         <button type="button" id="merge-refresh-btn" class="btn">새로고침</button>
@@ -492,10 +426,10 @@
 
     <!-- ================= 커뮤니티 (보조) ================= -->
     <section id="tab-communities" class="tab-panel" data-tab-panel="communities">
-      <h2>커뮤니티 — 그래프 클러스터 보기</h2>
-      <p class="tab-intro">서로 촘촘히 연결된 개념 묶음(클러스터)을 보여줘요.
-        팩을 만들 때 한 번 계산되니까, 팩을 만들기 전에는 비어 있는 게
-        정상이에요.</p>
+      <div class="screen-head">
+        <h2>커뮤니티</h2>
+        <span class="panel-note">촘촘히 연결된 개념 묶음 · 팩 빌드 때 계산됨</span>
+      </div>
       <div class="form-actions">
         <button type="button" id="communities-refresh-btn" class="btn">새로고침</button>
       </div>
@@ -525,11 +459,10 @@
 
     <!-- ================= 그래프 (보조) ================= -->
     <section id="tab-graph" class="tab-panel" data-tab-panel="graph">
-      <h2>그래프 — 자유 탐색</h2>
-      <p class="tab-intro">쌓인 지식그래프를 눈으로 돌아다녀요. 노드를
-        클릭하면 요약이 뜨고, <strong>더블클릭</strong>하면 이웃이
-        펼쳐져요. 여기서는 아무것도 바뀌지 않아요 — 승인·거부 같은 결정은
-        항상 ② 검토에서 해요.</p>
+      <div class="screen-head">
+        <h2>그래프</h2>
+        <span class="panel-note">클릭 요약 · 더블클릭 이웃 펼침 · 결정은 검토에서만</span>
+      </div>
       <div class="form-actions graph-toolbar">
         <label>보기
           <select id="graph-status">
@@ -570,17 +503,15 @@
 
     <!-- ================= 엔진 (보조) ================= -->
     <section id="tab-engines" class="tab-panel" data-tab-panel="engines">
-      <h2>엔진 — 사용 가능한 AI</h2>
-      <p class="tab-intro">추출·크리틱에 쓸 수 있는 AI 엔진들이에요.
-        <code>mock</code>은 항상 되는 오프라인 연습용이고,
-        <code>claude</code>·<code>codex</code>·<code>gemini</code>는 해당 CLI가
-        깔려 있어야 해요.</p>
+      <div class="screen-head">
+        <h2>엔진</h2>
+        <span class="panel-note"><code>mock</code>은 오프라인 연습용 · CLI 엔진은 설치 필요</span>
+      </div>
       <ul id="engines-list"></ul>
 
-      <h3>프로바이더 — 직접 등록하는 API 모델</h3>
-      <p class="tab-intro">Anthropic API나 OpenAI 호환 API를 엔진으로 등록하면
-        <code>api:&lt;id&gt;</code> 형태로 추출·크리틱·검색에 골라 쓸 수 있어요.
-        키는 환경변수로 넣고 여기엔 <strong>변수 이름만</strong> 저장돼요 (커밋 안전).</p>
+      <h3>프로바이더</h3>
+      <p class="muted">Anthropic·OpenAI 호환 API를 <code>api:&lt;id&gt;</code> 엔진으로
+        등록 · 키는 환경변수, 여기엔 <strong>변수 이름만</strong> 저장</p>
       <div class="table-wrap table-scroll">
         <table id="providers-table">
           <thead>
@@ -637,7 +568,49 @@
     <!-- ================= 설정 (보조) ================= -->
     <section id="tab-settings" class="tab-panel" data-tab-panel="settings">
       <h2>설정</h2>
-      <p class="tab-intro">추출·검토의 기본값이에요. 잘 모르겠으면 그대로 두면 돼요.</p>
+
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-label">논문 소스 — API 키</span>
+          <span id="sources-badge" class="badge st-proposed">미연결</span>
+        </div>
+        <div class="panel-body">
+          <p class="muted">키는 <strong>macOS 키체인에 암호화되어</strong> 저장되고
+            <code>data/</code> 어디에도 값이 남지 않아요 — 목록에도 다시 나타나지
+            않고 <em>연결됨/미연결</em>만 보여요. <strong>출판사</strong>는 키가
+            없으면 응답하지 않고(전문 불가), <strong>공개 API</strong>는 키 없이도
+            되지만 익명 한도를 나눠 써서 <code>429</code>가 잦아요.</p>
+        </div>
+        <div class="table-wrap panel-table">
+          <table id="sources-table">
+            <thead>
+              <tr>
+                <th>소스</th>
+                <th>키</th>
+                <th>없을 때</th>
+                <th>작업</th>
+              </tr>
+            </thead>
+            <tbody id="sources-body"></tbody>
+          </table>
+        </div>
+        <p id="sources-list-empty" class="board-empty hidden">연결 가능한 소스가 없어요.</p>
+        <form id="source-form" class="runbar panel-body" autocomplete="off">
+          <!-- 자유 입력이 아니라 선택. 키는 소스 id로만 조회되므로
+               이름을 직접 적게 두면 키체인에는 저장되고 어떤 소스도
+               읽지 않는 상태가 조용히 만들어진다. -->
+          <select id="source-id"></select>
+          <!-- type=password + autocomplete=off: the value must not linger
+               in the browser's save-password flow, and JS clears the field
+               the moment the request returns. -->
+          <input type="password" id="source-key" placeholder="API 키 붙여넣기"
+                 autocomplete="off" spellcheck="false" />
+          <button type="submit" id="source-submit" class="btn btn-primary">연결</button>
+        </form>
+        <div id="source-result" class="status-box result-box panel-body-note hidden"></div>
+      </div>
+
+      <h3>기본값</h3>
       <form id="settings-form" class="form-grid">
         <label>기본 엔진
           <input type="text" id="settings-default-engine" placeholder="mock" />

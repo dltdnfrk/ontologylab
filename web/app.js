@@ -415,16 +415,16 @@
      화면 목록은 즉시(로컬), 개체는 디바운스 뒤 /api/search로. */
 
   var PALETTE_TABS = [
-    ["sources", "① 리서치", "주제 한 줄로 수집 + 추출"],
-    ["review", "② 검토", "제안 승인 / 거부"],
-    ["packs", "③ 팩", "승인한 지식 묶기"],
-    ["mcp", "④ 연결", "Claude에 물려주기"],
-    ["home", "홈", ""],
+    ["sources", "리서치", "주제 한 줄로 수집 + 추출"],
+    ["review", "검토", "제안 승인 / 거부"],
+    ["packs", "팩", "승인한 지식 묶기"],
+    ["mcp", "연결", "Claude에 물려주기"],
+    ["home", "홈", "현황판"],
     ["merge", "병합", "중복 개체 정리"],
     ["communities", "커뮤니티", "주요 테마"],
     ["graph", "그래프", "자유 탐색"],
     ["engines", "엔진", "AI 연결"],
-    ["settings", "설정", ""],
+    ["settings", "설정", "기본값 · 소스 키"],
   ];
 
   var paletteItems = [];      // [{kind, label, meta, run}]
@@ -500,6 +500,22 @@
   async function paletteSearch(query) {
     var local = paletteLocal(query);
     var q = query.trim();
+    // 친 것이 화면 이름도 개체 이름도 아니면 그것은 리서치 주제다 —
+    // 커맨드 라인의 마지막 해석. 실행까지 하지는 않는다(런은 비용이 있다):
+    // 주제를 채워 리서치 화면에 세워 두고, 시작은 사람이 누른다.
+    if (q.length >= 2) {
+      local = local.concat([{
+        kind: "리서치", label: "“" + q + "” 주제로 리서치", meta: "주제 채우기",
+        prose: true,
+        run: function () {
+          showTab("sources");
+          maybeLoadTab("sources");
+          var topic = $("#research-topic");
+          topic.value = q;
+          topic.focus();
+        },
+      }]);
+    }
     // 개체 검색은 두 글자부터. 한 글자로는 거의 모든 개체가 걸려서 화면
     // 항목이 결과 아래로 밀려나고, 팔레트가 이동 수단이 아니게 된다.
     if (q.length < 2) { paletteRender(local); return; }
@@ -548,6 +564,9 @@
     $("#palette").addEventListener("mousedown", function (ev) {
       if (ev.target === $("#palette")) paletteClose();
     });
+    // 헤더의 커맨드 라인은 이 팔레트의 문손잡이다.
+    var opener = $("#cmdk-open");
+    if (opener) opener.addEventListener("click", paletteOpen);
   })();
 
   document.addEventListener("keydown", function (ev) {
@@ -1150,7 +1169,7 @@
             "</code>개 · 중복 건너뜀 <code>" +
             escapeHtml(String(res.duplicates != null ? res.duplicates : "?")) +
             "</code>개 <button type='button' class='btn btn-primary'" +
-            " data-goto='review'>다음: ② 검토하러 가기 →</button>"
+            " data-goto='review'>검토 →</button>"
         );
         await loadDocuments();
       } else {
@@ -1399,7 +1418,7 @@
             "</span> " +
             escapeHtml(totalsSummary(job.totals)) +
             " <button type='button' class='btn btn-primary'" +
-            " data-goto='review'>② 검토하러 가기 →</button>"
+            " data-goto='review'>검토 →</button>"
         );
         loadProposals();
       } else if (prev === "running" && job.status === "failed") {
@@ -1988,7 +2007,7 @@
             "</code> · 관계 <code>" +
             escapeHtml(String(counts.edges_verified || 0)) +
             "</code> <button type='button' class='btn btn-primary'" +
-            " data-goto='mcp'>다음: ⑤ AI에 연결 →</button>"
+            " data-goto='mcp'>연결 →</button>"
         );
         $("#pack-name").value = "";
         await loadPacks();
@@ -2893,8 +2912,12 @@
         populateEngineSelect("#extract-engine");
         populateEngineSelect("#research-engine");
       }
-      return Promise.all([loadDocuments(), loadJobs(), loadSources()]);
+      return Promise.all([loadDocuments(), loadJobs()]);
     },
+    // 소스 키 UI가 설정으로 옮겨 왔다. loadSources는 표와 셀렉트만 채우고
+    // 설정 폼 입력값은 건드리지 않으므로 "입력 중 GET 덮어쓰기" 예외와
+    // 충돌하지 않는다.
+    settings: loadSources,
     packs: loadPacks,
     mcp: loadMcp,
     communities: loadCommunities,
@@ -2956,38 +2979,65 @@
     el.className = "nav-stat" + (state ? " " + state : "");
   }
 
-  /* -- 홈 따라하기 여정: 완료 상태는 전부 실데이터에서 파생 (저장 없음).
-        수집·추출은 온보딩 버튼으로 자동화해도 되지만 승인은 절대 자동화하지
-        않는다 — 3·4단계 버튼은 해당 화면으로 이동만 한다. -- */
-  function renderJourney(docs, pending, verified, packsCount) {
-    // 순차 게이팅: 앞 단계가 끝나야 다음 단계도 완료로 표시.
-    // (픽스처 팩만 있는 초기 상태에서 4번만 ✓로 보이는 혼란 방지)
-    var s1 = docs > 0;
-    var s2 = s1 && pending + verified > 0;
-    var s3 = s2 && verified > 0;
-    var s4 = s3 && packsCount > 0;
-    var states = {
-      "jstep-collect": s1,
-      "jstep-extract": s2,
-      "jstep-review": s3,
-      "jstep-pack": s4,
-    };
-    var allDone = true;
-    Object.keys(states).forEach(function (id) {
-      var el = document.getElementById(id);
-      if (!el) return;
-      el.classList.toggle("journey-done", states[id]);
-      if (!states[id]) allDone = false;
-    });
-    var doneMsg = $("#journey-done");
-    if (doneMsg) doneMsg.classList.toggle("hidden", !allDone);
+  /* -- 홈 현황판: 전부 실데이터에서 파생 (저장 없음). 수집·추출은 버튼으로
+        자동화해도 되지만 승인은 절대 자동화하지 않는다 — 큐 행 클릭도
+        검토 화면으로 이동만 한다. -- */
+
+  function renderBoardQueue(items) {
+    var list = $("#board-queue-list");
+    var empty = $("#board-queue-empty");
+    if (!list) return;
+    list.innerHTML = items
+      .map(function (item) {
+        var conf = item.confidence == null
+          ? "—" : Number(item.confidence).toFixed(2);
+        return (
+          "<li class='board-row' data-goto='review'>" +
+          "<span class='board-kind'>" + kindKo(item.kind) + "</span>" +
+          "<span class='board-name'>" + itemLabelHtml(item) + "</span>" +
+          "<span class='board-num'>" + conf + "</span></li>"
+        );
+      })
+      .join("");
+    if (empty) empty.classList.toggle("hidden", items.length > 0);
+  }
+
+  function renderBoardRuns(jobs) {
+    var list = $("#board-runs-list");
+    var empty = $("#board-runs-empty");
+    if (!list) return;
+    var rows = jobs.slice(0, 5);
+    list.innerHTML = rows
+      .map(function (job) {
+        var t = job.totals || {};
+        var added = (t.nodes_new || 0) + (t.edges_new || 0);
+        var merged = (t.nodes_merged || 0) + (t.edges_merged || 0);
+        return (
+          "<li class='board-row' data-goto='sources'>" +
+          "<span class='board-kind'>" +
+          escapeHtml(job.kind === "research" ? "리서치" : "추출") + "</span>" +
+          "<span class='board-name'><code>" + escapeHtml(job.engine || "—") +
+          "</code></span>" +
+          statusBadge(job.status) +
+          "<span class='board-num'>+" + added + " ~" + merged + "</span></li>"
+        );
+      })
+      .join("");
+    if (empty) empty.classList.toggle("hidden", rows.length > 0);
+  }
+
+  function setKpi(id, value) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = String(value);
   }
 
   async function loadHome() {
     var homeErr = $("#home-error");
     if (homeErr) homeErr.classList.add("hidden");
     try {
-      var data = await api("/api/proposals?limit=1");
+      // 확신도 낮은 순 5건 — 현황판 큐 미리보기가 검토 화면의 기본 정렬과
+      // 같은 순서여야, 여기서 본 첫 행이 저기서도 첫 행이다.
+      var data = await api("/api/proposals?limit=5&order=confidence");
       var c = data.counts || {};
       var packs = [];
       try {
@@ -3004,7 +3054,16 @@
       var verified = (c.nodes_verified || 0) + (c.edges_verified || 0);
 
       updateReviewBadge(c);
-      renderJourney(docs, pending, verified, packs.length);
+      renderBoardQueue(data.items || []);
+      renderBoardRuns(jobs);
+      var queueN = document.getElementById("board-queue-n");
+      if (queueN) queueN.textContent = String(pending);
+      var live = document.getElementById("board-live");
+      if (live) live.classList.toggle("hidden", !running);
+      setKpi("kpi-docs", docs);
+      setKpi("kpi-pending", pending);
+      setKpi("kpi-verified", verified);
+      setKpi("kpi-packs", packs.length);
       // 수집과 추출이 한 단계가 되면서 이 칸도 둘을 같이 말해야 한다.
       // 진행 여부는 '작업 이력'이 아니라 '제안이 존재하는가'로 판정한다.
       // 작업 이력은 서버가 재시작되면 비므로, 이력만 보면 제안 15건이
@@ -3034,37 +3093,20 @@
           " · 승인 " + verified + " · 팩 " + packs.length;
       }
 
-      // 다음 할 일 추천 (파이프라인 상태 기반)
+      // 다음 할 일 — 헤더 칩 하나. 문장은 홈 현황판이 대신 말하므로
+      // 여기는 동작 이름과 숫자만 남긴다.
       if (docs === 0) {
-        setNextAction("먼저 문서를 하나 넣어보세요.", "sources", "① 리서치로 가기");
+        setNextAction("먼저 문서를 넣기", "sources", "리서치 →");
       } else if (pending > 0) {
-        setNextAction(
-          "AI 제안 " + pending + "건이 기다리고 있어요.",
-          "review", "② 검토로 가기"
-        );
+        setNextAction("제안 대기", "review", "검토 " + pending + " →");
       } else if (running) {
-        setNextAction(
-          "돌아가는 중이에요. 끝나면 ② 검토에 올라와요.",
-          "sources", "① 리서치 상태 보기"
-        );
-      } else if (verified === 0 && jobs.length > 0) {
-        setNextAction(
-          "제안을 모두 처리했어요! 새 문서를 넣거나 다시 추출해보세요.",
-          "sources", "① 리서치로 가기"
-        );
+        setNextAction("실행 중", "sources", "실행 보기 →");
       } else if (verified === 0) {
-        setNextAction("이제 AI에게 초안을 맡겨볼까요?", "sources", "① 리서치로 가기");
+        setNextAction("추출부터", "sources", "리서치 →");
       } else if (packs.length === 0) {
-        setNextAction(
-          "승인한 지식 " + verified + "건을 팩으로 묶어보세요.",
-          "packs", "③ 팩 빌드하러 가기"
-        );
+        setNextAction("승인분 묶기", "packs", "팩 빌드 →");
       } else {
-        setNextAction(
-          "팩이 준비됐어요! 새로 승인한 게 있으면 ④에서 다시 만들고, " +
-            "아니면 ⑤에서 연결해요.",
-          "mcp", "④ 연결로 가기"
-        );
+        setNextAction("팩 준비됨", "mcp", "연결 →");
       }
     } catch (_) {
       $("#next-action").classList.add("hidden");
@@ -3165,7 +3207,7 @@
           out.innerHTML =
             "제안 <strong>" + fresh + "건</strong>이 도착했어요! 이제 3번 — " +
             "직접 골라줄 차례예요. <button type='button' class='btn btn-primary'" +
-            " data-goto='review'>검토하러 가기 →</button>";
+            " data-goto='review'>검토 →</button>";
           loadHome();
           loadProposals();
           return;

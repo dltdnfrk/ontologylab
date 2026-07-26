@@ -29,7 +29,7 @@
 
    JS가 토글하거나 질의하는 선택자는 이름을 바꾸지 말 것:
    .hidden  .active  .tab-panel  .inspector-open  .row-focused  .selected
-   .journey-done  .empty-state-card  .conf-cell(--v)  .is-ok/.is-todo
+   .empty-state-card  .conf-cell(--v)  .is-pending  .board-row
    .st-* / .kind-*  .actions  .merge-actions  .row-check  .status-row
    body[data-active-tab]
    그래프는 특히 조심 — circle 의 fill/r 과 g.g-node·#graph-root 의 transform 은
@@ -528,6 +528,7 @@ body {
 
 .statusbar {
   grid-column: 1 / -1;
+  grid-row: 3;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -576,18 +577,17 @@ header.app-header {
   padding: 0 var(--sp-4);
 }
 
-.brand { display: flex; align-items: baseline; gap: var(--sp-3); }
-/* 워드마크도 본문과 같은 서체다. 예전에는 Outfit(별도 표시용 서체)을
-   썼는데, Terminal X의 로고가 그렇듯 구분은 서체 교체가 아니라 자간과
-   크기로 만드는 편이 조용하다 — 그리고 서체가 하나면 어긋날 일이 없다. */
+.brand { display: flex; align-items: baseline; gap: var(--sp-3); flex: none; }
+/* 워드마크도 본문과 같은 서체다. 구분은 서체 교체가 아니라 자간으로 —
+   대문자 + 벌린 자간이면 12px로도 명패가 된다. 슬로건은 뗐다: 단말의
+   헤더는 이름과 명령줄이지 문장이 아니다. */
 .brand h1 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--fs-md);
-  font-weight: var(--fw-bold);
-  letter-spacing: var(--ls-display);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.14em;
 }
-.brand p { margin: 0; font-size: var(--fs-sm); color: var(--muted-foreground); }
 
 .header-status { display: flex; align-items: center; gap: 0.5rem; min-height: 2.1rem; }
 
@@ -595,7 +595,7 @@ header.app-header {
 
 nav.tabs {
   grid-column: 1;
-  grid-row: 2 / 4;
+  grid-row: 2;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -671,7 +671,7 @@ nav.tabs .tab-btn.active .nav-ic { opacity: 1; color: var(--sidebar-primary); }
 
 main {
   grid-column: 2;
-  grid-row: 3;
+  grid-row: 2;
   overflow-y: auto;
   padding: var(--sp-6) var(--sp-6) var(--sp-7);
 }
@@ -681,11 +681,13 @@ main {
 .tab-panel { display: none; max-width: var(--content-max); margin: 0 auto; }
 .tab-panel.active { display: block; }
 
+/* 화면 제목은 명패지 표제가 아니다 — 22px 표제는 잡지의 문법이고,
+   단말은 17px 이름 + 옆의 한 줄 규칙(.screen-head)로 충분하다. */
 .tab-panel h2 {
   margin: 0 0 var(--sp-2);
-  font-size: var(--fs-display);
+  font-size: var(--fs-lg);
   font-weight: var(--fw-bold);
-  letter-spacing: var(--ls-display);
+  letter-spacing: var(--ls-tight);
   line-height: var(--lh-tight);
 }
 
@@ -698,9 +700,7 @@ main {
 
 /* 산문은 폭을 묶는다. 패널이 1080px이라고 문장까지 1080px로 흐르면
    한 줄이 100자를 넘어 눈이 다음 줄 첫머리를 잃는다. */
-.tab-intro,
 .tab-panel > p,
-.journey-body p,
 .empty-state-card p {
   max-width: var(--measure);
 }
@@ -709,19 +709,7 @@ main {
    마크업돼 있어서 위 규칙에 걸리면 테두리 상자만 혼자 반쪽 폭이 되어
    바로 위 결과 박스와 어긋나 보인다. 상자는 콘텐츠 폭을 따른다. */
 .tab-panel > p.empty-state-card,
-.tab-panel > p.status-box,
-.tab-panel > p.kbd-hint { max-width: none; }
-
-.tab-intro {
-  margin: var(--sp-3) 0 var(--sp-5);
-  padding: 0;
-  background: none;
-  border: 0;
-  border-radius: 0;
-  color: var(--muted-foreground);
-  font-size: var(--fs-base);
-  line-height: var(--lh-body);
-}
+.tab-panel > p.status-box { max-width: none; }
 
 /* ---------- 7. Controls ---------- */
 
@@ -818,7 +806,7 @@ button.mcpb-btn {
 button.mcpb-btn,
 .btn-primary, .btn.primary,
 #collect-submit, #extract-submit, #research-submit, #research-cancel,
-.journey-actions .btn, .form-actions .btn {
+.form-actions .btn {
   border-color: var(--border);
 }
 
@@ -953,17 +941,45 @@ button:focus-visible, .btn:focus-visible, .step:focus-visible,
 .tab-panel > .form-actions,
 .review-main > .form-actions { margin: var(--sp-4) 0; }
 
-.adv-opts { grid-column: 1 / -1; }
-.adv-opts summary {
-  cursor: pointer;
-  color: var(--muted-foreground);
-  font-size: var(--fs-sm);
+/* 접힌 보조 경로도 패널 문법을 따른다 — 열기 전에는 라벨 한 줄, 열면
+   그 아래가 패널 본문이 된다. 예전엔 맨몸 텍스트라 화면에서 유일하게
+   상자에 담기지 않은 요소였고, 그래서 미완성처럼 보였다. */
+.adv-opts {
+  grid-column: 1 / -1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  margin-top: var(--sp-3);
 }
+.adv-opts > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 30px;
+  padding: 0 var(--sp-3);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.adv-opts > summary::-webkit-details-marker { display: none; }
+.adv-opts > summary::before {
+  content: "▸";
+  flex: none;
+  transition: transform 0.12s ease;
+}
+.adv-opts[open] > summary::before { transform: rotate(90deg); }
+.adv-opts[open] > summary { border-bottom: 1px solid var(--border); }
+.adv-opts > summary:hover { color: var(--foreground); }
+.adv-opts > form,
+.adv-opts > .status-box { padding: var(--sp-3); }
 .adv-opts label {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  margin-top: 0.55rem;
   max-width: 320px;
 }
 
@@ -1133,20 +1149,14 @@ code {
 
 /* ---------- 12. Header pills ---------- */
 
-.next-action {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  flex-wrap: wrap;
-  margin: 0;
-  padding: 0.32rem 0.45rem 0.32rem 0.85rem;
+/* 다음 할 일 — 문장이 아니라 칩 하나. 문장은 홈 현황판이 한다. */
+.next-action { display: flex; align-items: center; margin: 0; }
+.next-action .btn {
+  border-color: var(--border);
   font-size: var(--fs-sm);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  border: 1px solid var(--border);
+  color: var(--warn-text);
 }
-.next-action strong { color: var(--accent); font-weight: var(--fw-bold); }
-.next-action .btn { padding: 0.26rem 0.7rem; font-size: var(--fs-sm); }
+.next-action .btn:hover { color: var(--foreground); }
 
 #home-error { margin: 0; font-size: var(--fs-sm); }
 
@@ -1244,15 +1254,6 @@ code {
 /* j/k로 이동한 행이 sticky 헤더 밑에 숨지 않도록 여유를 준다 */
 #proposals-body tr { scroll-margin-top: 88px; }
 
-/* 부제는 본문을 도와야지 본문보다 크게 외치면 안 된다.
-   이전엔 포인트색 + 굵기 600이라 화면에서 가장 먼저 눈에 들어왔다. */
-.hitl-subtitle {
-  margin: 0 0 var(--sp-3);
-  color: var(--muted-foreground);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-normal);
-}
-
 /* 집계는 '읽는 숫자'지 '누르는 칩'이 아니다. 이전에는 알약 테두리를 둘러서
    입력 컨트롤처럼 보였다. 값을 위로 올려 크게 두고 이름을 아래 작게 깔면
    숫자가 먼저 읽힌다. 검토 대기 둘만 제안 상태색을 입어, 지금 손봐야 할
@@ -1323,7 +1324,6 @@ code {
 .critic-band label { display: flex; align-items: center; gap: var(--sp-2); }
 .critic-band select { width: auto; min-width: 120px; }
 
-.kbd-hint { text-align: right; margin: var(--sp-2) 0; }
 
 /* 마지막 결정 옆의 되돌리기 — 영수증이 아니라 손잡이여야 한다.
    이전에는 "승인됨: X" 라는 문구만 남고 되돌릴 방법이 없었다. */
@@ -1474,93 +1474,209 @@ tr.row-focused {
   font-weight: var(--fw-normal);
 }
 
-/* ---------- 14. Journey (home) ---------- */
+/* ---------- 14. Panels & board ---------- */
 
-/* 네 걸음은 서로 이어진 하나의 절차다. 이전에는 똑같은 전폭 카드 4개가
-   쌓여 있어서 순서도 진행도 읽히지 않았고, 카드는 1080px인데 글은 700px에서
-   끝나 오른쪽이 통째로 비어 보였다. 번호를 세로선으로 꿰어 체크리스트로
-   만들면 카드 배경이 사라지므로 남는 폭이 여백으로 읽힌다. */
-.journey {
-  display: flex;
-  flex-direction: column;
-  margin: var(--sp-5) 0 var(--sp-6);
-  max-width: 760px;
+/* 패널이 이 UI의 기본 면이다. 제목(h3) 아래 표가 떠 있던 구조를,
+   라벨 띠를 머리에 인 헤어라인 상자로 바꾼다 — 단말의 화면이 창(윈도)들의
+   격자인 것과 같은 구조. 그림자·둥근 모서리로 띄우지 않고 테두리 한 줄과
+   면 밝기 차이로만 구분한다. */
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin: var(--sp-4) 0 0;
 }
 
-.journey-step {
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
-  gap: 0 var(--sp-4);
-  padding: 0 0 var(--sp-5);
-  position: relative;
-}
-
-/* 번호를 잇는 세로 스파인 (마지막 걸음 뒤로는 이어지지 않는다) */
-.journey-step::before {
-  content: "";
-  position: absolute;
-  left: 12px;
-  top: 30px;
-  bottom: 0;
-  width: 1px;
-  background: var(--border);
-}
-.journey-step:last-of-type { padding-bottom: 0; }
-.journey-step:last-of-type::before { display: none; }
-
-.journey-no {
-  position: relative;
-  z-index: 1;
-  width: 26px;
-  height: 26px;
-  font-size: var(--fs-xs);
-  border-radius: 50%;
+.panel-head {
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: var(--background);
-  border: 1px solid var(--border);
-  color: var(--muted-foreground);
+  gap: var(--sp-3);
+  min-height: 30px;
+  padding: 0 var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+.panel-head-sub { border-top: 1px solid var(--border); }
+
+.panel-label {
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-}
-
-.journey-done .journey-no {
-  background: var(--ok);
-  border-color: var(--ok);
-  color: var(--card);
-  font-size: 0;
-}
-.journey-done .journey-no::after { content: "✓"; font-size: var(--fs-sm); }
-
-.journey-body { min-width: 0; }
-.journey-body > strong {
-  font-size: var(--fs-md);
-  font-weight: var(--fw-bold);
-  letter-spacing: var(--ls-tight);
-}
-.journey-body p { margin: var(--sp-1) 0 var(--sp-3); color: var(--muted-foreground); }
-.journey-actions { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; }
-
-/* 끝난 걸음도 다시 실행할 수 있다. 이전에는 opacity:0.5 때문에 눌리는
-   버튼이 '비활성'처럼 보였다 — 흐리게 하는 대신 한 단계 조용한 버튼으로. */
-.journey-done .journey-body > strong { color: var(--muted-foreground); }
-.journey-done .journey-actions .btn-primary {
-  background: transparent;
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
   color: var(--muted-foreground);
-  border-color: var(--border);
+  white-space: nowrap;
 }
-.journey-done .journey-actions .btn-primary:hover {
+.panel-figure {
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
   color: var(--foreground);
-  border-color: var(--muted-foreground);
+}
+.panel-note {
+  font-size: var(--fs-label);
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel-act { margin-left: auto; font-size: var(--fs-xs); white-space: nowrap; }
+
+/* 패널 속 표는 제 테두리를 벗는다 — 액자 안에 액자를 걸지 않는다. */
+.panel .table-wrap {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
 }
 
-#journey-done {
-  padding: 1rem 1.2rem;
-  border: 1px solid color-mix(in srgb, var(--ok) 50%, transparent);
-  border-radius: var(--radius-lg);
-  background: var(--card);
-  box-shadow: var(--shadow-soft);
+.panel-body { padding: var(--sp-3); }
+.panel-body.row { gap: var(--sp-2); }
+.panel-body .btn { border-color: var(--border); }
+.panel-body-note { margin: 0; padding: var(--sp-2) var(--sp-3) var(--sp-3); }
+.panel-body p:first-child { margin-top: 0; }
+.panel-body p:last-child { margin-bottom: 0; }
+
+.board-empty {
+  margin: 0;
+  padding: var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
 }
+
+/* 홈 현황판: 큐가 전폭, 실행·저장소가 반씩, 시작이 전폭. */
+.board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+.board .panel { margin: 0; }
+.board-span { grid-column: 1 / -1; }
+
+.board-list { list-style: none; margin: 0; padding: 0; }
+.board-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  height: 30px;
+  padding: 0 var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.board-row:last-child { border-bottom: none; }
+.board-row:hover { background: var(--muted); }
+.board-kind {
+  flex: none;
+  min-width: 3em;
+  font-size: var(--fs-label);
+  color: var(--muted-foreground);
+}
+.board-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.board-num {
+  flex: none;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+}
+.kpi { display: flex; flex-direction: column; gap: 2px; }
+.kpi-n {
+  font-family: var(--mono);
+  font-size: 20px;
+  line-height: var(--lh-tight);
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+.kpi-n.is-pending { color: var(--warn-text); }
+.kpi-l {
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* 실행 중 표시등. 상승 초록 — 값이 움직이고 있다는 뜻으로만 쓴다. */
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes live-pulse { 50% { opacity: 0.35; } }
+
+/* 런 바 — 주제 → 실행이 한 줄. 폼 격자가 아니라 명령줄이다. */
+.runbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.runbar > input[type="text"],
+.runbar > input[type="password"] { flex: 1 1 240px; }
+.runbar > select { width: auto; flex: none; }
+.runbar > input[type="number"] { width: 64px; flex: none; }
+.runbar .check-line { flex: none; }
+.runbar .btn { border-color: var(--border); }
+
+/* 화면 머리 — 큰 제목 대신 이름 + 한 줄 규칙. */
+.screen-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  margin: 0 0 var(--sp-4);
+  min-width: 0;
+}
+.screen-head h2 { margin: 0; }
+
+/* 헤더 커맨드 라인 — 입력창처럼 그린 팔레트 손잡이. */
+.cmdline {
+  flex: 0 1 420px;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 28px;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  background: var(--background);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  min-width: 0;
+}
+.cmdline:hover { border-color: var(--muted-foreground); color: var(--foreground); }
+.cmdline-prompt { font-family: var(--mono); color: var(--ok-text); flex: none; }
+.cmdline-hint {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cmdline kbd {
+  flex: none;
+  border: none;
+  background: var(--muted);
+  padding: 0.1em 0.4em;
+  font-size: var(--fs-label);
+  border-radius: 3px;
+  color: var(--muted-foreground);
+}
+
 
 /* ---------- 15. Cards (MCP / merge) ---------- */
 
@@ -1778,14 +1894,42 @@ tr.row-focused {
 #graph-info .row { margin-top: 0.55rem; }
 #graph-info .btn { font-size: var(--fs-sm); padding: 0.3rem 0.65rem; }
 
-/* ---------- 18. Viewport floor / motion ---------- */
+/* ---------- 18. Narrow viewport / motion ---------- */
 
-/* 데스크톱 웹앱 전용이다. 모바일 리플로우(레일을 가로 스크롤로 눕히고
-   검토를 1열로 접던 규칙들)는 걷어냈다 — 쓰지 않는 레이아웃을 두 벌
-   유지하면 한쪽은 반드시 조용히 썩고, 실제로 그중 일부는 이미 사라진
-   .inspector-open 열 규칙을 붙들고 있었다.
-   좁은 창에서는 무너뜨리는 대신 최소 폭을 지키고 창이 스크롤되게 둔다. */
-body { min-width: 1080px; }
+/* 이 앱이 실제로 열리는 곳은 IDE 옆의 aside 패널(~500px)이다. 예전의
+   "최소 1080px + 창 스크롤" 결정은 그 현실과 부딪혀 매 화면에 가로
+   스크롤을 만들었다. 두 벌의 레이아웃을 유지하지 않기 위해 규칙은 이
+   블록 하나뿐이다: 레일은 아이콘만 남고, 격자는 한 열로 눕는다.
+   표는 각자 .table-wrap 안에서 가로 스크롤한다 — 본문은 절대 옆으로
+   흐르지 않는다. */
+@media (max-width: 860px) {
+  body { grid-template-columns: 48px minmax(0, 1fr); }
+  .nav-label, .nav-group-label, .nav-rail-footer, .nav-stat { display: none; }
+  nav.tabs { padding: var(--sp-2) var(--sp-1); }
+  nav.tabs .tab-btn { justify-content: center; padding: 0; height: 34px; }
+  .nav-ic { width: 16px; height: 16px; }
+  .tab-badge { position: absolute; transform: translate(10px, -9px); }
+  nav.tabs .tab-btn { position: relative; }
+
+  .brand { display: none; }         /* 이름은 탭 제목이 이미 말한다 */
+  .cmdline { flex: 1; }
+  main { padding: var(--sp-4) var(--sp-3) var(--sp-6); }
+
+  .board { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .form-grid { grid-template-columns: 1fr; }
+
+  /* 검토 2열은 폭이 있어야 성립한다 — 좁으면 큐 아래로 근거가 눕는다. */
+  #tab-review.active { display: block; }
+  .review-side { position: static; max-height: none; margin-top: var(--sp-4); }
+
+  /* 상태바는 26px 한 줄이 전제다. 좁아지면 두 덩이가 다 들어갈 수 없어
+     줄바꿈으로 넘쳤다 — 저장소 숫자는 홈 현황판이 이미 말하므로 그쪽을
+     접고 단축키만 남긴다(그 키는 지금 이 화면에서만 쓸 수 있는 정보다). */
+  .statusbar { flex-wrap: nowrap; overflow: hidden; }
+  .statusbar-state { display: none; }
+  .statusbar-keys { flex-wrap: nowrap; overflow: hidden; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
