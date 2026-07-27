@@ -1,7 +1,11 @@
 # runtime / build artifacts — never committed
 .venv/
-data/
-packs/
+# No trailing slash: after launcher/move-data-out-of-icloud.sh these are
+# symlinks into ~/Library/Application Support, and `data/` matches only a
+# directory — so the recommended layout left them showing as untracked.
+# They hold an absolute, per-machine path either way.
+data
+packs
 __pycache__/
 *.egg-info/
 *.pyc

@@ -50,6 +50,17 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    from ontologylab.paths import icloud_refusal
+
+    # Same shape as the --allow-remote refusal below, for the same reason:
+    # a default that quietly publishes the knowledge graph. That one puts it
+    # on the network; this one puts it on Apple's servers.
+    synced = icloud_refusal(
+        {"--data-dir": args.data_dir, "--packs-dir": args.packs_dir}
+    )
+    if synced:
+        parser.error(synced)
+
     from ontologylab.server.security import is_local_hostname
 
     if not is_local_hostname(args.host) and not args.allow_remote:

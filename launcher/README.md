@@ -2,6 +2,18 @@
 
 앱 아이콘을 클릭하면 로컬 대시보드 서버가 뜨고 브라우저가 자동으로 열립니다 — Claude science처럼 로컬 페이지로 넘어가는 방식입니다.
 
+## 0. 새 기계에 클론했다면 — iCloud부터
+
+이 저장소를 `~/Documents` 아래에 두고 macOS의 **'Desktop & Documents' iCloud 동기화**가 켜져 있으면, 기본 경로(`ROOT/data`, `ROOT/packs`)에 쌓이는 지식그래프·원문·팩이 전부 Apple 서버로 올라갑니다. `~/Documents/...`와 CloudDocs 쪽 경로는 심볼릭 링크가 아니라 **같은 디렉터리**라서, 경로만 봐서는 알 수 없습니다.
+
+```bash
+bash launcher/move-data-out-of-icloud.sh
+```
+
+`data/`와 `packs/`를 `~/Library/Application Support/ontologylab/`(동기화 대상 아님)로 옮기고 원래 자리에 심볼릭 링크를 남깁니다. 그 링크는 `.gitignore` 대상이라 **클론에는 따라오지 않으므로, 기계마다 한 번씩 실행해야 합니다.**
+
+잊어버려도 데이터가 새지는 않습니다 — 서버와 CLI가 동기화되는 경로를 거부하고 이 명령을 안내합니다(`ontologylab/paths.py`의 `icloud_refusal`). 의도적으로 그 경로를 쓰려면 `ONTOLOGYLAB_ALLOW_ICLOUD=1`을 설정하세요.
+
 ## 1. 앱 만들기 (최초 1회)
 
 먼저 venv가 있어야 합니다:

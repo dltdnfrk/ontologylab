@@ -1381,6 +1381,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
+    # Checked here rather than per-subcommand: every subcommand that touches
+    # the store reaches it through --data-dir/--packs-dir, and a guard that
+    # each new subcommand has to remember is a guard that lapses.
+    checked = {
+        flag: getattr(args, attr)
+        for flag, attr in (("--data-dir", "data_dir"), ("--packs-dir", "packs_dir"))
+        if getattr(args, attr, None) is not None
+    }
+    synced = paths.icloud_refusal(checked)
+    if synced:
+        parser.error(synced)
     raise SystemExit(args.func(args))
 
 

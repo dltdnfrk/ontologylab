@@ -47,6 +47,99 @@ def default_packs_dir(root: Path | None = None) -> Path:
     return (root or ROOT) / "packs"
 
 
+# ---------------------------------------------------------------------------
+# iCloud guard
+# ---------------------------------------------------------------------------
+
+# Set to any non-empty value to proceed anyway. Deliberately an environment
+# variable rather than a flag: this is a property of where the checkout
+# lives, not of one invocation, and a flag would get pasted into scripts.
+ALLOW_ICLOUD_ENV: str = "ONTOLOGYLAB_ALLOW_ICLOUD"
+
+_CLOUD_ROOT_PARTS = ("Library", "Mobile Documents")
+_CLOUD_DOCS = "com~apple~CloudDocs"
+# The two folders macOS 'Desktop & Documents' syncing takes over.
+_SYNCED_HOME_FOLDERS = ("Documents", "Desktop")
+
+
+def _is_same_dir(a: Path, b: Path) -> bool:
+    """True when both names denote one directory (same device + inode)."""
+    try:
+        sa, sb = a.stat(), b.stat()
+    except OSError:
+        return False
+    return (sa.st_dev, sa.st_ino) == (sb.st_dev, sb.st_ino)
+
+
+def _within(child: Path, parent: Path) -> bool:
+    return child == parent or parent in child.parents
+
+
+def icloud_sync_reason(path: Path | str, home: Path | None = None) -> str | None:
+    """Explain why ``path`` would be uploaded to iCloud, or return None.
+
+    A knowledge graph is the whole private asset here — raw documents, the
+    entity store, built packs. This repo lives under ``~/Documents``, and
+    macOS 'Desktop & Documents' syncing silently makes that the same
+    directory as ``~/Library/Mobile Documents/…/Documents``. Writing to the
+    default ``ROOT/data`` therefore ships everything to Apple.
+
+    That trap was already documented — in the launchd plist and in
+    ``launcher/move-data-out-of-icloud.sh`` — and the documentation did not
+    stop it: a server was started here without ``--data-dir`` and wrote a
+    store straight into the synced path. Prose cannot refuse; this can.
+
+    The second case is the one worth the inode comparison. A synced
+    ``~/Documents`` is not a symlink, so ``resolve()`` leaves the path
+    looking perfectly ordinary — the only reliable tell is that it and its
+    CloudDocs twin are one directory.
+    """
+    home = home or Path.home()
+    candidate = Path(path).expanduser()
+    try:
+        candidate = candidate.resolve()
+    except OSError:  # pragma: no cover — unreadable mount
+        candidate = candidate.absolute()
+
+    cloud_root = home.joinpath(*_CLOUD_ROOT_PARTS)
+    if _within(candidate, cloud_root):
+        return f"{candidate} is inside iCloud Drive ({cloud_root})"
+
+    for folder in _SYNCED_HOME_FOLDERS:
+        local = home / folder
+        twin = cloud_root / _CLOUD_DOCS / folder
+        if _within(candidate, local) and _is_same_dir(local, twin):
+            return (
+                f"{candidate} is under ~/{folder}, which macOS "
+                f"'Desktop & Documents' syncing has made the same directory "
+                f"as {twin}"
+            )
+    return None
+
+
+def icloud_refusal(paths: dict[str, Path | str], home: Path | None = None) -> str | None:
+    """Compose the refusal message for any synced path, or return None.
+
+    ``paths`` maps a user-facing label (``--data-dir``) to its value, so the
+    message can name the switch the caller actually typed.
+    """
+    if os.environ.get(ALLOW_ICLOUD_ENV):
+        return None
+    for label, value in paths.items():
+        reason = icloud_sync_reason(value, home=home)
+        if reason is None:
+            continue
+        return (
+            f"refusing to use {label}={value!s}: {reason}.\n"
+            f"Your knowledge graph, source documents and packs would be "
+            f"uploaded to Apple's servers.\n"
+            f"Fix it once with: bash launcher/move-data-out-of-icloud.sh\n"
+            f"or pass an explicit path outside ~/Documents and ~/Desktop, "
+            f"or set {ALLOW_ICLOUD_ENV}=1 if you genuinely want this."
+        )
+    return None
+
+
 def kg_db_path(data_dir: Path | str) -> Path:
     """Return the working knowledge-graph sqlite file under ``data_dir``."""
     return Path(data_dir) / "kg.sqlite"
