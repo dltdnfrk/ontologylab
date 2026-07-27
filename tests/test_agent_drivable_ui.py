@@ -167,6 +167,77 @@ def test_the_status_bar_survives_the_narrow_pane_it_runs_in() -> None:
 # --------------------------------------------------------------------------
 
 
+# --------------------------------------------------------------------------
+# Row actions must name what they act on
+# --------------------------------------------------------------------------
+
+
+def test_a_row_action_names_the_proposal_it_would_act_on() -> None:
+    """The sharpest edge in the app, given who is clicking.
+
+    Thirteen buttons all named "승인" leave a driver nothing to choose by
+    except position — and this list is sorted by confidence and re-fetched
+    after every decision, so position is not stable between reading the
+    page and clicking it. The product's one promise is that only what a
+    person approved becomes knowledge; an approval whose target is
+    ambiguous breaks that promise without any error.
+    """
+    for action in ("승인", "거부", "자세히", "선택"):
+        assert f'"{action}: " + what' in SCRIPT or \
+               f'"{action}: " + what' in SCRIPT.replace("'", '"'), \
+               f"the {action} control must name its target"
+
+
+def test_the_target_name_carries_both_kind_and_label() -> None:
+    """`관계 A → B` and `개념 A` are different things that can share a name."""
+    assert 'var what = kindKo(item.kind) + " " + label;' in SCRIPT
+
+
+def test_a_control_is_not_named_by_its_own_help_text() -> None:
+    """`title` is a description; readers hand it out as the name when no
+    name exists, which turned the critic button into a sentence and every
+    "자세히" into the same sentence."""
+    assert 'aria-label="크리틱 실행"' in MARKUP
+    assert 'aria-describedby="critic-run-help"' in MARKUP
+    assert 'id="critic-run-help"' in MARKUP
+
+
+def test_a_control_is_not_named_by_its_current_value() -> None:
+    """A select named "확신도 낮은 순" tells a driver what is chosen, never
+    what the control is for."""
+    assert 'id="review-order" aria-label="검토 목록 정렬"' in MARKUP
+    assert 'id="critic-engine" aria-label="크리틱 채점에 쓸 엔진"' in MARKUP
+
+
+@pytest.mark.parametrize(
+    ("element_id", "name"),
+    [
+        ("research-topic", "리서치 주제"),
+        ("palette-input", "화면 이동 또는 개체 검색"),
+        ("source-id", "키를 연결할 논문 소스"),
+        ("source-key", "API 키"),
+    ],
+)
+def test_an_input_has_a_name_and_not_merely_a_placeholder(
+    element_id: str, name: str
+) -> None:
+    """Placeholders vanish on the first keystroke and are not names.
+
+    These four were unnamed, and two of them are the app's main verbs: the
+    research topic and the command palette.
+    """
+    tag = re.search(rf'<(?:input|select)[^>]*id="{element_id}"[^>]*>', MARKUP, re.S)
+    if tag is None:
+        tag = re.search(rf'<(?:input|select)[^>]*id="{element_id}"[^>]*?>', MARKUP)
+    assert tag, f"{element_id} not found"
+    assert f'aria-label="{name}"' in tag.group(0)
+
+
+# --------------------------------------------------------------------------
+# State that colour alone would hide
+# --------------------------------------------------------------------------
+
+
 def test_a_failed_source_says_so_in_text_not_only_in_colour() -> None:
     """Amber is invisible to a DOM reader and to a colour-blind user alike.
 

@@ -114,6 +114,7 @@
         <div class="composer-input">
           <span class="composer-prompt" aria-hidden="true">?</span>
           <input type="text" id="research-topic" autocomplete="off"
+                 aria-label="리서치 주제"
                  placeholder="무엇을 알고 싶으세요? (예: CRISPR off-target effects)" />
           <button type="submit" id="research-submit" class="btn btn-primary">리서치 시작</button>
           <button type="button" id="research-cancel" class="btn hidden">중단</button>
@@ -260,9 +261,9 @@
         <div class="form-actions">
           <!-- 새로고침은 보조 동작이다. 이전에는 이것만 진한 버튼이라
                정작 결정 동작(선택 승인/거부)보다 먼저 눈에 들어왔다. -->
-          <button type="button" id="refresh-btn" class="btn">새로고침</button>
+          <button type="button" id="refresh-btn" class="btn" aria-label="검토 목록 새로고침">새로고침</button>
           <label>정렬
-            <select id="review-order">
+            <select id="review-order" aria-label="검토 목록 정렬">
               <option value="confidence" selected>확신도 낮은 순</option>
               <option value="critic">크리틱 점수 낮은 순</option>
               <option value="created">오래된 순</option>
@@ -274,10 +275,15 @@
         <div class="critic-band">
           <span class="critic-band-label">크리틱 — 참고 채점</span>
           <label>엔진
-            <select id="critic-engine"></select>
+            <select id="critic-engine" aria-label="크리틱 채점에 쓸 엔진"></select>
           </label>
+          <!-- title을 두면 리더가 그 문장을 버튼 이름으로 삼아, 이름이
+               "다른 AI 엔진으로 대기 항목을…"이 된다. 이름은 동작으로,
+               설명은 description으로 나눈다. -->
           <button type="button" id="critic-run-btn" class="btn"
-            title="다른 AI 엔진으로 대기 항목을 다시 채점해 참고 점수를 채웁니다 (자동 승인 아님)">크리틱 실행</button>
+            aria-label="크리틱 실행"
+            aria-describedby="critic-run-help">크리틱 실행</button>
+          <span id="critic-run-help" class="sr-only">다른 AI 엔진으로 대기 항목을 다시 채점해 참고 점수를 채웁니다. 자동 승인이 아닙니다.</span>
           <span class="muted"><small>자동 승인되지 않아요 · 결정은 항상 사용자가 해요</small></span>
         </div>
         <div id="critic-result" class="status-box result-box hidden"></div>
@@ -607,11 +613,12 @@
           <!-- 자유 입력이 아니라 선택. 키는 소스 id로만 조회되므로
                이름을 직접 적게 두면 키체인에는 저장되고 어떤 소스도
                읽지 않는 상태가 조용히 만들어진다. -->
-          <select id="source-id"></select>
+          <select id="source-id" aria-label="키를 연결할 논문 소스"></select>
           <!-- type=password + autocomplete=off: the value must not linger
                in the browser's save-password flow, and JS clears the field
                the moment the request returns. -->
           <input type="password" id="source-key" placeholder="API 키 붙여넣기"
+                 aria-label="API 키"
                  autocomplete="off" spellcheck="false" />
           <button type="submit" id="source-submit" class="btn btn-primary">연결</button>
         </form>
@@ -648,6 +655,7 @@
        aria-label="명령 팔레트">
     <div class="palette">
       <input type="text" id="palette-input" autocomplete="off" spellcheck="false"
+        aria-label="화면 이동 또는 개체 검색"
         placeholder="화면 이동, 또는 개체 이름 검색…" aria-controls="palette-list" />
       <ul id="palette-list" class="palette-list" role="listbox"></ul>
       <div class="palette-foot">

@@ -338,12 +338,19 @@ def test_the_form_offers_the_connectable_sources_and_no_free_text() -> None:
     There is no JS test harness here, so this checks the one structural
     property that keeps the trap shut: the source is chosen from a list.
     """
+    import re
+
     from ontologylab.server.app import WEB_DIR
 
     markup = (WEB_DIR / "index.html").read_text(encoding="utf-8")
 
-    assert '<select id="source-id">' in markup
-    assert 'id="source-id"' not in markup.replace('<select id="source-id">', "")
+    # The rule is "chosen from a list", not one exact spelling of the tag —
+    # an earlier version matched `<select id="source-id">` literally and
+    # broke the moment the element gained an aria-label, which changes
+    # nothing about the rule.
+    assert re.search(r'<select[^>]*\bid="source-id"', markup)
+    assert not re.search(r'<input[^>]*\bid="source-id"', markup), \
+        "a free-text name would let a key be filed where nothing reads it"
 
 
 def test_the_endpoint_never_returns_a_key_value(tmp_path, monkeypatch) -> None:

@@ -644,10 +644,18 @@
         /* 크리틱 점수·근거는 근거 패널(renderEvidence)에서 보여준다. 표에
            같이 두면 좁은 칸에 80자로 잘린 이유가 들어가 읽히지도 않고,
            결정 직전에 점수부터 눈에 들어와 앵커링을 만든다. */
+        // 이름은 행마다 달라야 한다. 열세 행의 승인 버튼이 모두 "승인"이면
+        // 조작하는 쪽은 위치로 고를 수밖에 없는데, 이 목록은 확신도 순이라
+        // 한 건을 처리할 때마다 재정렬된다 — 위치로 고른 클릭은 방금 읽은
+        // 그 항목이 아닐 수 있다. 이 앱의 약속이 "직접 승인한 것만
+        // 지식이 된다"이므로, 무엇을 승인하는지 모르는 승인은 그 약속을
+        // 조용히 깬다. Aside의 AI가 이 화면을 몰면 특히 그렇다.
+        var label = itemLabel(item);
+        var what = kindKo(item.kind) + " " + label;
         tr.innerHTML =
           "<td><input type='checkbox' class='row-check' data-id='" +
           escapeHtml(item.id || "") +
-          "' aria-label='선택'></td>" +
+          "' aria-label='" + escapeHtml("선택: " + what) + "'></td>" +
           "<td>" +
           kindKo(item.kind) +
           "</td>" +
@@ -670,12 +678,17 @@
         var approveBtn = document.createElement("button");
         approveBtn.className = "btn btn-primary";
         approveBtn.textContent = "승인";
+        // 보이는 글자는 짧게, 이름은 대상을 못 박아서. 승인은 되돌릴 수는
+        // 있어도 되돌려야 하는 일이므로, 무엇에 대한 승인인지가 클릭하는
+        // 쪽에 반드시 보여야 한다.
+        approveBtn.setAttribute("aria-label", "승인: " + what);
         approveBtn.addEventListener("click", function () {
           act("approve", item.id);
         });
         var rejectBtn = document.createElement("button");
         rejectBtn.className = "btn btn-danger";
         rejectBtn.textContent = "거부";
+        rejectBtn.setAttribute("aria-label", "거부: " + what);
         rejectBtn.addEventListener("click", function () {
           act("reject", item.id);
         });
@@ -687,6 +700,10 @@
           focusBtn.className = "btn";
           focusBtn.textContent = "자세히";
           focusBtn.title = "이 개념의 모든 출처와 관계를 함께 보기";
+          // title이 있으면 리더가 그것을 이름으로 삼아 "이 개념의 모든
+          // 출처와…"라는 문장이 버튼 이름이 됐다 — 열세 개가 전부 같은
+          // 문장이라 대상 구분도 안 됐다.
+          focusBtn.setAttribute("aria-label", "자세히: " + what);
           focusBtn.addEventListener("click", function () {
             loadEntityPanel(item.id);
           });
