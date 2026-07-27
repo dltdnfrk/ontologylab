@@ -37,6 +37,7 @@ from ontologylab.extractor import run_extraction, unprocessed_doc_ids
 from ontologylab.kgstore import KGStore, KGStoreError
 from ontologylab.paths import NetworkBlocked
 from ontologylab.provenance import Provenance
+from ontologylab.searchquery import formulate_search_query
 from ontologylab.safety import Caps
 
 _PROGRESS_MAXLEN = 50
@@ -183,6 +184,23 @@ class Job:
                 "progress": list(self.progress),
                 "error": self.error,
             }
+
+
+def _source_event_line(kind: str, source: str, detail: object) -> str:
+    """One human-readable line per per-source event.
+
+    The job log is what the dashboard streams, so these strings are the
+    progress display — not debug output. `source_start` matters most: it is
+    the only signal that anything is happening during a fan-out that can sit
+    silent for thirty seconds.
+    """
+    if kind == "source_start":
+        return f"[ontologylab] querying {source}"
+    if kind == "source_ok":
+        return f"[ontologylab] {source} returned {detail} result(s)"
+    if kind == "source_failed":
+        return f"[ontologylab] {source} did not answer ({detail})"
+    return f"[ontologylab] {source}: {kind}"
 
 
 class JobRegistry:
@@ -598,10 +616,49 @@ class JobRegistry:
                 job.log("[ontologylab] cancelled before collecting")
                 return job.cancel_reason()
 
+            # The topic is what a person typed; the query is what a keyword
+            # index can answer. Sending the former verbatim is what returned
+            # Muon g-2 papers for an apple-rootstock question — arXiv matched
+            # "G-11" as "g"+"11", Crossref matched the Korean ending
+            # "에 대해서". Ask the engine to write the query first.
+            try:
+                query_engine = get_engine(
+                    job.engine, job.model, seed=seed, data_dir=self.data_dir
+                )
+            except EngineError as exc:
+                # Not fatal here. The extract phase resolves the engine again
+                # and will fail loudly if it is genuinely unusable; the search
+                # just goes ahead unformulated rather than the run dying at
+                # the first step.
+                query_engine = None
+                job.log(f"[ontologylab] engine unavailable for query: {exc}")
+            search_query, query_usage = await formulate_search_query(
+                topic, query_engine, model=job.model
+            )
+            provenance.log(
+                "research.query",
+                {"topic": topic, "query": search_query, "usage": query_usage},
+            )
+            if query_usage.get("error"):
+                # Say so rather than let a raw-topic search look like a
+                # formulated one. A silent fallback is how the old behaviour
+                # stayed invisible for so long.
+                job.log(
+                    f"[ontologylab] query not reformulated "
+                    f"({query_usage['error']}); searching the topic as typed"
+                )
+            else:
+                job.log(f"[ontologylab] searching for: {search_query}")
+                if query_usage.get("notes"):
+                    job.log(f"[ontologylab] {query_usage['notes']}")
+
             # `data_dir` reaches the connector so a keyed publisher source can
             # resolve its credential; the keyless five ignore it.
             batches, failures = await fetch_sources(
-                sources, topic, limit, self.data_dir
+                sources, search_query, limit, self.data_dir,
+                on_event=lambda kind, source, detail: job.log(
+                    _source_event_line(kind, source, detail)
+                ),
             )
             for failure in failures:
                 # The source name and the kind of failure are safe to show;

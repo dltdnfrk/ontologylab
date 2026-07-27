@@ -394,7 +394,7 @@ def _research(tmp_path, monkeypatch, *, fulltext: bool):
         fulltext_url=europepmc_fulltext_url("PMC999"),
     )
 
-    async def _fetch(sources, query, limit=None, data_dir=None):
+    async def _fetch(sources, query, limit=None, data_dir=None, on_event=None):
         return [("europepmc", [document])], []
 
     monkeypatch.setattr(jobs_module, "fetch_sources", _fetch)

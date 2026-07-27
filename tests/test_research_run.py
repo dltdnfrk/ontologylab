@@ -66,10 +66,22 @@ def _paper(source: str, doi: str | None, *, extra: str = "") -> RawDocument:
 
 
 def _fake_fetch(batches, failures=()):
-    """Stand in for `fetch_sources` at its own boundary — nothing below it."""
+    """Stand in for `fetch_sources` at its own boundary — nothing below it.
 
-    async def _fetch(sources, query, limit=None, data_dir=None):
+    Emits the same per-source events the real one does. A stub that accepted
+    `on_event` and ignored it would let the caller's reporting rot unnoticed,
+    which is the failure this stub is otherwise here to prevent.
+    """
+
+    async def _fetch(sources, query, limit=None, data_dir=None, on_event=None):
         _fetch.calls.append((tuple(sources), query, limit))
+        if on_event is not None:
+            for name in sources:
+                on_event("source_start", name, None)
+            for name, docs in batches:
+                on_event("source_ok", name, len(docs))
+            for failure in failures:
+                on_event("source_failed", failure.source, failure.kind)
         return list(batches), list(failures)
 
     _fetch.calls = []
@@ -318,7 +330,7 @@ def test_the_extraction_budget_is_not_spent_by_the_collect_phase(
     """
     data_dir = tmp_path / "data"
 
-    async def _slow_fetch(sources, query, limit=None, data_dir=None):
+    async def _slow_fetch(sources, query, limit=None, data_dir=None, on_event=None):
         time.sleep(1.1)
         return [("crossref", [_paper("crossref", "10.1/a")])], []
 
@@ -501,7 +513,7 @@ def test_a_second_research_run_is_refused_while_one_is_going(
     """Two runs on one topic pay twice for the same extraction."""
     gate = threading.Event()
 
-    async def _held_fetch(sources, query, limit=None, data_dir=None):
+    async def _held_fetch(sources, query, limit=None, data_dir=None, on_event=None):
         gate.wait(20)
         return [("crossref", [_paper("crossref", "10.1/a")])], []
 
@@ -568,7 +580,7 @@ def test_cancelling_during_collect_stops_before_anything_is_stored(
     entered = threading.Event()
     release = threading.Event()
 
-    async def _held_fetch(sources, query, limit=None, data_dir=None):
+    async def _held_fetch(sources, query, limit=None, data_dir=None, on_event=None):
         entered.set()
         release.wait(20)
         return [("crossref", [_paper("crossref", "10.1/a")])], []
@@ -711,7 +723,7 @@ def test_a_cancelled_research_run_is_not_reported_complete(
     entered = threading.Event()
     release = threading.Event()
 
-    async def _held_fetch(sources, query, limit=None, data_dir=None):
+    async def _held_fetch(sources, query, limit=None, data_dir=None, on_event=None):
         entered.set()
         release.wait(20)
         return [("crossref", [_paper("crossref", "10.1/a")])], []
@@ -803,7 +815,7 @@ def test_a_totals_key_the_extractor_never_reports_does_not_kill_the_run(
     entered = threading.Event()
     release = threading.Event()
 
-    async def _held_fetch(sources, query, limit=None, data_dir=None):
+    async def _held_fetch(sources, query, limit=None, data_dir=None, on_event=None):
         entered.set()
         release.wait(20)
         return [("crossref", [_paper("crossref", "10.1/a")])], []

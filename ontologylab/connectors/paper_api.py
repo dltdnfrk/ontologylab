@@ -46,7 +46,7 @@ import json
 import os
 import re
 import xml.etree.ElementTree as ET
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote_plus, urlparse
@@ -1059,12 +1059,19 @@ async def fetch_sources(
     query: str,
     limit: int | None = None,
     data_dir: Any = None,
+    on_event: Callable[[str, str, Any], None] | None = None,
 ) -> tuple[list[tuple[str, list[RawDocument]]], list[SourceFailure]]:
     """Query several sources at once; keep what answered, report what did not.
 
     Returns `(batches, failures)` where `batches` is `(source, documents)` in
     the order given — the shape `collapse_duplicates` needs to break ties by
     declared source order.
+
+    `on_event(kind, source, detail)` reports each source as it happens —
+    `source_start` / `source_ok` (detail: document count) / `source_failed`
+    (detail: failure kind). The return value cannot substitute for it: every
+    source resolves together in `gather`, so a caller that waits for it sees
+    nothing for the whole fan-out and then everything at once.
 
     Partial success is the point. Semantic Scholar rate-limits unauthenticated
     clients aggressively, and the previous all-or-nothing behaviour meant one
@@ -1083,8 +1090,34 @@ async def fetch_sources(
         {"source": name, "query": query, "limit": limit, "data_dir": data_dir}
         for name in sources
     ]
+
+    async def _traced(name: str, spec: dict[str, Any]) -> list[RawDocument]:
+        """Fetch one source, announcing when it starts and how it ended.
+
+        The events exist because the aggregate cannot be reconstructed into
+        them afterwards. `gather` returns everything at once, so a caller
+        watching only the return value learns "5 sources, 12 documents" and
+        never which source was slow, which answered first, or that anything
+        was happening at all during the wait — the run looked frozen.
+
+        `on_event` is called for its side effect only and must not raise;
+        a progress reporter that can fail the fetch it reports on would be
+        worse than no reporter.
+        """
+        if on_event is not None:
+            on_event("source_start", name, None)
+        try:
+            docs = await connector.fetch(spec)
+        except BaseException as exc:
+            if on_event is not None:
+                on_event("source_failed", name, _classify(exc))
+            raise
+        if on_event is not None:
+            on_event("source_ok", name, len(docs))
+        return docs
+
     results = await asyncio.gather(
-        *(connector.fetch(spec) for spec in specs),
+        *(_traced(name, spec) for name, spec in zip(sources, specs, strict=True)),
         return_exceptions=True,
     )
     batches: list[tuple[str, list[RawDocument]]] = []
