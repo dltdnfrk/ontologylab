@@ -540,3 +540,106 @@ def test_a_real_outage_still_raises(monkeypatch) -> None:
 
     with pytest.raises(HTTPError):
         res.lookup(res.ENSEMBL_RESOURCE, "BRCA1")
+
+
+# --------------------------------------------------------------------------
+# The last link: what an MCP client actually reads
+# --------------------------------------------------------------------------
+
+
+def test_an_annotation_snippet_is_prose_not_a_dict_repr() -> None:
+    """The first thing a client sees, and annotations broke it silently.
+
+    `_node_snippet` was written for flat scalar properties (`color=red`).
+    An annotation block is a dict, so `f"{k}={v}"` rendered a Python repr —
+
+        uniprot={'external_id': 'P38398', 'record_url': 'https://www.uniprot.o
+
+    truncated mid-URL, with the whole snippet budget spent on braces and
+    quotes before any prose arrived. The identifier plus the most readable
+    field carry the same information in a fraction of the space.
+    """
+    from ontologylab.mcp_server import _node_snippet
+
+    snippet = _node_snippet(
+        {
+            "properties": {
+                "uniprot": {
+                    "external_id": "P38398",
+                    "record_url": "https://www.uniprot.org/uniprotkb/P38398",
+                    "matched_name": "Breast cancer type 1 susceptibility protein",
+                    "function": "E3 ubiquitin-protein ligase.",
+                }
+            }
+        }
+    )
+
+    assert snippet.startswith("uniprot:P38398 ")
+    assert "E3 ubiquitin-protein ligase." in snippet
+    assert "{" not in snippet and "'" not in snippet, "no Python repr"
+
+
+def test_a_scalar_property_keeps_its_original_shape() -> None:
+    """The dict branch must not change how ordinary properties render."""
+    from ontologylab.mcp_server import _node_snippet
+
+    assert _node_snippet({"properties": {"language": "python"}}) == "language=python"
+
+
+def test_an_annotation_without_prose_still_names_the_record() -> None:
+    """`matched_name` is the floor — always present, and the one field that
+    says which record this is."""
+    from ontologylab.mcp_server import _node_snippet
+
+    snippet = _node_snippet(
+        {"properties": {"chembl": {"external_id": "CHEMBL25",
+                                   "matched_name": "ASPIRIN"}}}
+    )
+
+    assert snippet == "chembl:CHEMBL25 ASPIRIN"
+
+
+def test_an_empty_annotation_degrades_to_the_identifier() -> None:
+    from ontologylab.mcp_server import _node_snippet
+
+    assert _node_snippet(
+        {"properties": {"uniprot": {"external_id": "P38398"}}}
+    ) == "uniprot:P38398"
+
+
+def test_an_approved_annotation_reaches_the_pack_a_client_reads(tmp_path) -> None:
+    """End to end, because every link in this chain was assumed once.
+
+    annotation -> approval -> node properties -> pack -> MCP get_entity.
+    The pack copies nodes with `SELECT *`, which is why the block survives;
+    an explicit column list there would drop it silently.
+    """
+    from ontologylab.mcp_server import PackSession
+    from ontologylab.packbuilder import build_pack
+
+    store = _store(tmp_path)
+    try:
+        node_id = _verified_node(store, "BRCA1")
+        annotation_id, _ = store.upsert_annotation(
+            node_id=node_id, resource=UNIPROT_RESOURCE, external_id="P38398",
+            record_url="https://www.uniprot.org/uniprotkb/P38398",
+            matched_name="Breast cancer type 1 susceptibility protein",
+            facts={"function": "E3 ubiquitin-protein ligase."},
+        )
+        store.decide_annotation(annotation_id, accept=True)
+    finally:
+        store.close()
+
+    packs = tmp_path / "packs"
+    build_pack(kg_db_path=tmp_path / "kg.sqlite", packs_dir=packs, name="e2e")
+
+    session = PackSession(packs)
+    try:
+        assert session.try_autoload() is not None
+        entity = session.get_entity(node_id)["entity"]
+        block = (entity.get("properties") or {}).get(UNIPROT_RESOURCE)
+        assert block, "the approved annotation never reached the pack"
+        assert block["external_id"] == "P38398"
+        assert "ubiquitin" in block["function"]
+    finally:
+        session.close()

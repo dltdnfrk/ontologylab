@@ -66,6 +66,43 @@ def serve_args(packs_dir: str | Path, pack_id: str) -> list[str]:
 SNIPPET_MAX_CHARS = 120
 
 
+# Fields a curated-resource annotation may carry that are worth a snippet,
+# best first. `matched_name` is the floor: it is always present, and it is
+# the one thing that tells a reader which record this is.
+_ANNOTATION_SUMMARY_FIELDS = (
+    "function",
+    "summary",
+    "description",
+    "protein_name",
+    "gene_name",
+    "matched_name",
+)
+
+
+def _property_summary(key: str, value: Any) -> str:
+    """Render one property for a compact row.
+
+    Scalars keep the original `key=value` shape. A dict does not: an
+    annotation block rendered that way becomes a Python repr, and the
+    snippet budget is spent on braces and quotes before any prose arrives —
+
+        uniprot={'external_id': 'P38398', 'record_url': 'https://www.uniprot.o
+
+    truncated mid-URL, which is the first thing an MCP client sees for every
+    annotated entity. The block's identifier and its most readable field say
+    the same thing in a fraction of the space.
+    """
+    if not isinstance(value, dict):
+        return f"{key}={value}"
+    external_id = str(value.get("external_id") or "").strip()
+    for field_name in _ANNOTATION_SUMMARY_FIELDS:
+        text = " ".join(str(value.get(field_name) or "").split())
+        if text:
+            head = f"{key}:{external_id}" if external_id else key
+            return f"{head} {text}"
+    return f"{key}:{external_id}" if external_id else key
+
+
 def _node_snippet(item: dict[str, Any]) -> str:
     """One short line summarizing aliases + properties for a compact row."""
     parts: list[str] = []
@@ -75,7 +112,10 @@ def _node_snippet(item: dict[str, Any]) -> str:
     properties = item.get("properties") or {}
     if properties:
         parts.append(
-            "; ".join(f"{k}={properties[k]}" for k in list(properties)[:3])
+            "; ".join(
+                _property_summary(key, properties[key])
+                for key in list(properties)[:3]
+            )
         )
     return " · ".join(parts)[:SNIPPET_MAX_CHARS]
 
