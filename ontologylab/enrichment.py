@@ -48,6 +48,7 @@ class EnrichmentReport:
     proposed: int = 0
     refreshed: int = 0
     already_decided: int = 0
+    skipped_decided: int = 0
     failures: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
@@ -58,8 +59,26 @@ class EnrichmentReport:
             "proposed": self.proposed,
             "refreshed": self.refreshed,
             "already_decided": self.already_decided,
+            "skipped_decided": self.skipped_decided,
             "failures": list(self.failures),
         }
+
+
+def _decided_pairs(store: KGStore) -> set[tuple[str, str]]:
+    """(node_id, resource) pairs a human has already accepted or rejected.
+
+    Read once per pass rather than per node: it is one small query against
+    an indexed status column, and doing it inside the loop would trade the
+    network cost this exists to avoid for a database cost.
+    """
+    try:
+        rows = store.conn.execute(
+            "SELECT node_id, resource FROM annotations WHERE status != 'proposed'"
+        ).fetchall()
+    except Exception:
+        # A store predating the table has nothing decided; enrich normally.
+        return set()
+    return {(row["node_id"], row["resource"]) for row in rows}
 
 
 def verified_node_names(store: KGStore, *, limit: int) -> list[tuple[str, str]]:
@@ -99,10 +118,21 @@ def enrich(
         raise ResourceError(f"unknown resource(s): {sorted(unknown)}")
     do_lookup = lookup_fn or lookup
 
+    # Progressive disclosure, applied to the resource catalog: the catalog
+    # may grow without every node paying for every resource on every pass.
+    # A (node, resource) pair a human already decided has nothing left to
+    # learn — the old code still fetched it and then threw the answer away
+    # in `upsert_annotation`, so the cost grew as O(nodes x resources) on
+    # every run and none of it could change anything.
+    decided = _decided_pairs(store)
+
     report = EnrichmentReport()
     for node_id, name in verified_node_names(store, limit=limit):
         report.nodes_considered += 1
         for resource in resources:
+            if (node_id, resource) in decided:
+                report.skipped_decided += 1
+                continue
             if on_event is not None:
                 on_event("lookup_start", resource, name)
             report.lookups += 1

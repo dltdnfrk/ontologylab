@@ -406,3 +406,137 @@ def test_an_unknown_resource_is_refused_before_any_request(tmp_path) -> None:
             enrich(store, resources=["not-a-resource"])
     finally:
         store.close()
+
+
+# --------------------------------------------------------------------------
+# The catalog grows; the cost per pass must not
+# --------------------------------------------------------------------------
+
+
+def test_a_decided_pair_is_not_looked_up_again(tmp_path) -> None:
+    """Progressive disclosure, applied to the resource catalog.
+
+    A (node, resource) a human already ruled on has nothing left to learn.
+    The first version still fetched it and threw the answer away inside
+    `upsert_annotation`, so every pass cost O(nodes x resources) requests
+    that could not change anything — and that bill grows with the catalog,
+    which is exactly the direction this is meant to scale.
+    """
+    store = _store(tmp_path)
+    try:
+        node_id = _verified_node(store, "BRCA1")
+        annotation_id, _ = store.upsert_annotation(
+            node_id=node_id, resource=UNIPROT_RESOURCE, external_id="P38398",
+            record_url="u", matched_name="n", facts={},
+        )
+        store.decide_annotation(annotation_id, accept=True)
+
+        seen: list[str] = []
+
+        def fake(resource, name):
+            seen.append(resource)
+            return None
+
+        report = enrich(
+            store,
+            resources=[UNIPROT_RESOURCE, MYGENE_RESOURCE],
+            lookup_fn=fake,
+        )
+
+        assert seen == [MYGENE_RESOURCE], "the decided resource was re-fetched"
+        assert report.skipped_decided == 1
+        assert report.lookups == 1
+    finally:
+        store.close()
+
+
+def test_a_pending_pair_is_still_looked_up(tmp_path) -> None:
+    """Only a *decision* closes the question. A proposal nobody has ruled on
+    should still refresh, or a resource correcting its own record could
+    never reach the reviewer."""
+    store = _store(tmp_path)
+    try:
+        node_id = _verified_node(store, "BRCA1")
+        store.upsert_annotation(
+            node_id=node_id, resource=UNIPROT_RESOURCE, external_id="P38398",
+            record_url="u", matched_name="n", facts={},
+        )
+
+        seen: list[str] = []
+
+        def fake(resource, name):
+            seen.append(resource)
+            return None
+
+        report = enrich(store, resources=[UNIPROT_RESOURCE], lookup_fn=fake)
+
+        assert seen == [UNIPROT_RESOURCE]
+        assert report.skipped_decided == 0
+    finally:
+        store.close()
+
+
+# --------------------------------------------------------------------------
+# The resources added in this pass
+# --------------------------------------------------------------------------
+
+
+def test_ensembl_refuses_an_alias_redirect() -> None:
+    """Ensembl resolves aliases, so it can answer about a different symbol
+    than the one asked for. Binding a node to that is the ABRAXAS1 error in
+    another costume: the node is named what it is named."""
+    from ontologylab.connectors.resources import parse_ensembl
+
+    body = json.dumps(
+        {"id": "ENSG00000012048", "display_name": "BRCA1",
+         "biotype": "protein_coding", "seq_region_name": "17"}
+    )
+
+    assert parse_ensembl(body, "BRCA1").external_id == "ENSG00000012048"
+    assert parse_ensembl(body, "SOMETHINGELSE") is None
+
+
+def test_chembl_confirms_the_preferred_name() -> None:
+    from ontologylab.connectors.resources import parse_chembl
+
+    body = json.dumps(
+        {"molecules": [{"molecule_chembl_id": "CHEMBL25", "pref_name": "ASPIRIN",
+                        "molecule_type": "Small molecule", "max_phase": 4.0,
+                        "molecule_properties": {"full_molformula": "C9H8O4"}}]}
+    )
+
+    match = parse_chembl(body, "aspirin")
+    assert match.external_id == "CHEMBL25"
+    assert match.facts["formula"] == "C9H8O4"
+    assert parse_chembl(body, "ibuprofen") is None
+
+
+def test_a_not_found_is_a_miss_not_an_outage(monkeypatch) -> None:
+    """Ensembl says "no such symbol" with 404. Reporting that as a failure
+    would fill the operator's error list with every non-gene in the graph
+    and bury the one resource that is genuinely down."""
+    from urllib.error import HTTPError
+
+    from ontologylab.connectors import resources as res
+
+    def boom(url):
+        raise HTTPError(url, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(res, "_http_get_text", boom)
+
+    assert res.lookup(res.ENSEMBL_RESOURCE, "NOTAGENE") is None
+
+
+def test_a_real_outage_still_raises(monkeypatch) -> None:
+    """The distinction only helps if 5xx keeps its meaning."""
+    from urllib.error import HTTPError
+
+    from ontologylab.connectors import resources as res
+
+    def boom(url):
+        raise HTTPError(url, 503, "Service Unavailable", {}, None)
+
+    monkeypatch.setattr(res, "_http_get_text", boom)
+
+    with pytest.raises(HTTPError):
+        res.lookup(res.ENSEMBL_RESOURCE, "BRCA1")

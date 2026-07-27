@@ -43,6 +43,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import quote_plus, urlparse
+from urllib.error import HTTPError
 
 from ontologylab.connectors.paper_api import _http_get_text
 
@@ -50,9 +51,13 @@ from ontologylab.connectors.paper_api import _http_get_text
 # host allowlist stays derivable rather than hand-maintained.
 UNIPROT_API_URL = "https://rest.uniprot.org/uniprotkb/search"
 MYGENE_API_URL = "https://mygene.info/v3/query"
+ENSEMBL_API_URL = "https://rest.ensembl.org/lookup/symbol"
+CHEMBL_API_URL = "https://www.ebi.ac.uk/chembl/api/data/molecule.json"
 
 UNIPROT_RESOURCE = "uniprot"
 MYGENE_RESOURCE = "mygene"
+ENSEMBL_RESOURCE = "ensembl"
+CHEMBL_RESOURCE = "chembl"
 
 # Human. Both resources index every organism, and a bare gene symbol is
 # ambiguous across them — `TP53` exists in mouse, zebrafish and human, with
@@ -63,7 +68,7 @@ HUMAN_TAXON = "9606"
 
 RESOURCE_HOSTS: frozenset[str] = frozenset(
     (urlparse(url).hostname or "").lower()
-    for url in (UNIPROT_API_URL, MYGENE_API_URL)
+    for url in (UNIPROT_API_URL, MYGENE_API_URL, ENSEMBL_API_URL, CHEMBL_API_URL)
 )
 
 # Enough to be useful, small enough that a reviewer reads all of it. A long
@@ -236,9 +241,98 @@ def parse_mygene(json_text: str, symbol: str) -> ResourceMatch | None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Ensembl
+# ---------------------------------------------------------------------------
+
+
+def build_ensembl_url(symbol: str) -> str:
+    # A path lookup, not a search: Ensembl resolves the symbol itself and
+    # 404s when it does not know it. There is no ranked list to mis-read.
+    return (
+        f"{ENSEMBL_API_URL}/homo_sapiens/{quote_plus(symbol)}"
+        "?content-type=application/json&expand=0"
+    )
+
+
+def parse_ensembl(json_text: str, symbol: str) -> ResourceMatch | None:
+    try:
+        item = json.loads(json_text)
+    except json.JSONDecodeError as exc:
+        raise ResourceError(f"ensembl returned unparseable JSON: {exc}") from exc
+    if not isinstance(item, dict):
+        return None
+    gene_id = _clip(item.get("id"))
+    if not gene_id:
+        return None
+    display = _clip(item.get("display_name"))
+    # Ensembl resolves aliases, so the symbol it answers with can differ from
+    # the one asked about. That is a redirect, not a match — the node is
+    # named what it is named, and silently binding it to a different symbol
+    # is the same class of error as the ABRAXAS1 hit.
+    if display and display.upper() != symbol.strip().upper():
+        return None
+    return ResourceMatch(
+        resource=ENSEMBL_RESOURCE,
+        external_id=gene_id,
+        record_url=f"https://www.ensembl.org/Homo_sapiens/Gene/Summary?g={gene_id}",
+        matched_name=display or gene_id,
+        facts={
+            "ensembl_id": gene_id,
+            "biotype": _clip(item.get("biotype")),
+            "chromosome": _clip(item.get("seq_region_name")),
+            "description": _clip(item.get("description")),
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# ChEMBL
+# ---------------------------------------------------------------------------
+
+
+def build_chembl_url(name: str) -> str:
+    # `__iexact` is ChEMBL's exact (case-insensitive) filter. The plain
+    # `pref_name=` and the search endpoint both rank by similarity, which is
+    # the behaviour this module exists to avoid.
+    return f"{CHEMBL_API_URL}?pref_name__iexact={quote_plus(name)}&limit=1"
+
+
+def parse_chembl(json_text: str, name: str) -> ResourceMatch | None:
+    try:
+        payload = json.loads(json_text)
+    except json.JSONDecodeError as exc:
+        raise ResourceError(f"chembl returned unparseable JSON: {exc}") from exc
+    molecules = payload.get("molecules") or []
+    if not molecules:
+        return None
+    item = molecules[0]
+    chembl_id = _clip(item.get("molecule_chembl_id"))
+    pref = _clip(item.get("pref_name"))
+    if not chembl_id or pref.upper() != name.strip().upper():
+        return None
+    props = item.get("molecule_properties") or {}
+    return ResourceMatch(
+        resource=CHEMBL_RESOURCE,
+        external_id=chembl_id,
+        record_url=f"https://www.ebi.ac.uk/chembl/compound_report_card/{chembl_id}/",
+        matched_name=pref,
+        facts={
+            "chembl_id": chembl_id,
+            "molecule_type": _clip(item.get("molecule_type")),
+            # 4 means an approved drug. Worth carrying: it is the one field
+            # here that changes how much weight a claim deserves.
+            "max_phase": _clip(item.get("max_phase")),
+            "formula": _clip(props.get("full_molformula")),
+        },
+    )
+
+
 _RESOURCE_DISPATCH: dict[str, tuple[Any, Any]] = {
     UNIPROT_RESOURCE: (build_uniprot_url, parse_uniprot),
     MYGENE_RESOURCE: (build_mygene_url, parse_mygene),
+    ENSEMBL_RESOURCE: (build_ensembl_url, parse_ensembl),
+    CHEMBL_RESOURCE: (build_chembl_url, parse_chembl),
 }
 
 RESOURCE_ORDER: tuple[str, ...] = tuple(_RESOURCE_DISPATCH)
@@ -246,6 +340,8 @@ RESOURCE_ORDER: tuple[str, ...] = tuple(_RESOURCE_DISPATCH)
 RESOURCE_LABELS: dict[str, str] = {
     UNIPROT_RESOURCE: "UniProt (Swiss-Prot)",
     MYGENE_RESOURCE: "NCBI Gene (via MyGene.info)",
+    ENSEMBL_RESOURCE: "Ensembl",
+    CHEMBL_RESOURCE: "ChEMBL",
 }
 
 
@@ -261,5 +357,15 @@ def lookup(resource: str, name: str) -> ResourceMatch | None:
     if not _looks_like_symbol(name):
         return None
     build, parse = _RESOURCE_DISPATCH[resource]
-    body = _http_get_text(build(name.strip()))
+    try:
+        body = _http_get_text(build(name.strip()))
+    except HTTPError as exc:
+        # A path-lookup resource says "I do not know this name" with 404
+        # (Ensembl) or 400 (a malformed symbol it will not even consider).
+        # Those are misses, not outages: reporting them as failures would
+        # fill the operator's error list with every non-gene in the graph
+        # and bury the one resource that is actually down.
+        if exc.code in (400, 404):
+            return None
+        raise
     return parse(body, name.strip())
