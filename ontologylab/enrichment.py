@@ -31,8 +31,10 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from ontologylab.connectors.resources import (
+    ORGANISM,
     RESOURCE_ORDER,
     ResourceError,
+    looks_like_symbol,
     lookup,
 )
 from ontologylab.kgstore import KGStore
@@ -49,6 +51,13 @@ class EnrichmentReport:
     refreshed: int = 0
     already_decided: int = 0
     skipped_decided: int = 0
+    # Names that never reached the network because they cannot be a symbol.
+    # Kept apart from `lookups` so the report does not claim to have tried
+    # something it declined to try — the two used to be added together, and
+    # "19 lookups, 9 matches" read as ten failed requests when most of them
+    # were never sent.
+    skipped_shape: int = 0
+    missed: int = 0
     failures: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
@@ -60,6 +69,13 @@ class EnrichmentReport:
             "refreshed": self.refreshed,
             "already_decided": self.already_decided,
             "skipped_decided": self.skipped_decided,
+            "skipped_shape": self.skipped_shape,
+            "missed": self.missed,
+            # The scope every gene lookup was narrowed to. Reported on every
+            # run, not only on a bad one: a graph of plant or microbial
+            # genes matches nothing here, and without this the operator sees
+            # only "0 matches" and concludes the feature is broken.
+            "organism": ORGANISM["label"],
             "failures": list(self.failures),
         }
 
@@ -133,6 +149,10 @@ def enrich(
             if (node_id, resource) in decided:
                 report.skipped_decided += 1
                 continue
+            if not looks_like_symbol(name):
+                # Declined locally: no request, so not a lookup.
+                report.skipped_shape += 1
+                continue
             if on_event is not None:
                 on_event("lookup_start", resource, name)
             report.lookups += 1
@@ -147,6 +167,7 @@ def enrich(
                     on_event("lookup_failed", resource, name)
                 continue
             if match is None:
+                report.missed += 1
                 if on_event is not None:
                     on_event("lookup_miss", resource, name)
                 continue

@@ -322,12 +322,15 @@
           <div class="panel-head">
             <span class="panel-label">외부 레코드</span>
             <span id="annotations-count" class="panel-figure">0</span>
-            <span class="panel-note">이게 맞는 레코드인지 확인 · 사실 여부가 아님</span>
+            <span class="panel-note">이게 맞는 레코드인지 확인 · 사실 여부가 아님 ·
+              <span id="annotations-scope"></span> 유전자·화합물만</span>
             <button type="button" id="enrich-btn" class="btn-link panel-act">조회 실행</button>
           </div>
           <ul id="annotations-list" class="ann-list"></ul>
           <p id="annotations-empty" class="board-empty hidden">대기 중인 외부 레코드 없음 —
-            승인된 개념 이름으로 <strong>조회 실행</strong></p>
+            승인된 개념 이름으로 <strong>조회 실행</strong>.
+            <small class="muted">조회는 <span id="annotations-scope-2"></span>의 유전자·단백질·화합물
+            레코드만 찾아요. 다른 분야의 개념은 매칭되지 않는 게 정상이에요.</small></p>
           <div id="enrich-result" class="status-box result-box panel-body-note hidden"></div>
         </div>
       </div>

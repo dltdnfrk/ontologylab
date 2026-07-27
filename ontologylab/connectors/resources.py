@@ -125,12 +125,16 @@ def _clip(text: Any) -> str:
     return text[:MAX_FACT_CHARS]
 
 
-def _looks_like_symbol(name: str) -> bool:
-    """Whether ``name`` could be a gene/protein symbol at all.
+def looks_like_symbol(name: str) -> bool:
+    """Whether ``name`` could be a gene/protein/compound symbol at all.
 
-    Both resources take any string, so without this an entity called
-    "the patient cohort" is dutifully looked up, misses, and costs a
-    request per node per resource. Symbols are short and have no spaces.
+    Every resource here accepts any string, so without this an entity
+    called "the patient cohort" is dutifully looked up, misses, and costs
+    a request per node per resource. Symbols are short and have no spaces.
+
+    Public because the caller must be able to ask *before* spending a
+    request: a name rejected here never reaches the network, and reporting
+    it as a lookup that missed would overstate what was actually tried.
     """
     name = name.strip()
     return bool(name) and " " not in name and 2 <= len(name) <= 20
@@ -373,7 +377,7 @@ def lookup(resource: str, name: str) -> ResourceMatch | None:
     """
     if resource not in _RESOURCE_DISPATCH:
         raise ResourceError(f"unknown resource {resource!r}")
-    if not _looks_like_symbol(name):
+    if not looks_like_symbol(name):
         return None
     build, parse = _RESOURCE_DISPATCH[resource]
     try:

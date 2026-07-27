@@ -757,6 +757,14 @@
       var counts = body.counts || {};
       var badge = $("#annotations-count");
       if (badge) badge.textContent = String(counts.proposed || 0);
+      // 조회 범위는 서버가 말한다. 화면에 종 이름을 적어 두면 상수를
+      // 바꿔도 화면만 옛 종을 계속 주장한다.
+      (body.organism ? [body.organism] : []).forEach(function (label) {
+        ["#annotations-scope", "#annotations-scope-2"].forEach(function (sel) {
+          var el = $(sel);
+          if (el) el.textContent = label;
+        });
+      });
 
       list.innerHTML = items
         .map(function (a) {
@@ -827,14 +835,35 @@
     try {
       var res = await apiSend("/api/enrich?limit=50", {});
       if (res && res.ok) {
-        // 조회 수와 매칭 수를 함께 말한다. 매칭이 0이어도 "안 돌았다"가
-        // 아니라 "이름이 그 리소스에 없다"는 뜻임이 드러나야 한다.
+        // 조회 결과를 결과가 아니라 *상황*으로 말한다. 숫자만 주면 매칭
+        // 0건이 "고장"으로 읽히는데, 실제 원인은 대개 셋 중 하나이고
+        // 셋의 대처가 전부 다르다 — 이름이 심볼이 아니거나, 사람 유전자가
+        // 아니거나, 이미 결정해서 건너뛴 것이거나.
+        var bits = ["개념 " + res.nodes_considered + "개"];
+        if (res.lookups) bits.push("조회 " + res.lookups + "회");
+        if (res.matched) bits.push("매칭 " + res.matched + " (새 제안 " + res.proposed + ")");
+        if (res.skipped_decided) bits.push("이미 결정 " + res.skipped_decided);
+        if (res.failures && res.failures.length) bits.push("실패 " + res.failures.length);
+
+        var why = [];
+        if (res.skipped_shape) {
+          why.push("개념 이름 " + res.skipped_shape +
+                   "건은 심볼 형태가 아니라 조회하지 않았어요 (공백이 있거나 너무 긺)");
+        }
+        if (res.missed) {
+          why.push(res.missed + "건은 조회했지만 <strong>" +
+                   escapeHtml(res.organism || "") +
+                   "</strong> 레코드에 그 이름이 없었어요");
+        }
         showResult(box,
-          "<span class='ok-msg'>조회 완료.</span> 개념 " + res.nodes_considered +
-          "개 · 조회 " + res.lookups + "회 · 매칭 " + res.matched +
-          " (새 제안 " + res.proposed + ")" +
-          (res.failures && res.failures.length
-            ? " · 실패 " + res.failures.length : ""));
+          "<span class='" + (res.matched ? "ok-msg" : "muted") + "'>조회 완료.</span> " +
+          bits.join(" · ") +
+          (why.length
+            ? "<br><small class='muted'>" + why.join(" · ") + ".</small>"
+            : "") +
+          (!res.matched && !res.lookups && !res.skipped_decided
+            ? "<br><small class='muted'>승인된 개념이 없어요 — 먼저 제안을 승인하세요.</small>"
+            : ""));
         await loadAnnotations();
       } else {
         showResult(box, errorKindBadge(res && res.error_kind) + " " +

@@ -36,6 +36,7 @@ from ontologylab.connectors.resources import (
     parse_mygene,
     parse_uniprot,
 )
+from ontologylab.connectors import resources as resources_module
 from ontologylab.enrichment import enrich
 from ontologylab.kgstore import KGStore
 from ontologylab.models import ProposedEntity, SourceSpan
@@ -643,3 +644,96 @@ def test_an_approved_annotation_reaches_the_pack_a_client_reads(tmp_path) -> Non
         assert "ubiquitin" in block["function"]
     finally:
         session.close()
+
+
+# --------------------------------------------------------------------------
+# Saying why, not just how many
+# --------------------------------------------------------------------------
+
+
+def test_a_name_that_cannot_be_a_symbol_is_not_counted_as_a_lookup(tmp_path) -> None:
+    """"19 lookups, 9 matches" read as ten failed requests.
+
+    Most were never sent: a name with spaces is declined locally, before
+    the network. Folding those into `lookups` overstated what was tried and
+    pointed the operator at the resources when the answer was in their own
+    entity names.
+    """
+    store = _store(tmp_path)
+    try:
+        _verified_node(store, "the patient cohort")
+        _verified_node(store, "BRCA1")
+
+        attempted: list[str] = []
+
+        def fake(resource, name):
+            attempted.append(name)
+            return None
+
+        report = enrich(store, resources=[UNIPROT_RESOURCE], lookup_fn=fake)
+
+        assert attempted == ["BRCA1"], "the prose name must not reach the network"
+        assert report.skipped_shape == 1
+        assert report.lookups == 1
+        assert report.missed == 1
+    finally:
+        store.close()
+
+
+def test_the_report_names_the_organism_every_lookup_was_narrowed_to(
+    tmp_path,
+) -> None:
+    """The silent scope limit, made loud.
+
+    Gene lookups are narrowed to one organism. A graph of plant or
+    microbial genes therefore matches nothing — correctly — and without
+    this the operator sees "0 matches" and concludes the feature is broken
+    rather than out of scope.
+    """
+    store = _store(tmp_path)
+    try:
+        _verified_node(store, "AtCESA1")
+
+        report = enrich(
+            store, resources=[UNIPROT_RESOURCE], lookup_fn=lambda r, n: None
+        )
+
+        assert report.as_dict()["organism"] == resources_module.ORGANISM["label"]
+        assert report.missed == 1, "it was tried; it is simply not human"
+        assert report.skipped_shape == 0, "the name is symbol-shaped"
+    finally:
+        store.close()
+
+
+def test_the_annotations_endpoint_states_the_scope(tmp_path) -> None:
+    """The screen must not write the organism into its own markup: a change
+    to ORGANISM would leave the UI asserting a scope the lookups no longer
+    use."""
+    import os
+
+    from fastapi.testclient import TestClient
+
+    from ontologylab.server import routes
+    from ontologylab.server.app import create_app
+
+    os.environ.setdefault("ONTOLOGYLAB_ALLOWED_HOSTS", "testserver")
+    data_dir = tmp_path / "data"
+    routes.attach_data_dir(data_dir)
+    client = TestClient(create_app(data_dir=data_dir))
+
+    body = client.get("/api/annotations").json()
+
+    assert body["organism"] == resources_module.ORGANISM["label"]
+
+
+def test_the_screen_reads_the_scope_from_the_response() -> None:
+    from ontologylab.server.app import WEB_DIR
+
+    markup = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+    script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
+
+    assert 'id="annotations-scope"' in markup
+    assert "body.organism" in script
+    assert resources_module.ORGANISM["label"] not in markup, (
+        "the organism is stated by the server, never typed into the page"
+    )

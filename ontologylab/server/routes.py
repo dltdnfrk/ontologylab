@@ -45,7 +45,11 @@ from ontologylab.connectors.paper_api import (
     check_source_implemented,
     resolve_source_key,
 )
-from ontologylab.connectors.resources import RESOURCE_LABELS, RESOURCE_ORDER
+from ontologylab.connectors.resources import (
+    ORGANISM,
+    RESOURCE_LABELS,
+    RESOURCE_ORDER,
+)
 from ontologylab.connectors.web_crawl import WebCrawlConnector
 from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError, UnknownItem
 from ontologylab.mcp_server import serve_args
@@ -649,6 +653,10 @@ def list_annotations(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
                 {"id": name, "label": RESOURCE_LABELS.get(name, name)}
                 for name in RESOURCE_ORDER
             ],
+            # The scope the screen states. Sent rather than written into the
+            # markup so a change to ORGANISM cannot leave the UI asserting
+            # an organism the lookups no longer use.
+            "organism": ORGANISM["label"],
         }
     finally:
         store.close()
