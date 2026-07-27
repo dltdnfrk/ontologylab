@@ -1774,8 +1774,11 @@
       doc_ids: [],
       /* mirror paths.DEFAULT_MAX_ENGINE_CALLS / DEFAULT_TIME_BUDGET_S —
          change there first, then here */
-      max_engine_calls: 500,
-      time_budget: 7200,
+      /* max_engine_calls / time_budget 은 보내지 않는다. 스키마가
+         paths.DEFAULT_* 로 채우므로, 여기서 값을 실어 보내면 서버 기본값이
+         영원히 적용되지 않는다 — 상수를 바꿔도 브라우저 실행만 옛 예산을
+         계속 쓰고 아무것도 실패하지 않는다. 주석으로 "여기도 고쳐라"라고
+         적어 두는 것으로는 막히지 않는 종류의 드리프트다. */
       seed: toInt($("#extract-seed").value, 7),
     };
     btn.disabled = true;
@@ -1990,9 +1993,7 @@
       engine: $("#research-engine").value || "mock",
       limit: toInt($("#research-limit").value, 5),
       fulltext: $("#research-fulltext").checked,
-      /* mirror paths.DEFAULT_MAX_ENGINE_CALLS / DEFAULT_TIME_BUDGET_S */
-      max_engine_calls: 500,
-      time_budget: 7200,
+      /* 예산은 서버 스키마의 기본값에 맡긴다 (위 주석 참조). */
     };
     $("#research-submit").disabled = true;
     showResult(box, "<span class='muted'>리서치 시작 중…</span>");
@@ -3457,8 +3458,9 @@
     out.textContent = "AI가 문서를 읽는 중이에요… (데모 엔진이라 금방 끝나요)";
     try {
       var res = await apiSend("/api/extract", {
-        engine: "mock", model: null, doc_ids: [],
-        max_engine_calls: 500, time_budget: 7200, seed: 7,
+        /* 예산은 서버 스키마 기본값에 맡긴다 — 여기서 실어 보내면
+           paths.DEFAULT_* 를 바꿔도 이 경로만 옛 값을 계속 쓴다. */
+        engine: "mock", model: null, doc_ids: [], seed: 7,
       });
       if (!res || !res.job_id) {
         out.textContent =

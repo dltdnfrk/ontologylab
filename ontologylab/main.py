@@ -38,6 +38,7 @@ from ontologylab.connectors.allowlist import (
 from ontologylab.connectors.base import RawDocument
 from ontologylab.connectors.paper_api import (
     DEFAULT_LIMIT,
+    DEFAULT_PAPER_SOURCE,
     PaperApiConnector,
     UnsupportedPaperSource,
     check_source_implemented,
@@ -1077,8 +1078,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_collect.add_argument("--paper-query", action="append", default=[],
                            help="Paper-API query term (must be allowlisted; "
                                 "repeatable).")
-    p_collect.add_argument("--paper-source", default="arxiv",
-                           help="Paper API source (default: arxiv).")
+    # Both the value and the help text come from the constant: an earlier
+    # version typed "arxiv" twice here while `DEFAULT_PAPER_SOURCE` was
+    # already used elsewhere in this same file, so changing the default
+    # would have moved the server and left the CLI behind.
+    p_collect.add_argument(
+        "--paper-source", default=DEFAULT_PAPER_SOURCE,
+        help=f"Paper API source (default: {DEFAULT_PAPER_SOURCE}).")
     p_collect.add_argument("--limit", type=int, default=DEFAULT_LIMIT,
                            help="Max results per paper query (cap per query, "
                                 "clamped to 1..25).")

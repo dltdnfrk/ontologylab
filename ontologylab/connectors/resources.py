@@ -59,12 +59,27 @@ MYGENE_RESOURCE = "mygene"
 ENSEMBL_RESOURCE = "ensembl"
 CHEMBL_RESOURCE = "chembl"
 
-# Human. Both resources index every organism, and a bare gene symbol is
-# ambiguous across them — `TP53` exists in mouse, zebrafish and human, with
-# different records. Narrowing here is what makes "exact" mean something.
-# A future caller may want this configurable; it is not guessable, so it is
-# a constant rather than a default that silently applies.
-HUMAN_TAXON = "9606"
+# The organism every gene lookup is narrowed to. Each resource spells it
+# differently, so all three spellings live here together — an earlier
+# version had `HUMAN_TAXON` used by UniProt while MyGene said `human` and
+# Ensembl said `homo_sapiens` inline. Changing the constant then moved one
+# resource and left the other two, which is worse than not being
+# configurable at all: UniProt would answer about mouse Trp53 while MyGene
+# and Ensembl answered about human TP53, and all three would be attached to
+# the same node as agreeing evidence.
+#
+# Narrowing is what makes "exact" mean something: a bare gene symbol is
+# ambiguous across organisms, and `TP53` has a distinct record in mouse,
+# zebrafish and human.
+ORGANISM = {
+    "taxon_id": "9606",
+    "mygene_species": "human",
+    "ensembl_species": "homo_sapiens",
+    "label": "Homo sapiens",
+}
+
+# Back-compat alias for the one spelling that was already exported.
+HUMAN_TAXON = ORGANISM["taxon_id"]
 
 RESOURCE_HOSTS: frozenset[str] = frozenset(
     (urlparse(url).hostname or "").lower()
@@ -139,7 +154,10 @@ def build_uniprot_url(symbol: str) -> str:
     # ABRAXAS1 for BRCA1. `reviewed:true` keeps it to Swiss-Prot, whose
     # entries are manually curated and one-per-gene — the unreviewed
     # TrEMBL set adds isoform fragments that share the symbol.
-    query = f"gene_exact:{symbol} AND organism_id:{HUMAN_TAXON} AND reviewed:true"
+    query = (
+        f"gene_exact:{symbol} AND organism_id:{ORGANISM['taxon_id']} "
+        "AND reviewed:true"
+    )
     return (
         f"{UNIPROT_API_URL}?query={quote_plus(query)}"
         f"&size=1&fields={','.join(_UNIPROT_FIELDS)}"
@@ -208,7 +226,8 @@ def build_mygene_url(symbol: str) -> str:
     # across names and aliases and ranks by popularity.
     return (
         f"{MYGENE_API_URL}?q={quote_plus(f'symbol:{symbol}')}"
-        f"&species=human&size=1&fields={','.join(_MYGENE_FIELDS)}"
+        f"&species={ORGANISM['mygene_species']}&size=1"
+        f"&fields={','.join(_MYGENE_FIELDS)}"
     )
 
 
@@ -250,7 +269,7 @@ def build_ensembl_url(symbol: str) -> str:
     # A path lookup, not a search: Ensembl resolves the symbol itself and
     # 404s when it does not know it. There is no ranked list to mis-read.
     return (
-        f"{ENSEMBL_API_URL}/homo_sapiens/{quote_plus(symbol)}"
+        f"{ENSEMBL_API_URL}/{ORGANISM['ensembl_species']}/{quote_plus(symbol)}"
         "?content-type=application/json&expand=0"
     )
 
