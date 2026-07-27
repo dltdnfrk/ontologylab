@@ -70,6 +70,11 @@ OPENALEX_API_URL = "https://api.openalex.org/works"
 SEMANTIC_SCHOLAR_API_URL = (
     "https://api.semanticscholar.org/graph/v1/paper/search"
 )
+# ClinicalTrials.gov REST v2. Keyless, and `query.term` is the same kind of
+# free-text search the paper APIs take, so it fits the one-request source
+# contract exactly as they do.
+CLINICALTRIALS_API_URL = "https://clinicaltrials.gov/api/v2/studies"
+
 EUROPEPMC_API_URL = (
     "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 )
@@ -135,6 +140,7 @@ ARXIV_SOURCE = "arxiv"
 CROSSREF_SOURCE = "crossref"
 OPENALEX_SOURCE = "openalex"
 SEMANTIC_SCHOLAR_SOURCE = "semanticscholar"
+CLINICALTRIALS_SOURCE = "clinicaltrials"
 EUROPEPMC_SOURCE = "europepmc"
 ELSEVIER_SOURCE = "elsevier"
 SPRINGER_SOURCE = "springer"
@@ -182,6 +188,7 @@ PAPER_API_HOSTS: frozenset[str] = frozenset(
         OPENALEX_API_URL,
         SEMANTIC_SCHOLAR_API_URL,
         EUROPEPMC_API_URL,
+        CLINICALTRIALS_API_URL,
         ELSEVIER_API_URL,
         SPRINGER_API_URL,
         CORE_API_URL,
@@ -574,6 +581,75 @@ def parse_semanticscholar(json_text: str) -> list[RawDocument]:
     return documents
 
 
+def _build_clinicaltrials_url(query: str, limit: int) -> str:
+    # `fields` keeps the payload to what the parser reads. Without it a
+    # study record is tens of kilobytes of arms, eligibility and locations,
+    # and a five-source fan-out multiplies that.
+    fields = ",".join(
+        (
+            "NCTId",
+            "BriefTitle",
+            "OfficialTitle",
+            "BriefSummary",
+            "DetailedDescription",
+            "OverallStatus",
+            "Condition",
+        )
+    )
+    return (
+        f"{CLINICALTRIALS_API_URL}"
+        f"?query.term={quote_plus(query)}"
+        f"&pageSize={limit}"
+        f"&fields={fields}"
+        "&format=json"
+    )
+
+
+def parse_clinicaltrials(json_text: str) -> list[RawDocument]:
+    """Parse a ClinicalTrials.gov v2 /studies response.
+
+    A trial is not a paper and the difference is the point: this is what was
+    attempted on people, including the arms that never produced a
+    publication. The registry's prose fields — brief summary and detailed
+    description — are what the extractor can ground spans in, so a record
+    with neither is skipped rather than stored as a bare title.
+
+    No DOI: trials are identified by NCT number, and inventing a DOI-shaped
+    key would collide with the paper de-duplicator.
+    """
+    payload = _load_json(json_text, CLINICALTRIALS_SOURCE)
+    studies = payload.get("studies") or []
+    documents: list[RawDocument] = []
+    for study in studies:
+        if not isinstance(study, dict):
+            continue
+        protocol = study.get("protocolSection") or {}
+        ident = protocol.get("identificationModule") or {}
+        desc = protocol.get("descriptionModule") or {}
+
+        nct_id = _normalize(ident.get("nctId"))
+        if not nct_id:
+            continue
+        title = _normalize(
+            ident.get("briefTitle") or ident.get("officialTitle")
+        )
+        summary = _normalize(desc.get("briefSummary"))
+        detail = _normalize(desc.get("detailedDescription"))
+        body = "\n\n".join(part for part in (summary, detail) if part)
+        if not body:
+            # Title-only records give the extractor nothing to cite.
+            continue
+        documents.append(
+            RawDocument(
+                source_kind="paper_api",
+                source_uri=f"https://clinicaltrials.gov/study/{nct_id}",
+                title=title or nct_id,
+                raw_text=body,
+            )
+        )
+    return documents
+
+
 def parse_europepmc(json_text: str) -> list[RawDocument]:
     """Parse a Europe PMC /search JSON response (resultType=core)."""
     payload = _load_json(json_text, EUROPEPMC_SOURCE)
@@ -806,6 +882,7 @@ _SOURCE_DISPATCH = {
     OPENALEX_SOURCE: (_build_openalex_url, parse_openalex),
     SEMANTIC_SCHOLAR_SOURCE: (_build_semanticscholar_url, parse_semanticscholar),
     EUROPEPMC_SOURCE: (_build_europepmc_url, parse_europepmc),
+    CLINICALTRIALS_SOURCE: (_build_clinicaltrials_url, parse_clinicaltrials),
     ELSEVIER_SOURCE: (_build_elsevier_url, parse_elsevier),
     SPRINGER_SOURCE: (_build_springer_url, parse_springer),
     CORE_SOURCE: (_build_core_url, parse_core),
@@ -862,6 +939,7 @@ PAPER_SOURCE_LABELS: dict[str, str] = {
     OPENALEX_SOURCE: "OpenAlex",
     SEMANTIC_SCHOLAR_SOURCE: "Semantic Scholar",
     EUROPEPMC_SOURCE: "Europe PMC (PubMed)",
+    CLINICALTRIALS_SOURCE: "ClinicalTrials.gov",
     ELSEVIER_SOURCE: "Elsevier (Scopus)",
     SPRINGER_SOURCE: "Springer Nature",
     CORE_SOURCE: "CORE",

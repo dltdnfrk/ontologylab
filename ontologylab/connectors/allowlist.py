@@ -65,6 +65,10 @@ PAPER_API_SOURCES: set[str] = {
     "elsevier",
     "springer",
     "core",
+    # Trial registrations, not papers. Same document shape (a title
+    # plus a prose summary) but a different kind of evidence: what was
+    # actually attempted on people, including what never got published.
+    "clinicaltrials",
 }
 
 # Back-compat alias: earlier code/tests read PAPER_API_ALLOWED["sources"].

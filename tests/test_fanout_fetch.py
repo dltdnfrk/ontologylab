@@ -60,6 +60,9 @@ _BODIES = {
       "externalIds": {"DOI": "10.1/c"}}]}""",
     "europepmc": """{"resultList": {"result": [{"title": "D",
       "abstractText": "Body D", "doi": "10.1/d", "source": "MED", "id": "1"}]}}""",
+    "clinicaltrials": """{"studies": [{"protocolSection": {
+      "identificationModule": {"nctId": "NCT1", "briefTitle": "E"},
+      "descriptionModule": {"briefSummary": "Body E"}}}]}""",
 }
 
 
@@ -71,6 +74,7 @@ _HOSTS = {
     paper_api.OPENALEX_API_URL: "openalex",
     paper_api.SEMANTIC_SCHOLAR_API_URL: "semanticscholar",
     paper_api.EUROPEPMC_API_URL: "europepmc",
+    paper_api.CLINICALTRIALS_API_URL: "clinicaltrials",
 }
 
 

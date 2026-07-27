@@ -126,13 +126,14 @@ def test_the_host_list_is_derived_from_the_endpoint_constants() -> None:
         "api.openalex.org",
         "api.semanticscholar.org",
         "www.ebi.ac.uk",
+        "clinicaltrials.gov",
         # publisher APIs — one fixed host each, which is what lets them sit
         # in an exact-match allowlist at all
         "api.elsevier.com",
         "api.springernature.com",
         "api.core.ac.uk",
     }
-    assert len(SOURCE_ORDER) == 8
+    assert len(SOURCE_ORDER) == 9
 
 
 def test_every_implemented_source_endpoint_passes_its_own_check() -> None:
