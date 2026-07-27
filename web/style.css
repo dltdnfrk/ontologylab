@@ -1901,6 +1901,56 @@ tr.row-focused {
 }
 .ev-ungrounded strong { color: var(--warn-text); }
 
+/* 외부 레코드 큐. 행의 주인공은 두 이름의 대조다 — 그것이 판정 대상이고,
+   나머지(리소스·id·요약)는 그 판정을 돕는 재료일 뿐이다. */
+.ann-list { list-style: none; margin: 0; padding: 0; }
+.ann-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-1) var(--sp-3);
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+.ann-row:last-child { border-bottom: none; }
+.ann-match {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.ann-ours { font-weight: var(--fw-medium); color: var(--foreground); }
+/* 물음표를 단 등호. 이 행이 주장이 아니라 질문이라는 표시다. */
+.ann-arrow { font-family: var(--mono); color: var(--warn-text); flex: none; }
+.ann-theirs { color: var(--foreground); }
+.ann-meta {
+  grid-column: 1;
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+  min-width: 0;
+}
+.ann-meta a { color: var(--accent); text-decoration: none; }
+.ann-meta a:hover { text-decoration: underline; }
+.ann-detail {
+  flex: 1 1 100%;
+  min-width: 0;
+  color: var(--muted-foreground);
+  line-height: var(--lh-snug);
+}
+/* 열을 못 박는다. `grid-row`만 주면 자동 배치가 1열을 차지해 버튼이 앞으로
+   나오고, 판정 대상인 두 이름의 대조가 오른쪽으로 밀린다. */
+.ann-actions {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  align-self: center;
+  white-space: nowrap;
+}
+.ann-actions .btn { border-color: var(--border); }
+
 /* ---------- 15. Cards (MCP / merge) ---------- */
 
 .mcp-card {

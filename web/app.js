@@ -740,6 +740,113 @@
     }
   }
 
+  /* -- 외부 레코드(주석) 큐 --------------------------------------------
+     제안 큐와 나란히 두되 묻는 것이 다르다. 여기서 사람이 판정하는 건
+     "이 사실이 참인가"가 아니라 "이게 이 노드의 레코드가 맞는가"다.
+     그래서 행이 반드시 두 이름을 나란히 보여준다: 우리가 부르는 이름과
+     리소스가 부르는 이름. 후자만 보여주면 확인할 수 없는 확인을
+     요구하는 셈이다. */
+
+  async function loadAnnotations() {
+    var list = $("#annotations-list");
+    var empty = $("#annotations-empty");
+    if (!list) return;
+    try {
+      var body = (await api("/api/annotations")) || {};
+      var items = body.annotations || [];
+      var counts = body.counts || {};
+      var badge = $("#annotations-count");
+      if (badge) badge.textContent = String(counts.proposed || 0);
+
+      list.innerHTML = items
+        .map(function (a) {
+          var facts = a.facts || {};
+          var detail = facts.function || facts.summary || facts.gene_name || "";
+          return (
+            "<li class='ann-row' data-id='" + escapeHtml(a.id) + "'>" +
+            "<div class='ann-match'>" +
+            "<span class='ann-ours'>" + escapeHtml(a.node_name || "") + "</span>" +
+            "<span class='ann-arrow' aria-hidden='true'>≟</span>" +
+            "<span class='ann-theirs'>" + escapeHtml(a.matched_name || "") + "</span>" +
+            "</div>" +
+            "<div class='ann-meta'>" +
+            "<code>" + escapeHtml(a.resource || "") + "</code> " +
+            "<a href='" + escapeHtml(a.record_url || "#") + "' target='_blank'" +
+            " rel='noopener noreferrer'>" + escapeHtml(a.external_id || "") + " ↗</a>" +
+            (detail ? "<span class='ann-detail'>" + escapeHtml(detail.slice(0, 140)) +
+                      "</span>" : "") +
+            "</div>" +
+            "<div class='ann-actions'>" +
+            "<button type='button' class='btn btn-primary ann-accept'" +
+            " aria-label='" + escapeHtml("맞는 레코드로 승인: " + (a.node_name || "") +
+              " = " + (a.matched_name || "")) + "'>맞음</button> " +
+            "<button type='button' class='btn btn-danger ann-reject'" +
+            " aria-label='" + escapeHtml("다른 레코드로 거부: " + (a.node_name || "") +
+              " ≠ " + (a.matched_name || "")) + "'>아님</button>" +
+            "</div></li>"
+          );
+        })
+        .join("");
+      if (empty) empty.classList.toggle("hidden", items.length > 0);
+    } catch (e) {
+      list.innerHTML = "";
+      showResult($("#enrich-result"), escapeHtml(friendlyError(e)), true);
+    }
+  }
+
+  $("#annotations-list").addEventListener("click", async function (ev) {
+    var accept = ev.target.closest(".ann-accept");
+    var reject = ev.target.closest(".ann-reject");
+    if (!accept && !reject) return;
+    var row = ev.target.closest(".ann-row");
+    if (!row) return;
+    try {
+      var res = await apiSend(
+        "/api/annotations/" + encodeURIComponent(row.dataset.id) + "/decide",
+        { accept: !!accept }
+      );
+      if (res && res.ok) {
+        await loadAnnotations();
+        // 승인은 노드 속성을 바꾸므로 근거 패널의 개념 정보도 낡는다.
+        loadProposals();
+      } else {
+        showResult($("#enrich-result"),
+          errorKindBadge(res && res.error_kind) + " " +
+          escapeHtml((res && res.detail) || "결정 실패."), true);
+      }
+    } catch (e) {
+      showResult($("#enrich-result"), escapeHtml(friendlyError(e)), true);
+    }
+  });
+
+  $("#enrich-btn").addEventListener("click", async function () {
+    var btn = $("#enrich-btn");
+    var box = $("#enrich-result");
+    btn.disabled = true;
+    showResult(box, "<span class='muted'>승인된 개념을 외부 리소스에서 조회 중…</span>");
+    try {
+      var res = await apiSend("/api/enrich?limit=50", {});
+      if (res && res.ok) {
+        // 조회 수와 매칭 수를 함께 말한다. 매칭이 0이어도 "안 돌았다"가
+        // 아니라 "이름이 그 리소스에 없다"는 뜻임이 드러나야 한다.
+        showResult(box,
+          "<span class='ok-msg'>조회 완료.</span> 개념 " + res.nodes_considered +
+          "개 · 조회 " + res.lookups + "회 · 매칭 " + res.matched +
+          " (새 제안 " + res.proposed + ")" +
+          (res.failures && res.failures.length
+            ? " · 실패 " + res.failures.length : ""));
+        await loadAnnotations();
+      } else {
+        showResult(box, errorKindBadge(res && res.error_kind) + " " +
+          escapeHtml((res && res.detail) || "조회 실패."), true);
+      }
+    } catch (e) {
+      showResult(box, escapeHtml(friendlyError(e)), true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   /* -- 일괄 승인/거부: 체크박스 + 명시적 확인창 (자동 승인 없음) -- */
 
   function updateBulkButtons() {
@@ -3055,7 +3162,10 @@
   })();
 
   var tabLoaders = {
-    review: loadProposals,
+    review: function () {
+      loadAnnotations();
+      return loadProposals();
+    },
     merge: loadMergeCandidates,
     // 수집과 추출이 한 화면이 되면서 두 로더도 하나가 된다. 둘 중 하나만
     // 돌면 화면 절반이 비어 있게 되므로 항상 같이 부른다.

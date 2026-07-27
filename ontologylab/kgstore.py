@@ -301,6 +301,43 @@ CREATE TABLE IF NOT EXISTS merge_candidates (
 );
 CREATE INDEX IF NOT EXISTS idx_merge_candidates_status ON merge_candidates (status);
 
+-- Annotations: facts a curated resource holds about a node, proposed for
+-- review. Deliberately NOT merged into `properties_json` on arrival.
+--
+-- The shape mirrors merge_candidates because the decision has the same
+-- shape: something outside the graph proposes a link, and only a human
+-- makes it real. What differs is what the reviewer is judging. An
+-- extraction asks "is this claim true"; an annotation asks **"is this the
+-- right record"** — UniProt does not invent a protein's function, but a
+-- lookup can attach P38398's true facts to the wrong node. So the row
+-- stores the resource's own name for the record next to the id, and the
+-- URL, because those are the evidence: nothing else lets a person check
+-- the match.
+--
+-- `facts_json` is the payload as fetched, not merged into the node. Merging
+-- on arrival would make an unreviewed external claim indistinguishable from
+-- an approved one the moment it landed.
+CREATE TABLE IF NOT EXISTS annotations (
+    id            TEXT PRIMARY KEY,
+    node_id       TEXT NOT NULL REFERENCES nodes(id),
+    resource      TEXT NOT NULL,
+    external_id   TEXT NOT NULL,
+    record_url    TEXT NOT NULL,
+    matched_name  TEXT NOT NULL,
+    facts_json    TEXT NOT NULL DEFAULT '{}',
+    status        TEXT NOT NULL DEFAULT 'proposed'
+                      CHECK (status IN ('proposed','verified','rejected')),
+    created_ts    REAL NOT NULL,
+    decided_ts    REAL,
+    decided_by    TEXT,
+    decision_note TEXT,
+    -- One record per (node, resource). A second lookup refreshes rather
+    -- than stacking duplicates a reviewer would have to reject one by one.
+    UNIQUE (node_id, resource)
+);
+CREATE INDEX IF NOT EXISTS idx_annotations_status ON annotations (status);
+CREATE INDEX IF NOT EXISTS idx_annotations_node ON annotations (node_id);
+
 CREATE VIEW IF NOT EXISTS pending_review AS
 SELECT 'node' AS kind, id, entity_type AS type_name, name AS label,
        confidence, source_doc_id, created_ts
@@ -1214,6 +1251,170 @@ class KGStore:
         if row is None:
             raise UnknownItem(f"unknown merge candidate id {candidate_id!r}")
         return row
+
+    # ---------------------------------------------------------------
+    # Annotations — curated-resource records, awaiting a human decision
+    # ---------------------------------------------------------------
+
+    def upsert_annotation(
+        self,
+        *,
+        node_id: str,
+        resource: str,
+        external_id: str,
+        record_url: str,
+        matched_name: str,
+        facts: dict[str, Any],
+    ) -> tuple[str, bool]:
+        """Propose one resource record for one node. Returns (id, created).
+
+        Re-running a lookup REFRESHES the pending row rather than adding a
+        second one: a resource that revises a record should not cost the
+        reviewer an extra rejection, and two rows for one (node, resource)
+        would let a reviewer approve a record the resource has since
+        replaced.
+
+        A decided annotation is never silently overwritten. Approval is the
+        thing this whole table exists to record; discarding it because a
+        refresh ran later would make the decision unstable.
+        """
+        now = time.time()
+        existing = self.conn.execute(
+            "SELECT id, status FROM annotations WHERE node_id = ? AND resource = ?",
+            (node_id, resource),
+        ).fetchone()
+        if existing is not None:
+            if existing["status"] != "proposed":
+                return existing["id"], False
+            self.conn.execute(
+                "UPDATE annotations SET external_id = ?, record_url = ?, "
+                "matched_name = ?, facts_json = ?, created_ts = ? WHERE id = ?",
+                (
+                    external_id,
+                    record_url,
+                    matched_name,
+                    json.dumps(facts, ensure_ascii=False),
+                    now,
+                    existing["id"],
+                ),
+            )
+            self.conn.commit()
+            return existing["id"], False
+
+        annotation_id = uuid.uuid4().hex
+        self.conn.execute(
+            "INSERT INTO annotations (id, node_id, resource, external_id, "
+            "record_url, matched_name, facts_json, status, created_ts) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 'proposed', ?)",
+            (
+                annotation_id,
+                node_id,
+                resource,
+                external_id,
+                record_url,
+                matched_name,
+                json.dumps(facts, ensure_ascii=False),
+                now,
+            ),
+        )
+        self.conn.commit()
+        return annotation_id, True
+
+    def annotations_pending(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        """Pending annotations, each carrying the node name it would attach to.
+
+        The node's own name travels with the row because it is the evidence:
+        the reviewer's job is to compare "what we called it" with "what the
+        resource calls it", and a queue that showed only the latter would be
+        asking them to confirm a match they cannot see.
+        """
+        if not self._table_exists("annotations"):
+            return []
+        rows = self.conn.execute(
+            "SELECT a.*, n.name AS node_name, n.entity_type AS node_type, "
+            "       n.status AS node_status "
+            "FROM annotations a JOIN nodes n ON n.id = a.node_id "
+            "WHERE a.status = 'proposed' "
+            "ORDER BY a.created_ts ASC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        out = []
+        for row in rows:
+            item = dict(row)
+            try:
+                item["facts"] = json.loads(row["facts_json"])
+            except (TypeError, ValueError):
+                item["facts"] = {}
+            item.pop("facts_json", None)
+            out.append(item)
+        return out
+
+    def decide_annotation(
+        self,
+        annotation_id: str,
+        *,
+        accept: bool,
+        by: str = DEFAULT_ACTOR,
+        note: str | None = None,
+    ) -> bool:
+        """Accept or reject one annotation. False when it is already decided.
+
+        Accepting writes the facts onto the node under the resource's name,
+        so an approved annotation becomes part of the node while staying
+        attributable — `properties_json` gains one key per resource, never a
+        flat merge, because a flat merge would lose which resource said what
+        and let two resources silently overwrite each other.
+        """
+        row = self.conn.execute(
+            "SELECT * FROM annotations WHERE id = ?", (annotation_id,)
+        ).fetchone()
+        if row is None or row["status"] != "proposed":
+            return False
+        now = time.time()
+        status = "verified" if accept else "rejected"
+        self.conn.execute(
+            "UPDATE annotations SET status = ?, decided_ts = ?, decided_by = ?, "
+            "decision_note = ? WHERE id = ?",
+            (status, now, by, note, annotation_id),
+        )
+        if accept:
+            node = self.conn.execute(
+                "SELECT properties_json FROM nodes WHERE id = ?", (row["node_id"],)
+            ).fetchone()
+            if node is not None:
+                try:
+                    props = json.loads(node["properties_json"] or "{}")
+                except (TypeError, ValueError):
+                    props = {}
+                if not isinstance(props, dict):
+                    props = {}
+                try:
+                    facts = json.loads(row["facts_json"])
+                except (TypeError, ValueError):
+                    facts = {}
+                props[row["resource"]] = {
+                    "external_id": row["external_id"],
+                    "record_url": row["record_url"],
+                    "matched_name": row["matched_name"],
+                    **(facts if isinstance(facts, dict) else {}),
+                }
+                self.conn.execute(
+                    "UPDATE nodes SET properties_json = ? WHERE id = ?",
+                    (json.dumps(props, ensure_ascii=False), row["node_id"]),
+                )
+        self.conn.commit()
+        return True
+
+    def annotation_counts(self) -> dict[str, int]:
+        if not self._table_exists("annotations"):
+            return {"proposed": 0, "verified": 0, "rejected": 0}
+        rows = self.conn.execute(
+            "SELECT status, COUNT(*) AS n FROM annotations GROUP BY status"
+        ).fetchall()
+        counts = {"proposed": 0, "verified": 0, "rejected": 0}
+        for row in rows:
+            counts[row["status"]] = row["n"]
+        return counts
 
     def merge_candidates_pending(self, *, limit: int = 100) -> list[dict[str, Any]]:
         """Pending merge candidates, hydrated with both nodes side-by-side."""

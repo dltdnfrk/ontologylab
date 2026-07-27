@@ -45,6 +45,7 @@ from ontologylab.connectors.paper_api import (
     check_source_implemented,
     resolve_source_key,
 )
+from ontologylab.connectors.resources import RESOURCE_LABELS, RESOURCE_ORDER
 from ontologylab.connectors.web_crawl import WebCrawlConnector
 from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError, UnknownItem
 from ontologylab.mcp_server import serve_args
@@ -80,6 +81,7 @@ from ontologylab.sources import (
 from ontologylab.server import settings as settings_mod
 from ontologylab.server.jobs import JobAlreadyRunning, JobRegistry
 from ontologylab.server.schemas import (
+    AnnotationDecision,
     CollectRequest,
     CostSummary,
     CriticRunRequest,
@@ -610,6 +612,61 @@ async def critic_run(body: CriticRunRequest) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Merge review (W7 — candidates from scan, decisions by human)
 # ---------------------------------------------------------------------------
+
+
+@router.post("/enrich")
+def enrich_nodes(limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+    """Look verified nodes up in the curated resources; queue what matches.
+
+    Synchronous and capped. Unlike a research run this makes at most
+    `limit x resources` small requests against keyless endpoints, so there
+    is no job to poll — and a cap the caller sets is easier to reason about
+    than a background task they have to remember is running.
+    """
+    from ontologylab.enrichment import enrich
+
+    store = _open_store()
+    try:
+        report = enrich(store, limit=limit)
+        return {"ok": True, **report.as_dict()}
+    except Exception as exc:
+        # Same discipline as the fan-out: name the kind, not the text. These
+        # endpoints are keyless, but the message can still quote a URL.
+        return {"ok": False, "error_kind": "failed",
+                "detail": f"enrichment failed: {type(exc).__name__}"}
+    finally:
+        store.close()
+
+
+@router.get("/annotations")
+def list_annotations(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+    store = _open_store()
+    try:
+        return {
+            "annotations": store.annotations_pending(limit=limit),
+            "counts": store.annotation_counts(),
+            "resources": [
+                {"id": name, "label": RESOURCE_LABELS.get(name, name)}
+                for name in RESOURCE_ORDER
+            ],
+        }
+    finally:
+        store.close()
+
+
+@router.post("/annotations/{annotation_id}/decide")
+def decide_annotation(annotation_id: str, body: AnnotationDecision) -> dict[str, Any]:
+    store = _open_store()
+    try:
+        decided = store.decide_annotation(
+            annotation_id, accept=body.accept, note=body.note
+        )
+        if not decided:
+            return {"ok": False, "error_kind": "rejected",
+                    "detail": "annotation is unknown or already decided"}
+        return {"ok": True, "counts": store.annotation_counts()}
+    finally:
+        store.close()
 
 
 @router.post("/merge/scan")

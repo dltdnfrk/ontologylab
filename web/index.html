@@ -312,6 +312,24 @@
           <button type="button" class="btn btn-link" data-goto="sources">① 리서치를 실행</button>하거나
           <button type="button" class="btn btn-link" data-goto="packs">③ 팩을 빌드</button>하세요.</p>
         <p id="review-error" class="err-msg hidden"></p>
+
+        <!-- 두 번째 큐. 별도 화면으로 빼지 않은 건 결정의 성격이 같기
+             때문이다 — 승인해야 지식이 된다. 다만 묻는 질문이 다르다:
+             제안은 "이 주장이 참인가", 주석은 "이게 맞는 레코드인가".
+             UniProt은 단백질 기능을 지어내지 않지만, 조회는 P38398의
+             참인 사실을 엉뚱한 노드에 붙일 수 있다. -->
+        <div class="panel" id="annotations-panel">
+          <div class="panel-head">
+            <span class="panel-label">외부 레코드</span>
+            <span id="annotations-count" class="panel-figure">0</span>
+            <span class="panel-note">이게 맞는 레코드인지 확인 · 사실 여부가 아님</span>
+            <button type="button" id="enrich-btn" class="btn-link panel-act">조회 실행</button>
+          </div>
+          <ul id="annotations-list" class="ann-list"></ul>
+          <p id="annotations-empty" class="board-empty hidden">대기 중인 외부 레코드 없음 —
+            승인된 개념 이름으로 <strong>조회 실행</strong></p>
+          <div id="enrich-result" class="status-box result-box panel-body-note hidden"></div>
+        </div>
       </div>
 
       <!-- 근거는 열어보는 게 아니라 늘 떠 있어야 한다. 승인/거부를 요구하면서

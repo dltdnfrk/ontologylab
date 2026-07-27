@@ -244,3 +244,15 @@ class JobStatus(BaseModel):
     )
     progress: list[str] = Field(default_factory=list)
     error: Optional[str] = None
+
+
+class AnnotationDecision(BaseModel):
+    """Accept or reject one resource record for one node.
+
+    `accept` is required and has no default: this is the decision the whole
+    annotations table exists to record, and a default would let a
+    malformed request cast a vote.
+    """
+
+    accept: bool
+    note: str | None = None

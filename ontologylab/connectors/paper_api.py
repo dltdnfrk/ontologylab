@@ -206,8 +206,30 @@ PAPER_API_HOSTS: frozenset[str] = frozenset(
 _REDIRECT_SAFE_HEADERS = frozenset({"user-agent", "accept", "accept-encoding"})
 
 
+def fetch_hosts() -> frozenset[str]:
+    """Every host `_http_get_text` may reach, from both connector families.
+
+    `_http_get_text` is shared with `connectors.resources`, so its redirect
+    guard has to know that module's endpoints too — otherwise a plain 302
+    from UniProt is refused as an off-allowlist hop.
+
+    Imported at call time, not module scope: `resources` imports this module
+    for the fetcher, so a top-level import here would close the cycle. Both
+    sets stay DERIVED from endpoint constants; neither is hand-typed, which
+    is the property that keeps exact-match viable.
+
+    The union does mean a paper API could redirect to a resource host and be
+    allowed. That is a real widening, and a small one: every host in it is
+    already trusted enough to be fetched directly, and the handler still
+    drops non-safe headers whenever the host changes.
+    """
+    from ontologylab.connectors.resources import RESOURCE_HOSTS
+
+    return PAPER_API_HOSTS | RESOURCE_HOSTS
+
+
 def check_paper_host(url: str) -> str:
-    """Validate a paper-API URL's host; return it unchanged.
+    """Validate a fetch URL's host; return it unchanged.
 
     Exact match, https only. The scheme matters as much as the host: every
     endpoint constant is https, so a redirect to `http://` on an allowlisted
@@ -220,11 +242,12 @@ def check_paper_host(url: str) -> str:
             f"paper API redirect to a non-https scheme "
             f"({parsed.scheme!r}) is refused"
         )
+    allowed = fetch_hosts()
     host = (parsed.hostname or "").lower()
-    if host not in PAPER_API_HOSTS:
+    if host not in allowed:
         raise NotAllowlisted(
             f"paper API redirect to host {host!r} is not on the allowlist "
-            f"(allowed: {sorted(PAPER_API_HOSTS)})"
+            f"(allowed: {sorted(allowed)})"
         )
     return url
 
