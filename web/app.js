@@ -24,7 +24,21 @@
     var main = document.querySelector("main");
     if (main) main.scrollTop = 0;
     renderStatusKeys(name);
+    // 화면을 바꾼 것이 사람이 아닐 수 있다 — Aside의 AI가 몰면 사람은
+    // 자기가 누르지 않은 이동을 보게 된다. 어디에 왔는지는 늘 같은
+    // 자리에서 읽혀야 한다.
+    var where = document.getElementById("statusbar-where");
+    if (where) where.textContent = SCREEN_KO[name] || name;
   }
+
+  /* 레일이 좁은 폭에서 아이콘만 남기므로, 화면 이름을 글자로 말하는 곳이
+     상태바뿐인 경우가 있다. 여기 이름은 aria-label과 같은 말을 쓴다 —
+     AI가 읽는 이름과 사람이 보는 이름이 다르면 둘의 대화가 어긋난다. */
+  var SCREEN_KO = {
+    home: "홈", sources: "리서치", review: "검토", packs: "팩",
+    mcp: "연결", merge: "병합", communities: "커뮤니티", graph: "그래프",
+    engines: "엔진", settings: "설정",
+  };
 
   /* 화면마다 쓸 수 있는 키가 다르다. 검토에만 있는 단축키를 모든 탭에서
      보여주면 상태바가 장식이 되고, 장식은 아무도 읽지 않는다. */
@@ -1180,11 +1194,22 @@
     }
     var running = job && job.status === "running";
 
+    // 상태를 색으로만 말하지 않는다. 이 화면은 사람만 보는 게 아니라
+    // Aside의 AI가 DOM을 읽어 조작한다 — 호박색은 텍스트로 읽히지 않고,
+    // 색각 이상인 사람에게도 마찬가지다. 이름 옆에 글자로 붙인다.
     var chips = usable.map(function (s) {
-      var state = failed[s.id] ? " is-failed"
-        : running ? " is-live" : "";
-      return "<span class='src-chip" + state + "'>" +
-        escapeHtml(s.label || s.id) + "</span>";
+      var name = escapeHtml(s.label || s.id);
+      var state = "", mark = "", aria = name;
+      if (failed[s.id]) {
+        state = " is-failed";
+        mark = "<span class='chip-mark' aria-hidden='true'>✕</span>";
+        aria = name + ": 답하지 않음";
+      } else if (running) {
+        state = " is-live";
+        aria = name + ": 질의 중";
+      }
+      return "<span class='src-chip" + state + "' role='listitem'" +
+        " aria-label='" + aria + "'>" + name + mark + "</span>";
     }).join("");
 
     // 라벨은 세 가지 상태를 각각 다르게 말해야 한다. 끝난 실행에
@@ -1478,8 +1503,34 @@
   }
 
   // 스냅샷 적용 공통 경로 — SSE 이벤트와 폴링 응답이 모두 여길 지난다.
+  /* 실행 중인 작업을 상태바에 건다. 리서치 화면을 떠나면 진행이 보이지
+     않던 것이 이 앱의 구조적 문제였다 — AI가 다른 화면으로 옮겨 가면
+     사람은 실행이 도는지조차 알 수 없었다. 잡 스냅샷이 오는 모든
+     경로(SSE·폴링)가 여기를 지나므로 갱신 지점은 하나로 족하다. */
+  function renderStatusRun(jobs) {
+    var el = document.getElementById("statusbar-run");
+    if (!el) return;
+    var live = (jobs || []).filter(function (j) {
+      return j.status === "running";
+    });
+    if (!live.length) {
+      el.classList.add("hidden");
+      el.textContent = "";
+      return;
+    }
+    var job = live[0];
+    var kind = job.kind === "research" ? "리서치" : "추출";
+    var phase = PHASE_KO[job.phase] || "";
+    // 상태를 색이 아니라 글자로도 말한다. AI는 CSS 클래스가 아니라
+    // 텍스트를 읽고, 사람은 곁눈으로 점을 본다 — 둘 다 만족해야 한다.
+    el.textContent = kind + " 실행 중" + (phase ? " · " + phase : "") +
+      (live.length > 1 ? " (+" + (live.length - 1) + ")" : "");
+    el.classList.remove("hidden");
+  }
+
   function applyJobs(jobs) {
     renderJobs(jobs);
+    renderStatusRun(jobs);
     // running → 종료 전환 감지: 완료 순간에 다음 단계 안내 + 검토 배지 갱신
     jobs.forEach(function (job) {
       var prev = prevJobStatuses[job.job_id];

@@ -541,6 +541,38 @@ body {
   color: var(--muted-foreground);
   user-select: none;
 }
+/* 왼쪽 첫 칸은 "지금 어디에 있고 무엇이 도는가". AI가 화면을 옮기므로
+   사람이 자기 위치를 잃지 않으려면 스크롤·탭과 무관한 고정 자리가
+   필요하다. */
+.statusbar-activity {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+  min-width: 0;
+}
+.sb-where {
+  color: var(--foreground);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+.sb-run {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--ok-text);
+  white-space: nowrap;
+}
+/* 점은 곁눈으로, 글자는 정면으로. 둘 다 같은 사실을 말한다. */
+.sb-run::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+
 .statusbar-keys { display: flex; align-items: center; gap: var(--sp-3); }
 .statusbar-keys span { display: inline-flex; align-items: center; gap: var(--sp-1); }
 .statusbar-keys kbd {
@@ -1726,6 +1758,7 @@ tr.row-focused {
   background: var(--warn-soft);
   animation: none;
 }
+.chip-mark { margin-left: 0.3em; opacity: 0.9; }
 .fanout-more { font-size: var(--fs-label); white-space: nowrap; }
 
 .composer-opts {
@@ -2092,7 +2125,12 @@ tr.row-focused {
      접고 단축키만 남긴다(그 키는 지금 이 화면에서만 쓸 수 있는 정보다). */
   .statusbar { flex-wrap: nowrap; overflow: hidden; }
   .statusbar-state { display: none; }
-  .statusbar-keys { flex-wrap: nowrap; overflow: hidden; }
+  /* 좁을 때 접는 것은 단축키다. "지금 어디서 무엇이 도는가"는 이 앱을
+     사람이 직접 몰지 않기 때문에 마지막까지 남아야 하는 정보다 —
+     저장소 숫자는 홈 현황판이, 단축키는 각 화면이 이미 말한다. */
+  .statusbar-keys { display: none; }
+  .statusbar-activity { flex: 1; overflow: hidden; }
+  .sb-run { overflow: hidden; text-overflow: ellipsis; }
 }
 
 @media (prefers-reduced-motion: reduce) {
