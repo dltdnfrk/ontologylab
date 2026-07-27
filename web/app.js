@@ -1111,33 +1111,108 @@
   /* -- Sources -- */
 
   async function loadDocuments() {
-    var tbody = $("#documents-body");
+    var list = $("#documents-list");
     var empty = $("#sources-empty");
     var err = $("#sources-error");
     err.classList.add("hidden");
     empty.classList.add("hidden");
-    showTableLoading(tbody, 4);
     try {
       var data = await api("/api/documents");
       var docs = (data && data.documents) || [];
-      tbody.innerHTML = docs
+      list.innerHTML = docs
         .map(function (doc) {
+          // URI는 열이 아니라 제목 아래 한 줄이다. 열로 두면 표 폭이 URI
+          // 길이에 끌려가고, 정작 훑는 대상인 제목이 잘린다.
+          var uri = doc.source_uri || "";
           return (
-            "<tr>" +
-            "<td>" + escapeHtml(doc.source_kind || "") + "</td>" +
-            "<td>" + escapeHtml(doc.title || "(제목 없음)") + "</td>" +
-            "<td><code>" + escapeHtml(doc.source_uri || "") + "</code></td>" +
-            "<td><small>" + escapeHtml(fmtTs(doc.fetched_ts)) + "</small></td>" +
-            "</tr>"
+            "<li class='doc-row'>" +
+            "<span class='doc-src'>" + escapeHtml(doc.source_kind || "?") + "</span>" +
+            "<span class='doc-main'>" +
+            "<span class='doc-title'>" +
+            escapeHtml(doc.title || "(제목 없음)") + "</span>" +
+            (uri ? "<span class='doc-uri'>" + escapeHtml(uri) + "</span>" : "") +
+            "</span>" +
+            "<span class='doc-ts'>" + escapeHtml(fmtTs(doc.fetched_ts)) + "</span>" +
+            "</li>"
           );
         })
         .join("");
       empty.classList.toggle("hidden", docs.length > 0);
     } catch (e) {
-      tbody.innerHTML = "";
+      list.innerHTML = "";
       err.textContent = friendlyError(e);
       err.classList.remove("hidden");
     }
+  }
+
+  /* -- 팬아웃 표시 ---------------------------------------------------------
+     리서치는 한 주제를 여러 논문 소스에 동시에 던지는 일이고, 그게 이
+     도구의 값이다. 그런데 화면에는 입력칸만 있어서 무엇이 벌어지는지
+     보이지 않았다 — 누르기 전에는 어디에 묻는지 모르고, 끝난 뒤에는
+     "왜 5개만 답했지"를 물을 곳이 없었다. 같은 자리에서 둘 다 답한다. */
+
+  var fanoutSources = null;   // /api/paper-sources 캐시 (실행 중 재요청 방지)
+
+  async function renderFanout(job) {
+    var box = $("#research-fanout");
+    if (!box) return;
+    if (!fanoutSources) {
+      try {
+        fanoutSources = ((await api("/api/paper-sources")) || {}).sources || [];
+      } catch (_) {
+        box.innerHTML = "";
+        return;
+      }
+    }
+    var usable = fanoutSources.filter(function (s) { return s.available; });
+    var locked = fanoutSources.filter(function (s) {
+      return s.connectable && !s.available;
+    });
+    // 실행 중에는 소스별 결과를 서버가 이름으로 주지 않는다(실패만 이름이
+    // 나온다). 그래서 있지도 않은 소스별 진행률을 지어내지 않고, 단계와
+    // 실패한 소스만 사실대로 말한다.
+    var failed = {};
+    if (job) {
+      (job.progress || []).forEach(function (line) {
+        var m = /\[ontologylab\] (\S+) did not answer/.exec(line);
+        if (m) failed[m[1]] = true;
+      });
+    }
+    var running = job && job.status === "running";
+
+    var chips = usable.map(function (s) {
+      var state = failed[s.id] ? " is-failed"
+        : running ? " is-live" : "";
+      return "<span class='src-chip" + state + "'>" +
+        escapeHtml(s.label || s.id) + "</span>";
+    }).join("");
+
+    // 라벨은 세 가지 상태를 각각 다르게 말해야 한다. 끝난 실행에
+    // "질의할 곳 5"가 남아 있으면 호박색 칩 두 개와 정면으로 모순된다 —
+    // 화면이 스스로와 다투는 셈이라, 둘 중 하나는 거짓으로 읽힌다.
+    var nFailed = Object.keys(failed).length;
+    var label;
+    if (running) {
+      label = "질의 중 <b>" + usable.length + "</b>";
+    } else if (nFailed) {
+      label = "답함 <b>" + (usable.length - nFailed) + "</b>/" + usable.length;
+    } else {
+      label = "질의할 곳 <b>" + usable.length + "</b>";
+    }
+
+    var tail = "";
+    if (nFailed) {
+      // 실패의 원인은 대개 키 없는 익명 한도다. 물어볼 곳을 바로 옆에.
+      tail =
+        "<button type='button' class='btn-link fanout-more' data-goto='settings'>" +
+        "키 연결 →</button>";
+    } else if (locked.length) {
+      tail =
+        "<button type='button' class='btn-link fanout-more' data-goto='settings'>" +
+        "+" + locked.length + "곳 연결 안 됨</button>";
+    }
+    box.innerHTML =
+      "<span class='fanout-label'>" + label + "</span>" + chips + tail;
   }
 
   $("#collect-form").addEventListener("submit", async function (ev) {
@@ -1438,9 +1513,11 @@
         );
         loadProposals();
       }
-      if (job.kind === "research" && job.job_id === researchJobId &&
-          job.status !== "running") {
-        setResearchRunning(null);
+      if (job.kind === "research" && job.job_id === researchJobId) {
+        // 팬아웃 칩이 이 스냅샷을 근거로 갱신된다 — 실패한 소스는
+        // 이름이 로그에 나오므로 그 자리에서 붉게 바뀐다.
+        renderFanout(job);
+        if (job.status !== "running") setResearchRunning(null);
       }
       prevJobStatuses[job.job_id] = job.status;
     });
@@ -1597,6 +1674,8 @@
       });
 
       populateSourceSelect(connectable);
+      // 소스 구성이 바뀌었으니 팬아웃 캐시는 더 이상 사실이 아니다.
+      fanoutSources = null;
       if (badge) {
         var pending = connectable.filter(function (s) {
           return s.keyed && !s.key_present;
@@ -2912,7 +2991,7 @@
         populateEngineSelect("#extract-engine");
         populateEngineSelect("#research-engine");
       }
-      return Promise.all([loadDocuments(), loadJobs()]);
+      return Promise.all([loadDocuments(), loadJobs(), renderFanout(null)]);
     },
     // 소스 키 UI가 설정으로 옮겨 왔다. loadSources는 표와 셀렉트만 채우고
     // 설정 폼 입력값은 건드리지 않으므로 "입력 중 GET 덮어쓰기" 예외와

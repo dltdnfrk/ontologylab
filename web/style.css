@@ -1617,7 +1617,7 @@ tr.row-focused {
 }
 @keyframes live-pulse { 50% { opacity: 0.35; } }
 
-/* 런 바 — 주제 → 실행이 한 줄. 폼 격자가 아니라 명령줄이다. */
+/* 런 바 — 한 줄짜리 폼(설정의 키 연결)에 남는다. */
 .runbar {
   display: flex;
   align-items: center;
@@ -1630,6 +1630,170 @@ tr.row-focused {
 .runbar > input[type="number"] { width: 64px; flex: none; }
 .runbar .check-line { flex: none; }
 .runbar .btn { border-color: var(--border); }
+
+/* ---------- 컴포저 (리서치) ----------
+   이 화면의 주인공은 질문 한 줄이다. 이전에는 그 입력칸이 셀렉트·숫자칸과
+   같은 높이·같은 무게로 한 줄에 끼어 있어서, 사람이 쓰는 유일한 문장이
+   설정값과 구분되지 않았다. 입력을 위로 올려 크게 두고, 그 아래에 이
+   질문이 어디로 나가는지(팬아웃)와 조건을 붙인다. */
+.composer {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.composer-input {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+}
+.composer-prompt {
+  flex: none;
+  font-family: var(--mono);
+  font-size: var(--fs-md);
+  color: var(--ok-text);
+}
+/* 이 칸만 크다 — 화면에서 사람이 문장을 쓰는 유일한 자리다. */
+#research-topic {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  font-size: var(--fs-md);
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+#research-topic:focus { box-shadow: none; border: none; }
+.composer-input .btn { flex: none; }
+
+/* 계획 줄 — 위쪽 질문이 어디로 나가는지, 어떤 조건으로 나가는지.
+   두 줄로 못 박는다: 한 줄에 같이 두면 칩이 접히는 순간 옵션이 접힌
+   칩 더미 옆 중간 높이에 끼어 L자로 어긋난다(폭에 따라 어긋나는 위치가
+   달라져 더 나쁘다). 위는 어디에, 아래는 어떻게. */
+.composer-plan {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  border-top: 1px solid var(--border);
+  background: var(--background);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.fanout {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.fanout-label {
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  margin-right: var(--sp-1);
+}
+.fanout-label b {
+  font-family: var(--mono);
+  font-weight: var(--fw-medium);
+  color: var(--foreground);
+}
+
+/* 칩은 "지금 이 질문을 받을 곳"의 목록이다. 상태는 색이 아니라 잉크
+   농도로 낸다 — 초록·빨강은 승인/거부에 예약돼 있다. */
+.src-chip {
+  font-size: var(--fs-label);
+  font-family: var(--mono);
+  color: var(--muted-foreground);
+  background: var(--secondary);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 0.12em 0.45em;
+  white-space: nowrap;
+}
+.src-chip.is-live {
+  color: var(--foreground);
+  border-color: var(--border);
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+/* 답하지 않은 소스만 색을 얻는다 — 이 화면에서 유일하게 조치가
+   필요한 상태이기 때문이다. */
+.src-chip.is-failed {
+  color: var(--warn-text);
+  background: var(--warn-soft);
+  animation: none;
+}
+.fanout-more { font-size: var(--fs-label); white-space: nowrap; }
+
+.composer-opts {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding-top: var(--sp-2);
+  border-top: 1px dashed var(--border);
+}
+.opt {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-label);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.opt-l { letter-spacing: var(--ls-label); text-transform: uppercase; }
+.opt input[type="number"] { width: 52px; height: 24px; }
+.opt select { width: auto; height: 24px; }
+.opt-check { color: var(--foreground); font-size: var(--fs-xs); }
+.opt-check input { flex: none; }
+
+/* ---------- 문서 목록 ----------
+   4열 표였다. URI 열 하나 때문에 표가 1170px로 벌어져 좁은 창에서
+   옆으로 스크롤됐는데, 정작 사람이 훑는 것은 제목 하나다. */
+.doc-list { list-style: none; margin: 0; padding: 0; }
+.doc-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+.doc-row:last-child { border-bottom: none; }
+.doc-src {
+  flex: none;
+  width: 68px;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.doc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.doc-title {
+  font-size: var(--fs-sm);
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.doc-uri {
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.doc-ts {
+  flex: none;
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
 
 /* 화면 머리 — 큰 제목 대신 이름 + 한 줄 규칙. */
 .screen-head {

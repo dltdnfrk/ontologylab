@@ -106,23 +106,40 @@
 
     <!-- ================= 리서치 ================= -->
     <section id="tab-sources" class="tab-panel" data-tab-panel="sources">
-      <!-- 런 바. 주제 → 실행이 이 화면의 전부이므로 폼 격자가 아니라
-           한 줄이다 — 옵션은 값이 보이는 컨트롤로 같은 줄에 붙는다. -->
-      <form id="research-form" class="runbar">
-        <input type="text" id="research-topic"
-               placeholder="리서치 주제 (예: knowledge graph extraction)" />
-        <select id="research-engine" title="추출 엔진"></select>
-        <!-- bounds mirror paper_api.DEFAULT_LIMIT / MAX_LIMIT -->
-        <input type="number" id="research-limit" value="5" min="1" max="25"
-               title="소스당 최대 논문 수" />
-        <!-- 텍스트는 반드시 하나의 span으로 감싼다. 라벨이 flex 컨테이너라
-             벌거벗은 텍스트 노드는 각각 flex 항목이 되어 세로로 쌓인다. -->
-        <label class="check-line" title="끄면 초록만 읽어요 — 결론은 알아도 근거는 못 봐요. 켜면 오픈액세스 논문의 전문까지 읽어 추출이 오래 걸려요.">
-          <input type="checkbox" id="research-fulltext" checked />
-          <span>전문</span>
-        </label>
-        <button type="submit" id="research-submit" class="btn btn-primary">시작</button>
-        <button type="button" id="research-cancel" class="btn hidden">중단</button>
+      <!-- 컴포저. 이 화면이 하는 일은 "주제 하나로 여러 논문 소스에 동시에
+           묻는 것"인데, 이전 런바는 그 사실을 어디에도 보여주지 않았다 —
+           입력칸 하나와 빈 표 두 개뿐이라 무엇을 하는 도구인지 화면만
+           봐서는 알 수 없었다. 팬아웃을 누르기 전에 보이게 한다. -->
+      <form id="research-form" class="composer">
+        <div class="composer-input">
+          <span class="composer-prompt" aria-hidden="true">?</span>
+          <input type="text" id="research-topic" autocomplete="off"
+                 placeholder="무엇을 알고 싶으세요? (예: CRISPR off-target effects)" />
+          <button type="submit" id="research-submit" class="btn btn-primary">리서치 시작</button>
+          <button type="button" id="research-cancel" class="btn hidden">중단</button>
+        </div>
+
+        <!-- 실행 전: 어디에 물을지. 실행 중: 어디까지 왔는지. 같은 자리. -->
+        <div class="composer-plan">
+          <div id="research-fanout" class="fanout" aria-live="polite"></div>
+          <div class="composer-opts">
+            <label class="opt" title="소스마다 가져올 논문 수의 상한이에요. 늘리면 더 넓게 보지만 추출이 오래 걸려요.">
+              <span class="opt-l">소스당</span>
+              <!-- bounds mirror paper_api.DEFAULT_LIMIT / MAX_LIMIT -->
+              <input type="number" id="research-limit" value="5" min="1" max="25" />
+            </label>
+            <label class="opt" title="개념과 관계를 뽑아낼 AI 엔진이에요.">
+              <span class="opt-l">엔진</span>
+              <select id="research-engine"></select>
+            </label>
+            <!-- 텍스트는 반드시 하나의 span으로 감싼다. 라벨이 flex 컨테이너라
+                 벌거벗은 텍스트 노드는 각각 flex 항목이 되어 세로로 쌓인다. -->
+            <label class="opt opt-check" title="끄면 초록만 읽어요 — 결론은 알아도 근거는 못 봐요. 켜면 오픈액세스 논문의 전문까지 읽어 추출이 오래 걸립니다.">
+              <input type="checkbox" id="research-fulltext" checked />
+              <span>전문까지 읽기</span>
+            </label>
+          </div>
+        </div>
       </form>
       <div id="research-result" class="status-box result-box hidden"></div>
 
@@ -219,21 +236,12 @@
           <span class="panel-label">문서</span>
           <button type="button" id="sources-refresh-btn" class="btn-link panel-act">새로고침</button>
         </div>
-        <div class="table-wrap table-scroll panel-table">
-          <table id="documents-table">
-            <thead>
-              <tr>
-                <th>종류</th>
-                <th>제목</th>
-                <th>URI</th>
-                <th>수집 시각</th>
-              </tr>
-            </thead>
-            <tbody id="documents-body"></tbody>
-          </table>
-        </div>
+        <!-- 표가 아니라 목록이다. 4열 격자로 두면 URI 한 줄 때문에 표가
+             1170px로 벌어져 좁은 창에서 옆으로 스크롤됐고, 정작 사람이
+             훑는 것은 제목 하나다. 제목이 행이고 출처·시각은 그 아래 -->
+        <ul id="documents-list" class="doc-list"></ul>
         <p id="sources-empty" class="board-empty hidden">문서 없음 —
-          주제 리서치나 <strong>직접 넣기</strong>로 수집</p>
+          위에 주제를 넣거나 <strong>직접 넣기</strong>로 수집</p>
         <p id="sources-error" class="err-msg panel-body-note hidden"></p>
       </div>
     </section>
