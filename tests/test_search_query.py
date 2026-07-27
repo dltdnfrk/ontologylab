@@ -89,22 +89,23 @@ def test_a_well_formed_answer_yields_query_and_notes() -> None:
         '```json\n{"query": "   "}\n```',
     ],
 )
-def test_unusable_output_falls_back_to_the_topic(raw: str) -> None:
-    """Every failure lands in one place so the caller has one thing to check.
+def test_unusable_output_is_reported_as_none(raw: str) -> None:
+    """Failure is `None`, distinct from any legitimate query.
 
-    A partial parse would be worse than none: searching half a formulated
-    query is a silent third behaviour nobody asked for.
+    Using the topic as the failure sentinel is what made a correct
+    formulation indistinguishable from a broken one — see
+    `test_a_query_equal_to_the_topic_is_a_success_not_a_failure`.
     """
     query, notes = parse_search_query(raw, TOPIC)
 
-    assert query == TOPIC
+    assert query is None
     assert notes == ""
 
 
 def test_an_over_long_answer_is_rejected_rather_than_truncated() -> None:
     raw = _fenced('{"query": "%s"}' % ("x" * (MAX_QUERY_LEN + 1)))
 
-    assert parse_search_query(raw, TOPIC)[0] == TOPIC
+    assert parse_search_query(raw, TOPIC)[0] is None
 
 
 def test_too_many_terms_are_cut_to_the_cap() -> None:
@@ -224,3 +225,23 @@ def test_each_source_reports_when_it_starts_and_how_it_ended() -> None:
     assert "did not answer" in _source_event_line(
         "source_failed", "arxiv", "fetch_failed"
     )
+
+
+def test_a_query_equal_to_the_topic_is_a_success_not_a_failure() -> None:
+    """Found in review: a working engine was reported as a broken one.
+
+    When the topic is already English keywords the right answer is to leave
+    it alone, and the engine does. The old code used `query == topic` as its
+    failure sentinel, so that correct answer raised `error` and the run
+    logged "searching the topic as typed" about a search it had formulated —
+    an operator reading the log would distrust a search that was fine.
+    """
+    already_good = "apple rootstock cold hardiness"
+    engine = _Engine(
+        text=_fenced('{"query": "%s", "notes": "already keywords"}' % already_good)
+    )
+
+    query, usage = asyncio.run(formulate_search_query(already_good, engine))
+
+    assert query == already_good
+    assert "error" not in usage, "a no-op formulation is not an error"

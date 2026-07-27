@@ -318,10 +318,20 @@
         "<p class='ev-source muted'><small>" +
         escapeHtml(item.doc_title || item.source_doc_id || "") +
         "</small></p>";
+    } else if (!item.source_span) {
+      // 스팬이 없는 개체가 생기는 길은 하나뿐이다: 모델이 관계의 끝점으로만
+      // 이름을 대서 자리표시자로 만들어진 경우. 정상 개체 경로는 원문 대조에
+      // 실패하면 거부하므로 스팬이 반드시 있다. 그러니 여기서 "기록되지
+      // 않았어요"라고 말하면 장부 누락처럼 읽히는데, 실제로는 근거가 아예
+      // 없다는 뜻이다 — 승인 여부를 가르는 사실을 완곡어법으로 가리는 셈.
+      html +=
+        "<p class='ev-noevidence ev-ungrounded'><small><strong>이 이름은 원문에 " +
+        "나오지 않아요.</strong> 모델이 관계를 설명하려고 덧붙인 이름이라 " +
+        "근거 문장이 없어요 — 승인하면 출처 없는 지식이 됩니다.</small></p>";
     } else {
       html +=
-        "<p class='muted ev-noevidence'><small>이 항목엔 남은 출처 문장이 " +
-        "없어요 — 원문이 지워졌거나 스팬이 기록되지 않았어요.</small></p>";
+        "<p class='muted ev-noevidence'><small>스팬은 기록돼 있는데 원문 " +
+        "문장을 읽지 못했어요 — 원문 파일이 지워졌을 수 있어요.</small></p>";
     }
 
     html +=

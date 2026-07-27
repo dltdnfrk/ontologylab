@@ -209,3 +209,116 @@ def test_mock_engine_output_parses_against_real_prompt():
     names = sorted(e.name for e in result.entities)
     assert names == ["ApiGateway", "OrderService", "RateLimiter"]
     assert len(result.relations) == 2
+
+
+# --------------------------------------------------------------------------
+# Grounding, including the door that was left open
+# --------------------------------------------------------------------------
+
+
+def test_an_entity_absent_from_the_chunk_is_rejected() -> None:
+    """The grounding rule, stated directly."""
+    result = parse_and_validate_extraction(
+        wrap({"entities": [{"name": "GhostService", "entity_type": "Component"}]}),
+        SCHEMA,
+        Chunk(index=0, char_offset=0, text="The OrderService writes to disk."),
+    )
+
+    assert result.entities == []
+    assert any("not found in chunk" in w for w in result.warnings)
+
+
+def test_the_same_name_as_a_relation_endpoint_is_announced() -> None:
+    """Found in review: the rule above had a quiet way around it.
+
+    A name the model never emitted as an entity, and that does not occur in
+    the source text, still becomes a proposal — minted as a placeholder so
+    the edge is not dangling. That is defensible; doing it in silence was
+    not. The direct claim is rejected loudly two hundred lines earlier,
+    while the endpoint form produced no warning at all, and `synthesized`
+    is counted into a statistic and then dropped — it reaches neither the
+    database nor the reviewer.
+
+    What survives is the missing span, which is why the review UI keys on
+    that. This pins the announcement so the two paths stay comparable.
+    """
+    result = parse_and_validate_extraction(
+        wrap(
+            {
+                "entities": [],
+                "relations": [
+                    {
+                        "relation_type": "uses",
+                        "source": {"name": "OrderService", "entity_type": "Component"},
+                        "target": {"name": "GhostService", "entity_type": "Component"},
+                    }
+                ],
+            }
+        ),
+        SCHEMA,
+        Chunk(index=0, char_offset=0, text="The OrderService writes to disk."),
+    )
+
+    ghost = [e for e in result.entities if e.name == "GhostService"]
+    assert ghost, "the placeholder is still minted — a dangling edge is worse"
+    assert ghost[0].source_span is None
+    assert any(
+        "does not appear in the chunk" in w and "GhostService" in w
+        for w in result.warnings
+    ), "an ungrounded endpoint must not enter in silence"
+
+
+def test_a_grounded_endpoint_keeps_its_span_and_raises_no_alarm() -> None:
+    """The warning must fire on absence, not on being an endpoint."""
+    result = parse_and_validate_extraction(
+        wrap(
+            {
+                "entities": [],
+                "relations": [
+                    {
+                        "relation_type": "uses",
+                        "source": {"name": "OrderService", "entity_type": "Component"},
+                        "target": {"name": "OrderDatabase", "entity_type": "Component"},
+                    }
+                ],
+            }
+        ),
+        SCHEMA,
+        Chunk(
+            index=0,
+            char_offset=0,
+            text="The OrderService writes into the OrderDatabase.",
+        ),
+    )
+
+    assert all(e.source_span is not None for e in result.entities)
+    assert not any("does not appear" in w for w in result.warnings)
+
+
+def test_a_missing_span_means_ungrounded_and_nothing_else() -> None:
+    """The invariant the review UI depends on.
+
+    The panel tells the reviewer *why* there is no excerpt, and it can only
+    do that honestly if a null span has exactly one cause. The direct entity
+    path guarantees a span (it rejects otherwise), so a null span is always
+    an ungrounded endpoint — never a bookkeeping gap.
+    """
+    result = parse_and_validate_extraction(
+        wrap(
+            {
+                "entities": [
+                    {"name": "OrderService", "entity_type": "Component"},
+                    {"name": "OrderDatabase", "entity_type": "Component"},
+                ]
+            }
+        ),
+        SCHEMA,
+        Chunk(
+            index=0,
+            char_offset=0,
+            text="The OrderService writes into the OrderDatabase.",
+        ),
+    )
+
+    assert result.entities
+    assert all(e.source_span is not None for e in result.entities)

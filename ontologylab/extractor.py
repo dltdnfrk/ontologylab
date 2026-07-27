@@ -353,6 +353,18 @@ def parse_and_validate_extraction(
         # relation names an entity the model didn't emit: mint a flagged
         # placeholder of the declared type so the edge is never dangling.
         span = _locate(chunk.text, ref_name)
+        if span is None:
+            # The same claim, made directly, is rejected two hundred lines
+            # above with "name not found in chunk". Arriving as an endpoint
+            # instead must not make it quieter: this is the only path by
+            # which a name absent from the source text becomes a proposal,
+            # and the reviewer approving it is entitled to know that.
+            # The placeholder is still minted — a dangling edge is worse —
+            # but it carries no span, which is what marks it downstream.
+            warnings.append(
+                f"relation[{rel_index}]: {side} endpoint {ref_name!r} does "
+                f"not appear in the chunk; proposed WITHOUT a source span"
+            )
         placeholder = ProposedEntity(
             id=uuid.uuid4().hex,
             entity_type=ref_type,

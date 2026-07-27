@@ -76,27 +76,31 @@ Rules:
 {QUERY_MARKER_CLOSE}"""
 
 
-def parse_search_query(raw_text: str, topic: str) -> tuple[str, str]:
-    """Parse engine output into ``(query, notes)``.
+def parse_search_query(raw_text: str, topic: str) -> tuple[str | None, str]:
+    """Parse engine output into ``(query, notes)``, or ``(None, "")``.
 
-    Returns ``(topic, "")`` when the output is unusable — the caller cannot
-    distinguish a refusal from a parse failure and does not need to; both
-    mean "search the topic as given".
+    Failure is ``None``, never ``topic``. Returning the topic as the
+    sentinel conflated two different outcomes: an unusable answer, and a
+    correct answer that happens to equal the input — which is exactly what
+    a good engine returns when the topic is already English keywords. The
+    caller then reported a working formulation as an error and logged
+    "searching the topic as typed" about a search it had in fact
+    formulated.
     """
     try:
         block = extract_fenced_block(raw_text, "json")
         payload: Any = json.loads(block)
     except Exception:
-        return topic, ""
+        return None, ""
     if not isinstance(payload, dict):
-        return topic, ""
+        return None, ""
 
     query = payload.get("query")
     if not isinstance(query, str):
-        return topic, ""
+        return None, ""
     query = " ".join(query.split())
     if not query or len(query) > MAX_QUERY_LEN:
-        return topic, ""
+        return None, ""
     # A model that ignores rule 4 would otherwise widen the very net this
     # exists to narrow.
     terms = query.split()
@@ -128,6 +132,11 @@ async def formulate_search_query(
     usage = dict(usage or {})
     query, notes = parse_search_query(raw_text, topic)
     usage["notes"] = notes
-    if query == topic:
+    if query is None:
+        # Only a parse failure is an error. A query identical to the topic
+        # is a legitimate answer — "already the right keywords" — and
+        # calling it a failure told the operator the search was degraded
+        # when it was not.
         usage.setdefault("error", "engine returned no usable query")
+        return topic, usage
     return query, usage

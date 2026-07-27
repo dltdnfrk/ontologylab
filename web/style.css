@@ -1890,6 +1890,17 @@ tr.row-focused {
 }
 
 
+/* 근거 없는 제안. 이 화면에서 색을 얻을 자격이 있는 유일한 상태다 —
+   승인 버튼 옆에서 "출처가 없다"는 사실이 회색 각주로 있으면 안 된다. */
+.ev-ungrounded {
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn-text);
+  border-radius: var(--radius-sm);
+}
+.ev-ungrounded strong { color: var(--warn-text); }
+
 /* ---------- 15. Cards (MCP / merge) ---------- */
 
 .mcp-card {
