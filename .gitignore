@@ -9,6 +9,10 @@ packs
 __pycache__/
 *.egg-info/
 *.pyc
+.DS_Store
+
+# local browser QA session state
+.playwright-cli/
 
 # launcher runtime state (machine-specific)
 .launcher.port
