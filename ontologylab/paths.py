@@ -145,6 +145,20 @@ def kg_db_path(data_dir: Path | str) -> Path:
     return Path(data_dir) / "kg.sqlite"
 
 
+def chat_db_path(data_dir: Path | str) -> Path:
+    """Return the conversation log, deliberately NOT inside ``kg.sqlite``.
+
+    A pack is built by copying named tables out of the knowledge graph and
+    is meant to be handed to someone else. Conversation is workspace state,
+    not knowledge, and it is the most personal thing this tool holds — half
+    formed questions, things the person was wrong about, what they were
+    curious about on a Tuesday. Keeping it in a separate file means a pack
+    cannot carry it by someone forgetting to *not* copy a table; the copy
+    line could not be written even by accident.
+    """
+    return Path(data_dir) / "chat.sqlite"
+
+
 def documents_dir(data_dir: Path | str) -> Path:
     """Return the raw-document storage directory under ``data_dir``."""
     return Path(data_dir) / "documents"

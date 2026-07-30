@@ -39,6 +39,7 @@ from ontologylab.paths import NetworkBlocked
 from ontologylab.provenance import Provenance
 from ontologylab.searchquery import formulate_search_query
 from ontologylab.safety import Caps
+from ontologylab.trace import Step, source_step
 
 _PROGRESS_MAXLEN = 50
 
@@ -115,6 +116,11 @@ class Job:
     finished_ts: Optional[float] = None
     totals: dict[str, int] = field(default_factory=_new_totals)
     progress: deque = field(default_factory=lambda: deque(maxlen=_PROGRESS_MAXLEN))
+    # The same events as `progress`, still structured. Same bound: these two
+    # are written together by `record()`, so letting one outlive the other
+    # would make the screen and the log disagree about how far back a run
+    # can be read.
+    steps: deque = field(default_factory=lambda: deque(maxlen=_PROGRESS_MAXLEN))
     error: Optional[str] = None
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     # Set by `cancel()`, read by the worker between units of work. An Event
@@ -157,6 +163,18 @@ class Job:
         if self._registry is not None:
             self._registry.touch()
 
+    def record(self, step: Step) -> None:
+        """Announce one step, structured and as a line.
+
+        The only writer of both lists. Appending to `steps` directly (or
+        calling `log()` with a hand-spelled string) would make two writers
+        for one event, which is the shape of bug this repo keeps finding —
+        nothing fails when the two disagree, they just drift.
+        """
+        with self._lock:
+            self.steps.append(step)
+        self.log(step.line)
+
     def set_phase(self, phase: str) -> None:
         """Move to a new phase and announce it on the progress log.
 
@@ -167,7 +185,7 @@ class Job:
         """
         with self._lock:
             self.phase = phase
-        self.log(f"[ontologylab] {phase} phase started")
+        self.record(Step("ontologylab", "phase", "running", phase))
 
     def as_status(self) -> dict[str, Any]:
         with self._lock:
@@ -182,6 +200,10 @@ class Job:
                 "finished_ts": self.finished_ts,
                 "totals": dict(self.totals),
                 "progress": list(self.progress),
+                # The browser reads this to draw the trace. Without it the
+                # structure stops at the server and the screen is back to
+                # re-parsing English prose.
+                "steps": [step.as_dict() for step in self.steps],
                 "error": self.error,
             }
 
@@ -193,14 +215,13 @@ def _source_event_line(kind: str, source: str, detail: object) -> str:
     progress display — not debug output. `source_start` matters most: it is
     the only signal that anything is happening during a fan-out that can sit
     silent for thirty seconds.
+
+    Derived from the step rather than spelled here. These same words used to
+    exist only as string literals in this function, which was fine until the
+    browser also needed the structure behind them; keeping both would be two
+    writers for one event.
     """
-    if kind == "source_start":
-        return f"[ontologylab] querying {source}"
-    if kind == "source_ok":
-        return f"[ontologylab] {source} returned {detail} result(s)"
-    if kind == "source_failed":
-        return f"[ontologylab] {source} did not answer ({detail})"
-    return f"[ontologylab] {source}: {kind}"
+    return source_step(kind, source, detail).line
 
 
 class JobRegistry:
@@ -656,21 +677,23 @@ class JobRegistry:
             # resolve its credential; the keyless five ignore it.
             batches, failures = await fetch_sources(
                 sources, search_query, limit, self.data_dir,
-                on_event=lambda kind, source, detail: job.log(
-                    _source_event_line(kind, source, detail)
+                on_event=lambda kind, source, detail: job.record(
+                    source_step(kind, source, detail)
                 ),
             )
             for failure in failures:
                 # The source name and the kind of failure are safe to show;
                 # the exception text is not (H2) — it goes to provenance.
+                #
+                # No job log line here: `on_event` already announced this
+                # failure as it happened. Writing it again put every failed
+                # source in the log twice — invisible while the log was
+                # prose scrolling past, one duplicated row per failure the
+                # moment a screen drew one row per step.
                 provenance.log(
                     "research.source_failed",
                     {"source": failure.source, "kind": failure.kind,
                      "error": failure.error},
-                )
-                job.log(
-                    f"[ontologylab] {failure.source} did not answer "
-                    f"({failure.kind})"
                 )
             if not batches and failures:
                 job.log("[ontologylab] no source answered; nothing to extract")
