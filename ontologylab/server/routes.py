@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
+import logging
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncIterator, Optional
@@ -111,6 +112,8 @@ from ontologylab.server.schemas import (
 if TYPE_CHECKING:  # `Intent` is only ever a type here — importing it at
     from ontologylab.intent import Intent  # runtime would be a cycle.
 
+_log = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api")
 
 # Bound once by app.create_app(); holds the data-dir Path for the working KG.
@@ -199,7 +202,7 @@ def get_paper_sources() -> dict[str, Any]:
 
 @router.get("/settings", response_model=Settings)
 def get_settings() -> Settings:
-    return settings_mod.load_settings()
+    return settings_mod.load_settings(_data_dir)
 
 
 @router.put("/settings", response_model=Settings)
@@ -219,7 +222,7 @@ def put_settings(new_settings: Settings) -> Settings:
             check_searxng_base_url(new_settings.searxng_url)
         except NotAllowlisted as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-    saved = settings_mod.save_settings(new_settings)
+    saved = settings_mod.save_settings(new_settings, _data_dir)
     # Takes effect now, not at the next restart. A setting that only
     # applies after a restart is one people conclude does not work.
     settings_mod.apply_to_environment(saved)
@@ -1321,13 +1324,19 @@ def _record_turn(body: ChatMessage, payload: dict[str, Any]) -> Optional[str]:
         finally:
             store.close()
     except Exception:
-        # Silent, and knowingly so. Provenance is the obvious place to
-        # record this and it is the wrong one twice over: it wants a run
-        # directory, and a transcript write fails the same way on every
-        # message — which is precisely how `start_research` once made
-        # `GET /api/cost` permanently slow by minting one directory per
-        # refusal. There is no logger in this package to fall back to, and
-        # inventing one belongs in its own change, not here.
+        # Not raising is deliberate; being silent was not. The catch stays
+        # broad because anything here — a locked file, a full disk, a
+        # payload json cannot encode — is still less important than the
+        # answer the person is looking at. But broad also means it would
+        # swallow a real bug, and a transcript that quietly stopped working
+        # is the one failure nobody would ever notice.
+        #
+        # `logging`, not provenance: provenance wants a run directory, and
+        # this fails identically on every message — which is exactly how
+        # `start_research` once made `GET /api/cost` permanently slow by
+        # minting one directory per refusal. uvicorn already configures the
+        # root logger, so this lands in the server's own output.
+        _log.warning("chat transcript not written", exc_info=True)
         return None
 
 

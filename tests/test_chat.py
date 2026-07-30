@@ -565,3 +565,87 @@ def test_the_originating_question_reaches_a_screen() -> None:
     # And it is drawn where the run is described, not somewhere unrelated.
     detail = script.split("function renderJobDetail", 1)[1][:400]
     assert "renderJobAsked" in detail
+
+
+# --------------------------------------------------------------------------
+# Debts cleared
+# --------------------------------------------------------------------------
+
+
+def test_settings_live_beside_the_data_they_configure(tmp_path) -> None:
+    """`--data-dir` used to split an install in two.
+
+    The path was derived from `ROOT` regardless, and the launcher always
+    passes `--data-dir` because `move-data-out-of-icloud.sh` moves the data
+    out of ~/Documents. This machine was in exactly that state: a server
+    reading `~/Library/.../kg.sqlite` with its settings coming from
+    `<repo>/data/settings.json`, and the two files had already diverged —
+    a SearXNG address saved in the browser sat next to a knowledge graph
+    the server was not using.
+    """
+    from ontologylab.server import settings as settings_mod
+    from ontologylab.server.schemas import Settings
+
+    data_dir = tmp_path / "elsewhere"
+    settings_mod.save_settings(
+        Settings(default_engine="mock", searxng_url="http://127.0.0.1:9999"),
+        data_dir,
+    )
+
+    assert (data_dir / "settings.json").exists()
+    assert settings_mod.load_settings(data_dir).searxng_url == (
+        "http://127.0.0.1:9999"
+    )
+    # And the repository's own copy was not touched.
+    assert settings_mod._settings_path(data_dir) != (
+        settings_mod._legacy_settings_path()
+    )
+
+
+def test_an_existing_install_does_not_lose_its_settings(
+    tmp_path, monkeypatch
+) -> None:
+    """Moving where settings live must not reset anyone to defaults.
+
+    Read once from the old shared location when the new one is empty; never
+    written there, so it stops being consulted as soon as anything saves.
+    """
+    from ontologylab.server import settings as settings_mod
+    from ontologylab.server.schemas import Settings
+
+    legacy = tmp_path / "legacy" / "settings.json"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text(
+        Settings(default_engine="claude", searxng_url="http://10.0.0.1:8080")
+        .model_dump_json(),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        settings_mod, "_legacy_settings_path", lambda: legacy, raising=True
+    )
+
+    inherited = settings_mod.load_settings(tmp_path / "fresh")
+
+    assert inherited.default_engine == "claude"
+    assert inherited.searxng_url == "http://10.0.0.1:8080"
+
+
+def test_a_transcript_failure_leaves_a_trace(client, monkeypatch, caplog) -> None:
+    """The catch is broad on purpose and would otherwise hide a real bug.
+
+    A transcript that quietly stopped working is the one failure nobody
+    would ever notice — the answer still arrives, so nothing looks wrong.
+    """
+    def boom(*a, **k):
+        raise OSError("database is locked")
+
+    monkeypatch.setattr(routes, "_open_chat_store", boom, raising=True)
+
+    with caplog.at_level("WARNING", logger="ontologylab.server.routes"):
+        body = client.post(
+            "/api/chat", json={"message": "지금 상태 알려줘", "engine": "mock"}
+        ).json()
+
+    assert body["ok"] is True, "the answer still arrives"
+    assert body["turn_id"] is None
+    assert any("transcript" in r.message for r in caplog.records)

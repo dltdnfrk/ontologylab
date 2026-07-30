@@ -81,7 +81,9 @@ def main() -> None:
     # each test inherit whichever SearXNG this machine has configured.
     from ontologylab.server import settings as settings_mod
 
-    settings_mod.apply_to_environment(settings_mod.load_settings())
+    settings_mod.apply_to_environment(
+        settings_mod.load_settings(Path(args.data_dir))
+    )
 
     uvicorn.run(
         create_app(data_dir=Path(args.data_dir), packs_dir=Path(args.packs_dir)),

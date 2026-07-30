@@ -33,8 +33,29 @@ _DEFAULT_MODELS: dict[str, str | None] = {
 _SETTINGS_FILENAME = "settings.json"
 
 
-def _settings_path(root: Path = ROOT) -> Path:
-    return default_data_dir(root) / _SETTINGS_FILENAME
+def _settings_path(data_dir: Path | None = None) -> Path:
+    """Where settings live for a given data directory.
+
+    Settings belong beside the data they configure. This used to derive the
+    path from `ROOT` regardless of `--data-dir`, which split every install
+    that passes one — and the launcher always does, because
+    `move-data-out-of-icloud.sh` moves the data out of ~/Documents. The
+    result was a server reading `~/Library/.../kg.sqlite` while its settings
+    came from `<repo>/data/settings.json`, and the two files diverged in
+    ordinary use: an address saved in the browser landed next to a knowledge
+    graph the server was not using.
+    """
+    base = default_data_dir() if data_dir is None else Path(data_dir)
+    return base / _SETTINGS_FILENAME
+
+
+def _legacy_settings_path() -> Path:
+    """The pre-fix location, read once so nobody loses their settings.
+
+    Never written. An install that saves anything gets a file in the right
+    place, and this stops being consulted the moment that happens.
+    """
+    return default_data_dir(ROOT) / _SETTINGS_FILENAME
 
 
 def default_settings() -> Settings:
@@ -46,15 +67,25 @@ def default_settings() -> Settings:
     )
 
 
-def load_settings(root: Path = ROOT) -> Settings:
-    path = _settings_path(root)
+def _read(path: Path) -> Settings | None:
     if not path.exists():
-        return default_settings()
+        return None
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        return Settings(**raw)
+        return Settings(**json.loads(path.read_text(encoding="utf-8")))
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
-        return default_settings()
+        return None
+
+
+def load_settings(data_dir: Path | None = None) -> Settings:
+    """Settings for `data_dir`, falling back to the old shared location.
+
+    The fallback is what keeps this change from silently resetting an
+    existing install to defaults on the first run after upgrading.
+    """
+    found = _read(_settings_path(data_dir))
+    if found is None and Path(data_dir or default_data_dir()) != default_data_dir(ROOT):
+        found = _read(_legacy_settings_path())
+    return found if found is not None else default_settings()
 
 
 def apply_to_environment(settings: Settings) -> None:
@@ -75,8 +106,8 @@ def apply_to_environment(settings: Settings) -> None:
         os.environ[SEARXNG_URL_ENV] = settings.searxng_url
 
 
-def save_settings(settings: Settings, root: Path = ROOT) -> Settings:
-    path = _settings_path(root)
+def save_settings(settings: Settings, data_dir: Path | None = None) -> Settings:
+    path = _settings_path(data_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_suffix(".json.tmp")
     tmp_path.write_text(

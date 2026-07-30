@@ -11,6 +11,37 @@ from ontologylab.kgstore import KGStore
 from ontologylab.models import ProposedEntity, ProposedRelation, SourceSpan
 
 
+@pytest.fixture(autouse=True)
+def _never_touch_the_real_settings(monkeypatch, tmp_path):
+    """No test may read or write the developer's own settings.json.
+
+    Three separate times this suite overwrote it — once flipping
+    `default_engine` from `claude` to `mock`, twice more from a mutation
+    run — because `save_settings` defaulted to a machine-global path. The
+    default is now the data directory, but "the default is safe" is a
+    property one refactor can remove, so the guard is structural: every
+    test gets its own location and the real one is not reachable from here.
+
+    A test that genuinely needs the legacy path (there is one, for the
+    upgrade fallback) monkeypatches `_legacy_settings_path` itself, which
+    overrides this.
+    """
+    from ontologylab.server import settings as settings_mod
+
+    sandbox = tmp_path / "_settings"
+    sandbox.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(
+        settings_mod, "_legacy_settings_path",
+        lambda: sandbox / "legacy-settings.json", raising=True,
+    )
+    real = settings_mod._settings_path
+
+    def guarded(data_dir=None):
+        return real(sandbox if data_dir is None else data_dir)
+
+    monkeypatch.setattr(settings_mod, "_settings_path", guarded, raising=True)
+
+
 @pytest.fixture(autouse=True, scope="session")
 def _allow_testclient_host():
     """Let the loopback Host guard accept FastAPI TestClient's 'testserver'.
