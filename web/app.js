@@ -1148,12 +1148,15 @@
 
   /* POST helper that returns the JSON body even on non-2xx, so ok:false
      contract envelopes ({ok, error_kind, detail}) render instead of throwing. */
-  async function apiSend(path, payload) {
-    var res = await fetch(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+  async function apiSend(path, payload, method) {
+    var init = { method: method || "POST" };
+    // DELETE에 본문을 붙이지 않는다 — 일부 프록시가 그런 요청을 조용히
+    // 버린다. 보낼 것이 없으면 헤더도 붙이지 않는다.
+    if (payload !== null && payload !== undefined) {
+      init.headers = { "Content-Type": "application/json" };
+      init.body = JSON.stringify(payload);
+    }
+    var res = await fetch(path, init);
     var body = null;
     try {
       body = await res.json();
@@ -1694,6 +1697,10 @@
   function applyJobs(jobs) {
     renderJobs(jobs);
     renderStatusRun(jobs);
+    // 실행 갱신은 대화 말풍선에도 흘러들어야 한다. 여기서 부르지 않으면
+    // 대화는 "시작했어요"에 멈춘 채, 진행은 옆 화면에서만 보이게 된다.
+    jobs.forEach(updateChatJob);
+    reconcileChatJobs(jobs);
     // running → 종료 전환 감지: 완료 순간에 다음 단계 안내 + 검토 배지 갱신
     jobs.forEach(function (job) {
       var prev = prevJobStatuses[job.job_id];
@@ -3276,65 +3283,19 @@
     el.className = "nav-stat" + (state ? " " + state : "");
   }
 
-  /* -- 홈 현황판: 전부 실데이터에서 파생 (저장 없음). 수집·추출은 버튼으로
-        자동화해도 되지만 승인은 절대 자동화하지 않는다 — 큐 행 클릭도
-        검토 화면으로 이동만 한다. -- */
+  /* -- 홈은 이제 대화다. 여기 있던 현황판 렌더러(검토 큐 미리보기, 실행
+        목록, KPI 네 칸)는 그리던 DOM과 함께 지웠다 — 셋 다 자기 화면이
+        따로 있어서, 같은 값을 두 번째로 그리던 코드였다.
 
-  function renderBoardQueue(items) {
-    var list = $("#board-queue-list");
-    var empty = $("#board-queue-empty");
-    if (!list) return;
-    list.innerHTML = items
-      .map(function (item) {
-        var conf = item.confidence == null
-          ? "—" : Number(item.confidence).toFixed(2);
-        return (
-          "<li class='board-row' data-goto='review'>" +
-          "<span class='board-kind'>" + kindKo(item.kind) + "</span>" +
-          "<span class='board-name'>" + itemLabelHtml(item) + "</span>" +
-          "<span class='board-num'>" + conf + "</span></li>"
-        );
-      })
-      .join("");
-    if (empty) empty.classList.toggle("hidden", items.length > 0);
-  }
-
-  function renderBoardRuns(jobs) {
-    var list = $("#board-runs-list");
-    var empty = $("#board-runs-empty");
-    if (!list) return;
-    var rows = jobs.slice(0, 5);
-    list.innerHTML = rows
-      .map(function (job) {
-        var t = job.totals || {};
-        var added = (t.nodes_new || 0) + (t.edges_new || 0);
-        var merged = (t.nodes_merged || 0) + (t.edges_merged || 0);
-        return (
-          "<li class='board-row' data-goto='sources'>" +
-          "<span class='board-kind'>" +
-          escapeHtml(job.kind === "research" ? "리서치" : "추출") + "</span>" +
-          "<span class='board-name'><code>" + escapeHtml(job.engine || "—") +
-          "</code></span>" +
-          statusBadge(job.status) +
-          "<span class='board-num'>+" + added + " ~" + merged + "</span></li>"
-        );
-      })
-      .join("");
-    if (empty) empty.classList.toggle("hidden", rows.length > 0);
-  }
-
-  function setKpi(id, value) {
-    var el = document.getElementById(id);
-    if (el) el.textContent = String(value);
-  }
+        loadHome()은 남는다: 레일의 개수, 검토 배지, 상태바, "다음 할 일"
+        칩은 화면과 무관하게 계속 갱신돼야 한다. -- */
 
   async function loadHome() {
     var homeErr = $("#home-error");
     if (homeErr) homeErr.classList.add("hidden");
     try {
-      // 확신도 낮은 순 5건 — 현황판 큐 미리보기가 검토 화면의 기본 정렬과
-      // 같은 순서여야, 여기서 본 첫 행이 저기서도 첫 행이다.
-      var data = await api("/api/proposals?limit=5&order=confidence");
+      // counts 하나만 쓴다. 목록은 검토 화면이 자기 정렬로 다시 받아간다.
+      var data = await api("/api/proposals?limit=1");
       var c = data.counts || {};
       var packs = [];
       try {
@@ -3351,16 +3312,6 @@
       var verified = (c.nodes_verified || 0) + (c.edges_verified || 0);
 
       updateReviewBadge(c);
-      renderBoardQueue(data.items || []);
-      renderBoardRuns(jobs);
-      var queueN = document.getElementById("board-queue-n");
-      if (queueN) queueN.textContent = String(pending);
-      var live = document.getElementById("board-live");
-      if (live) live.classList.toggle("hidden", !running);
-      setKpi("kpi-docs", docs);
-      setKpi("kpi-pending", pending);
-      setKpi("kpi-verified", verified);
-      setKpi("kpi-packs", packs.length);
       // 수집과 추출이 한 단계가 되면서 이 칸도 둘을 같이 말해야 한다.
       // 진행 여부는 '작업 이력'이 아니라 '제안이 존재하는가'로 판정한다.
       // 작업 이력은 서버가 재시작되면 비므로, 이력만 보면 제안 15건이
@@ -3453,8 +3404,379 @@
     document.getElementById("tab-review").classList.remove("inspector-open");
   });
 
+  /* -- 대화 ---------------------------------------------------------------
+     이 화면이 하는 일은 문장 하나를 받아서 실제 작업을 돌리는 것이다.
+     그래서 답보다 과정이 먼저 온다: 무엇을 썼는지가 접힌 채로 위에 있고,
+     펼치면 도구·동작·결과가 줄로 쌓인다. 서버는 값만 보내고(tool="arxiv",
+     action="query") 한국어는 여기서 붙인다 — 화면의 오타를 고치려고 서버를
+     다시 띄우게 되는 구조를 만들지 않는다. */
+
+  var TOOL_KO = {
+    ontologylab: "파이프라인", store: "저장소", resources: "외부 자료",
+    arxiv: "arXiv", crossref: "Crossref", openalex: "OpenAlex",
+    semanticscholar: "Semantic Scholar", europepmc: "Europe PMC",
+    clinicaltrials: "ClinicalTrials.gov",
+  };
+  var ACTION_KO = {
+    classify: "의도 파악", query: "조회", phase: "단계", research: "리서치",
+    search: "검색", read: "읽기", lookup: "조회", build: "팩 빌드",
+    formulate: "검색어 작성", gather: "모으기", store: "저장", extract: "추출",
+  };
+  var FAIL_KO = {
+    unavailable: "쓸 수 없음", offline: "오프라인", no_topic: "주제 없음",
+    no_query: "검색어 없음", fetch_failed: "응답 없음", busy: "이미 실행 중",
+    shape: "형식 오류", unsupported: "지원 안 함", refused: "거절됨",
+  };
+  function toolKo(t) { return TOOL_KO[t] || t || ""; }
+  function actionKo(a) { return ACTION_KO[a] || a || ""; }
+
+  function traceStepRow(step) {
+    // 표시는 세 상태뿐이다: 됐다 / 안 됐다 / 하는 중. 그 이상으로 나누면
+    // 훑을 때 색이 정보를 나르지 못한다.
+    var mark = step.status === "ok" ? "✓"
+      : step.status === "failed" ? "✕"
+      : step.status === "skipped" ? "–" : "•";
+    var detail = step.detail || "";
+    if (step.status === "failed") detail = FAIL_KO[detail] || detail;
+    if (step.action === "phase") detail = PHASE_KO[detail] || detail;
+    var label = toolKo(step.tool) + " " + actionKo(step.action) +
+      (detail ? " " + detail : "");
+    return "<li class='tstep st-" + escapeHtml(step.status) + "'" +
+      " aria-label='" + escapeHtml(label) + "'>" +
+      "<span class='tstep-mark' aria-hidden='true'>" + mark + "</span>" +
+      "<span class='tstep-tool'>" + escapeHtml(toolKo(step.tool)) + "</span>" +
+      "<span class='tstep-act'>" + escapeHtml(actionKo(step.action)) + "</span>" +
+      (detail ? "<span class='tstep-detail'>" + escapeHtml(detail) + "</span>" : "") +
+      "</li>";
+  }
+
+  function traceSummary(steps, running) {
+    if (running) {
+      // 실행 중에는 "지금 무엇을 하고 있나"가 요약이어야 한다. 개수는
+      // 끝난 뒤에나 의미가 있다.
+      var live = steps.filter(function (s) { return s.status === "running"; });
+      var last = live[live.length - 1] || steps[steps.length - 1];
+      if (last) {
+        return last.action === "phase"
+          ? (PHASE_KO[last.detail] || last.detail) + "…"
+          : toolKo(last.tool) + " " + actionKo(last.action) + " 중…";
+      }
+    }
+    var tools = {};
+    steps.forEach(function (s) { if (s.action !== "phase") tools[s.tool] = 1; });
+    var failed = steps.filter(function (s) { return s.status === "failed"; }).length;
+    return "도구 " + Object.keys(tools).length + "개 사용함 · 단계 " +
+      steps.length + "개" + (failed ? " · 실패 " + failed : "");
+  }
+
+  /* 서버는 사건을 그대로 보낸다: arXiv 조회 시작, 그리고 나중에 arXiv 5건.
+     그걸 두 줄로 그리면 같은 소스를 두 번 조회한 것처럼 읽힌다. 도구·동작이
+     같은 줄은 마지막 상태 하나로 접되, 처음 나타난 자리는 지킨다 — 팬아웃의
+     순서가 곧 무엇을 먼저 물었는지이기 때문이다.
+
+     단계(phase)는 접지 않는다. 그건 사건이 아니라 구간 표시라, 모으는 중과
+     뽑는 중이 한 줄로 합쳐지면 순서가 사라진다. */
+  function collapseSteps(steps) {
+    var order = [], byKey = {};
+    steps.forEach(function (s) {
+      var key = s.action === "phase"
+        ? "phase:" + s.detail : s.tool + " " + s.action;
+      if (!(key in byKey)) order.push(key);
+      byKey[key] = s;
+    });
+    return order.map(function (k) { return byKey[k]; });
+  }
+
+  function renderTrace(steps, running) {
+    if (!steps || !steps.length) return "";
+    var rows = collapseSteps(steps);
+    return "<details class='trace'" + (running ? " open" : "") + ">" +
+      "<summary>" + escapeHtml(traceSummary(rows, running)) + "</summary>" +
+      "<ol class='trace-steps'>" + rows.map(traceStepRow).join("") + "</ol>" +
+      "</details>";
+  }
+
+  function chatAnswer(res) {
+    var r = res.result || {};
+    var reading = res.reading
+      ? "<p>" + escapeHtml(res.reading) + "</p>" : "";
+
+    if (r.kind === "job") {
+      // 리서치는 답이 즉시 나오지 않는다. 말풍선이 실행에 묶이고, 이후
+      // 갱신은 updateChatJob이 이 자리에 덮어쓴다. "묻는 중"이라고
+      // 단정하지 않는 이유는 이 분기가 새로고침 뒤 기록에서도 지나가기
+      // 때문이다 — 그때 그 실행은 이미 끝났을 수 있다.
+      return reading + "<p class='muted'><small>‘" +
+        escapeHtml(r.topic || "") + "’ 리서치를 시작했어요.</small></p>";
+    }
+    if (r.kind === "confirm") {
+      return reading +
+        "<p>이건 저장소를 바꾸는 작업이라 한 번 확인할게요.</p>" +
+        "<p><button type='button' class='btn btn-primary' data-confirm='" +
+        escapeHtml(r.action) + "'>실행할게요</button></p>";
+    }
+    if (r.kind === "blocked") {
+      return reading + "<p class='err-msg'><strong>" +
+        escapeHtml(FAIL_KO[r.error_kind] || r.error_kind || "실행 못 함") +
+        "</strong></p>" + (r.detail
+          ? "<p class='muted'><small>" + escapeHtml(r.detail) + "</small></p>" : "");
+    }
+    if (r.kind === "status") {
+      var c = r.counts || {};
+      var pending = (c.nodes_proposed || 0) + (c.edges_proposed || 0);
+      var verified = (c.nodes_verified || 0) + (c.edges_verified || 0);
+      return reading + "<div class='kpi-grid'>" +
+        "<div class='kpi'><span class='kpi-n'>" + (c.documents || 0) +
+        "</span><span class='kpi-l'>문서</span></div>" +
+        "<div class='kpi'><span class='kpi-n is-pending'>" + pending +
+        "</span><span class='kpi-l'>검토 대기</span></div>" +
+        "<div class='kpi'><span class='kpi-n'>" + verified +
+        "</span><span class='kpi-l'>승인됨</span></div>" +
+        "</div>";
+    }
+    if (r.kind === "goto") {
+      return reading + "<p><button type='button' class='btn btn-primary'" +
+        " data-goto='" + escapeHtml(r.screen) + "'>열기 →</button></p>";
+    }
+    if (r.kind === "search") {
+      var hits = r.results || [];
+      if (!hits.length) {
+        return reading + "<p class='muted'>‘" + escapeHtml(r.query || "") +
+          "’ 로는 아무것도 못 찾았어요.</p>";
+      }
+      return reading + "<ul class='chat-hits'>" + hits.slice(0, 8).map(
+        function (h) {
+          return "<li>" + escapeHtml(h.name || h.label || "") +
+            " <code>" + escapeHtml(h.entity_type || "") + "</code></li>";
+        }).join("") + "</ul>";
+    }
+    if (r.kind === "pack") {
+      return reading + "<p>팩 <code>" + escapeHtml(r.pack_id || "") +
+        "</code> 을 만들었어요. <button type='button' class='btn-link'" +
+        " data-goto='packs'>팩 보기 →</button></p>";
+    }
+    if (r.kind === "enrich") {
+      return reading + "<p>외부 자료에서 <strong>" + (r.proposed || 0) +
+        "건</strong>을 찾아 <em>제안</em>으로 넣었어요 — 승인은 검토에서요." +
+        " <button type='button' class='btn-link' data-goto='review'>검토 →" +
+        "</button></p>";
+    }
+    if (r.kind === "text" && r.actions) {
+      return reading + "<ul class='chat-actions'>" + r.actions.map(function (a) {
+        return "<li><code>" + escapeHtml(a.name) + "</code> — " +
+          escapeHtml(a.summary) + "</li>";
+      }).join("") + "</ul>";
+    }
+    return reading || "<p class='muted'>답을 만들지 못했어요.</p>";
+  }
+
+  function renderChatResult(res) {
+    // 과정이 먼저, 답이 나중. 이 화면에서 답만 보여주면 그건 주장이고,
+    // 무엇을 써서 나온 답인지가 붙어야 확인할 수 있는 주장이 된다.
+    return renderTrace(res.steps || [], false) + chatAnswer(res);
+  }
+
+  function chatBubble(who, html) {
+    var log = $("#chat-log");
+    var intro = log.querySelector(".chat-intro");
+    if (intro) intro.remove();
+    var el = document.createElement("div");
+    el.className = "chat-msg chat-" + who;
+    el.innerHTML = html;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    return el;
+  }
+
+  // job_id → 그 실행을 말하고 있는 말풍선. SSE 갱신이 별도 목록이 아니라
+  // 원래 자리에 흘러들어야 대화가 끊기지 않는다.
+  var chatJobBubbles = {};
+
+  function updateChatJob(job) {
+    var bound = chatJobBubbles[job.job_id];
+    if (!bound) return;
+    var running = job.status === "running";
+    // 요청 단계(의도 파악)와 실행 단계(소스 조회)를 한 줄기로 잇는다.
+    var steps = (bound.res.steps || []).concat(job.steps || []);
+    var tail = "";
+    if (!running) {
+      var t = job.totals || {};
+      var added = (t.nodes_new || 0) + (t.edges_new || 0);
+      tail = job.status === "complete"
+        ? "<p>제안 <strong>" + added + "건</strong>이 도착했어요 — 승인은 " +
+          "직접 하셔야 해요. <button type='button' class='btn btn-primary'" +
+          " data-goto='review'>검토 열기 →</button></p>"
+        : "<p class='err-msg'>" + escapeHtml(statusKo(job.status)) +
+          (job.error ? " — " + escapeHtml(job.error) : "") + "</p>";
+      delete chatJobBubbles[job.job_id];
+    }
+    bound.el.innerHTML = renderTrace(steps, running) +
+      "<p>" + escapeHtml(bound.res.reading || "") + "</p>" + tail;
+  }
+
+  async function sendChat(message) {
+    chatBubble("user", escapeHtml(message));
+    var pending = chatBubble("bot", "<p class='muted'>읽는 중…</p>");
+    var input = $("#chat-input");
+    var send = $("#chat-send");
+    input.disabled = send.disabled = true;
+    try {
+      var res = await apiSend("/api/chat", {
+        message: message, engine: currentEngine(), confirmed: false,
+      });
+      pending.innerHTML = renderChatResult(res);
+      var r = res.result || {};
+      if (r.kind === "job" && r.job_id) {
+        chatJobBubbles[r.job_id] = { el: pending, res: res };
+        loadJobs();
+      }
+      if (r.kind === "confirm") pending.dataset.message = message;
+      var bar = $("#chat-bar");
+      if (bar) bar.classList.remove("hidden");
+    } catch (e) {
+      pending.innerHTML = "<p class='err-msg'>" +
+        escapeHtml(friendlyError(e)) + "</p>";
+    } finally {
+      input.disabled = send.disabled = false;
+      input.focus();
+    }
+  }
+
+  async function confirmChat(el) {
+    var message = el.dataset.message;
+    if (!message) return;
+    el.innerHTML = "<p class='muted'>실행 중…</p>";
+    try {
+      var res = await apiSend("/api/chat", {
+        message: message, engine: currentEngine(), confirmed: true,
+      });
+      el.innerHTML = renderChatResult(res);
+    } catch (e) {
+      el.innerHTML = "<p class='err-msg'>" + escapeHtml(friendlyError(e)) + "</p>";
+    }
+  }
+
+  function currentEngine() {
+    var sel = $("#research-engine") || $("#extract-engine");
+    return (sel && sel.value) || "mock";
+  }
+
+  /* 기록에서 대화를 되살린다. 지식이 아니라 사람이 보던 화면을 되살리는
+     것이라, 이 경로로 그래프 상태는 아무것도 바뀌지 않는다. */
+  async function loadChatHistory() {
+    var log = $("#chat-log");
+    if (!log) return;
+    var turns;
+    try {
+      turns = ((await api("/api/chat/history")) || {}).turns || [];
+    } catch (_) {
+      return;   // 기록을 못 읽는다고 새 대화를 막을 이유는 없다.
+    }
+    if (!turns.length) return;
+    var bar = $("#chat-bar");
+    if (bar) bar.classList.remove("hidden");
+    turns.forEach(function (t) {
+      // 시각은 장식이 아니다. 되살아난 답에는 그때의 수치가 들어 있고,
+      // 날짜가 없으면 그게 지금 값으로 읽힌다. 다시 계산해서 채우는 건 더
+      // 나쁘다 — 어제의 질문 밑에 오늘의 답을 붙이는 셈이라 둘 다 틀린다.
+      chatBubble("user", escapeHtml(t.message) +
+        "<div class='chat-when'><small>" + escapeHtml(fmtTs(t.created_ts)) +
+        "</small></div>");
+      var res = {
+        result: t.result, reading: t.reading, steps: t.steps,
+      };
+      var el = chatBubble("bot", renderChatResult(res));
+      // `restored` 표시가 있는 것만 "실행이 사라졌다" 판정 대상이다. 방금
+      // 시작한 실행은 목록 폴링이 아직 못 따라잡았을 수 있고, 그걸 사라진
+      // 것으로 처리하면 멀쩡한 실행을 죽었다고 말하게 된다.
+      if (t.job_id) {
+        chatJobBubbles[t.job_id] = { el: el, res: res, restored: true };
+      }
+    });
+    log.scrollTop = log.scrollHeight;
+    if (Object.keys(chatJobBubbles).length) loadJobs();
+  }
+
+  /* 실행 기록은 서버 메모리에만 있다. 서버가 다시 시작되면 그 실행은
+     목록에서 사라지는데, 그것이 만든 문서와 제안은 저장소에 그대로 남는다.
+     말풍선이 "시작했어요"에서 영원히 멈춰 있으면 두 사실이 다 안 보인다. */
+  function reconcileChatJobs(jobs) {
+    var live = {};
+    jobs.forEach(function (j) { live[j.job_id] = true; });
+    Object.keys(chatJobBubbles).forEach(function (id) {
+      var bound = chatJobBubbles[id];
+      if (live[id] || !bound.restored) return;
+      bound.el.innerHTML =
+        renderTrace(bound.res.steps || [], false) +
+        "<p>" + escapeHtml(bound.res.reading || "") + "</p>" +
+        "<p class='muted'><small>이 실행의 진행 기록은 남아 있지 않아요 —" +
+        " 그 사이 서버가 다시 시작됐어요. 모은 문서와 제안은 그대로 있어요." +
+        " <button type='button' class='btn-link' data-goto='review'>검토 열기 →" +
+        "</button></small></p>";
+      delete chatJobBubbles[id];
+    });
+  }
+
+  (function wireChat() {
+    var form = $("#chat-form");
+    var input = $("#chat-input");
+    if (!form || !input) return;
+    loadChatHistory();
+
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      input.style.height = "auto";
+      sendChat(text);
+    });
+    // Enter 보내기 / Shift+Enter 줄바꿈 — 대화창의 관습이다.
+    input.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" && !ev.shiftKey) {
+        ev.preventDefault();
+        form.requestSubmit();
+      }
+    });
+    input.addEventListener("input", function () {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 200) + "px";
+    });
+
+    $("#chat-log").addEventListener("click", function (ev) {
+      var chip = ev.target.closest(".chip[data-say]");
+      if (chip) { sendChat(chip.dataset.say); return; }
+      var confirmBtn = ev.target.closest("[data-confirm]");
+      if (confirmBtn) confirmChat(confirmBtn.closest(".chat-msg"));
+    });
+
+    var clear = $("#chat-clear");
+    if (clear) {
+      clear.addEventListener("click", async function () {
+        // 되돌릴 수 없으니 한 번 묻는다. 그래프는 건드리지 않는다는 사실을
+        // 같이 말해야, "지우면 뭐까지 없어지나"를 눌러 보고 알아내지 않아도
+        // 된다.
+        if (!window.confirm(
+          "대화 기록을 지울까요?\n\n" +
+          "모은 문서와 제안, 팩은 그대로 있어요 — 지워지는 건 " +
+          "무엇을 물었는지의 기록뿐이에요."
+        )) return;
+        try {
+          await apiSend("/api/chat/history", null, "DELETE");
+        } catch (e) {
+          chatBubble("bot", "<span class='err-msg'>" +
+            escapeHtml(friendlyError(e)) + "</span>");
+          return;
+        }
+        chatJobBubbles = {};
+        window.location.reload();
+      });
+    }
+  })();
+
   /* 따라하기 1단계: 번들 샘플 문서 넣기 (오프라인·멱등) */
-  $("#journey-sample-btn").addEventListener("click", async function () {
+  var sampleBtn = $("#journey-sample-btn");
+  if (sampleBtn) sampleBtn.addEventListener("click", async function () {
     var btn = $("#journey-sample-btn");
     var out = $("#journey-sample-result");
     btn.disabled = true;
@@ -3470,53 +3792,6 @@
         out.textContent = (res && res.detail) || "샘플을 넣지 못했어요.";
       }
       loadHome();
-    } catch (e) {
-      out.textContent = friendlyError(e);
-    } finally {
-      btn.disabled = false;
-    }
-  });
-
-  /* 따라하기 2단계: mock 추출 실행 + 완료까지 폴링 (제안 생성일 뿐,
-     승인은 3단계에서 사람이 직접 한다) */
-  $("#journey-extract-btn").addEventListener("click", async function () {
-    var btn = $("#journey-extract-btn");
-    var out = $("#journey-extract-result");
-    btn.disabled = true;
-    out.classList.remove("hidden");
-    out.textContent = "AI가 문서를 읽는 중이에요… (데모 엔진이라 금방 끝나요)";
-    try {
-      var res = await apiSend("/api/extract", {
-        /* 예산은 서버 스키마 기본값에 맡긴다 — 여기서 실어 보내면
-           paths.DEFAULT_* 를 바꿔도 이 경로만 옛 값을 계속 쓴다. */
-        engine: "mock", model: null, doc_ids: [], seed: 7,
-      });
-      if (!res || !res.job_id) {
-        out.textContent =
-          (res && (res.detail || res.error)) || "추출을 시작하지 못했어요.";
-        return;
-      }
-      for (var i = 0; i < 40; i++) {
-        await new Promise(function (r) { setTimeout(r, 500); });
-        var job = await api("/api/jobs/" + encodeURIComponent(res.job_id));
-        if (job && job.status === "complete") {
-          var t = job.totals || {};
-          var fresh = (t.nodes_new || 0) + (t.edges_new || 0);
-          out.innerHTML =
-            "제안 <strong>" + fresh + "건</strong>이 도착했어요! 이제 3번 — " +
-            "직접 골라줄 차례예요. <button type='button' class='btn btn-primary'" +
-            " data-goto='review'>검토 →</button>";
-          loadHome();
-          loadProposals();
-          return;
-        }
-        if (job && job.status === "failed") {
-          out.textContent = "추출이 실패했어요: " + (job.error || "원인 미상");
-          return;
-        }
-      }
-      out.textContent =
-        "오래 걸리네요 — ① 리서치 화면에서 진행 상황을 볼 수 있어요.";
     } catch (e) {
       out.textContent = friendlyError(e);
     } finally {

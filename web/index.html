@@ -48,59 +48,41 @@
 
 
   <main>
-    <!-- ================= 홈 (현황판) ================= -->
-    <!-- 단말의 첫 화면은 인사말이 아니라 현황이다. 온보딩 체크리스트는
-         한 바퀴 돈 다음 날부터 매일 보는 죽은 화면이 됐다 — 같은 안내를
-         "시작" 패널의 동작 세 개로 압축하고, 나머지 화면을 데이터에 준다. -->
+    <!-- ================= 홈 (대화) =================
+         현황판이던 자리다. 그 패널들이 보여주던 것 — 검토 큐, 실행 목록,
+         저장소 수치 — 은 전부 자기 화면이 따로 있었고, 여기 있던 건 같은
+         값을 두 번째로 그린 것이었다. 탭은 그대로 남는다: 대화는 답을
+         화면으로 데려다줄 뿐, 화면을 대체하지 않는다. -->
     <section id="tab-home" class="tab-panel active" data-tab-panel="home">
-      <div class="board">
-        <div class="panel board-span">
-          <div class="panel-head">
-            <span class="panel-label">검토 큐</span>
-            <span id="board-queue-n" class="panel-figure">0</span>
-            <button type="button" class="btn-link panel-act" data-goto="review">검토 열기 →</button>
-          </div>
-          <ul id="board-queue-list" class="board-list"></ul>
-          <p id="board-queue-empty" class="board-empty hidden">대기 중인 제안 없음</p>
+      <div class="chat">
+        <!-- 대화를 보관하니까 끝낼 방법도 있어야 한다. 기록이 있을 때만
+             나타난다 — 지울 것이 없는데 지우기 버튼이 있으면 그 버튼이
+             무엇을 지우는지 오히려 헷갈린다. -->
+        <div class="chat-bar hidden" id="chat-bar">
+          <button type="button" id="chat-clear" class="btn-link"
+            aria-label="대화 기록 지우기">대화 기록 지우기</button>
         </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <span class="panel-label">실행</span>
-            <span id="board-live" class="live-dot hidden" title="실행 중"></span>
-            <button type="button" class="btn-link panel-act" data-goto="sources">리서치 →</button>
-          </div>
-          <ul id="board-runs-list" class="board-list"></ul>
-          <p id="board-runs-empty" class="board-empty hidden">실행 이력 없음</p>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <span class="panel-label">저장소</span>
-            <button type="button" class="btn-link panel-act" data-goto="graph">그래프 →</button>
-          </div>
-          <div class="kpi-grid">
-            <div class="kpi"><span class="kpi-n" id="kpi-docs">0</span><span class="kpi-l">문서</span></div>
-            <div class="kpi"><span class="kpi-n is-pending" id="kpi-pending">0</span><span class="kpi-l">대기</span></div>
-            <div class="kpi"><span class="kpi-n" id="kpi-verified">0</span><span class="kpi-l">승인</span></div>
-            <div class="kpi"><span class="kpi-n" id="kpi-packs">0</span><span class="kpi-l">팩</span></div>
+        <div class="chat-log" id="chat-log" aria-live="polite" aria-label="대화">
+          <div class="chat-intro">
+            <h2>무엇을 알아볼까요?</h2>
+            <p class="muted">주제를 한 줄로 적으면 논문 소스에서 모아
+              개념과 관계를 <strong>제안</strong>으로 뽑아요. 승인한 것만
+              지식이 됩니다 — 제가 대신 결정하지 않아요.</p>
+            <div class="chat-suggests">
+              <button type="button" class="chip" data-say="CRISPR off-target 효과 최신 연구 찾아줘">주제 리서치</button>
+              <button type="button" class="chip" data-say="검토할 거 뭐 있어?">검토 큐 보기</button>
+              <button type="button" class="chip" data-say="지금 상태 알려줘">저장소 상태</button>
+              <button type="button" class="chip" data-say="뭘 할 수 있어?">할 수 있는 것</button>
+            </div>
           </div>
         </div>
-
-        <div class="panel board-span">
-          <div class="panel-head">
-            <span class="panel-label">시작</span>
-            <span class="panel-note">승인한 것만 지식이 됨 · 전부 이 컴퓨터에만 저장</span>
-          </div>
-          <div class="panel-body row">
-            <button type="button" id="journey-sample-btn" class="btn">샘플 문서 넣기</button>
-            <button type="button" id="journey-extract-btn" class="btn">추출 실행</button>
-            <button type="button" class="btn" data-goto="packs">팩 빌드</button>
-            <button type="button" class="btn" data-goto="mcp">Claude 연결</button>
-          </div>
-          <p id="journey-sample-result" class="muted panel-body-note hidden"></p>
-          <p id="journey-extract-result" class="muted panel-body-note hidden"></p>
-        </div>
+        <form id="chat-form" class="chat-composer">
+          <textarea id="chat-input" rows="1" autocomplete="off"
+            aria-label="메시지"
+            placeholder="주제를 적거나, 하고 싶은 걸 말해보세요…"></textarea>
+          <button type="submit" id="chat-send" class="btn btn-primary"
+            aria-label="보내기">보내기</button>
+        </form>
       </div>
     </section>
 
@@ -196,6 +178,15 @@
         </form>
         <div id="extract-result" class="status-box result-box hidden"></div>
       </details>
+
+      <!-- 홈이 대화가 되면서 갈 곳이 없어진 동작. 네트워크 없이 문서 하나를
+           넣어 파이프라인을 한 바퀴 돌려볼 수 있는 유일한 길이라 지우지 않고
+           수집이 실제로 일어나는 이 화면으로 옮겼다. -->
+      <p class="sample-line">
+        <button type="button" id="journey-sample-btn" class="btn-link">샘플 문서 넣기</button>
+        <span class="muted"><small>— 네트워크 없이 한 바퀴 돌려보기</small></span>
+      </p>
+      <p id="journey-sample-result" class="muted panel-body-note hidden"></p>
 
       <div class="panel">
         <div class="panel-head">
