@@ -659,6 +659,19 @@
     </section>
   </main>
 
+  <!-- 문서 패널. 승인은 "논문이 정말 그렇게 말했나"를 판정하는 일인데,
+       근거 앞뒤 160자로는 한 문장이 맞는지까지만 보인다 — 저자가 다음 줄에서
+       부정했는지, 열 개 제안이 전부 같은 문단에서 나왔는지는 안 보인다.
+       원문 전체를 옆에 띄우고 그 안에서 근거를 표시한다. -->
+  <aside class="doc-panel hidden" id="doc-panel" aria-label="문서">
+    <div class="doc-head">
+      <div class="doc-tabs" id="doc-tabs" role="tablist" aria-label="열린 문서"></div>
+      <button type="button" id="doc-close" class="btn-link"
+        aria-label="문서 패널 닫기">✕</button>
+    </div>
+    <div class="doc-body" id="doc-body"></div>
+  </aside>
+
   <!-- ⌘K 명령 팔레트. 탭이 열 개인데 이동 수단이 마우스뿐이었고, 개체
        이름으로 찾아가는 길은 아예 없었다(entity_lookup은 MCP·CLI에서만
        닿았다). 화면 이동과 개체 검색을 한 입력창에 합친다 — 사용자는

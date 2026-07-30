@@ -334,6 +334,17 @@
         "문장을 읽지 못했어요 — 원문 파일이 지워졌을 수 있어요.</small></p>";
     }
 
+    // 발췌문은 근거 문장 하나만 보여준다. 그것으로 판정이 서는 경우가
+    // 대부분이지만, 서지 않는 경우 — 저자가 다음 줄에서 부정하거나, 같은
+    // 문단에서 열 개 제안이 한꺼번에 나온 경우 — 를 확인할 길이 지금까지
+    // 없었다. 원문 전체를 옆에 연다.
+    if (item.source_doc_id) {
+      html +=
+        "<p><button type='button' class='btn-link' data-open-doc='" +
+        escapeHtml(item.source_doc_id) + "' data-open-item='" +
+        escapeHtml(item.id || "") + "'>원문 전체 보기 →</button></p>";
+    }
+
     html +=
       "<h4 class='ev-section'>판단 재료</h4>" +
       "<div class='ev-meta'>" +
@@ -1305,7 +1316,9 @@
           // 길이에 끌려가고, 정작 훑는 대상인 제목이 잘린다.
           var uri = doc.source_uri || "";
           return (
-            "<li class='doc-row'>" +
+            "<li class='doc-row' data-doc='" + escapeHtml(doc.id || "") + "'" +
+            " role='button' tabindex='0' aria-label='" +
+            escapeHtml((doc.title || "제목 없음") + " 원문 열기") + "'>" +
             "<span class='doc-src'>" + escapeHtml(doc.source_kind || "?") + "</span>" +
             "<span class='doc-main'>" +
             "<span class='doc-title'>" +
@@ -3403,6 +3416,205 @@
     $("#evidence-pane").classList.remove("hidden");
     document.getElementById("tab-review").classList.remove("inspector-open");
   });
+
+  /* -- 문서 패널 -----------------------------------------------------------
+     제안을 승인한다는 건 "논문이 정말 그렇게 말했나"를 판정하는 일이다.
+     그 질문은 근거 span 앞뒤 160자로는 절반만 답할 수 있다 — 그 창으로는
+     한 문장이 맞는지는 보여도, 열한 개 제안이 전부 같은 문단에서 나왔다는
+     것이나 저자가 바로 다음 줄에서 "관찰되지 않았다"고 적었다는 것은 보이지
+     않는다. 그래서 원문 전체를 옆에 띄우고, 그 안에서 근거를 표시한다.
+
+     서버는 텍스트와 오프셋만 준다. 마크업을 서버가 만들면 문서가 어떻게
+     생겼는지를 서버가 정하게 되고, 그건 이 패널이 하는 일이다. */
+
+  var docTabs = [];        // [{id, title, data, error}]
+  var docActive = null;
+
+  /* 근거는 서로 겹친다 — 관계의 근거 문장이 그 관계에 나오는 개념의 근거를
+     통째로 품는 일이 흔하다. "겹치면 앞엣것만 칠한다"는 규칙은 태그가
+     교차하지 않게 해주지만 실제로 근거의 3분의 1을 지웠다. 화면에서 사라진
+     근거는 검토자가 확인할 수 없는 근거다.
+
+     그래서 구간을 경계마다 쪼갠다. 각 조각은 그 지점에서 살아 있는 근거를
+     전부 `data-items`에 달고 다니므로 아무것도 버려지지 않고, 태그도 겹치지
+     않는다. 색은 가장 안쪽(가장 늦게 시작한) 근거의 상태를 쓴다 — 가장 좁은
+     범위가 그 글자에 대해 가장 구체적인 주장이다. */
+  function markSpans(text, items) {
+    var spans = items.filter(function (i) {
+      return i.span && i.span.end > i.span.start;
+    }).map(function (i) {
+      return { s: i.span.start, e: i.span.end, item: i };
+    });
+    var dropped = items.filter(function (i) { return i.span; }).length -
+      spans.length;
+    if (!spans.length) return { html: escapeHtml(text), dropped: dropped };
+
+    var cuts = {};
+    spans.forEach(function (sp) { cuts[sp.s] = true; cuts[sp.e] = true; });
+    var points = Object.keys(cuts).map(Number).sort(function (a, b) {
+      return a - b;
+    });
+    var out = escapeHtml(text.slice(0, points[0]));
+    for (var k = 0; k < points.length - 1; k++) {
+      var from = points[k], to = points[k + 1];
+      var here = spans.filter(function (sp) {
+        return sp.s <= from && sp.e >= to;
+      });
+      var piece = escapeHtml(text.slice(from, to));
+      if (!here.length) { out += piece; continue; }
+      var inner = here.reduce(function (a, b) { return b.s >= a.s ? b : a; });
+      out += "<mark class='doc-span st-" + escapeHtml(inner.item.status) +
+        "' data-items='" + escapeHtml(here.map(function (h) {
+          return h.item.id;
+        }).join(" ")) + "'>" + piece + "</mark>";
+    }
+    out += escapeHtml(text.slice(points[points.length - 1]));
+    return { html: out, dropped: dropped };
+  }
+
+  function renderDocBody(d) {
+    var marked = markSpans(d.text || "", d.items || []);
+    var notes = [];
+    if (d.truncated) {
+      notes.push("문서가 길어 앞부분 " + (d.text || "").length.toLocaleString() +
+        "자만 보여요 (전체 " + (d.total_chars || 0).toLocaleString() + "자).");
+    }
+    if (marked.dropped) {
+      notes.push("근거 " + marked.dropped + "개는 범위가 비어 있어 표시하지 못했어요.");
+    }
+    var unplaced = (d.items || []).filter(function (i) { return !i.span; }).length;
+    if (unplaced) {
+      // 근거 없는 제안은 추출기가 경고와 함께 낸 것이다. 조용히 목록에만
+      // 두면 "본문 어딘가에 있는데 못 찾은 것"처럼 읽힌다.
+      notes.push("제안 " + unplaced + "개는 본문에 근거 문장이 없어요 — 검토할 때 특히 조심하세요.");
+    }
+    var uri = d.source_uri || "";
+    return "<div class='doc-meta'>" +
+      "<h2>" + escapeHtml(d.title || "(제목 없음)") + "</h2>" +
+      "<p class='muted'><small>" + escapeHtml(d.source_kind || "") +
+      (uri ? " · " + escapeHtml(uri) : "") +
+      " · " + escapeHtml(fmtTs(d.fetched_ts)) + "</small></p>" +
+      "</div>" +
+      (d.items && d.items.length
+        ? "<ul class='doc-items'>" + d.items.map(function (i) {
+            return "<li><button type='button' class='doc-item'" +
+              " data-item='" + escapeHtml(i.id) + "'" +
+              (i.span ? "" : " disabled title='이 제안에는 원문 근거 문장이 없어요'") +
+              ">" + escapeHtml(i.label || "") + "</button> " +
+              "<code>" + escapeHtml(i.type || "") + "</code> " +
+              statusBadge(i.status) + "</li>";
+          }).join("") + "</ul>"
+        : "<p class='muted'>이 문서에서 나온 제안이 아직 없어요.</p>") +
+      notes.map(function (n) {
+        return "<p class='muted'><small>" + escapeHtml(n) + "</small></p>";
+      }).join("") +
+      "<pre class='doc-text'>" + marked.html + "</pre>";
+  }
+
+  function renderDocPanel() {
+    var panel = $("#doc-panel");
+    if (!panel) return;
+    if (!docTabs.length) {
+      panel.classList.add("hidden");
+      $("#doc-tabs").innerHTML = "";
+      $("#doc-body").innerHTML = "";
+      return;
+    }
+    panel.classList.remove("hidden");
+    $("#doc-tabs").innerHTML = docTabs.map(function (t) {
+      var on = t.id === docActive;
+      return "<button type='button' class='doc-tab" + (on ? " active" : "") +
+        "' role='tab' aria-selected='" + on + "' data-doc-tab='" +
+        escapeHtml(t.id) + "'>" + escapeHtml(t.title) + "</button>";
+    }).join("");
+    var cur = docTabs.filter(function (t) { return t.id === docActive; })[0];
+    $("#doc-body").innerHTML = !cur ? ""
+      : cur.error ? "<p class='err-msg'>" + escapeHtml(cur.error) + "</p>"
+      : renderDocBody(cur.data);
+  }
+
+  // 특정 근거로 스크롤한 뒤 잠깐 표시한다. 제안 40개가 달린 문서에서
+  // "이 제안"을 눈으로 찾게 두면 패널을 연 의미가 없다.
+  function revealDocItem(itemId) {
+    if (!itemId) return;
+    var body = $("#doc-body");
+    // 근거가 없는 제안(모델이 관계 끝점으로만 이름을 댄 경우)은 본문에 갈
+    // 곳이 없다. 그럴 때 아무 일도 하지 않으면 클릭이 먹지 않은 것과
+    // 구분되지 않으므로, 목록의 그 줄로 데려가 이유를 보게 한다.
+    var target = body.querySelector("mark[data-items~='" + itemId + "']") ||
+      body.querySelector(".doc-item[data-item='" + itemId + "']");
+    if (!target) return;
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    target.classList.add("is-focused");
+    setTimeout(function () { target.classList.remove("is-focused"); }, 1600);
+  }
+
+  async function openDoc(docId, itemId) {
+    var already = docTabs.filter(function (t) { return t.id === docId; })[0];
+    if (already) {
+      docActive = docId;
+      renderDocPanel();
+      revealDocItem(itemId);
+      return;
+    }
+    try {
+      var d = await api("/api/document/" + encodeURIComponent(docId) + "/review");
+      // 탭이 무한정 늘어나지 않게 앞에서 밀어낸다. 탭 열두 개짜리 패널은
+      // 문서를 읽는 자리가 아니라 탭을 고르는 자리가 된다.
+      docTabs.push({ id: docId, title: d.title || docId.slice(0, 8), data: d });
+      if (docTabs.length > 4) docTabs.shift();
+      docActive = docId;
+      renderDocPanel();
+      revealDocItem(itemId);
+    } catch (e) {
+      // 실패도 패널 안에서 말한다. 문서를 열어달라 했는데 아무 일도
+      // 일어나지 않으면 클릭이 먹지 않은 것과 구분되지 않는다.
+      docTabs.push({
+        id: docId, title: docId.slice(0, 8), data: null,
+        error: friendlyError(e),
+      });
+      docActive = docId;
+      renderDocPanel();
+    }
+  }
+
+  (function wireDocPanel() {
+    var panel = $("#doc-panel");
+    if (!panel) return;
+    var close = $("#doc-close");
+    if (close) {
+      close.addEventListener("click", function () {
+        docTabs = [];
+        docActive = null;
+        renderDocPanel();
+      });
+    }
+    panel.addEventListener("click", function (ev) {
+      var tab = ev.target.closest("[data-doc-tab]");
+      if (tab) { docActive = tab.dataset.docTab; renderDocPanel(); return; }
+      var item = ev.target.closest(".doc-item");
+      if (item) revealDocItem(item.dataset.item);
+    });
+    // 검토 화면의 "원문 전체 보기" — 판정하던 그 항목 위치로 바로 데려간다.
+    document.addEventListener("click", function (ev) {
+      var open = ev.target.closest("[data-open-doc]");
+      if (open) openDoc(open.dataset.openDoc, open.dataset.openItem);
+    });
+    var list = $("#documents-list");
+    if (list) {
+      list.addEventListener("click", function (ev) {
+        var row = ev.target.closest("[data-doc]");
+        if (row) openDoc(row.dataset.doc);
+      });
+      // role=button 을 붙였으면 키보드로도 눌려야 한다. 안 그러면 스크린
+      // 리더에는 버튼이라고 말해놓고 실제로는 마우스 전용인 셈이다.
+      list.addEventListener("keydown", function (ev) {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        var row = ev.target.closest("[data-doc]");
+        if (row) { ev.preventDefault(); openDoc(row.dataset.doc); }
+      });
+    }
+  })();
 
   /* -- 대화 ---------------------------------------------------------------
      이 화면이 하는 일은 문장 하나를 받아서 실제 작업을 돌리는 것이다.

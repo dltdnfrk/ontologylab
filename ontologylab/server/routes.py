@@ -495,6 +495,25 @@ def get_provenance(kind: str, item_id: str) -> dict[str, Any]:
         store.close()
 
 
+@router.get("/document/{doc_id}/review")
+def document_review(doc_id: str) -> dict[str, Any]:
+    """The source text and every proposal drawn from it.
+
+    What the document panel shows. Judging a proposal means judging whether
+    the paper says it, and that question is easier to answer with the
+    surrounding paragraph than with the 160 characters around the span.
+    """
+    store = _open_store()
+    try:
+        return store.document_review_context(doc_id)
+    except UnknownItem as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KGStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
 @router.get("/entity/{entity_id}/review")
 def entity_review(entity_id: str) -> dict[str, Any]:
     store = _open_store()

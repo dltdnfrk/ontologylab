@@ -68,6 +68,11 @@ class UnknownItem(KGStoreError):
 SPAN_EXCERPT_CONTEXT_CHARS = 160
 SPAN_EXCERPT_MAX_CHARS = 600
 
+# How much of a source document the review panel receives. Full text of an
+# open-access paper runs to tens of thousands of characters; past this the
+# panel is scrolling, not reading. Truncation is reported, never silent.
+DOCUMENT_PANEL_MAX_CHARS = 40_000
+
 
 def span_excerpt(
     raw_text: str,
@@ -1908,6 +1913,99 @@ class KGStore:
             else 0
         )
         return out
+
+    # ------------------------------------------------------------------
+    # Document-centric review: the source text, and what was drawn from it
+    # ------------------------------------------------------------------
+
+    def document_review_context(
+        self, doc_id: str, *, max_chars: int = DOCUMENT_PANEL_MAX_CHARS
+    ) -> dict[str, Any]:
+        """One document plus every proposal that cites it.
+
+        The inverse of `entity_review_context`, and the view the product has
+        been missing. Approving a proposal means judging whether the source
+        actually says it — a question the entity view answers one 160-char
+        excerpt at a time, which is enough to check a single mention and not
+        enough to notice that eleven proposals all came from the same
+        sentence, or that a paper's own hedging ("we did not observe") sits
+        just outside every excerpt.
+
+        Returns the text, capped, and the cited spans as offsets into it.
+        Nothing is marked up here: the caller decides how to draw a span,
+        and a server that shipped HTML would be a server that decides what
+        a document looks like — and a path for document text to reach
+        innerHTML as markup rather than as text.
+        """
+        document = self.get_document(doc_id)
+        try:
+            text = self.document_raw_text(doc_id)
+        except (KGStoreError, OSError):
+            # The proposals are in sqlite; the raw text is a file beside it.
+            # One can be missing without the other, and this panel is how a
+            # reviewer would find out — so it must not be the thing that
+            # breaks.
+            text = ""
+        truncated = len(text) > max_chars
+
+        rows = self.conn.execute(
+            "SELECT kind, item_id, source_span FROM citations "
+            "WHERE source_doc_id = ? ORDER BY created_ts ASC",
+            (doc_id,),
+        ).fetchall()
+
+        items: list[dict[str, Any]] = []
+        for row in rows:
+            span = json.loads(row["source_span"]) if row["source_span"] else None
+            if row["kind"] == "node":
+                nrow = self.conn.execute(
+                    "SELECT name, entity_type, status FROM nodes WHERE id = ?",
+                    (row["item_id"],),
+                ).fetchone()
+                if nrow is None:
+                    continue
+                label, kind_label, status = (
+                    nrow["name"], nrow["entity_type"], nrow["status"],
+                )
+            else:
+                erow = self.conn.execute(
+                    "SELECT e.relation_type, e.status, s.name AS src, "
+                    "d.name AS dst FROM edges e "
+                    "JOIN nodes s ON s.id = e.src_node_id "
+                    "JOIN nodes d ON d.id = e.dst_node_id WHERE e.id = ?",
+                    (row["item_id"],),
+                ).fetchone()
+                if erow is None:
+                    continue
+                # An edge shown as `related_to` alone cannot be judged.
+                label = f"{erow['src']} → {erow['dst']}"
+                kind_label, status = erow["relation_type"], erow["status"]
+            items.append({
+                "kind": row["kind"],
+                "id": row["item_id"],
+                "label": label,
+                "type": kind_label,
+                "status": status,
+                # A span past the cap is reported as absent rather than as a
+                # position the caller would draw in the wrong place —
+                # highlighting the wrong sentence asserts evidence that is
+                # not there, which is worse than highlighting nothing.
+                "span": span if (
+                    span and int(span.get("end", 0)) <= max_chars
+                ) else None,
+            })
+
+        return {
+            "doc_id": document.id,
+            "title": document.title,
+            "source_uri": document.source_uri,
+            "source_kind": document.source_kind,
+            "fetched_ts": document.fetched_ts,
+            "text": text[:max_chars],
+            "truncated": truncated,
+            "total_chars": len(text),
+            "items": items,
+        }
 
     # ------------------------------------------------------------------
     # W11 entity-centric review: everything about ONE entity in one payload
