@@ -1577,10 +1577,36 @@
 
   var PHASE_KO_LOG = { collect: "수집", extract: "추출" };
 
+  // job_id → 그 실행을 시작한 문장. 한 번 물어보고 기억한다.
+  var jobAsked = {};
+
+  async function renderJobAsked(jobId) {
+    var el = $("#job-asked");
+    if (!el || !jobId) return;
+    if (!(jobId in jobAsked)) {
+      jobAsked[jobId] = null;   // 재요청 방지 — 없는 것도 답이다.
+      try {
+        var data = await api("/api/jobs/" + encodeURIComponent(jobId) + "/asked");
+        jobAsked[jobId] = (data && data.turn) || null;
+      } catch (_) { /* 계보를 못 읽는다고 로그를 못 볼 이유는 없다. */ }
+    }
+    var turn = jobAsked[jobId];
+    el.classList.toggle("hidden", !turn);
+    if (turn) {
+      // `research-20260728-071805` 는 아무도 알아보지 못하는 이름이고,
+      // 그걸 시작한 문장은 알아본다.
+      el.innerHTML = "<span class='muted'><small>시작한 질문</small></span> " +
+        "<q>" + escapeHtml(turn.message) + "</q>" +
+        "<span class='muted'><small> · " + escapeHtml(fmtTs(turn.created_ts)) +
+        "</small></span>";
+    }
+  }
+
   function renderJobDetail(job) {
     $("#job-detail").classList.remove("hidden");
     $("#job-detail-title").textContent =
       "작업 " + String(job.job_id || "").slice(0, 12) + " — " + statusKo(job.status);
+    renderJobAsked(job.job_id);
 
     var lines = (job.progress || []).slice();
     if (job.error) lines.push("오류: " + job.error);

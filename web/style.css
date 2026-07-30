@@ -2502,3 +2502,11 @@ mark.doc-span.is-focused { outline: 2px solid var(--accent); }
     box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
   }
 }
+
+/* 이 실행을 시작한 문장. 로그 위, 제목 아래 — 읽는 순서가 그렇다. */
+.job-asked {
+  margin: 0 0 var(--sp-3);
+  padding: 0 var(--sp-3);
+  font-size: var(--fs-sm);
+}
+.job-asked q { color: var(--foreground); }

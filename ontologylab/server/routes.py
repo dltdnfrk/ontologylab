@@ -1275,6 +1275,23 @@ def start_research(body: ResearchRequest) -> dict[str, Any]:
 # Chat — one sentence in, one accountable answer out
 # ---------------------------------------------------------------------------
 
+# Every parameter of a called route has to be supplied by name here, even
+# when a default exists. A FastAPI route is a plain function whose defaults
+# are `Query(...)` *objects*, so calling `search_entities(q=query)` bound a
+# `Query` instance as `limit` and the search reached sqlite as
+# `Error binding parameter 4: type 'Query' is not supported` — a 500 in
+# chat, and for `enrich` a permanent "enrichment failed" that looked like a
+# resource being down. `test_chat_supplies_every_query_parameter` keeps the
+# next one from being added the same way.
+#
+# The value matches what the browser draws (`hits.slice(0, 8)`): asking the
+# store for more than the bubble shows is work nobody sees.
+CHAT_SEARCH_LIMIT = 8
+# One conversational turn should not silently start a 50-node fan-out
+# across curated resources; the Review screen's button is where a bulk run
+# belongs.
+CHAT_ENRICH_LIMIT = 10
+
 
 def _open_chat_store() -> ChatStore:
     return ChatStore.open(paths.chat_db_path(_data_dir))
@@ -1304,6 +1321,13 @@ def _record_turn(body: ChatMessage, payload: dict[str, Any]) -> Optional[str]:
         finally:
             store.close()
     except Exception:
+        # Silent, and knowingly so. Provenance is the obvious place to
+        # record this and it is the wrong one twice over: it wants a run
+        # directory, and a transcript write fails the same way on every
+        # message — which is precisely how `start_research` once made
+        # `GET /api/cost` permanently slow by minting one directory per
+        # refusal. There is no logger in this package to fall back to, and
+        # inventing one belongs in its own change, not here.
         return None
 
 
@@ -1379,7 +1403,16 @@ async def chat(body: ChatMessage) -> dict[str, Any]:
         payload["result"] = {"kind": "confirm", "action": intent.action}
         return reply(True, **payload)
 
-    payload["result"] = _run_intent(intent, trace, body)
+    # Off the event loop. Everything `_run_intent` dispatches to is
+    # synchronous and some of it is slow — `build_pack` writes a whole pack,
+    # `enrich` makes network calls to curated resources. Measured against a
+    # real server, a two-second action inside this `async def` delayed an
+    # unrelated `GET /api/settings` by 1.72s; the jobs SSE stream shares
+    # that loop, so a chat-initiated build would freeze the progress display
+    # of a research run happening at the same time.
+    payload["result"] = await run_in_threadpool(
+        _run_intent, intent, trace, body
+    )
     return reply(True, **payload)
 
 
@@ -1419,14 +1452,14 @@ def _run_intent(
             trace.append(Step("store", "search", "failed", "no_query"))
             return {"kind": "blocked", "error_kind": "shape",
                     "detail": "which name should I look for?"}
-        found = search_entities(q=query)
+        found = search_entities(q=query, limit=CHAT_SEARCH_LIMIT)
         trace.append(
             Step("store", "search", "ok", str(len(found.get("results", []))))
         )
         return {"kind": "search", "query": query, **found}
 
     if action == "enrich":
-        result = enrich_nodes()
+        result = enrich_nodes(limit=CHAT_ENRICH_LIMIT)
         trace.append(
             Step("resources", "lookup", "ok", str(result.get("proposed", 0)))
         )

@@ -469,3 +469,99 @@ def test_a_corrupted_row_does_not_end_the_conversation(tmp_path) -> None:
     assert turns[0]["message"] == "첫 질문"
     assert turns[0]["result"] == {}
     store.close()
+
+
+# --------------------------------------------------------------------------
+# Calling a route as a function
+# --------------------------------------------------------------------------
+
+
+def test_every_action_actually_runs(client, monkeypatch) -> None:
+    """Each dispatch branch, exercised once.
+
+    `search_entities` and `enrich` shipped broken because no test ever took
+    those branches: the first returned a 500 and the second a permanent
+    "enrichment failed", and the suite was green the whole time. Coverage of
+    the classifier is not coverage of what it dispatches to.
+    """
+    outcomes = {}
+    for action, params in [
+        ("status", {}), ("help", {}), ("show_review", {}),
+        ("show_graph", {}), ("show_packs", {}), ("show_sources", {}),
+        ("search_entities", {"query": "TP53"}), ("enrich", {}),
+    ]:
+        _classify_as(monkeypatch, Intent(action, params=params, reading="…"))
+        response = client.post(
+            "/api/chat", json={"message": "x", "engine": "mock"}
+        )
+        assert response.status_code == 200, f"{action} raised"
+        outcomes[action] = response.json()["result"]
+
+    assert outcomes["search_entities"]["kind"] == "search"
+    assert "results" in outcomes["search_entities"]
+    # `enrich` may legitimately find nothing, but it must not fail.
+    assert outcomes["enrich"].get("error_kind") is None, outcomes["enrich"]
+
+
+def test_chat_supplies_every_query_parameter() -> None:
+    """A route's defaults are `Query(...)` objects, not values.
+
+    Calling one as a plain function and omitting a parameter binds the
+    marker object itself — which reached sqlite as "type 'Query' is not
+    supported". Nothing about the call site looks wrong, so the rule is
+    checked rather than remembered.
+    """
+    import ast
+    import inspect
+    from pathlib import Path
+
+    from fastapi import params as fastapi_params
+
+    source = Path("ontologylab/server/routes.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    run_intent = next(
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "_run_intent"
+    )
+
+    for call in ast.walk(run_intent):
+        if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Name):
+            continue
+        target = getattr(routes, call.func.id, None)
+        if target is None or not callable(target):
+            continue
+        try:
+            signature = inspect.signature(target)
+        except (TypeError, ValueError):
+            continue
+        supplied = {kw.arg for kw in call.keywords}
+        supplied.update(
+            list(signature.parameters)[: len(call.args)]
+        )
+        for name, parameter in signature.parameters.items():
+            if not isinstance(parameter.default, fastapi_params.Param):
+                continue
+            assert name in supplied, (
+                f"_run_intent calls {call.func.id}() without `{name}`, "
+                f"so a {type(parameter.default).__name__} object is bound "
+                f"instead of a value"
+            )
+
+
+def test_the_originating_question_reaches_a_screen() -> None:
+    """An endpoint nothing calls is a claim nobody can check.
+
+    `/api/jobs/{id}/asked` justifies itself by what the Jobs screen needed,
+    and shipped with tests, a docstring and no caller — so the run detail
+    still showed only `research-20260728-071805`.
+    """
+    from pathlib import Path
+
+    script = Path("web/app.js").read_text(encoding="utf-8")
+    markup = Path("web/index.html").read_text(encoding="utf-8")
+
+    assert "/asked" in script, "no caller for the endpoint"
+    assert 'id="job-asked"' in markup, "nowhere to render it"
+    # And it is drawn where the run is described, not somewhere unrelated.
+    detail = script.split("function renderJobDetail", 1)[1][:400]
+    assert "renderJobAsked" in detail
