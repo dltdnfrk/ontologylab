@@ -133,7 +133,21 @@ def test_the_host_list_is_derived_from_the_endpoint_constants() -> None:
         "api.springernature.com",
         "api.core.ac.uk",
     }
-    assert len(SOURCE_ORDER) == 9
+    # Every source contributes a host EXCEPT the one whose endpoint is the
+    # user's own machine. That exception is named here rather than being a
+    # count that quietly absorbs the next source someone adds without a
+    # constant — which is the drift this test exists to catch.
+    from ontologylab.connectors.paper_api import SEARXNG_SOURCE
+
+    hostless = set(SOURCE_ORDER) - {
+        "arxiv", "crossref", "openalex", "semanticscholar", "europepmc",
+        "clinicaltrials", "elsevier", "springer", "core",
+    }
+    assert hostless == {SEARXNG_SOURCE}, (
+        "a source with no endpoint constant cannot be host-checked; "
+        "SearXNG is allowed only because check_searxng_base_url confines "
+        "it to loopback/private addresses"
+    )
 
 
 def test_every_implemented_source_endpoint_passes_its_own_check() -> None:

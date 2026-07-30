@@ -262,6 +262,9 @@ def test_check_source_implemented_still_guards_unimplemented():
         # publisher APIs (keyed) — implemented, but only queryable once a
         # credential is connected; see `available_sources`.
         "elsevier", "springer", "core",
+        # Keyless like the five above, but its endpoint is the user's own
+        # instance rather than a constant — see check_searxng_base_url.
+        "searxng",
     })
     with pytest.raises(UnsupportedPaperSource):
         check_source_implemented("not-a-real-source")

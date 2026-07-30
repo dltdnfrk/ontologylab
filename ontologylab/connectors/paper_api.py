@@ -52,7 +52,11 @@ from typing import Any
 from urllib.parse import quote_plus, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from ontologylab.connectors.allowlist import NotAllowlisted, check_paper_query
+from ontologylab.connectors.allowlist import (
+    NotAllowlisted,
+    check_paper_query,
+    check_searxng_base_url,
+)
 from ontologylab.paths import NetworkBlocked, assert_network_allowed
 from ontologylab.connectors.base import (
     FETCH_TIMEOUT_S as _FETCH_TIMEOUT_S,
@@ -145,6 +149,7 @@ EUROPEPMC_SOURCE = "europepmc"
 ELSEVIER_SOURCE = "elsevier"
 SPRINGER_SOURCE = "springer"
 CORE_SOURCE = "core"
+SEARXNG_SOURCE = "searxng"
 DEFAULT_PAPER_SOURCE = ARXIV_SOURCE
 
 # IMPLEMENTED_SOURCES is DERIVED from _SOURCE_DISPATCH, further down this
@@ -391,6 +396,14 @@ def _build_crossref_url(query: str, limit: int) -> str:
 # more lenient "polite pool". The address is read from the environment at
 # request time (never hard-coded / committed); absent -> the common pool.
 OPENALEX_MAILTO_ENV = "OPENALEX_MAILTO"
+# Where the user's own SearXNG lives. Not a constant like the other
+# endpoints because the instance is theirs; `check_searxng_base_url`
+# is what keeps it from becoming an arbitrary destination.
+SEARXNG_URL_ENV = "ONTOLOGYLAB_SEARXNG_URL"
+# The scholarly-publication engines, named explicitly. Google Scholar is
+# the one that cannot be reached any other way — it has no API, which is
+# the whole reason a metasearch source earns its place here.
+SEARXNG_ENGINES = "arxiv,google scholar,pubmed,semantic scholar,crossref,openalex"
 
 
 def _openalex_mailto() -> str:
@@ -853,6 +866,107 @@ def _first_springer_url(item: dict, *, want_pdf: bool = False) -> str:
     return ""
 
 
+def _searxng_base_url() -> str:
+    """The user's own SearXNG, validated, or "" when not configured.
+
+    Unset is not an error: an unconfigured source drops out of the fan-out
+    the same way an unkeyed publisher does. A *misconfigured* one does
+    raise — a typo that silently disables the source would be worse than a
+    refusal, because the run would still look complete.
+    """
+    raw = os.environ.get(SEARXNG_URL_ENV, "").strip()
+    if not raw:
+        return ""
+    return check_searxng_base_url(raw)
+
+
+def _build_searxng_url(query: str, limit: int) -> str:
+    # `limit` is deliberately unused: SearXNG answers a page at a time and
+    # takes no result count. One page of six engines measured at 55 results
+    # for an ordinary query, so the cap is applied in `parse_searxng`
+    # instead — dropping it entirely would let one source outweigh the
+    # other six combined in the fan-out.
+    del limit
+    base = _searxng_base_url()
+    if not base:
+        # Reached only if the source was requested explicitly; the default
+        # fan-out filters it out first.
+        raise NotAllowlisted(
+            f"SearXNG is not configured; set {SEARXNG_URL_ENV} to the "
+            f"address of an instance you run (e.g. http://localhost:8080)"
+        )
+    # Engines are named rather than taking the whole `science` category.
+    # Measured against a live instance, `categories=science` also returns
+    # `pdbe` (protein structure records) and `openairedatasets` — entries
+    # with a title and no abstract, which would enter a corpus whose whole
+    # claim is that a proposal traces back to something a paper says.
+    #
+    # google scholar is the reason this source exists: it has no API, so it
+    # is unreachable any other way.
+    return (
+        f"{base}/search"
+        f"?q={quote_plus(query)}"
+        f"&engines={quote_plus(SEARXNG_ENGINES)}"
+        "&format=json"
+        "&pageno=1"
+    )
+
+
+def parse_searxng(
+    json_text: str, limit: int = MAX_LIMIT
+) -> list[RawDocument]:
+    """Parse a SearXNG `format=json` response (`results`).
+
+    SearXNG's science engines populate `content` with the paper's abstract —
+    arXiv passes the Atom summary through untouched, and OpenAlex
+    reconstructs `abstract_inverted_index` the same way this module does. So
+    a result carries the same title+abstract this pipeline extracts spans
+    from, and routing through it does not shorten the provenance chain.
+
+    A result whose `content` is only a snippet still enters as a document;
+    what it produces is proposals with spans into that snippet, which the
+    document panel shows for what it is.
+
+    `limit` is applied here rather than in the URL because SearXNG takes no
+    result count — it answers one page of every engine at once.
+    """
+    payload = _load_json(json_text, SEARXNG_SOURCE)
+    results = payload.get("results") or []
+    documents: list[RawDocument] = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        title = _normalize(item.get("title"))
+        abstract = _normalize(item.get("content"))
+        # An abstract is required here, unlike the sibling parsers. They
+        # talk to one API that returns papers; this one aggregates engines
+        # whose records are sometimes a bare title (a structure entry, a
+        # dataset listing). A title-only document yields proposals whose
+        # only evidence is the title itself, which is exactly what the
+        # document panel has to flag as ungrounded.
+        if not abstract:
+            continue
+        doi = _normalize(item.get("doi"))
+        source_uri = (
+            f"{DOI_BASE_URL}{doi}" if doi else _normalize(item.get("url"))
+        )
+        if not source_uri:
+            continue
+        documents.append(
+            RawDocument(
+                source_kind="paper_api",
+                source_uri=source_uri,
+                title=title or None,
+                raw_text=f"{title}\n\n{abstract}",
+                doi=normalize_doi(doi),
+                pdf_url=_normalize(item.get("pdf_url")) or None,
+            )
+        )
+        if len(documents) >= limit:
+            break
+    return documents
+
+
 def parse_core(json_text: str) -> list[RawDocument]:
     """Parse a CORE v3 `search/works` response (`results`)."""
     payload = _load_json(json_text, CORE_SOURCE)
@@ -909,6 +1023,7 @@ _SOURCE_DISPATCH = {
     ELSEVIER_SOURCE: (_build_elsevier_url, parse_elsevier),
     SPRINGER_SOURCE: (_build_springer_url, parse_springer),
     CORE_SOURCE: (_build_core_url, parse_core),
+    SEARXNG_SOURCE: (_build_searxng_url, parse_searxng),
 }
 
 # Sources that cannot be queried without a credential. Kept derived from
@@ -966,6 +1081,7 @@ PAPER_SOURCE_LABELS: dict[str, str] = {
     ELSEVIER_SOURCE: "Elsevier (Scopus)",
     SPRINGER_SOURCE: "Springer Nature",
     CORE_SOURCE: "CORE",
+    SEARXNG_SOURCE: "SearXNG (내 인스턴스)",
 }
 
 
@@ -1048,11 +1164,19 @@ def available_sources(data_dir: Any = None) -> list[str]:
     failures to every single research run — a permanent row of red for a
     feature the user has not opted into. Not connecting Elsevier is a
     choice, not a fault, so it should be silent.
+
+    SearXNG follows the same rule for the same reason: it is a service the
+    user runs, and an install that has not set one up should not collect a
+    failure per run for it. A *misconfigured* URL is different and does
+    surface — `_searxng_base_url` raises rather than returning "", so a
+    typo is reported instead of quietly removing the source.
     """
+    configured_searxng = bool(_searxng_base_url())
     return [
         name
         for name in SOURCE_ORDER
-        if name not in KEYED_SOURCES or resolve_source_key(name, data_dir)
+        if (name not in KEYED_SOURCES or resolve_source_key(name, data_dir))
+        and (name != SEARXNG_SOURCE or configured_searxng)
     ]
 
 
@@ -1128,6 +1252,14 @@ class PaperApiConnector:
             body = await asyncio.to_thread(_http_get_text, url, headers)
         else:
             body = await asyncio.to_thread(_http_get_text, url)
+        # Every other API takes a result count in its URL, so its parser
+        # returns what was asked for. SearXNG has no such parameter — it
+        # answers a whole page of every engine at once (55 results for an
+        # ordinary query, measured) — so the cap is applied to what came
+        # back. Passing `limit` unconditionally would change nine parser
+        # signatures to serve one source.
+        if source == SEARXNG_SOURCE:
+            return parse(body, limit)
         return parse(body)
 
 

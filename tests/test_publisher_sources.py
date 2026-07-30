@@ -527,7 +527,14 @@ def test_an_unconnected_publisher_is_not_queried_by_default(tmp_path) -> None:
 def test_a_connected_publisher_joins_the_default_set(tmp_path, monkeypatch) -> None:
     _connect(tmp_path, monkeypatch)
 
-    assert set(available_sources(tmp_path)) == set(SOURCE_ORDER)
+    # Every keyed source joins once connected. SearXNG does not: it is not
+    # unlocked by a credential but by an address, which this test does not
+    # set.
+    from ontologylab.connectors.paper_api import SEARXNG_SOURCE
+
+    assert set(available_sources(tmp_path)) == set(SOURCE_ORDER) - {
+        SEARXNG_SOURCE
+    }
 
 
 def test_the_keyed_set_is_derived_from_the_auth_table() -> None:

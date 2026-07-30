@@ -81,7 +81,12 @@ INJECTIONS = (
 
 @pytest.mark.parametrize("source", sorted(_SOURCE_DISPATCH))
 @pytest.mark.parametrize("payload", INJECTIONS)
-def test_every_builder_encodes_the_query(source: str, payload: str) -> None:
+def test_every_builder_encodes_the_query(
+    source: str, payload: str, monkeypatch
+) -> None:
+    from ontologylab.connectors.paper_api import SEARXNG_URL_ENV
+
+    monkeypatch.setenv(SEARXNG_URL_ENV, "http://localhost:8080")
     build, _ = _SOURCE_DISPATCH[source]
 
     url = build(payload, 5)
@@ -97,26 +102,50 @@ def test_every_builder_encodes_the_query(source: str, payload: str) -> None:
 
 
 @pytest.mark.parametrize("source", sorted(_SOURCE_DISPATCH))
-def test_every_builder_keeps_the_query_inside_one_parameter(source: str) -> None:
+def test_every_builder_keeps_the_query_inside_one_parameter(
+    source: str, monkeypatch
+) -> None:
     """The query must never become part of the host, scheme or path."""
     from urllib.parse import urlparse
 
+    from ontologylab.connectors.paper_api import SEARXNG_URL_ENV
+
+    monkeypatch.setenv(SEARXNG_URL_ENV, "http://localhost:8080")
     build, _ = _SOURCE_DISPATCH[source]
 
     parsed = urlparse(build("evil.example/path", 5))
 
-    assert parsed.scheme == "https"
+    assert parsed.scheme in ("http", "https")
     assert "evil.example" not in (parsed.hostname or "")
     assert "evil.example" not in parsed.path
 
 
 @pytest.mark.parametrize("source", sorted(_SOURCE_DISPATCH))
-def test_every_builder_produces_an_https_url(source: str) -> None:
+def test_every_builder_produces_an_https_url(
+    source: str, monkeypatch
+) -> None:
+    """https everywhere, except an instance the user runs on this machine.
+
+    The property being protected is that nothing crosses a network in clear
+    text. A loopback address has no network to cross, and SearXNG is the one
+    source whose endpoint is the user's own — requiring https there would
+    mean requiring a certificate for `http://localhost:8080`, which is the
+    address its own documentation uses.
+    """
     from urllib.parse import urlparse
 
+    from ontologylab.connectors.paper_api import SEARXNG_SOURCE, SEARXNG_URL_ENV
+
+    monkeypatch.setenv(SEARXNG_URL_ENV, "http://localhost:8080")
     build, _ = _SOURCE_DISPATCH[source]
 
-    assert urlparse(build("cell adhesion", 5)).scheme == "https"
+    parsed = urlparse(build("cell adhesion", 5))
+
+    if source == SEARXNG_SOURCE:
+        assert parsed.scheme in ("http", "https")
+        assert parsed.hostname == "localhost", "and only because it is local"
+    else:
+        assert parsed.scheme == "https"
 
 
 # --------------------------------------------------------------------------
@@ -152,13 +181,21 @@ def test_a_publisher_source_is_listed_but_marked_unavailable(tmp_path) -> None:
 
     body = client.get("/api/paper-sources").json()
 
+    from ontologylab.connectors.paper_api import SEARXNG_SOURCE
+
     by_id = {item["id"]: item for item in body["sources"]}
     for name in KEYED_SOURCES:
         assert by_id[name]["keyed"] is True
         assert by_id[name]["available"] is False, "no key is connected here"
-    for name in set(SOURCE_ORDER) - KEYED_SOURCES:
+    # SearXNG is a third shape: keyless, but still unavailable until the
+    # user points at an instance they run. "keyed" and "available" stopped
+    # being the same question when a source could be configured by URL
+    # instead of by credential.
+    for name in set(SOURCE_ORDER) - KEYED_SOURCES - {SEARXNG_SOURCE}:
         assert by_id[name]["keyed"] is False
         assert by_id[name]["available"] is True
+    assert by_id[SEARXNG_SOURCE]["keyed"] is False
+    assert by_id[SEARXNG_SOURCE]["available"] is False, "no instance set"
 
 
 def test_a_connected_publisher_becomes_available(tmp_path, monkeypatch) -> None:
@@ -176,4 +213,13 @@ def test_a_connected_publisher_becomes_available(tmp_path, monkeypatch) -> None:
 
     body = client.get("/api/paper-sources").json()
 
-    assert all(item["available"] for item in body["sources"])
+    from ontologylab.connectors.paper_api import SEARXNG_SOURCE
+
+    # Connecting every publisher makes every *keyed* source available.
+    # SearXNG is not keyed and is not made available by a key — it needs an
+    # address, which this test deliberately does not set.
+    assert all(
+        item["available"]
+        for item in body["sources"]
+        if item["id"] != SEARXNG_SOURCE
+    )

@@ -69,6 +69,11 @@ PAPER_API_SOURCES: set[str] = {
     # plus a prose summary) but a different kind of evidence: what was
     # actually attempted on people, including what never got published.
     "clinicaltrials",
+    # A metasearch engine the user runs themselves. The exception to "one
+    # source, one fixed host": its address is configuration, so the host
+    # gate is `check_searxng_base_url` (loopback/private only) rather than
+    # a constant in paper_api.py. Reaches Google Scholar, which has no API.
+    "searxng",
 }
 
 # Back-compat alias: earlier code/tests read PAPER_API_ALLOWED["sources"].
@@ -102,6 +107,68 @@ def check_url(url: str) -> str:
             f"add it to connectors/allowlist.py to permit it explicitly"
         )
     return url
+
+
+# SearXNG is the one source whose endpoint is not a constant in this
+# repository: it is a metasearch engine the user runs themselves, so its
+# address is configuration. That breaks the invariant every other paper
+# source rests on — "one source, one fixed host" — and the exact-match
+# allowlist cannot express it.
+#
+# What replaces the invariant is a narrower one: the instance must be on
+# this machine or this network. A loopback or private address cannot carry
+# a research query to a third party, which is the property the host
+# allowlist exists to guarantee. A public SearXNG instance is deliberately
+# refused: it would be a keyless, user-supplied, arbitrary internet
+# endpoint receiving every query this tool makes, which is exactly what
+# deny-by-default is for. Someone who genuinely wants that adds the host
+# to WEB_CRAWL_ALLOWED_HOSTS-style review here, on purpose.
+_PRIVATE_HOST_SUFFIXES = (".local", ".internal", ".lan", ".home.arpa")
+
+
+def check_searxng_base_url(url: str) -> str:
+    """Validate a self-hosted SearXNG base URL; return it without its path.
+
+    Raises NotAllowlisted for a scheme other than http(s), for credentials
+    embedded in the URL, or for any host that is not loopback/private.
+    """
+    import ipaddress
+
+    parsed = urlparse(url.strip())
+    if parsed.scheme not in ("http", "https"):
+        raise NotAllowlisted(
+            f"SearXNG URL scheme {parsed.scheme!r} is not allowed "
+            f"(http/https only)"
+        )
+    # A userinfo section would put a credential into every logged URL — the
+    # same reason publisher keys travel as headers and never as query
+    # parameters.
+    if parsed.username or parsed.password:
+        raise NotAllowlisted(
+            "SearXNG URL must not embed credentials; it would be written to "
+            "the job log and the provenance record"
+        )
+    host = (parsed.hostname or "").lower()
+    if not host:
+        raise NotAllowlisted("SearXNG URL has no host")
+
+    allowed = host == "localhost" or host.endswith(_PRIVATE_HOST_SUFFIXES)
+    if not allowed:
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            address = None
+        allowed = address is not None and (
+            address.is_loopback or address.is_private
+        )
+    if not allowed:
+        raise NotAllowlisted(
+            f"SearXNG host {host!r} is not loopback or private. This tool "
+            f"only queries a SearXNG you run yourself — a public instance "
+            f"would receive every research query you make"
+        )
+    port = f":{parsed.port}" if parsed.port else ""
+    return f"{parsed.scheme}://{host}{port}"
 
 
 def check_paper_query(source: str, query: str) -> tuple[str, str]:
