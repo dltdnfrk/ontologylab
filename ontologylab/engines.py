@@ -153,6 +153,19 @@ _COMMUNITY_SECTION_RE = re.compile(
     re.DOTALL,
 )
 
+# Shared prompt-format contract with intent.classify: the sentence to route
+# is wrapped in these markers. Without this MockEngine falls through to the
+# extraction branch and every chat message classifies as "unknown", so the
+# offline engine — the default, and the one the tests use — would make the
+# whole chat surface look broken rather than merely unconfigured.
+INTENT_MARKER_OPEN = "<intent-message>"
+INTENT_MARKER_CLOSE = "</intent-message>"
+
+_INTENT_SECTION_RE = re.compile(
+    re.escape(INTENT_MARKER_OPEN) + r"\n(.*?)\n" + re.escape(INTENT_MARKER_CLOSE),
+    re.DOTALL,
+)
+
 # Shared prompt-format contract with critic.build_critic_prompt: the items
 # to score are wrapped in these markers as a JSON array.
 CRITIC_MARKER_OPEN = "<critic-items>"
@@ -237,6 +250,60 @@ def _mock_extraction(prompt: str) -> str:
 
     payload = {"entities": entities, "relations": relations}
     return "```json\n" + json.dumps(payload, indent=2) + "\n```"
+
+
+def _mock_intent(prompt: str) -> str:
+    """Route the prompt's <intent-message> by keyword, deterministically.
+
+    Keyword matching, not understanding — which is the honest thing for an
+    offline engine to do. The point is that the dispatch table, the
+    confirmation gate and the trace can all be exercised without a network
+    call; a message this cannot place returns "unknown", which is a real
+    answer the UI has to render anyway.
+    """
+    section = _INTENT_SECTION_RE.search(prompt)
+    message = section.group(1).strip() if section else ""
+    low = message.lower()
+
+    def _has(*words: str) -> bool:
+        return any(w in low for w in words)
+
+    if _has("검토", "review", "승인", "대기"):
+        action, params = "show_review", {}
+    elif _has("그래프", "graph"):
+        action, params = "show_graph", {}
+    elif _has("팩 만들", "build pack", "팩 빌드"):
+        action, params = "build_pack", {}
+    elif _has("팩", "pack"):
+        action, params = "show_packs", {}
+    elif _has("문서", "document", "소스", "source"):
+        action, params = "show_sources", {}
+    elif _has("상태", "status", "얼마나"):
+        action, params = "status", {}
+    elif _has("보강", "enrich"):
+        action, params = "enrich", {}
+    elif _has("뭘 할", "무엇을 할", "help", "도움"):
+        action, params = "help", {}
+    elif _has("찾아", "research", "논문", "연구", "search"):
+        # The topic is the message with the request verb stripped: enough
+        # to prove the parameter reaches the runner intact.
+        topic = re.sub(
+            r"(찾아\s*줘|찾아|관련\s*논문|최신\s*연구|에\s*대해|research|about)",
+            " ", message, flags=re.I,
+        )
+        action = "research"
+        params = {"topic": " ".join(topic.split()) or message}
+    else:
+        action, params = "unknown", {}
+
+    return json.dumps(
+        {
+            "action": action,
+            "params": params,
+            "reading": f"'{message}' 요청으로 읽었어요." if message else "",
+        },
+        ensure_ascii=False,
+    )
 
 
 def _mock_critic(prompt: str) -> str:
@@ -349,7 +416,9 @@ class MockEngine:
         self, prompt: str, *, model: Optional[str] = None
     ) -> tuple[str, dict]:
         start = time.monotonic()
-        if CRITIC_MARKER_OPEN in prompt:
+        if INTENT_MARKER_OPEN in prompt:
+            text = _mock_intent(prompt)
+        elif CRITIC_MARKER_OPEN in prompt:
             text = _mock_critic(prompt)
         elif COMMUNITY_MARKER_OPEN in prompt:
             text = _mock_community_summary(prompt)

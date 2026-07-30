@@ -243,7 +243,25 @@ class JobStatus(BaseModel):
         }
     )
     progress: list[str] = Field(default_factory=list)
+    # The same events as `progress`, still structured. Omitting this from
+    # the response model would drop it silently — the job builds the list,
+    # and pydantic quietly filters it out before the browser ever sees it.
+    steps: list[dict[str, Any]] = Field(default_factory=list)
     error: Optional[str] = None
+
+
+class ChatMessage(BaseModel):
+    """One turn typed into the chat box.
+
+    `confirmed` has no default of True anywhere: a mutating action requires
+    a second, explicit request carrying it, so a single message can never
+    both propose and perform.
+    """
+
+    message: str = Field(..., min_length=1, max_length=2000)
+    engine: str = DEFAULT_ENGINE
+    model: str | None = None
+    confirmed: bool = False
 
 
 class AnnotationDecision(BaseModel):

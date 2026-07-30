@@ -14,7 +14,7 @@ import dataclasses
 import json
 import time
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import TYPE_CHECKING, Any, AsyncIterator, Optional
 from urllib.error import URLError
 from xml.etree.ElementTree import ParseError
 
@@ -64,7 +64,9 @@ from ontologylab.providers import (
     remove_provider,
     resolve_api_key,
 )
+from ontologylab.chatstore import MAX_TURNS, ChatStore
 from ontologylab.provenance import Provenance
+from ontologylab.trace import Step
 from ontologylab.keychain import (
     KeychainError,
     delete_key,
@@ -86,6 +88,7 @@ from ontologylab.server import settings as settings_mod
 from ontologylab.server.jobs import JobAlreadyRunning, JobRegistry
 from ontologylab.server.schemas import (
     AnnotationDecision,
+    ChatMessage,
     CollectRequest,
     CostSummary,
     CriticRunRequest,
@@ -104,6 +107,9 @@ from ontologylab.server.schemas import (
     Settings,
     SourceCreate,
 )
+
+if TYPE_CHECKING:  # `Intent` is only ever a type here — importing it at
+    from ontologylab.intent import Intent  # runtime would be a cycle.
 
 router = APIRouter(prefix="/api")
 
@@ -1227,9 +1233,249 @@ def start_research(body: ResearchRequest) -> dict[str, Any]:
     return {"ok": True, "job_id": job.job_id, "status": "running"}
 
 
+# ---------------------------------------------------------------------------
+# Chat — one sentence in, one accountable answer out
+# ---------------------------------------------------------------------------
+
+
+def _open_chat_store() -> ChatStore:
+    return ChatStore.open(paths.chat_db_path(_data_dir))
+
+
+def _record_turn(body: ChatMessage, payload: dict[str, Any]) -> Optional[str]:
+    """Write one turn to the transcript, or return None if that failed.
+
+    Deliberately never raises. The transcript is a convenience — being able
+    to reopen the tab and see what you asked — and an answer the person is
+    looking at right now is worth more than a complete log. A chat that
+    500s because its own history file is locked would be trading the
+    feature for the record of the feature.
+    """
+    result = payload.get("result") or {}
+    try:
+        store = _open_chat_store()
+        try:
+            return store.record(
+                message=body.message,
+                action=payload.get("action", "unknown"),
+                reading=payload.get("reading", ""),
+                result=result,
+                steps=payload.get("steps", []),
+                job_id=result.get("job_id"),
+            )
+        finally:
+            store.close()
+    except Exception:
+        return None
+
+
+@router.post("/chat")
+async def chat(body: ChatMessage) -> dict[str, Any]:
+    """Read one message, run the action it names, return a rendered result.
+
+    The model classifies; this dispatches. It never receives code, a URL or
+    a query fragment from the model — only an action name from a fixed
+    table plus validated parameters — so widening what chat can reach is an
+    edit to `intent.ACTIONS`, visible in review.
+
+    Mutating actions are NOT run here. They come back with
+    `needs_confirmation` and the browser has to ask; `confirmed=True` on a
+    second request is what actually executes. Chat moves the asking into a
+    sentence, not the deciding.
+
+    Every reply carries `steps`: what was used, in order. A chat answer is
+    the one place in this app where work happens behind a sentence, so the
+    sentence has to be accountable — which engine read the message, which
+    sources were queried, what the store was asked. Without it the reply is
+    a claim; with it the claim is checkable.
+    """
+    # Imported here, like the other engine-using routes: `intent` imports
+    # `engines`, and `engines` is heavy enough that the module graph is kept
+    # lazy on purpose.
+    from ontologylab.engines import EngineError, get_engine
+    from ontologylab.intent import ACTIONS, classify
+
+    trace: list[Step] = []
+
+    def reply(ok: bool, **extra: Any) -> dict[str, Any]:
+        payload = {"ok": ok, "steps": [s.as_dict() for s in trace], **extra}
+        result = payload.get("result") or {}
+        # A pending confirmation is a question, not a turn: recording it
+        # would put the same message in the transcript twice, once
+        # unanswered and once done, and the unanswered copy would still
+        # show its button — a second, stale way to authorise the change.
+        if result.get("kind") != "confirm":
+            payload["turn_id"] = _record_turn(body, payload)
+        return payload
+
+    try:
+        engine = get_engine(body.engine, body.model, data_dir=_data_dir)
+    except EngineError as exc:
+        trace.append(Step(body.engine, "classify", "failed", "unavailable"))
+        return reply(False, error_kind="unsupported",
+                     detail=f"engine unavailable: {exc}")
+
+    intent = await classify(body.message, engine, model=body.model)
+    # `intent.error` can carry an exception's text, so this names the
+    # outcome and never the reason — the reason belongs in the log, not on
+    # a screen (an exception here can quote a keyed URL).
+    trace.append(Step(
+        body.engine, "classify",
+        "failed" if intent.error else "ok",
+        intent.action,
+    ))
+    payload = intent.as_dict()
+
+    if intent.action == "unknown":
+        payload["result"] = {
+            "kind": "text",
+            "actions": [
+                {"name": name, "summary": action.summary}
+                for name, action in ACTIONS.items()
+                if name != "unknown"
+            ],
+        }
+        return reply(True, **payload)
+
+    if intent.needs_confirmation and not body.confirmed:
+        payload["result"] = {"kind": "confirm", "action": intent.action}
+        return reply(True, **payload)
+
+    payload["result"] = _run_intent(intent, trace, body)
+    return reply(True, **payload)
+
+
+def _run_intent(
+    intent: "Intent", trace: list[Step], body: ChatMessage
+) -> dict[str, Any]:
+    """Perform one already-classified, already-confirmed action."""
+    action, params = intent.action, intent.params
+
+    if action == "research":
+        topic = params.get("topic", "").strip()
+        if not topic:
+            trace.append(
+                Step("ontologylab", "research", "failed", "no_topic")
+            )
+            return {"kind": "blocked", "error_kind": "shape",
+                    "detail": "which topic should I search for?"}
+        # Through `start_research`, not around it. Every gate — allowlist,
+        # unsupported source, offline, already-running — lives there, and a
+        # second path into the fan-out would be a second, laxer entrance to
+        # the same network calls.
+        started = start_research(ResearchRequest(
+            topic=topic, engine=body.engine, model=body.model,
+        ))
+        if not started.get("ok"):
+            trace.append(Step(
+                "ontologylab", "research", "failed",
+                started.get("error_kind", "refused"),
+            ))
+            return {"kind": "blocked", **started}
+        trace.append(Step("ontologylab", "research", "running", topic))
+        return {"kind": "job", "job_id": started["job_id"], "topic": topic}
+
+    if action == "search_entities":
+        query = params.get("query", "").strip()
+        if not query:
+            trace.append(Step("store", "search", "failed", "no_query"))
+            return {"kind": "blocked", "error_kind": "shape",
+                    "detail": "which name should I look for?"}
+        found = search_entities(q=query)
+        trace.append(
+            Step("store", "search", "ok", str(len(found.get("results", []))))
+        )
+        return {"kind": "search", "query": query, **found}
+
+    if action == "enrich":
+        result = enrich_nodes()
+        trace.append(
+            Step("resources", "lookup", "ok", str(result.get("proposed", 0)))
+        )
+        return {"kind": "enrich", **result}
+
+    if action == "build_pack":
+        built = packs_build(PackBuildRequest(name=params.get("name") or None))
+        trace.append(Step("ontologylab", "build", "ok",
+                          str(built.get("pack_id", ""))))
+        return {"kind": "pack", **built}
+
+    # Everything else is a read. One store round-trip, and the browser
+    # decides which screen the answer belongs on.
+    store = _open_store()
+    try:
+        counts = store.counts()
+    finally:
+        store.close()
+    trace.append(Step("store", "read", "ok", "counts"))
+
+    screen = {
+        "show_review": "review", "show_graph": "graph",
+        "show_packs": "packs", "show_sources": "sources",
+    }.get(action)
+    if screen:
+        return {"kind": "goto", "screen": screen, "counts": counts}
+    if action == "help":
+        from ontologylab.intent import ACTIONS as _ACTIONS
+
+        return {
+            "kind": "text",
+            "actions": [
+                {"name": name, "summary": act.summary}
+                for name, act in _ACTIONS.items()
+                if name != "unknown"
+            ],
+        }
+    return {"kind": "status", "counts": counts}
+
+
+@router.get("/chat/history")
+def chat_history(limit: int = Query(100, ge=1, le=MAX_TURNS)) -> dict[str, Any]:
+    """The conversation so far, oldest first."""
+    store = _open_chat_store()
+    try:
+        return {"turns": store.history(limit=limit)}
+    finally:
+        store.close()
+
+
+@router.delete("/chat/history")
+def chat_history_clear() -> dict[str, Any]:
+    """Forget the conversation.
+
+    A local-first tool that keeps a transcript owes the person a way to end
+    it. Nothing else is touched: documents, proposals and packs are the
+    knowledge, and this is only the record of what was asked.
+    """
+    store = _open_chat_store()
+    try:
+        return {"ok": True, "cleared": store.clear()}
+    finally:
+        store.close()
+
+
 @router.get("/jobs")
 def list_jobs() -> dict[str, Any]:
     return {"jobs": [job.as_status() for job in _registry().list()]}
+
+
+@router.get("/jobs/{job_id}/asked")
+def job_asked(job_id: str) -> dict[str, Any]:
+    """Which question started this run.
+
+    A run records what it did in great detail and nothing about why it was
+    running. That gap only became visible once a run could be started by
+    typing a sentence: `research-20260728-071805` is a worse answer to
+    "what is this" than the words somebody typed.
+
+    Returns `{"turn": null}` for a run started from the form — that is an
+    absence, not a failure.
+    """
+    store = _open_chat_store()
+    try:
+        return {"turn": store.turn_for_job(job_id)}
+    finally:
+        store.close()
 
 
 @router.post("/jobs/{job_id}/cancel")
