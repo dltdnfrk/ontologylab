@@ -75,6 +75,14 @@ def main() -> None:
 
     from ontologylab.server.app import create_app
 
+    # Saved settings that connectors read from the environment. Applied
+    # here rather than in `create_app`: this is where a process starts,
+    # and `create_app` is called by every test — putting it there made
+    # each test inherit whichever SearXNG this machine has configured.
+    from ontologylab.server import settings as settings_mod
+
+    settings_mod.apply_to_environment(settings_mod.load_settings())
+
     uvicorn.run(
         create_app(data_dir=Path(args.data_dir), packs_dir=Path(args.packs_dir)),
         host=args.host,

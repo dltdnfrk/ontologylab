@@ -270,3 +270,215 @@ def test_the_engine_list_names_google_scholar() -> None:
     """The reason this source earns its place: Scholar has no API, so it is
     unreachable any other way."""
     assert "google scholar" in SEARXNG_ENGINES
+
+
+# --------------------------------------------------------------------------
+# Configuration, where a person can see it
+# --------------------------------------------------------------------------
+
+
+def test_the_saved_setting_reaches_the_connector(monkeypatch) -> None:
+    """The address is a setting, not only a variable — but the connector
+    never reads settings itself.
+
+    `connectors` importing `server.settings` inverts the dependency and
+    makes every source lookup read a machine-global file; saving the
+    address once in the browser was enough to change what unrelated tests
+    saw. `apply_to_environment` is the one explicit bridge.
+    """
+    from ontologylab.server import settings as settings_mod
+    from ontologylab.server.schemas import Settings
+
+    monkeypatch.delenv(SEARXNG_URL_ENV, raising=False)
+    assert SEARXNG_SOURCE not in available_sources(), "not yet applied"
+
+    # Through monkeypatch's own environ, so the export does not outlive the
+    # test. `apply_to_environment` writes real process state — the bridge
+    # working is exactly why it has to be undone here.
+    monkeypatch.setattr(
+        settings_mod.os, "environ", dict(settings_mod.os.environ),
+        raising=True,
+    )
+    settings_mod.apply_to_environment(
+        Settings(searxng_url="http://10.0.0.9:8080")
+    )
+
+    assert settings_mod.os.environ[SEARXNG_URL_ENV] == "http://10.0.0.9:8080"
+
+
+def test_the_connector_does_not_read_settings_itself() -> None:
+    """The layering this file had to be walked back to.
+
+    server -> connectors is the direction everywhere else, and reversing it
+    is what made an unrelated test's result depend on whether the developer
+    happens to run a SearXNG.
+    """
+    import inspect
+
+    from ontologylab.connectors import paper_api
+
+    source = inspect.getsource(paper_api._searxng_base_url)
+
+    assert "load_settings" not in source
+    assert "os.environ" in source
+
+
+def test_the_environment_variable_overrides_the_setting(monkeypatch) -> None:
+    """One process departing from the durable default — the same shape as
+    ONTOLOGYLAB_OFFLINE overriding everything else."""
+    from ontologylab.server import settings as settings_mod
+    from ontologylab.server.schemas import Settings
+
+    monkeypatch.setattr(
+        settings_mod, "load_settings",
+        lambda *a, **k: Settings(searxng_url="http://10.0.0.9:8080"),
+        raising=True,
+    )
+    monkeypatch.setenv(SEARXNG_URL_ENV, "http://localhost:8080")
+
+    assert "localhost:8080" in _build_searxng_url("q", 5)
+
+
+def test_unreadable_settings_do_not_stop_a_fetch(monkeypatch) -> None:
+    """The CLI runs with no server, and a corrupt settings file already
+    degrades to defaults everywhere else."""
+    from ontologylab.server import settings as settings_mod
+
+    def boom(*a, **k):
+        raise OSError("settings.json is a directory")
+
+    monkeypatch.setattr(settings_mod, "load_settings", boom, raising=True)
+    monkeypatch.setenv(SEARXNG_URL_ENV, "http://localhost:8080")
+
+    assert "localhost:8080" in _build_searxng_url("q", 5)
+
+
+@pytest.fixture()
+def settings_client(tmp_path, monkeypatch):
+    """A client whose settings writes land in tmp_path.
+
+    `put_settings` calls `save_settings(new_settings)` with no root, so it
+    writes under `paths.ROOT` — the repository's own data directory, not
+    the app's. A test that skipped this fixture would edit the developer's
+    real settings.json, which is exactly what happened when this file first
+    exercised the route.
+    """
+    import os
+
+    from fastapi.testclient import TestClient
+
+    from ontologylab.server import settings as settings_mod
+    from ontologylab.server.app import create_app
+
+    saved: dict = {}
+    monkeypatch.setattr(
+        settings_mod, "save_settings",
+        lambda s, root=None: saved.setdefault("value", s) or s,
+        raising=True,
+    )
+    # `put_settings` also exports the address so it takes effect without a
+    # restart. That write outlives the test — it is process state, not a
+    # file — and left in place it told every later test that this machine
+    # has a SearXNG configured.
+    monkeypatch.setattr(
+        settings_mod, "apply_to_environment", lambda s: None, raising=True
+    )
+    os.environ.setdefault("ONTOLOGYLAB_ALLOWED_HOSTS", "testserver")
+    return TestClient(create_app(data_dir=tmp_path / "data"))
+
+
+def test_a_public_address_is_refused_when_it_is_typed(settings_client) -> None:
+    """Not thirty seconds into a research run, as one refused source among
+    six. The gate is the same; the message moves to where the value came
+    from."""
+    response = settings_client.put("/api/settings", json={
+        "default_engine": "mock", "searxng_url": "https://searx.be",
+    })
+
+    assert response.status_code == 400
+    assert "loopback or private" in response.json()["detail"]
+
+
+def test_a_local_address_is_accepted(settings_client) -> None:
+    saved = settings_client.put("/api/settings", json={
+        "default_engine": "mock", "searxng_url": "http://localhost:8080",
+    })
+
+    assert saved.status_code == 200
+    assert saved.json()["searxng_url"] == "http://localhost:8080"
+
+
+# --------------------------------------------------------------------------
+# The misconfiguration everyone hits first
+# --------------------------------------------------------------------------
+
+
+def test_json_disabled_is_its_own_failure_not_a_network_one() -> None:
+    """Measured against a stock instance: `403` with an HTML body.
+
+    Reported as `fetch_failed` it reads as "the network is down", and the
+    network is fine — so the user goes looking for a problem they do not
+    have instead of adding one line to settings.yml.
+    """
+    from urllib.error import HTTPError
+
+    from ontologylab.connectors.paper_api import SearxngJsonDisabled, _classify
+
+    assert _classify(SearxngJsonDisabled("x")) == "no_json"
+    # And an ordinary HTTP failure is still an ordinary HTTP failure.
+    assert _classify(HTTPError("u", 500, "m", {}, None)) == "fetch_failed"
+
+
+def test_the_no_json_failure_says_what_to_change() -> None:
+    """An error naming a cause the reader cannot act on is only slightly
+    better than one naming no cause at all."""
+    import asyncio
+    from urllib.error import HTTPError
+
+    from ontologylab.connectors import paper_api
+
+    connector = paper_api.PaperApiConnector()
+
+    def refuse(url, *a, **k):
+        raise HTTPError(url, 403, "Forbidden", {}, None)
+
+    original = paper_api._http_get_text
+    paper_api._http_get_text = refuse
+    try:
+        with pytest.raises(paper_api.SearxngJsonDisabled) as caught:
+            asyncio.run(connector._fetch_searxng("http://localhost:8080/s", 5,
+                                                 parse_searxng))
+    finally:
+        paper_api._http_get_text = original
+
+    message = str(caught.value)
+    assert "search.formats" in message
+    assert "json" in message
+
+
+def test_the_browser_names_the_json_failure_too() -> None:
+    """A kind the browser has no word for renders as the raw string."""
+    from pathlib import Path
+
+    source = Path("web/app.js").read_text(encoding="utf-8")
+    fail_map = source.split("var FAIL_KO = {", 1)[1].split("};", 1)[0]
+
+    assert "no_json" in fail_map
+
+
+def test_every_source_has_a_name_the_trace_can_show() -> None:
+    """A tool with no entry renders as its bare id.
+
+    Caught on screen: the fan-out row read `searxng 조회 5` next to
+    `Europe PMC 조회 5`, because the trace's label map had been written
+    from the default fan-out and never revisited when sources were added.
+    """
+    from pathlib import Path
+
+    from ontologylab.connectors.paper_api import SOURCE_ORDER
+
+    source = Path("web/app.js").read_text(encoding="utf-8")
+    tool_map = source.split("var TOOL_KO = {", 1)[1].split("};", 1)[0]
+
+    missing = [name for name in SOURCE_ORDER if f"{name}:" not in tool_map]
+    assert not missing, f"the trace would show raw ids for: {missing}"

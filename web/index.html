@@ -651,6 +651,19 @@
         <label>팩 디렉터리
           <input type="text" id="settings-packs-dir" placeholder="(기본값)" />
         </label>
+        <!-- 이 소스만 설정이 주소다. 키를 넣는 자리(연결 화면)가 아니라
+             여기인 이유이고, 비워 두면 리서치에서 그냥 빠진다. -->
+        <label>SearXNG 주소 (선택)
+          <input type="text" id="settings-searxng-url"
+            placeholder="http://localhost:8080"
+            aria-describedby="settings-searxng-help" />
+        </label>
+        <p id="settings-searxng-help" class="muted form-help"><small>
+          직접 돌리는 인스턴스만 쓸 수 있어요 — 공개 인스턴스에 검색어를
+          넘기지 않기 위해서예요. 그쪽 <code>settings.yml</code>의
+          <code>search.formats</code>에 <code>json</code>을 넣어야 해요
+          (기본은 HTML만). 넣으면 Google Scholar까지 같이 찾아요.
+        </small></p>
         <div class="form-actions">
           <button type="submit" id="settings-save-btn" class="btn btn-primary">설정 저장</button>
         </div>

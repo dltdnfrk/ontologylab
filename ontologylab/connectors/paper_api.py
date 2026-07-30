@@ -869,11 +869,28 @@ def _first_springer_url(item: dict, *, want_pdf: bool = False) -> str:
 def _searxng_base_url() -> str:
     """The user's own SearXNG, validated, or "" when not configured.
 
+    Settings first, environment second. The setting is what the app can
+    show and edit; the variable is the escape hatch for a headless run,
+    which is the same order `resolve_source_key` uses for publisher keys.
+
     Unset is not an error: an unconfigured source drops out of the fan-out
     the same way an unkeyed publisher does. A *misconfigured* one does
-    raise — a typo that silently disables the source would be worse than a
+    raise — a typo that silently disabled the source would be worse than a
     refusal, because the run would still look complete.
     """
+    # This reads the environment and nothing else, deliberately.
+    #
+    # The obvious alternative — read `server.settings` here — was written
+    # first and reverted. It inverts the layering (`server` depends on
+    # `connectors`, not the reverse) and it makes every source lookup
+    # depend on a file under `paths.ROOT` that every process on the machine
+    # shares: saving the setting once in the browser made unrelated tests
+    # fail, because "is SearXNG configured?" started meaning "does this
+    # developer happen to run one?".
+    #
+    # The setting still works. `server.settings.apply_to_environment` is
+    # the one explicit bridge, called where the app starts and where the
+    # value is saved.
     raw = os.environ.get(SEARXNG_URL_ENV, "").strip()
     if not raw:
         return ""
@@ -1204,6 +1221,15 @@ class PaperApiConnector:
         check_source_implemented(source)
         build_url, parse = _SOURCE_DISPATCH[source]
 
+        if source == SEARXNG_SOURCE:
+            # No headers, no key, and one failure mode worth naming. Also
+            # the only parser that needs `limit`: SearXNG takes no result
+            # count, so the cap is applied to what came back rather than
+            # asked for in the URL.
+            return await self._fetch_searxng(
+                build_url(query, limit), limit, parse
+            )
+
         headers: dict[str, str] = {}
         data_dir = source_spec.get("data_dir")
         query_key: tuple[str, str] | None = None
@@ -1252,15 +1278,31 @@ class PaperApiConnector:
             body = await asyncio.to_thread(_http_get_text, url, headers)
         else:
             body = await asyncio.to_thread(_http_get_text, url)
-        # Every other API takes a result count in its URL, so its parser
-        # returns what was asked for. SearXNG has no such parameter — it
-        # answers a whole page of every engine at once (55 results for an
-        # ordinary query, measured) — so the cap is applied to what came
-        # back. Passing `limit` unconditionally would change nine parser
-        # signatures to serve one source.
-        if source == SEARXNG_SOURCE:
-            return parse(body, limit)
         return parse(body)
+
+    async def _fetch_searxng(
+        self, url: str, limit: int, parse: Any
+    ) -> list[RawDocument]:
+        """Fetch SearXNG, naming the one misconfiguration everyone hits.
+
+        A stock instance ships `formats: [html]` and answers `format=json`
+        with `403` and an HTML body. Reported as `fetch_failed` that reads
+        as a network problem, and the network is fine — so the refusal is
+        recognised here and named.
+        """
+        from urllib.error import HTTPError
+
+        try:
+            body = await asyncio.to_thread(_http_get_text, url)
+        except HTTPError as exc:
+            if exc.code == 403:
+                raise SearxngJsonDisabled(
+                    "SearXNG refused format=json (403). Add `json` under "
+                    "`search.formats` in its settings.yml and restart it — "
+                    "a stock instance serves HTML only."
+                ) from exc
+            raise
+        return parse(body, limit)
 
 
 @dataclass(frozen=True)
@@ -1269,7 +1311,19 @@ class SourceFailure:
 
     source: str
     error: str
-    kind: str  # rejected | unsupported | too_large | unconfigured | fetch_failed
+    # rejected | unsupported | too_large | unconfigured | no_json |
+    # fetch_failed
+    kind: str
+
+
+class SearxngJsonDisabled(Exception):
+    """A SearXNG that answered, but refuses to answer in JSON.
+
+    Its own default configuration ships `formats: [html]`, so this is the
+    first thing a new instance does — a `403` with an HTML body, measured.
+    Left as `fetch_failed` it reads as "the network is down" and sends the
+    user to check a connection that is working perfectly.
+    """
 
 
 def _classify(exc: BaseException) -> str:
@@ -1284,6 +1338,8 @@ def _classify(exc: BaseException) -> str:
         return "rejected"
     if isinstance(exc, ResponseTooLarge):
         return "too_large"
+    if isinstance(exc, SearxngJsonDisabled):
+        return "no_json"
     return "fetch_failed"
 
 

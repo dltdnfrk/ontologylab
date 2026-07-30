@@ -204,7 +204,26 @@ def get_settings() -> Settings:
 
 @router.put("/settings", response_model=Settings)
 def put_settings(new_settings: Settings) -> Settings:
-    return settings_mod.save_settings(new_settings)
+    """Save settings, refusing a SearXNG address that could never be used.
+
+    Validated here rather than at fetch time. Storing a public instance and
+    reporting it thirty seconds into a research run — as one refused source
+    among six — is a bad way to learn that the address was never going to
+    work. The gate is the same one the fetch applies; this just moves the
+    message to the moment the value is typed.
+    """
+    from ontologylab.connectors.allowlist import check_searxng_base_url
+
+    if new_settings.searxng_url:
+        try:
+            check_searxng_base_url(new_settings.searxng_url)
+        except NotAllowlisted as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    saved = settings_mod.save_settings(new_settings)
+    # Takes effect now, not at the next restart. A setting that only
+    # applies after a restart is one people conclude does not work.
+    settings_mod.apply_to_environment(saved)
+    return saved
 
 
 @router.get("/cost", response_model=CostSummary)

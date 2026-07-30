@@ -1138,6 +1138,7 @@
       $("#settings-default-model").value = s.default_model || "";
       $("#settings-data-dir").value = s.data_dir || "";
       $("#settings-packs-dir").value = s.packs_dir || "";
+      $("#settings-searxng-url").value = s.searxng_url || "";
     } catch (e) {
       showResult(box, escapeHtml(friendlyError(e)), true);
     }
@@ -3627,7 +3628,8 @@
     ontologylab: "파이프라인", store: "저장소", resources: "외부 자료",
     arxiv: "arXiv", crossref: "Crossref", openalex: "OpenAlex",
     semanticscholar: "Semantic Scholar", europepmc: "Europe PMC",
-    clinicaltrials: "ClinicalTrials.gov",
+    clinicaltrials: "ClinicalTrials.gov", searxng: "SearXNG",
+    elsevier: "Elsevier", springer: "Springer", core: "CORE",
   };
   var ACTION_KO = {
     classify: "의도 파악", query: "조회", phase: "단계", research: "리서치",
@@ -3638,6 +3640,10 @@
     unavailable: "쓸 수 없음", offline: "오프라인", no_topic: "주제 없음",
     no_query: "검색어 없음", fetch_failed: "응답 없음", busy: "이미 실행 중",
     shape: "형식 오류", unsupported: "지원 안 함", refused: "거절됨",
+    unconfigured: "연결 안 됨", too_large: "응답이 너무 큼", rejected: "차단됨",
+    // 이건 "응답 없음"이 아니다 — 인스턴스는 멀쩡히 답했고 JSON을 거절했을
+    // 뿐이라, 네트워크를 확인하러 가면 아무것도 못 찾는다.
+    no_json: "JSON 꺼져 있음",
   };
   function toolKo(t) { return TOOL_KO[t] || t || ""; }
   function actionKo(a) { return ACTION_KO[a] || a || ""; }
@@ -4019,11 +4025,13 @@
     var model = $("#settings-default-model").value.trim();
     var dataDir = $("#settings-data-dir").value.trim();
     var packsDir = $("#settings-packs-dir").value.trim();
+    var searxng = $("#settings-searxng-url").value.trim();
     var payload = {
       default_engine: $("#settings-default-engine").value.trim() || "mock",
       default_model: model || null,
       data_dir: dataDir || null,
       packs_dir: packsDir || null,
+      searxng_url: searxng || null,
     };
     btn.disabled = true;
     try {

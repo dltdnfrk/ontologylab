@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -54,6 +55,24 @@ def load_settings(root: Path = ROOT) -> Settings:
         return Settings(**raw)
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
         return default_settings()
+
+
+def apply_to_environment(settings: Settings) -> None:
+    """Export the settings that connectors read from the environment.
+
+    One explicit bridge, rather than letting `connectors` import this
+    module. The dependency runs server -> connectors everywhere else, and
+    reversing it for one value made every source lookup read a file shared
+    by every process on the machine — saving the address once in the
+    browser was enough to change what unrelated code saw.
+
+    Only set when present: an absent setting must not clear a variable the
+    operator exported on purpose for this run.
+    """
+    from ontologylab.connectors.paper_api import SEARXNG_URL_ENV
+
+    if settings.searxng_url:
+        os.environ[SEARXNG_URL_ENV] = settings.searxng_url
 
 
 def save_settings(settings: Settings, root: Path = ROOT) -> Settings:

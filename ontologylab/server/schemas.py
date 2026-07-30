@@ -131,6 +131,12 @@ class Settings(BaseModel):
     default_model: Optional[str] = DEFAULT_MODEL
     data_dir: Optional[str] = None
     packs_dir: Optional[str] = None
+    # Where the user's own SearXNG lives, if they run one. A setting rather
+    # than an environment variable because this is the only source whose
+    # configuration is an address, and a value nobody can see or edit from
+    # the app is a feature nobody finds. The env var stays as the fallback,
+    # the same posture `api_key_env` takes for publisher keys.
+    searxng_url: Optional[str] = None
 
 
 class CostSummary(BaseModel):
