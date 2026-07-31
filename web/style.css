@@ -65,89 +65,89 @@
      가깝지 참고서에 가깝지 않다. 검정은 순수 흑색이 아니라 아주 옅은
      녹색기를 띤다(#0C0E0E): 순흑은 OLED에서 경계가 사라지고, 미세한
      색조가 있어야 그 위에 놓인 면이 면으로 읽힌다. */
-  --background: #0c0e0e;
-  --foreground: #f2f5f2;
+  --background: #262624;
+  --foreground: #ecebe6;
 
   /* 면(surface) — 캔버스보다 한 단계 뜬 값. 헤어라인 없이도 깊이가 생긴다. */
-  --card: #121515;
-  --card-foreground: #f2f5f2;
-  --popover: #1d2121;
-  --popover-foreground: #f2f5f2;
+  --card: #30302e;
+  --card-foreground: #ecebe6;
+  --popover: #3a3a37;
+  --popover-foreground: #ecebe6;
 
   /* 주 버튼: 흰 채움에 검은 글씨.
      상태 3색(초록·빨강·호박) 어느 것과도 겹치지 않는 유일한 값이라,
      "내가 조작하는 것"과 "데이터가 말하는 것"이 색만으로 갈린다.
      단말의 주 버튼이 흰색인 것도 같은 이유다. */
-  --primary: #f2f5f2;
-  --primary-foreground: #0c0e0e;
+  --primary: #c96442;
+  --primary-foreground: #ffffff;
 
   /* 채움/칩/코드 배경 */
-  --secondary: #1d2121;
-  --secondary-foreground: #f2f5f2;
-  --muted: #1d2121;
-  --muted-foreground: #909c8c;
+  --secondary: #3a3a37;
+  --secondary-foreground: #ecebe6;
+  --muted: #353532;
+  --muted-foreground: #a3a29c;
 
   /* 상호작용 단일 포인트색.
      여기서는 색상(hue)이 아니라 밝기다. 초록을 포인트로 쓰면 '승인됨'과
      충돌하고, 빨강은 '거부'와 충돌한다. 단말이 흰색을 쓰는 이유가 그것이다 —
      초록·빨강은 손대지 않고 남겨 둬야 값이 말을 한다. */
-  --accent: #f2f5f2;
-  --accent-foreground: #0c0e0e;
-  --accent-soft: rgba(242, 245, 242, 0.09);
+  --accent: #c96442;
+  --accent-foreground: #ffffff;
+  --accent-soft: rgba(201, 100, 66, 0.14);
 
-  --destructive: #ff284e;                   /* 하락 빨강 */
-  --destructive-foreground: #0c0e0e;
+  --destructive: #e5787a;                   /* 하락 빨강 */
+  --destructive-foreground: #1f1f1d;
 
-  --border: #2c3333;                        /* hairline separator */
-  --input: #2c3333;
+  --border: #3f3f3b;                        /* hairline separator */
+  --input: #4a4a45;
   --ring: #f2f5f2;
 
   /* 확실성 = 선명도.
      이 앱에서 사람이 하는 일은 "아직 못 믿을 것"을 "믿을 수 있는 것"으로
      바꾸는 것 하나뿐이다. 미검증 제안은 잉크가 옅고, 승인되면 또렷해진다. */
-  --ink-draft: #7d8a7d;                     /* 미검증 — 가라앉은 글자 */
+  --ink-draft: #8d8c86;                     /* 미검증 — 가라앉은 글자 */
   --ink-verified: var(--foreground);        /* 검증됨 — 완전한 글자 */
 
   /* 상태색 = 이 앱의 상태기계 그 자체(제안 → 검증 / 거부).
      단말의 상승/하락 두 색을 그대로 가져온다. 우연이 아니라 같은 구조다 —
      승인은 장부에 오르는 것이고 거부는 빠지는 것이다. 장식에는 절대
      쓰지 않는다: 색이 보이면 언제나 뜻이 있다. */
-  --ok: #00c805;                            /* 상승 초록 = 검증됨 */
-  --warn: #d4a017;                          /* 제안됨 — 사람 눈이 필요 */
-  --ok-text: #2ee06a;
-  --warn-text: #e0b84a;
-  --ok-soft: rgba(0, 200, 5, 0.13);
-  --warn-soft: rgba(212, 160, 23, 0.16);
-  --destructive-soft: rgba(255, 40, 78, 0.14);
+  --ok: #7fb069;                            /* 상승 초록 = 검증됨 */
+  --warn: #d9a441;                          /* 제안됨 — 사람 눈이 필요 */
+  --ok-text: #8fc47a;
+  --warn-text: #e0b45a;
+  --ok-soft: rgba(127, 176, 105, 0.14);
+  --warn-soft: rgba(217, 164, 65, 0.16);
+  --destructive-soft: rgba(229, 120, 122, 0.14);
 
   /* 앱 셸 크롬(헤더·캔버스) 면 */
-  --shell: #0f1212;
+  --shell: #262624;
 
   /* 좌측 레일 — 캔버스보다 가라앉아 콘텐츠가 앞으로 나온다 */
-  --sidebar: #0a0c0c;
-  --sidebar-foreground: #909c8c;
-  --sidebar-primary: #f2f5f2;
-  --sidebar-accent: #1d2121;
-  --sidebar-accent-foreground: #f2f5f2;
-  --sidebar-border: #2c3333;
+  --sidebar: #1f1f1d;
+  --sidebar-foreground: #a3a29c;
+  --sidebar-primary: #ecebe6;
+  --sidebar-accent: #353532;
+  --sidebar-accent-foreground: #ecebe6;
+  --sidebar-border: #3f3f3b;
   --sidebar-ring: #f2f5f2;
 
   /* 데이터 시각화 팔레트 */
   --chart-1: #00c805;
-  --chart-2: #ff284e;
-  --chart-3: #d4a017;
-  --chart-4: #909c8c;
-  --chart-5: #f2f5f2;
+  --chart-2: #e5787a;
+  --chart-3: #d9a441;
+  --chart-4: #a3a29c;
+  --chart-5: #ecebe6;
 
   --shadow-float: none;                      /* 깊이는 면 값 차이와
                                                 헤어라인으로 표현 */
   --shadow-soft: none;
 
   /* 단말은 둥글지 않다. 값을 담는 상자는 각져야 격자로 읽힌다. */
-  --radius: 4px;
-  --radius-sm: 3px;
+  --radius: 10px;
+  --radius-sm: 7px;
   --radius-md: var(--radius);
-  --radius-lg: 6px;
+  --radius-lg: 14px;
 
   /* 본문 서체는 한 벌만 쓴다. Pretendard는 라틴까지 한 벌로 덮으므로
      한국어 문장 안의 영문·숫자가 따로 놀지 않는다.
@@ -155,9 +155,14 @@
      이름이 아니라 규율이다 — 400 굵기, 좁은 자간, 큰 크기. 아래 --fw-*
      와 --ls-*가 그 규율이고, Pretendard는 같은 계열(neo-grotesque)이라
      그 규율을 그대로 받는다. */
+  /* Claude 앱과 같은 서체는 쓸 수 없다 — Styrene·Tiempos·Copernicus 는
+     Klim Type Foundry 의 상용 라이선스라 번들이 불가능하고 이 기계에도
+     없다. 그래서 같은 자리를 시스템 UI 서체로 채운다: macOS 에서는 SF Pro
+     가 뜨고, 한글은 Pretendard 가 받는다. 인상을 만드는 건 서체 이름이
+     아니라 크기·굵기·자간의 규율이라, 그쪽을 맞춘다. */
   --font: "Pretendard Variable", Pretendard, -apple-system,
-          BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR",
-          "Segoe UI", Helvetica, Arial, sans-serif;
+          BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo",
+          "Noto Sans KR", "Segoe UI", system-ui, sans-serif;
   /* 워드마크도 본문과 같은 서체를 쓴다. Terminal X의 로고가 그렇듯,
      구분은 서체 교체가 아니라 자간과 크기로 만든다. */
   --font-display: var(--font);
@@ -2527,3 +2532,43 @@ mark.doc-span.is-focused { outline: 2px solid var(--accent); }
 .ev-grade.g-unknown { color: var(--warn-text); border-color: var(--warn); }
 .ev-grade.g-registration,
 .ev-grade.g-other { color: var(--muted-foreground); }
+
+/* ---------- Claude 앱 결에 맞춘 마감 ----------------------------------------
+   서체는 맞출 수 없다(상용 라이선스). 그래서 인상을 만드는 나머지를 맞춘다:
+   면의 밝기 차이로 구역을 나누고, 선은 되도록 쓰지 않는다. */
+
+/* 사이드바는 선이 아니라 어두운 면으로 구분된다. 선을 하나 없애면 화면이
+   격자에서 면으로 바뀌는데, 그게 두 앱의 가장 큰 인상 차이였다. */
+nav.tabs { border-right: none; }
+
+/* 활성 항목은 알약이 아니라 부드러운 사각형. 좌우 여백을 두어 레일 안에
+   떠 있게 한다. */
+nav.tabs .tab-btn {
+  border-radius: var(--radius-sm);
+  margin: 0 var(--sp-2);
+  width: auto;
+}
+
+/* 카운트 배지: 강조색으로 채우면 화면에서 가장 먼저 눈에 들어온다. 그건
+   숫자가 아니라 색이 하는 말이고, 여기서 급한 건 아무것도 없다. */
+.tab-badge {
+  background: var(--secondary);
+  color: var(--foreground);
+  font-weight: var(--fw-medium);
+}
+
+/* 상단·하단 크롬도 같은 면 위에 둔다 — 헤더만 다른 색이면 앱이 위아래로
+   잘려 보인다. */
+header.app-header { border-bottom: none; }
+.statusbar { border-top: none; color: var(--muted-foreground); }
+
+/* 입력 요소는 테두리 대신 한 단계 밝은 면으로. */
+input[type="text"], input[type="number"], input[type="search"],
+textarea, select {
+  background: var(--muted);
+  border-color: transparent;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--border);
+  background: var(--card);
+}
