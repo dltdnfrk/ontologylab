@@ -257,3 +257,39 @@ def test_a_request_that_could_not_work_is_refused(client, payload, status) -> No
 
 def test_activating_an_unknown_schema_is_a_404(client) -> None:
     assert client.post("/api/schema/9999/activate").status_code == 404
+
+
+# --------------------------------------------------------------------------
+# The screen
+# --------------------------------------------------------------------------
+
+
+def test_the_settings_screen_can_change_the_ontology() -> None:
+    """The store was built for this and nothing could reach it.
+
+    An API with no caller is the state `/api/jobs/{id}/asked` shipped in
+    earlier this session, so the wiring is checked rather than assumed.
+    """
+    from pathlib import Path
+
+    markup = Path("web/index.html").read_text(encoding="utf-8")
+    script = Path("web/app.js").read_text(encoding="utf-8")
+
+    assert 'id="schema-active"' in markup
+    assert 'id="schema-presets"' in markup
+    assert "/api/schema" in script, "no caller for the endpoint"
+    assert "data-schema-preset" in script
+    assert "data-schema-activate" in script, "no way back to an earlier one"
+
+
+def test_the_screen_says_switching_does_not_re_type_the_queue() -> None:
+    """The property that makes this safe mid-review is invisible unless
+    stated: someone with 1,406 pending proposals needs to know they are not
+    about to be re-interpreted."""
+    from pathlib import Path
+
+    markup = Path("web/index.html").read_text(encoding="utf-8")
+    panel = markup.split('id="schema-active"', 1)[1].split("</div>", 3)[-1]
+
+    assert "이미 쌓인 제안은 그대로" in markup
+    assert "새로 추출하는 것부터" in markup

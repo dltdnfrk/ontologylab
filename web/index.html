@@ -673,6 +673,26 @@
         </div>
       </form>
       <div id="settings-result" class="status-box result-box hidden"></div>
+
+      <!-- 온톨로지. 추출기는 여기 적힌 것만 찾으므로, 이 화면에서 가장
+           결과를 크게 바꾸는 설정이다 — 그런데 지금까지 바꿀 방법이
+           없어서 모든 코퍼스가 소프트웨어 문서용 어휘로 돌았다. -->
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-label">온톨로지</span>
+          <span class="panel-note">추출기가 무엇을 찾을지 정해요</span>
+        </div>
+        <div class="panel-body">
+          <p id="schema-active" class="muted">불러오는 중…</p>
+          <div id="schema-presets" class="row"></div>
+          <p class="muted form-help"><small>
+            바꿔도 이미 쌓인 제안은 그대로예요 — 그때 쓰던 어휘를 계속
+            가리켜요. <strong>새로 추출하는 것부터</strong> 달라져요.
+          </small></p>
+          <div id="schema-installed"></div>
+        </div>
+        <div id="schema-result" class="status-box result-box hidden"></div>
+      </div>
     </section>
   </main>
 

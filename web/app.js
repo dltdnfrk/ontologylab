@@ -1142,7 +1142,81 @@
     } catch (e) {
       showResult(box, escapeHtml(friendlyError(e)), true);
     }
+    loadSchema();
   }
+
+  /* -- 온톨로지 --------------------------------------------------------------
+     추출기는 여기 적힌 타입만 찾는다. 그래서 이 화면에서 결과를 가장 크게
+     바꾸는 설정인데, 지금까지 바꿀 방법이 없어서 모든 코퍼스가 소프트웨어
+     문서용 어휘(Concept/Component/Technique)로 돌았다 — p53 논문 151편
+     포함해서. */
+
+  async function loadSchema() {
+    var head = $("#schema-active");
+    if (!head) return;
+    try {
+      var d = await api("/api/schema");
+    } catch (e) {
+      head.textContent = friendlyError(e);
+      return;
+    }
+    var active = d.active || {};
+    head.innerHTML = "지금 <code>" + escapeHtml(active.schema_label || "?") +
+      "</code> — 개체 " + (active.entity_types || []).length + "종, 관계 " +
+      (active.relation_types || []).length + "종 " +
+      "<span class='muted'><small>" +
+      escapeHtml((active.entity_types || []).map(function (e) {
+        return e.name;
+      }).join(" · ")) + "</small></span>";
+
+    $("#schema-presets").innerHTML = (d.presets || []).map(function (p) {
+      var on = p.label === active.schema_label;
+      return "<button type='button' class='btn' data-schema-preset='" +
+        escapeHtml(p.name) + "'" + (on ? " disabled" : "") + ">" +
+        escapeHtml(p.label) + (on ? " (사용 중)" : "") +
+        " <span class='muted'>개체 " + p.entity_types + "</span></button>";
+    }).join("");
+
+    // 제안이 딸린 온톨로지는 누군가의 판정이 기대고 있는 것이라, 개수를
+    // 같이 보여준다. 되돌릴 때 무엇을 되돌리는지 알아야 한다.
+    var others = (d.installed || []).filter(function (s) { return !s.active; });
+    $("#schema-installed").innerHTML = !others.length ? "" :
+      "<p class='muted'><small>이전에 쓰던 것</small></p><ul class='doc-items'>" +
+      others.map(function (s) {
+        return "<li><button type='button' class='doc-item' " +
+          "data-schema-activate='" + s.id + "'>" + escapeHtml(s.label) +
+          "</button> <span class='muted'><small>제안 " + s.items +
+          "건이 이 어휘로 판정됨</small></span></li>";
+      }).join("") + "</ul>";
+  }
+
+  async function applySchema(payload, path) {
+    var box = $("#schema-result");
+    try {
+      var r = await apiSend(path || "/api/schema", payload);
+      if (r && r.ok) {
+        showResult(box, "온톨로지를 <code>" +
+          escapeHtml((r.active || {}).schema_label || "") +
+          "</code> 로 바꿨어요. 다음 추출부터 적용돼요.", false);
+      } else {
+        showResult(box, escapeHtml((r && r.detail) || "바꾸지 못했어요."), true);
+      }
+    } catch (e) {
+      showResult(box, escapeHtml(friendlyError(e)), true);
+    }
+    loadSchema();
+  }
+
+  document.addEventListener("click", function (ev) {
+    var p = ev.target.closest("[data-schema-preset]");
+    if (p) { applySchema({ preset: p.dataset.schemaPreset }); return; }
+    var a = ev.target.closest("[data-schema-activate]");
+    if (a) {
+      applySchema(null,
+        "/api/schema/" + encodeURIComponent(a.dataset.schemaActivate) +
+        "/activate");
+    }
+  });
 
   /* ---- M8 dashboard: Sources / Jobs / Packs / MCP ---- */
 
