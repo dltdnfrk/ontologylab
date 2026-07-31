@@ -182,6 +182,29 @@ _CAMELCASE_RE = re.compile(r"\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+\b")
 
 # Matches the "- name: ... (source type: X, target type: Y ...)" lines the
 # extraction prompt renders for each relation type (extractor._schema_block).
+# The first entity type in the prompt's own schema block. `Entity types:`
+# and `Relation types:` are both `- name: description` lists, so the split
+# on the relation header is what keeps this from matching a relation.
+_ENTITY_LINE_RE = re.compile(r"^- (\w+):", re.MULTILINE)
+
+
+def _first_entity_type(prompt: str) -> str:
+    """An entity type from the prompt's own schema block.
+
+    `Component` when the schema defines it, because that is what the tokens
+    this engine emits actually are — CamelCase identifiers — and the gold
+    set in `test_extraction_quality` measures against that reading. Any
+    other ontology gets its first declared type, which is arbitrary but
+    valid; the point is only that the offline engine produces something the
+    active schema accepts rather than silently nothing.
+    """
+    block = prompt.split("Relation types:", 1)[0].split("Entity types:", 1)[-1]
+    names = _ENTITY_LINE_RE.findall(block)
+    if "Component" in names:
+        return "Component"
+    return names[0] if names else "Component"
+
+
 _RELATION_LINE_RE = re.compile(
     r"^- (\w+): .*\(source type: (\S+), target type: (\S+)[;)]", re.MULTILINE
 )
@@ -190,12 +213,28 @@ _RELATION_LINE_RE = re.compile(
 _CAMEL_WORD_RE = re.compile(r"[A-Z][a-z0-9]+")
 
 
-def _mock_relation_type(prompt: str) -> str:
-    """Pick a relation type from the prompt's schema that accepts Component
-    endpoints ('*' or Component on both sides), so mock relations always
-    validate against whatever ontology the prompt embeds."""
+def _mock_entity_type(prompt: str) -> str:
+    """Pick an entity type from the prompt's own schema block.
+
+    This used to be the literal `"Component"`, which is a type only the
+    software-docs ontology defines. Once a schema could be installed, the
+    offline engine silently produced nothing on every other one: each
+    entity was rejected as off-schema, so a 23-document research run
+    finished `complete` with zero proposals and no error anywhere — the
+    worst shape a failure can take.
+
+    Relations already read the schema (`_mock_relation_type`); entities
+    being hardcoded next to them was an asymmetry waiting to be found.
+    """
+    return _first_entity_type(prompt)
+
+
+def _mock_relation_type(prompt: str, entity_type: str = "Component") -> str:
+    """Pick a relation type from the prompt's schema whose endpoints accept
+    the entity type mock is emitting, so mock relations always validate
+    against whatever ontology the prompt embeds."""
     for name, domain, range_ in _RELATION_LINE_RE.findall(prompt):
-        if domain in ("*", "Component") and range_ in ("*", "Component"):
+        if domain in ("*", entity_type) and range_ in ("*", entity_type):
             return name
     return "related_to"
 
@@ -211,7 +250,11 @@ def _mock_extraction(prompt: str) -> str:
     """
     section = _CHUNK_SECTION_RE.search(prompt)
     chunk = section.group(1) if section else prompt
-    relation_type = _mock_relation_type(prompt)
+    # Both read from the prompt's own schema block. Hardcoding either one
+    # makes this engine silently produce nothing under any ontology that
+    # does not define that exact name.
+    entity_type = _mock_entity_type(prompt)
+    relation_type = _mock_relation_type(prompt, entity_type)
 
     entities: list[dict] = []
     seen: dict[str, dict] = {}
@@ -221,7 +264,7 @@ def _mock_extraction(prompt: str) -> str:
         if token not in seen:
             entity = {
                 "name": token,
-                "entity_type": "Component",
+                "entity_type": entity_type,
                 "aliases": [],
                 "properties": {},
                 "confidence": 0.9,
@@ -238,8 +281,8 @@ def _mock_extraction(prompt: str) -> str:
         relations.append(
             {
                 "relation_type": relation_type,
-                "source": {"name": left, "entity_type": "Component"},
-                "target": {"name": right, "entity_type": "Component"},
+                "source": {"name": left, "entity_type": entity_type},
+                "target": {"name": right, "entity_type": entity_type},
                 "confidence": 0.8,
                 "source_span": {
                     "start": left_span["start"],

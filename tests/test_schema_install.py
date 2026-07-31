@@ -293,3 +293,74 @@ def test_the_screen_says_switching_does_not_re_type_the_queue() -> None:
 
     assert "이미 쌓인 제안은 그대로" in markup
     assert "새로 추출하는 것부터" in markup
+
+
+# --------------------------------------------------------------------------
+# The offline engine has to work under any ontology
+# --------------------------------------------------------------------------
+
+
+def test_the_mock_engine_emits_types_the_active_schema_defines() -> None:
+    """It hardcoded `Component`, a type only software-docs defines.
+
+    Found by installing biomed-v1 and running a real 23-document research
+    job: it finished `complete`, with no error, and zero proposals. The
+    provenance said why — `entity[0] 'Glu255Lys': unknown entity_type
+    'Component'; rejected` — but nothing on screen did. An offline engine
+    that silently produces nothing under every ontology but one is worse
+    than an engine that fails, because the failure looks like an empty
+    corpus.
+    """
+    from ontologylab.extractor import (
+        Chunk, build_extraction_prompt, parse_and_validate_extraction,
+    )
+    from ontologylab.engines import MockEngine
+    import asyncio
+
+    text = "The RateLimiter uses TokenBucketAlgorithm internally."
+    for name in ("software-docs", "biomedical"):
+        p = preset(name)
+        schema = {
+            "schema_label": p["label"],
+            "entity_types": p["entity_types"],
+            "relation_types": p["relation_types"],
+        }
+        raw, _ = asyncio.run(
+            MockEngine().generate(build_extraction_prompt(schema, text))
+        )
+        result = parse_and_validate_extraction(
+            raw, schema, Chunk(index=0, char_offset=0, text=text)
+        )
+
+        assert result.entities, f"{name}: nothing survived validation"
+        assert not result.warnings, f"{name}: {result.warnings}"
+        allowed = {e["name"] for e in p["entity_types"]}
+        assert {e.entity_type for e in result.entities} <= allowed
+
+
+def test_the_mock_relations_use_endpoints_the_schema_accepts() -> None:
+    """The first fix changed the entity type and left the relation
+    endpoints as `Component`, so entities passed and every relation was
+    still rejected — a half-fix that looked like a whole one."""
+    from ontologylab.extractor import (
+        Chunk, build_extraction_prompt, parse_and_validate_extraction,
+    )
+    from ontologylab.engines import MockEngine
+    import asyncio
+
+    text = "The RateLimiter uses TokenBucketAlgorithm internally."
+    p = preset("biomedical")
+    schema = {
+        "schema_label": p["label"],
+        "entity_types": p["entity_types"],
+        "relation_types": p["relation_types"],
+    }
+    raw, _ = asyncio.run(
+        MockEngine().generate(build_extraction_prompt(schema, text))
+    )
+    result = parse_and_validate_extraction(
+        raw, schema, Chunk(index=0, char_offset=0, text=text)
+    )
+
+    assert result.relations, "no relation survived"
+    assert not result.warnings
