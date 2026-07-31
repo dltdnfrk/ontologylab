@@ -2510,3 +2510,20 @@ mark.doc-span.is-focused { outline: 2px solid var(--accent); }
   font-size: var(--fs-sm);
 }
 .job-asked q { color: var(--foreground); }
+
+/* 증거 등급. 색이 나르는 정보는 하나뿐이다: 이 문장을 누가 검증했는가.
+   preprint 를 빨강으로 칠하지 않는다 — 틀렸다는 뜻이 아니라 아직 아무도
+   안 봤다는 뜻이고, 그 둘은 다르다. */
+.ev-grade {
+  display: inline-block;
+  padding: 0 var(--sp-2);
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: var(--fs-label);
+  white-space: nowrap;
+}
+.ev-grade.g-peer_reviewed { color: var(--ok-text); border-color: var(--ok); }
+.ev-grade.g-preprint,
+.ev-grade.g-unknown { color: var(--warn-text); border-color: var(--warn); }
+.ev-grade.g-registration,
+.ev-grade.g-other { color: var(--muted-foreground); }

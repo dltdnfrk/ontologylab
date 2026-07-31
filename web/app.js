@@ -285,6 +285,27 @@
   /* 근거 패널 — 지금 커서가 놓인 항목이 '어느 문장에서 나왔는지'를 보여준다.
      서버가 스팬을 >>> <<< 로 감싸 주므로 그 자리를 <mark>로 바꿔 칠한다.
      추가 요청은 없다: 큐 응답에 이미 발췌가 실려 온다. */
+  /* 증거 등급. 근거 문장 바로 옆이라야 판단에 쓰인다 — 논문이 심사를
+     거쳤는지는 그 문장을 믿을지 정하는 첫 번째 재료다.
+
+     `unknown` 을 숨기지 않는다. Crossref 는 약탈적 저널에도 DOI 를 주고
+     bioRxiv preprint 가 나중에 Nature 에 실리기도 한다. 모르는 걸 모른다고
+     해야 검토자가 직접 확인하러 갈 수 있다. */
+  var GRADE_KO = {
+    peer_reviewed: "동료심사",
+    preprint: "preprint · 미심사",
+    registration: "임상시험 등록 · 논문 아님",
+    other: "저널 논문 아님",
+    unknown: "심사 여부 모름",
+  };
+
+  function evidenceBadge(item) {
+    var g = item.evidence_grade || "unknown";
+    var src = item.doc_source ? " · " + escapeHtml(item.doc_source) : "";
+    return "<span class='ev-grade g-" + escapeHtml(g) + "'>" +
+      escapeHtml(GRADE_KO[g] || g) + "</span>" + src;
+  }
+
   function renderEvidence(item) {
     var pane = $("#evidence-pane");
     if (!pane) return;
@@ -316,6 +337,7 @@
         "<blockquote class='ev-excerpt'>" + markExcerpt(item.excerpt) +
         "</blockquote>" +
         "<p class='ev-source muted'><small>" +
+        evidenceBadge(item) + " " +
         escapeHtml(item.doc_title || item.source_doc_id || "") +
         "</small></p>";
     } else if (!item.source_span) {

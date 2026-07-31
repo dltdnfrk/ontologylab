@@ -26,6 +26,12 @@ class Document:
     fetched_ts: float
     content_hash: str  # sha256 of raw text
     raw_text_path: str  # path under data/documents/<id>/
+    # Which connector fetched this (`arxiv`, `europepmc`, …) and what kind
+    # of record it is (`evidence.GRADES`). Both are shown at review time:
+    # judging whether a paper supports a claim starts with knowing whether
+    # anyone reviewed the paper.
+    source: str = ""
+    evidence_grade: str = ""
 
 
 @dataclass

@@ -186,6 +186,8 @@ def cmd_collect(args: argparse.Namespace) -> int:
                 title=raw.title,
                 raw_text=raw.raw_text,
                 content_hash=raw.content_hash,
+                source=raw.source,
+                evidence_grade=raw.evidence_grade,
             )
             created_count += 1 if created else 0
             provenance.log(

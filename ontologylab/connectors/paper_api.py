@@ -52,6 +52,7 @@ from typing import Any
 from urllib.parse import quote_plus, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from ontologylab import evidence
 from ontologylab.connectors.allowlist import (
     NotAllowlisted,
     check_paper_query,
@@ -160,7 +161,11 @@ DEFAULT_PAPER_SOURCE = ARXIV_SOURCE
 # Crossref fields we request AND the exact keys parse_crossref reads —
 # dropping one here silently empties the corresponding parsed value, so the
 # two stay coupled through this tuple.
-_CROSSREF_SELECT_FIELDS = ("DOI", "URL", "title", "abstract")
+# `type` is what separates a journal article from a preprint
+# (`posted-content`) or a book chapter. Asked for four BRCA1/PARP works,
+# Crossref returned two reports, a chapter and a preprint — no journal
+# article at all, so guessing from the source name mislabels most rows.
+_CROSSREF_SELECT_FIELDS = ("DOI", "URL", "title", "abstract", "type")
 
 
 class UnsupportedPaperSource(NotImplementedError):
@@ -415,7 +420,7 @@ def _build_openalex_url(query: str, limit: int) -> str:
         f"{OPENALEX_API_URL}"
         f"?search={quote_plus(query)}"
         f"&per-page={limit}"
-        "&select=id,doi,display_name,abstract_inverted_index"
+        "&select=id,doi,display_name,abstract_inverted_index,type"
     )
     mailto = _openalex_mailto()
     if mailto:
@@ -428,7 +433,7 @@ def _build_semanticscholar_url(query: str, limit: int) -> str:
         f"{SEMANTIC_SCHOLAR_API_URL}"
         f"?query={quote_plus(query)}"
         f"&limit={limit}"
-        "&fields=title,abstract,url,externalIds"
+        "&fields=title,abstract,url,externalIds,publicationTypes"
     )
 
 
@@ -477,7 +482,9 @@ def parse_atom(xml_text: str) -> list[RawDocument]:
                 # entry de-duplicate on its `<id>` URL instead of colliding
                 # with every other DOI-less document under a shared key.
                 doi=None,
-            )
+                        source=ARXIV_SOURCE,
+            evidence_grade=evidence.grade_from_source(ARXIV_SOURCE),
+)
         )
     return documents
 
@@ -521,7 +528,9 @@ def parse_crossref(json_text: str) -> list[RawDocument]:
                 title=title or None,
                 raw_text=f"{title}\n\n{abstract}",
                 doi=normalize_doi(doi),
-            )
+                        source=CROSSREF_SOURCE,
+            evidence_grade=evidence.grade_from_record(CROSSREF_SOURCE, item),
+)
         )
     return documents
 
@@ -580,7 +589,9 @@ def parse_openalex(json_text: str) -> list[RawDocument]:
                 title=title or None,
                 raw_text=f"{title}\n\n{abstract}",
                 doi=normalize_doi(item.get("doi")),
-            )
+                        source=OPENALEX_SOURCE,
+            evidence_grade=evidence.grade_from_record(OPENALEX_SOURCE, item),
+)
         )
     return documents
 
@@ -612,7 +623,9 @@ def parse_semanticscholar(json_text: str) -> list[RawDocument]:
                 title=title or None,
                 raw_text=f"{title}\n\n{abstract}",
                 doi=normalize_doi(doi),
-            )
+                        source=SEMANTIC_SCHOLAR_SOURCE,
+            evidence_grade=evidence.grade_from_record(SEMANTIC_SCHOLAR_SOURCE, item),
+)
         )
     return documents
 
@@ -681,7 +694,9 @@ def parse_clinicaltrials(json_text: str) -> list[RawDocument]:
                 source_uri=f"https://clinicaltrials.gov/study/{nct_id}",
                 title=title or nct_id,
                 raw_text=body,
-            )
+                        source=CLINICALTRIALS_SOURCE,
+            evidence_grade=evidence.grade_from_source(CLINICALTRIALS_SOURCE),
+)
         )
     return documents
 
@@ -741,7 +756,9 @@ def parse_europepmc(json_text: str) -> list[RawDocument]:
                 doi=normalize_doi(doi),
                 pdf_url=oa_pdf or None,
                 fulltext_url=fulltext_url or None,
-            )
+                        source=EUROPEPMC_SOURCE,
+            evidence_grade=evidence.grade_from_record(EUROPEPMC_SOURCE, item),
+)
         )
     return documents
 
@@ -806,7 +823,9 @@ def parse_elsevier(json_text: str) -> list[RawDocument]:
                 title=title or None,
                 raw_text=f"{title}\n\n{abstract}",
                 doi=normalize_doi(doi),
-            )
+                        source=ELSEVIER_SOURCE,
+            evidence_grade=evidence.grade_from_source(ELSEVIER_SOURCE),
+)
         )
     return documents
 
@@ -842,7 +861,9 @@ def parse_springer(json_text: str) -> list[RawDocument]:
                 raw_text=f"{title}\n\n{abstract}",
                 doi=normalize_doi(doi),
                 pdf_url=_first_springer_url(item, want_pdf=True) or None,
-            )
+                        source=SPRINGER_SOURCE,
+            evidence_grade=evidence.grade_from_source(SPRINGER_SOURCE),
+)
         )
     return documents
 
@@ -977,7 +998,9 @@ def parse_searxng(
                 raw_text=f"{title}\n\n{abstract}",
                 doi=normalize_doi(doi),
                 pdf_url=_normalize(item.get("pdf_url")) or None,
-            )
+                        source=SEARXNG_SOURCE,
+            evidence_grade=evidence.grade_from_source(SEARXNG_SOURCE),
+)
         )
         if len(documents) >= limit:
             break
@@ -1011,7 +1034,9 @@ def parse_core(json_text: str) -> list[RawDocument]:
                 raw_text=f"{title}\n\n{abstract}",
                 doi=normalize_doi(doi),
                 pdf_url=_normalize(item.get("downloadUrl")) or None,
-            )
+                        source=CORE_SOURCE,
+            evidence_grade=evidence.grade_from_source(CORE_SOURCE),
+)
         )
     return documents
 

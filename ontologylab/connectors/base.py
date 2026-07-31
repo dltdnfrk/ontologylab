@@ -61,6 +61,12 @@ class RawDocument:
     raw_text: str
     doi: str | None = None
     pdf_url: str | None = None
+    # Which connector fetched this, and what kind of record it is. The URI
+    # cannot answer either: thirteen of the first twenty-three documents
+    # recorded `doi.org` as their host, which names neither the source that
+    # found them nor whether anyone reviewed them.
+    source: str = ""
+    evidence_grade: str = ""
     # An allowlisted endpoint that serves this work's FULL TEXT, distinct
     # from `pdf_url`: a PDF link points wherever the publisher hosts it and
     # so cannot be reached without giving up exact-match host checking,

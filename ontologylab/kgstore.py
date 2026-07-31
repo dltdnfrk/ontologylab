@@ -33,6 +33,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
+from ontologylab import evidence
 from ontologylab import ontology_schema as default_schema
 from ontologylab.paths import DEFAULT_ACTOR
 from ontologylab.models import Document, ProposedEntity, ProposedRelation
@@ -150,6 +151,11 @@ CREATE TABLE IF NOT EXISTS documents (
     fetched_ts    REAL NOT NULL,
     content_hash  TEXT NOT NULL,
     raw_text_path TEXT NOT NULL,
+    -- Which connector fetched this, and what kind of record it is. Neither
+    -- is recoverable from source_uri: most rows resolve through doi.org,
+    -- which names no source and implies no review.
+    source        TEXT NOT NULL DEFAULT '',
+    evidence_grade TEXT NOT NULL DEFAULT '',
     UNIQUE (content_hash)
 );
 
@@ -518,6 +524,20 @@ class KGStore:
         never migrated: query paths degrade instead (see _edge_current_sql
         / _table_exists).
         """
+        # Documents predate `source` / `evidence_grade`; an existing store
+        # has rows without them. They read back as "" and normalize to
+        # `unknown`, which is the honest answer for a document collected
+        # before anyone recorded where it came from.
+        document_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(documents)")
+        }
+        for column in ("source", "evidence_grade"):
+            if column not in document_columns:
+                conn.execute(
+                    f"ALTER TABLE documents ADD COLUMN {column} "
+                    f"TEXT NOT NULL DEFAULT ''"
+                )
+
         edge_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(edges)")
         }
@@ -764,6 +784,8 @@ class KGStore:
         title: str | None,
         raw_text: str,
         content_hash: str,
+        source: str = "",
+        evidence_grade: str = "",
     ) -> tuple[Document, bool]:
         """Insert a document (deduped by content hash); write raw text to disk.
 
@@ -800,13 +822,15 @@ class KGStore:
             fetched_ts=time.time(),
             content_hash=content_hash,
             raw_text_path=rel_path,
+            source=source,
+            evidence_grade=evidence.normalize(evidence_grade),
         )
         try:
             self.conn.execute(
                 "INSERT INTO documents "
                 "(id, source_kind, source_uri, title, fetched_ts, content_hash, "
-                "raw_text_path) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "raw_text_path, source, evidence_grade) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     doc.id,
                     doc.source_kind,
@@ -815,6 +839,8 @@ class KGStore:
                     doc.fetched_ts,
                     doc.content_hash,
                     doc.raw_text_path,
+                    doc.source,
+                    doc.evidence_grade,
                 ),
             )
         except sqlite3.IntegrityError:
@@ -844,6 +870,13 @@ class KGStore:
             fetched_ts=row["fetched_ts"],
             content_hash=row["content_hash"],
             raw_text_path=row["raw_text_path"],
+            # `.keys()` rather than indexing: a pack built before these
+            # columns existed is opened read-only and never migrated, so the
+            # row genuinely does not have them.
+            source=row["source"] if "source" in row.keys() else "",
+            evidence_grade=evidence.normalize(
+                row["evidence_grade"] if "evidence_grade" in row.keys() else ""
+            ),
         )
 
     def get_document(self, doc_id: str) -> Document:
@@ -1859,7 +1892,8 @@ class KGStore:
         every existing database on the old definition. Spans are fetched here
         instead, the same way endpoint names are.
 
-        Adds ``source_span``, ``excerpt`` and ``doc_title``. Every step fails
+        Adds ``source_span``, ``excerpt``, ``doc_title``, ``doc_source``
+        and ``evidence_grade``. Every step fails
         open to an empty excerpt — a deleted raw.txt must not break review.
         """
         if not rows:
@@ -1886,7 +1920,10 @@ class KGStore:
                         spans[row["id"]] = None
 
         raw_cache: dict[str, str] = {}
-        title_cache: dict[str, str | None] = {}
+        # Title, source and grade come from one `get_document` per document —
+        # the grade is what tells a reviewer whether the sentence they are
+        # about to trust was reviewed by anyone before them.
+        doc_cache: dict[str, tuple[str | None, str, str]] = {}
 
         def _raw(doc_id: str) -> str:
             if doc_id not in raw_cache:
@@ -1896,13 +1933,16 @@ class KGStore:
                     raw_cache[doc_id] = ""
             return raw_cache[doc_id]
 
-        def _title(doc_id: str) -> str | None:
-            if doc_id not in title_cache:
+        def _doc(doc_id: str) -> tuple[str | None, str, str]:
+            if doc_id not in doc_cache:
                 try:
-                    title_cache[doc_id] = self.get_document(doc_id).title
+                    d = self.get_document(doc_id)
+                    doc_cache[doc_id] = (
+                        d.title, d.source, evidence.normalize(d.evidence_grade)
+                    )
                 except (UnknownItem, KGStoreError, OSError):
-                    title_cache[doc_id] = None
-            return title_cache[doc_id]
+                    doc_cache[doc_id] = (None, "", evidence.UNKNOWN)
+            return doc_cache[doc_id]
 
         for row in rows:
             span = spans.get(row.get("id"))
@@ -1910,8 +1950,12 @@ class KGStore:
             doc_id = row.get("source_doc_id")
             if not doc_id:
                 row["excerpt"], row["doc_title"] = "", None
+                row["doc_source"], row["evidence_grade"] = "", evidence.UNKNOWN
                 continue
-            row["doc_title"] = _title(doc_id)
+            title, source, grade = _doc(doc_id)
+            row["doc_title"] = title
+            row["doc_source"] = source
+            row["evidence_grade"] = grade
             row["excerpt"] = span_excerpt(_raw(doc_id), span)
 
     def _label_edge_endpoints(self, rows: list[dict[str, Any]]) -> None:
