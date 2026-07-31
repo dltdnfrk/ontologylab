@@ -123,6 +123,62 @@ def test_critic_review_scores_and_flags_disagreement(store, doc):
     assert sum(1 for r in rows if r["critic_disagreement"]) == 1
 
 
+def test_an_uncited_proposal_is_never_sent_to_the_critic(store, doc):
+    """The load-bearing one.
+
+    The extractor mints an entity the model named but the source text never
+    contained, and marks it by withholding the span; every edge touching
+    that endpoint loses its span too. Such an item has no evidence, and this
+    critic scores evidence support — there is nothing for it to read.
+
+    Asked anyway, the model does not decline. It answers "no evidence
+    provided" and, following a rubric whose lowest band is "evidence
+    contradicts it", scores 0.1. That is the same value it gives an
+    extraction the evidence flatly refutes, so `order="critic"` interleaves
+    the two and the queue reports "suspect" about items nobody could look
+    at. Measured on the live store: of 26 items below 0.4, 23 were merely
+    un-cited and 3 were real judgements.
+
+    So they are held back before the call — no tokens spent manufacturing a
+    verdict — and counted, because a silent drop would read as "clean run".
+    """
+    cited = make_entity("RateLimiter")
+    uncited = make_entity("GhostConcept", source_span=None)
+    insert(store, doc, [cited, uncited])
+
+    stats = run(critic_review(store, MockEngine()))
+
+    # Counted as a candidate: it *is* pending review, just not judgeable here.
+    assert stats["candidates"] == 2
+    assert stats["scored"] == 1
+    assert stats["skipped_uncited"] == 1
+
+    scored = {r["label"]: r for r in store.pending_review()}
+    assert scored["RateLimiter"]["critic_score"] is not None
+    # No score at all — not a low one. A reviewer sorting by critic score
+    # must not find this sitting next to a genuine contradiction.
+    assert scored["GhostConcept"]["critic_score"] is None
+    assert scored["GhostConcept"]["critic_rationale"] is None
+
+
+def test_an_uncited_proposal_still_reaches_the_human_queue(store, doc):
+    """Skipping the critic must not skip the review.
+
+    Nothing becomes knowledge without someone approving it, and an un-cited
+    proposal is exactly the kind a person should see — the UI tells them the
+    name never appeared in the source. Dropping it from `pending_review` to
+    keep the critic's numbers tidy would approve it by omission.
+    """
+    insert(store, doc, [make_entity("GhostConcept", source_span=None)])
+    run(critic_review(store, MockEngine()))
+
+    rows = store.pending_review()
+
+    assert [r["label"] for r in rows] == ["GhostConcept"]
+    assert rows[0]["source_span"] is None  # what the UI keys its warning on
+    assert not (rows[0]["excerpt"] or "").strip()
+
+
 def test_critic_review_is_idempotent_per_engine(store, doc):
     _seed(store, doc)
     run(critic_review(store, MockEngine()))
@@ -159,7 +215,16 @@ def test_critic_fails_open_on_engine_error(store, doc):
 
 
 def test_critic_surfaces_unloadable_docs(store, doc, monkeypatch):
-    """A failed document-text load must be visible in stats, not silent."""
+    """A failed document-text load must be visible in stats, not silent.
+
+    Fail-open used to mean "score them anyway": the run completed and wrote
+    four scores derived from blank evidence. That kept the run alive at the
+    cost of the numbers — a missing raw.txt came back looking like four
+    doubtful extractions, indistinguishable from four the evidence actually
+    refuted. Fail-open now means the run completes and the items are left
+    unscored; `docs_unloadable` still carries the degradation, which is what
+    this test was always about.
+    """
     _seed(store, doc)
 
     def boom(_doc_id):
@@ -168,11 +233,14 @@ def test_critic_surfaces_unloadable_docs(store, doc, monkeypatch):
     monkeypatch.setattr(store, "document_raw_text", boom)
 
     stats = run(critic_review(store, MockEngine()))
-    # fail-open: the run still completes and scores items despite empty evidence
+    # The run completes and does not raise — that is the fail-open part.
     assert stats["candidates"] == 4
-    assert stats["scored"] == 4
     assert stats["batches_failed"] == 0
-    # ...but the degradation is surfaced, not swallowed
+    # No verdict is invented about evidence nobody could read.
+    assert stats["scored"] == 0
+    assert stats["skipped_uncited"] == 4
+    # ...and the degradation is surfaced, not swallowed. `skipped_uncited`
+    # alone would read as "the extractor omitted spans"; this says otherwise.
     assert stats["docs_unloadable"] == [doc.id]
 
 

@@ -145,10 +145,11 @@ def _pending_items(
     """Proposed nodes/edges that this critic has not scored yet.
 
     ``docs_unloadable`` (optional out-parameter): any doc_id whose source
-    text could not be loaded is added to this set. Such items still get an
-    item with **empty** evidence (fail-open — a document read failure must
-    not crash the run), but the caller can surface the degradation instead
-    of silently scoring against blank context.
+    text could not be loaded is added to this set. Such items are built with
+    **empty** evidence (fail-open — a document read failure must not crash
+    the run) and are dropped by ``critic_review`` alongside the genuinely
+    un-cited ones, since neither can be judged on evidence support. The set
+    lets the caller tell a read failure from a missing span.
     """
     doc_text_cache: dict[str, str] = {}
 
@@ -236,11 +237,23 @@ async def critic_review(
     items = _pending_items(
         store, engine_name=engine_name, limit=limit, docs_unloadable=docs_unloadable
     )
+    # An item with no evidence is not a thing this critic can judge. Asked
+    # anyway, the model answers "no evidence provided" and — following the
+    # rubric, which has nowhere else to put it — scores it 0.1, the same
+    # value it gives an extraction the evidence outright contradicts. The
+    # two then sort together, and the queue says "suspect" about an item
+    # nobody looked at. Held back before the call, so no tokens are spent
+    # manufacturing a verdict, and `skipped_uncited` reports the count.
+    candidates = len(items)
+    items = [i for i in items if (i.get("evidence") or "").strip()]
     stats: dict[str, Any] = {
-        "candidates": len(items),
+        "candidates": candidates,
         "scored": 0,
         "disagreements": 0,
         "batches_failed": 0,
+        # Items with no cited span: unjudgeable, never sent to the model.
+        # These are the review queue's problem, not the critic's.
+        "skipped_uncited": candidates - len(items),
         # doc_ids whose source text failed to load: their items were scored
         # against empty evidence (fail-open). Non-empty = degraded run.
         "docs_unloadable": sorted(docs_unloadable),
