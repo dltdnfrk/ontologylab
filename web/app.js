@@ -1588,10 +1588,18 @@
         opt.disabled = !eng.available;
         sel.appendChild(opt);
       });
-      var firstAvailable = engines.filter(function (e) {
-        return e.available;
-      })[0];
-      if (firstAvailable) sel.value = firstAvailable.name;
+      // 설정의 기본 엔진을 먼저 존중한다. "첫 번째 가용 엔진"은 목록 순서에
+      // 따라 mock을 고르는데, mock은 CamelCase만 찾으므로 생의학 초록에서
+      // 0건을 내고 그것을 오류가 아니라 결과로 보고한다 — 설정에 claude라고
+      // 적어둔 사람이 화면에서는 mock으로 돌고 있는 상태가 만들어졌다.
+      var preferred = null;
+      try {
+        preferred = ((await api("/api/settings")) || {}).default_engine;
+      } catch (_) { /* 설정을 못 읽어도 선택지는 살아 있어야 한다 */ }
+      var usable = engines.filter(function (e) { return e.available; });
+      var pick = usable.filter(function (e) { return e.name === preferred; })[0]
+        || usable[0];
+      if (pick) sel.value = pick.name;
     } catch (_) {
       sel.innerHTML = "<option value='mock'>mock</option>";
     }
@@ -3961,9 +3969,12 @@
     var send = $("#chat-send");
     input.disabled = send.disabled = true;
     try {
-      var res = await apiSend("/api/chat", {
-        message: message, engine: currentEngine(), confirmed: false,
-      });
+      // engine은 값이 있을 때만 싣는다. 빈 문자열을 보내면 pydantic의
+      // 기본값이 적용되지 않고 ""가 그대로 get_engine에 도달한다.
+      var payload = { message: message, confirmed: false };
+      var eng = currentEngine();
+      if (eng) payload.engine = eng;
+      var res = await apiSend("/api/chat", payload);
       pending.innerHTML = renderChatResult(res);
       var r = res.result || {};
       if (r.kind === "job" && r.job_id) {
@@ -3987,18 +3998,27 @@
     if (!message) return;
     el.innerHTML = "<p class='muted'>실행 중…</p>";
     try {
-      var res = await apiSend("/api/chat", {
-        message: message, engine: currentEngine(), confirmed: true,
-      });
+      // 확인 실행은 제안했던 것과 같은 엔진으로 돌아야 한다. 여기서도
+      // 빈 값을 실으면 서버 기본값이 적용되지 않는다.
+      var payload = { message: message, confirmed: true };
+      var eng = currentEngine();
+      if (eng) payload.engine = eng;
+      var res = await apiSend("/api/chat", payload);
       el.innerHTML = renderChatResult(res);
     } catch (e) {
       el.innerHTML = "<p class='err-msg'>" + escapeHtml(friendlyError(e)) + "</p>";
     }
   }
 
+  /* 채팅이 쓸 엔진. 예전에는 리서치/추출 탭의 select를 읽었는데, 그 탭을 한
+     번도 열지 않으면 두 select 모두 비어 있어 "mock"으로 조용히 떨어졌다 —
+     홈 화면에만 머무른 사람은 자기 질문이 전부 mock으로 돌고 있다는 걸 알
+     방법이 없었다. 이제 대화창 자신의 select를 읽고, 그것이 비어 있으면
+     엔진 목록을 아직 못 받은 것이므로 빈 문자열을 보내 서버 기본값에 맡긴다.
+     "mock"을 폴백으로 쓰지 않는 것이 요점이다. */
   function currentEngine() {
-    var sel = $("#research-engine") || $("#extract-engine");
-    return (sel && sel.value) || "mock";
+    var sel = $("#chat-engine");
+    return (sel && sel.value) || "";
   }
 
   /* 기록에서 대화를 되살린다. 지식이 아니라 사람이 보던 화면을 되살리는
@@ -4057,10 +4077,94 @@
     });
   }
 
+  /* ── 사이드바 폭 조절 ───────────────────────────────────────────
+     폭은 --rail-w 하나로 결정된다. 격자의 첫 열이라 이 값만 바꾸면 문서
+     패널이 열린 3열 상태도 함께 따라오고, 860px 아래에서는 아이콘 레일로
+     접히는 미디어 쿼리가 이 값을 덮으므로 조절 자체가 사라진다.
+
+     드래그 중에는 CSS 변수만 갱신하고 저장은 끝날 때 한 번 한다 —
+     pointermove마다 localStorage에 쓰면 프레임이 눈에 띄게 밀린다. */
+  (function wireRailResizer() {
+    var handle = $("#rail-resizer");
+    if (!handle) return;
+    var root = document.documentElement;
+    var KEY = "ontologylab.railWidth";
+    var DEFAULT_W = 232;
+
+    function limits() {
+      var cs = getComputedStyle(root);
+      return {
+        min: parseInt(cs.getPropertyValue("--rail-w-min"), 10) || 168,
+        max: parseInt(cs.getPropertyValue("--rail-w-max"), 10) || 420,
+      };
+    }
+    function clamp(px) {
+      var l = limits();
+      return Math.max(l.min, Math.min(l.max, Math.round(px)));
+    }
+    function apply(px) { root.style.setProperty("--rail-w", clamp(px) + "px"); }
+    function current() {
+      return parseInt(getComputedStyle(root).getPropertyValue("--rail-w"), 10)
+        || DEFAULT_W;
+    }
+    function persist() {
+      try { localStorage.setItem(KEY, String(current())); } catch (_) {}
+    }
+
+    // 저장된 폭 복원. 값이 깨져 있으면 무시하고 기본값을 쓴다 —
+    // 저장소의 문자열 하나 때문에 레일이 사라지면 안 된다.
+    try {
+      var saved = parseInt(localStorage.getItem(KEY), 10);
+      if (saved) apply(saved);
+    } catch (_) {}
+
+    handle.addEventListener("pointerdown", function (ev) {
+      ev.preventDefault();
+      handle.setPointerCapture(ev.pointerId);
+      handle.classList.add("is-dragging");
+      document.body.classList.add("rail-resizing");
+
+      function move(e) { apply(e.clientX); }
+      function up(e) {
+        handle.releasePointerCapture(e.pointerId);
+        handle.classList.remove("is-dragging");
+        document.body.classList.remove("rail-resizing");
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+        handle.removeEventListener("pointercancel", up);
+        persist();
+      }
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+      // 드래그 중 창을 벗어나거나 포인터를 빼앗기면 body의 클래스가 남아
+      // 커서가 col-resize로 굳는다. cancel도 같은 정리를 거치게 한다.
+      handle.addEventListener("pointercancel", up);
+    });
+
+    handle.addEventListener("dblclick", function () {
+      apply(DEFAULT_W);
+      persist();
+    });
+
+    // 포인터가 없는 사람에게도 열려 있어야 한다.
+    handle.addEventListener("keydown", function (ev) {
+      var step = ev.shiftKey ? 32 : 8;
+      if (ev.key === "ArrowLeft") { apply(current() - step); }
+      else if (ev.key === "ArrowRight") { apply(current() + step); }
+      else if (ev.key === "Home") { apply(DEFAULT_W); }
+      else { return; }
+      ev.preventDefault();
+      persist();
+    });
+  })();
+
   (function wireChat() {
     var form = $("#chat-form");
     var input = $("#chat-input");
     if (!form || !input) return;
+    // 대화창은 첫 화면이므로 여기서 채운다. 다른 탭의 지연 로딩에 기대면
+    // 그 탭을 열기 전까지 선택지가 없다.
+    populateEngineSelect("#chat-engine");
     loadChatHistory();
 
     form.addEventListener("submit", function (ev) {

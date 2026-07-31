@@ -52,6 +52,11 @@
 /* ---------- 1. Design tokens ---------- */
 
 :root {
+  /* 사이드바 폭. 드래그로 바뀌고 localStorage에 남는다. 격자의 첫 열이라
+     여기 하나만 바꾸면 문서 패널이 열린 3열 상태도 같이 따라온다. */
+  --rail-w: 232px;
+  --rail-w-min: 168px;
+  --rail-w-max: 420px;
   /* 라이트 분기는 두지 않는다. 거래 단말에 라이트 모드가 없는 것과
      같은 이유다 — 이 화면은 오래 들여다보며 목록을 훑는 곳이고, OS 설정에
      따라 팔레트가 갈리면 상태 3색(초록·빨강·호박)의 대비도 함께 갈린다.
@@ -322,14 +327,14 @@ body {
   display: grid;
   /* 문서 패널이 열리면 3열이 된다. 닫혀 있으면 그 열은 0이라 레이아웃이
      바뀌지 않는다 — `display:none` 만으로는 grid 열이 남아 본문이 좁아진다. */
-  grid-template-columns: 232px minmax(0, 1fr) 0;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr) 0;
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
 }
 body:has(.doc-panel:not(.hidden)) {
-  grid-template-columns: 232px minmax(0, 1fr) minmax(320px, 40%);
+  grid-template-columns: var(--rail-w) minmax(0, 1fr) minmax(320px, 40%);
 }
 
 /* 레일 항목 옆의 개수. 파이프라인 바가 하던 일을 여기가 대신한다 —
@@ -737,6 +742,17 @@ main {
    #graph-svg의 폭 0을 보고 스스로 멈추는 데 이 값을 쓴다(app.js:1798). */
 .tab-panel { display: none; max-width: var(--content-max); margin: 0 auto; }
 .tab-panel.active { display: block; }
+
+/* 대화 화면만 높이를 꽉 채운다.
+
+   `.chat`은 `grid-template-rows: auto minmax(0,1fr) auto`와 `height:100%`로
+   입력창을 아래에 고정하도록 짜여 있는데, 그 100%가 기댈 부모가
+   `display:block`에 높이가 없어 격자는 그냥 내용만큼 자랐다. 로그는 자기
+   안에서 스크롤하지 않고 화면 밖으로 늘어났고, 입력창은 `main`을 끝까지
+   스크롤해야 닿는 자리에 있었다 — 대화창에서 가장 자주 쓰는 요소가 기본
+   상태에서 보이지 않았다. 다른 탭은 문서처럼 위에서 아래로 읽는 화면이라
+   높이를 묶으면 오히려 잘리므로, 이 규칙은 대화 화면에만 건다. */
+#tab-home.tab-panel.active { height: 100%; }
 
 /* 화면 제목은 명패지 표제가 아니다 — 22px 표제는 잡지의 문법이고,
    단말은 17px 이름 + 옆의 한 줄 규칙(.screen-head)로 충분하다. */
@@ -2354,15 +2370,18 @@ tr.row-focused {
 @keyframes tstep-pulse { 50% { opacity: 0.3; } }
 
 /* ---------- 입력 ---------- */
+/* 입력칸 아래에 도구 줄이 붙는 세로 구성. 보내기를 텍스트 옆에 두면 엔진
+   선택을 놓을 자리가 없어 다른 탭으로 밀려나는데, 그 선택은 결과의 의미를
+   바꾸므로 묻는 자리에 있어야 한다. */
 .chat-composer {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
   gap: var(--sp-2);
   padding: var(--sp-3) 0 var(--sp-4);
   border-top: 1px solid var(--border);
 }
 .chat-composer textarea {
-  flex: 1;
+  width: 100%;
   min-height: var(--h-control);
   max-height: 200px;
   resize: none;
@@ -2370,7 +2389,27 @@ tr.row-focused {
   line-height: var(--lh-snug);
   padding: 0.45rem 0.6rem;
 }
-.chat-composer .btn { flex: 0 0 auto; }
+.composer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.composer-bar .btn { flex: 0 0 auto; }
+/* 눈에 띄지 않게 둔다 — 매번 고르는 값이 아니라 확인하는 값이다. */
+.composer-engine select {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  padding: 0.2rem 0.35rem;
+  height: auto;
+}
+.composer-engine select:hover,
+.composer-engine select:focus {
+  border-color: var(--border);
+  color: var(--text);
+}
 
 /* 리서치 화면으로 옮겨온 샘플 넣기 한 줄 */
 .sample-line { margin: var(--sp-3) 0 0; }
@@ -2497,7 +2536,7 @@ mark.doc-span.is-focused { outline: 2px solid var(--accent); }
 @media (max-width: 1100px) {
   /* 좁으면 3열이 성립하지 않는다. 패널이 본문을 덮는다. */
   body:has(.doc-panel:not(.hidden)) {
-    grid-template-columns: 232px minmax(0, 1fr) 0;
+    grid-template-columns: var(--rail-w) minmax(0, 1fr) 0;
   }
   .doc-panel {
     position: fixed;
@@ -2571,4 +2610,34 @@ textarea, select {
 input:focus, textarea:focus, select:focus {
   border-color: var(--border);
   background: var(--card);
+}
+
+
+/* ── 사이드바 폭 조절 ──────────────────────────────────────────────
+   경계선 위에 얹힌 6px 띠. 평소에는 보이지 않고, 커서와 hover 색으로만
+   존재를 알린다 — 늘 보이는 손잡이는 레일을 두 겹으로 보이게 만든다. */
+.rail-resizer {
+  position: fixed;
+  top: var(--h-chrome);
+  bottom: var(--h-statusbar);
+  left: var(--rail-w);
+  width: 6px;
+  margin-left: -3px;
+  cursor: col-resize;
+  z-index: 40;
+  background: transparent;
+  transition: background 120ms ease;
+}
+.rail-resizer:hover,
+.rail-resizer.is-dragging {
+  background: var(--accent);
+}
+/* 드래그 중에는 본문의 텍스트 선택과 iframe 히트테스트를 막는다. */
+body.rail-resizing {
+  user-select: none;
+  cursor: col-resize;
+}
+/* 아이콘 레일로 접히는 폭에서는 조절 자체가 의미가 없다. */
+@media (max-width: 860px) {
+  .rail-resizer { display: none; }
 }

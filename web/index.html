@@ -46,6 +46,12 @@
     <div class="nav-rail-footer">로컬 전용 · 모든 데이터는 이 컴퓨터에만 저장돼요</div>
   </nav>
 
+  <!-- 레일 경계의 드래그 띠. 격자에 열을 더하면 모든 grid-column 번호가
+       밀리므로 절대 위치로 얹는다. 키보드로도 조절되도록 role=separator와
+       화살표 키를 함께 둔다. -->
+  <div id="rail-resizer" class="rail-resizer" role="separator"
+       aria-orientation="vertical" aria-label="사이드바 폭 조절" tabindex="0"
+       title="드래그해서 폭 조절 · 더블클릭하면 원래대로"></div>
 
   <main>
     <!-- ================= 홈 (대화) =================
@@ -80,8 +86,18 @@
           <textarea id="chat-input" rows="1" autocomplete="off"
             aria-label="메시지"
             placeholder="주제를 적거나, 하고 싶은 걸 말해보세요…"></textarea>
-          <button type="submit" id="chat-send" class="btn btn-primary"
-            aria-label="보내기">보내기</button>
+          <!-- 어떤 엔진으로 도는지는 결과의 의미를 바꾼다: mock은 CamelCase만
+               찾으므로 생의학 초록에서 정직하게 0건을 낸다. 그 선택이 다른 탭의
+               드롭다운에 숨어 있으면, 아무것도 안 나온 이유가 논문이 어려워서인지
+               엔진이 mock이어서인지 화면만 봐서는 구분되지 않는다. -->
+          <div class="composer-bar">
+            <label class="composer-engine">
+              <span class="sr-only">엔진</span>
+              <select id="chat-engine" aria-label="이 대화에 쓸 엔진"></select>
+            </label>
+            <button type="submit" id="chat-send" class="btn btn-primary"
+              aria-label="보내기">보내기</button>
+          </div>
         </form>
       </div>
     </section>
