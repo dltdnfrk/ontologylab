@@ -27,7 +27,10 @@ import argparse
 import asyncio
 import ipaddress
 import json
+import os
+import pathlib
 import re
+import shutil
 import subprocess
 import time
 from typing import Optional
@@ -87,6 +90,33 @@ def extract_fenced_block(text: str, lang: str = "json") -> str:
     if not block.strip():
         raise EngineError(f"fenced {lang} block was empty")
     return block
+
+
+def resolve_cli(name: str) -> str:
+    """Find a CLI engine's executable, or return the bare name.
+
+    `PATH` is not the same everywhere this runs. Under launchd — which is
+    how the launcher starts the server — it is the minimal
+    `/usr/bin:/bin:/usr/sbin:/sbin`, so a `claude` installed by npm into
+    `~/.npm-global/bin` is invisible and every extraction fails with
+    "engine executable not found". From an interactive shell the same call
+    works, which makes it look like an intermittent fault rather than a
+    missing directory.
+
+    Falls back to the bare name so the error message stays the familiar
+    one when the binary genuinely is not installed.
+    """
+    found = shutil.which(name)
+    if found:
+        return found
+    home = pathlib.Path.home()
+    for base in (home/".npm-global/bin", home/".local/bin",
+                 pathlib.Path("/opt/homebrew/bin"), pathlib.Path("/usr/local/bin"),
+                 home/".bun/bin", home/".volta/bin"):
+        candidate = base/name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return name
 
 
 def _run_subprocess(cmd: list[str], timeout_s: float) -> tuple[str, float]:
@@ -505,7 +535,7 @@ class ClaudeEngine:
     ) -> tuple[str, dict]:
         assert_network_allowed("claude CLI engine")
         use_model = model or self._model
-        cmd = ["claude", "-p", prompt, "--model", use_model]
+        cmd = [resolve_cli("claude"), "-p", prompt, "--model", use_model]
         stdout, elapsed = _run_subprocess(cmd, self._timeout_s)
         usage = {"calls": 1, "elapsed": elapsed, "engine": "claude", "model": use_model}
         return stdout, usage
@@ -531,7 +561,7 @@ class CodexEngine:
     ) -> tuple[str, dict]:
         assert_network_allowed("codex CLI engine")
         use_model = model or self._model
-        cmd = ["codex", "exec", prompt]
+        cmd = [resolve_cli("codex"), "exec", prompt]
         if use_model:
             cmd += ["--model", use_model]
         stdout, elapsed = _run_subprocess(cmd, self._timeout_s)
@@ -559,7 +589,7 @@ class GeminiEngine:
     ) -> tuple[str, dict]:
         assert_network_allowed("gemini CLI engine")
         use_model = model or self._model
-        cmd = ["gemini", "-p", prompt]
+        cmd = [resolve_cli("gemini"), "-p", prompt]
         if use_model:
             cmd += ["--model", use_model]
         stdout, elapsed = _run_subprocess(cmd, self._timeout_s)

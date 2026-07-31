@@ -212,3 +212,59 @@ def test_engine_name_arg_rejects_junk():
     with pytest.raises(argparse.ArgumentTypeError):
         engine_name_arg("api:BAD!")
     assert engine_name_arg("api:good") == "api:good"
+
+
+# --------------------------------------------------------------------------
+# Finding the CLI at all
+# --------------------------------------------------------------------------
+
+
+def test_a_cli_engine_is_found_when_path_is_minimal(monkeypatch, tmp_path):
+    """launchd gives the server `/usr/bin:/bin:/usr/sbin:/sbin`.
+
+    That is how the launcher starts it, and an npm-installed `claude` lives
+    in `~/.npm-global/bin`, which is not on that list. Every extraction and
+    every critic batch failed with "engine executable not found" while the
+    same call worked from a shell — which reads as an intermittent fault
+    rather than a missing directory.
+    """
+    from ontologylab import engines
+
+    fake_home = tmp_path / "home"
+    binary = fake_home / ".npm-global/bin/claude"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("#!/bin/sh\n")
+    binary.chmod(0o755)
+
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    monkeypatch.setattr(engines.pathlib.Path, "home", lambda: fake_home)
+
+    assert engines.resolve_cli("claude") == str(binary)
+
+
+def test_a_genuinely_missing_binary_keeps_its_familiar_error(monkeypatch, tmp_path):
+    """Falling back to the bare name matters: the error a user sees for a
+    tool they never installed should not change."""
+    from ontologylab import engines
+
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setattr(engines.pathlib.Path, "home", lambda: tmp_path)
+
+    assert engines.resolve_cli("not-installed-anywhere") == "not-installed-anywhere"
+
+
+def test_every_cli_engine_resolves_rather_than_trusting_path():
+    """Three engines shell out; all three had the same bug."""
+    import inspect
+    import re
+
+    from ontologylab import engines
+
+    source = inspect.getsource(engines)
+    for tool in ("claude", "codex", "gemini"):
+        assert f'cmd = ["{tool}"' not in source, (
+            f"{tool} is invoked by bare name and depends on PATH"
+        )
+        assert re.search(rf'cmd = \[resolve_cli\("{tool}"\)', source), (
+            f"{tool} does not go through resolve_cli"
+        )
