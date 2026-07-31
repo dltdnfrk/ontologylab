@@ -105,6 +105,7 @@ from ontologylab.server.schemas import (
     ProviderModel,
     ProviderTestResult,
     ResearchRequest,
+    SchemaInstall,
     Settings,
     SourceCreate,
 )
@@ -513,6 +514,88 @@ def get_provenance(kind: str, item_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except KGStoreError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+@router.get("/schema")
+def get_schema() -> dict[str, Any]:
+    """The active ontology, the ones this store has held, and the presets.
+
+    The ontology is what the extractor is told to look for, so it is the
+    single largest lever on what ends up in the review queue — and until
+    now it was the one thing with no way to change it.
+    """
+    from ontologylab.schemas import PRESETS
+
+    store = _open_store()
+    try:
+        return {
+            "active": store.get_schema(),
+            "installed": store.list_schemas(),
+            "presets": [
+                {
+                    "name": name,
+                    "label": schema["label"],
+                    "description": schema["description"],
+                    "entity_types": len(schema["entity_types"]),
+                    "relation_types": len(schema["relation_types"]),
+                }
+                for name, schema in sorted(PRESETS.items())
+            ],
+        }
+    finally:
+        store.close()
+
+
+@router.post("/schema")
+def install_schema(body: SchemaInstall) -> dict[str, Any]:
+    """Install an ontology and make it active, from a preset or in full.
+
+    Additive: the previous ontology is deactivated, never edited, so
+    proposals already in the queue keep pointing at the one they were
+    judged against. Re-typing a review somebody is halfway through would
+    change what their earlier decisions meant.
+    """
+    from ontologylab.schemas import preset
+
+    if body.preset:
+        try:
+            payload = preset(body.preset)
+        except KeyError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    elif body.label and body.entity_types:
+        payload = {
+            "label": body.label,
+            "description": body.description or "",
+            "entity_types": body.entity_types,
+            "relation_types": body.relation_types or [],
+        }
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="pass either `preset`, or `label` with `entity_types`",
+        )
+
+    store = _open_store()
+    try:
+        schema_id = store.install_schema(**payload)
+        return {"ok": True, "schema_id": schema_id, "active": store.get_schema()}
+    except KGStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+@router.post("/schema/{schema_id}/activate")
+def activate_schema(schema_id: int) -> dict[str, Any]:
+    """Switch back to an ontology this store already holds."""
+    store = _open_store()
+    try:
+        store.activate_schema(schema_id)
+        return {"ok": True, "active": store.get_schema()}
+    except UnknownItem as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     finally:
         store.close()
 

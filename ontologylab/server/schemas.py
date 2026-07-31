@@ -280,3 +280,18 @@ class AnnotationDecision(BaseModel):
 
     accept: bool
     note: str | None = None
+
+class SchemaInstall(BaseModel):
+    """Install an ontology: either a bundled preset, or one written out.
+
+    Two shapes rather than one because the common case is "use the
+    biomedical one" and demanding a full type list for that would make the
+    presets pointless.
+    """
+
+    preset: Optional[str] = None
+    label: Optional[str] = None
+    description: Optional[str] = None
+    entity_types: Optional[list[dict[str, Any]]] = None
+    relation_types: Optional[list[dict[str, Any]]] = None
+

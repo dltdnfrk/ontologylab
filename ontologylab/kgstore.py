@@ -608,6 +608,116 @@ class KGStore:
             raise KGStoreError("no active schema_version row")
         return row
 
+    def install_schema(
+        self,
+        *,
+        label: str,
+        description: str,
+        entity_types: list[dict[str, Any]],
+        relation_types: list[dict[str, Any]],
+    ) -> int:
+        """Add an ontology and make it the active one. Returns its id.
+
+        The whole design already assumed this would exist — `nodes`,
+        `edges` and the type tables all carry `schema_version_id` — but
+        nothing could write one, so every install ran on
+        `software-docs-v1`: a "neutral default ontology for software /
+        technical documentation", used here on p53 papers. Measured on one
+        abstract, that mismatch produced five relations, all of them
+        `related_to`, and 24 rejected proposals the schema had no shape
+        for; the same abstract under a biomedical ontology produced twelve
+        relations across five types and nothing rejected.
+
+        Switching is additive. A new row is inserted and the previous one
+        deactivated, never edited or deleted, so proposals extracted under
+        the old ontology keep pointing at the ontology they were judged
+        against — the alternative would silently re-type a review queue
+        somebody is halfway through.
+        """
+        if not entity_types:
+            raise KGStoreError("a schema needs at least one entity type")
+        if not label.strip():
+            raise KGStoreError("a schema needs a label")
+
+        names = {e["name"] for e in entity_types}
+        for relation in relation_types:
+            for side in ("domain_type", "range_type"):
+                declared = relation.get(side, "*")
+                # `*` means any. Anything else has to be a type this same
+                # schema defines, or the extractor is handed a rule that
+                # can never be satisfied and every use is rejected.
+                if declared != "*" and declared not in names:
+                    raise KGStoreError(
+                        f"relation {relation['name']!r} has {side}="
+                        f"{declared!r}, which is not an entity type in this "
+                        f"schema ({', '.join(sorted(names))})"
+                    )
+
+        now = time.time()
+        with self.conn:
+            self.conn.execute("UPDATE schema_version SET is_active = 0")
+            cur = self.conn.execute(
+                "INSERT INTO schema_version "
+                "(label, description, created_ts, is_active) VALUES (?,?,?,1)",
+                (label.strip(), description, now),
+            )
+            sv_id = int(cur.lastrowid)
+            for entity in entity_types:
+                self.conn.execute(
+                    "INSERT INTO entity_type (schema_version_id, name, "
+                    "description, attributes_json) VALUES (?,?,?,?)",
+                    (sv_id, entity["name"], entity.get("description", ""),
+                     json.dumps(entity.get("attributes", {}))),
+                )
+            for relation in relation_types:
+                self.conn.execute(
+                    "INSERT INTO relation_type (schema_version_id, name, "
+                    "description, domain_type, range_type, directed) "
+                    "VALUES (?,?,?,?,?,?)",
+                    (sv_id, relation["name"], relation.get("description", ""),
+                     relation.get("domain_type", "*"),
+                     relation.get("range_type", "*"),
+                     1 if relation.get("directed", True) else 0),
+                )
+        return sv_id
+
+    def list_schemas(self) -> list[dict[str, Any]]:
+        """Every ontology this store has held, newest first."""
+        return [
+            {
+                "id": row["id"],
+                "label": row["label"],
+                "description": row["description"],
+                "created_ts": row["created_ts"],
+                "active": bool(row["is_active"]),
+                # How much was judged under it. A schema with proposals
+                # behind it is one a reviewer's decisions depend on.
+                "items": self.conn.execute(
+                    "SELECT (SELECT COUNT(*) FROM nodes WHERE "
+                    "schema_version_id = ?) + (SELECT COUNT(*) FROM edges "
+                    "WHERE schema_version_id = ?) AS n",
+                    (row["id"], row["id"]),
+                ).fetchone()["n"],
+            }
+            for row in self.conn.execute(
+                "SELECT * FROM schema_version ORDER BY id DESC"
+            )
+        ]
+
+    def activate_schema(self, schema_id: int) -> None:
+        """Switch back to an ontology this store already has."""
+        row = self.conn.execute(
+            "SELECT id FROM schema_version WHERE id = ?", (schema_id,)
+        ).fetchone()
+        if row is None:
+            raise UnknownItem(f"unknown schema id {schema_id}")
+        with self.conn:
+            self.conn.execute("UPDATE schema_version SET is_active = 0")
+            self.conn.execute(
+                "UPDATE schema_version SET is_active = 1 WHERE id = ?",
+                (schema_id,),
+            )
+
     def get_schema(self) -> dict[str, Any]:
         """Return the active ontology (entity + relation types) as plain data."""
         sv = self.active_schema_version()
