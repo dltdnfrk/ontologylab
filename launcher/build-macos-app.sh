@@ -66,6 +66,13 @@ PY="$PY"
 PREF_PORT="$PORT"
 PORTFILE="\$REPO/.launcher.port"
 LOG="\$REPO/.launcher.log"
+AGENT_PLIST_EARLY="\$HOME/Library/LaunchAgents/at.ontologylab.server.plist"
+# Data lives outside ~/Documents: the server refuses to run against an
+# iCloud-synced directory, and this is the path move-data-out-of-icloud.sh
+# creates. Passing it explicitly is what makes the launcher work on a machine
+# where that sync is on — without it the server exits before writing a log.
+DATA_DIR="\$HOME/Library/Application Support/ontologylab/data"
+PACKS_DIR="\$HOME/Library/Application Support/ontologylab/packs"
 
 # Is OUR dashboard already up on a given port? Distinguish from any other
 # service on that port by hitting an ontologylab-specific JSON endpoint.
@@ -81,6 +88,35 @@ if [ -f "\$PORTFILE" ]; then
   P="\$(cat "\$PORTFILE" 2>/dev/null)"
   if [ -n "\$P" ] && is_ours "\$P"; then
     /usr/bin/open "http://127.0.0.1:\$P/"; exit 0
+  fi
+fi
+
+# 1b) An installed launchd agent owns a port of its own. Scanning for a free
+#     one and then handing startup to launchd meant the app opened the port it
+#     picked (8767) while the agent listened on the port baked into its plist
+#     (8799) — a blank browser tab and a healthy server nobody was pointed at.
+if [ -f "\$AGENT_PLIST_EARLY" ]; then
+  AGENT_PORT="\$(/usr/bin/plutil -extract ProgramArguments json -o - "\$AGENT_PLIST_EARLY" 2>/dev/null \
+    | /usr/bin/sed -n 's/.*"--port"[^"]*"\\([0-9][0-9]*\\)".*/\\1/p')"
+  if [ -n "\$AGENT_PORT" ]; then
+    # Take the agent's port unconditionally — do NOT gate on a health check.
+    # The first version did, and on a cold click the agent had not finished
+    # binding yet: the check failed, the app scanned to a free port, handed
+    # startup to launchd anyway, and then opened the port it had picked while
+    # the server came up on the one in the plist.
+    PORT="\$AGENT_PORT"
+    URL="http://127.0.0.1:\$PORT/"
+    echo "\$PORT" > "\$PORTFILE"
+    if ! is_ours "\$PORT"; then
+      if /bin/launchctl print "gui/\$(id -u)/at.ontologylab.server" >/dev/null 2>&1; then
+        /bin/launchctl kickstart "gui/\$(id -u)/at.ontologylab.server" >/dev/null 2>&1
+      else
+        /bin/launchctl bootstrap "gui/\$(id -u)" "\$AGENT_PLIST_EARLY" >/dev/null 2>&1
+      fi
+      for _ in \$(seq 1 60); do is_ours "\$PORT" && break; sleep 0.25; done
+    fi
+    /usr/bin/open "\$URL"
+    exit 0
   fi
 fi
 
@@ -119,7 +155,9 @@ if [ -f "\$AGENT_PLIST" ]; then
   fi
 fi
 if [ "\$STARTED_VIA_LAUNCHD" = "0" ]; then
-  /usr/bin/nohup "\$PY" -m ontologylab.serve --port "\$PORT" > "\$LOG" 2>&1 &
+  /bin/mkdir -p "\$DATA_DIR" "\$PACKS_DIR"
+  /usr/bin/nohup "\$PY" -m ontologylab.serve --port "\$PORT" \
+    --data-dir "\$DATA_DIR" --packs-dir "\$PACKS_DIR" > "\$LOG" 2>&1 &
   disown 2>/dev/null || true
 fi
 echo "\$PORT" > "\$PORTFILE"
