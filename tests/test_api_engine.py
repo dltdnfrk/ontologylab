@@ -268,3 +268,43 @@ def test_every_cli_engine_resolves_rather_than_trusting_path():
         assert re.search(rf'cmd = \[resolve_cli\("{tool}"\)', source), (
             f"{tool} does not go through resolve_cli"
         )
+
+
+# --------------------------------------------------------------------------
+# Availability must be decided by the lookup that does the running
+# --------------------------------------------------------------------------
+
+
+def test_engine_availability_uses_the_same_lookup_as_invocation(monkeypatch):
+    """The load-bearing one.
+
+    `resolve_cli` was added so the server could run a CLI that PATH does not
+    mention; the availability probe kept calling `shutil.which` directly and
+    so answered a question about a different process. Under launchd's PATH
+    they disagree, and the disagreement is silent in the worst direction:
+    /api/engines reports every CLI engine unavailable, the browser disables
+    them in every picker and selects the first available one instead, and
+    the chat composer ends up on mock — which finds nothing in a biomedical
+    abstract and reports that as zero proposals, not as an error.
+    """
+    from ontologylab import engines as engines_mod
+    from ontologylab.server import settings as settings_mod
+
+    # Exactly the launchd condition: not on PATH, present where npm puts it.
+    monkeypatch.setattr(engines_mod.shutil, "which", lambda _n: None)
+    monkeypatch.setattr(engines_mod, "resolve_cli",
+                        lambda name: f"/somewhere/else/{name}")
+
+    infos = {e.name: e.available for e in settings_mod.engines()}
+
+    assert infos["claude"] is True, "found by resolve_cli, reported missing"
+    assert infos["codex"] is True and infos["gemini"] is True
+
+
+def test_an_engine_that_is_genuinely_absent_still_reports_unavailable():
+    """The guard on the fix: resolve_cli returns the bare name when it finds
+    nothing, and a truthiness test on that string would call everything
+    available — which is the same bug pointing the other way."""
+    from ontologylab.engines import resolve_available
+
+    assert resolve_available("definitely-not-a-real-cli-xyzzy") is False

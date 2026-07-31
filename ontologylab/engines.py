@@ -119,6 +119,19 @@ def resolve_cli(name: str) -> str:
     return name
 
 
+def resolve_available(name: str) -> bool:
+    """Whether this process could actually run ``name``.
+
+    Availability has to be decided by the lookup that will do the running,
+    or the answer describes a different process than the one asking. It was
+    `shutil.which` alone while invocation had already moved on to
+    `resolve_cli`, and the two disagreed under exactly the PATH the launcher
+    provides — so the API advertised no CLI engines while the CLI engines
+    worked.
+    """
+    return resolve_cli(name) != name
+
+
 def _run_subprocess(cmd: list[str], timeout_s: float) -> tuple[str, float]:
     """Run ``cmd``, returning (stdout, elapsed_seconds).
 

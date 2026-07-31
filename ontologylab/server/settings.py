@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 from pathlib import Path
 from typing import Any
 
+from ontologylab.engines import resolve_available
 from ontologylab.paths import (
     DEFAULT_ENGINE,
     DEFAULT_MODEL,
@@ -125,7 +125,16 @@ def engines() -> list[EngineInfo]:
         infos.append(
             EngineInfo(
                 name=name,
-                available=shutil.which(cli_name) is not None,
+                # The same lookup the engine itself uses. A bare shutil.which
+                # here answered a different question than the one the caller
+                # is asking — "is it on PATH" rather than "can this server run
+                # it" — and under launchd's PATH those diverge. Every CLI
+                # engine then reported unavailable, the browser disabled them
+                # in every picker, and the chat composer's engine fell through
+                # to mock: the one engine that finds nothing in a biomedical
+                # abstract. Nothing errored. The extraction simply came back
+                # empty, which is also what a hard paper looks like.
+                available=resolve_available(cli_name),
                 default_model=_DEFAULT_MODELS.get(name),
             )
         )
