@@ -75,6 +75,9 @@ class ChatStore:
         db_path = Path(file_path)
         db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(db_path), timeout=30.0)
+        for sidecar in (db_path, *db_path.parent.glob(db_path.name + "-*")):
+            if sidecar.is_file():
+                sidecar.chmod(0o600)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.executescript(_SCHEMA)

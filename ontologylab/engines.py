@@ -524,6 +524,12 @@ class MockEngine:
 
 _DEFAULT_TIMEOUT_S = 300.0
 
+# Extraction needs only the model's text; these tools would let injected
+# document content act on the local machine.
+_CLAUDE_DISALLOWED_TOOLS = (
+    "Bash,Edit,Write,NotebookEdit,Read,Glob,Grep,WebFetch,WebSearch,Agent,mcp"
+)
+
 
 class ClaudeEngine:
     """Engine backed by the `claude` CLI.
@@ -548,7 +554,10 @@ class ClaudeEngine:
     ) -> tuple[str, dict]:
         assert_network_allowed("claude CLI engine")
         use_model = model or self._model
-        cmd = [resolve_cli("claude"), "-p", prompt, "--model", use_model]
+        # The prompt carries collected documents; tool access would let
+        # injected text act locally. Extraction needs only the text.
+        cmd = [resolve_cli("claude"), "-p", prompt, "--model", use_model,
+               "--disallowedTools", _CLAUDE_DISALLOWED_TOOLS]
         stdout, elapsed = _run_subprocess(cmd, self._timeout_s)
         usage = {"calls": 1, "elapsed": elapsed, "engine": "claude", "model": use_model}
         return stdout, usage
@@ -574,7 +583,7 @@ class CodexEngine:
     ) -> tuple[str, dict]:
         assert_network_allowed("codex CLI engine")
         use_model = model or self._model
-        cmd = [resolve_cli("codex"), "exec", prompt]
+        cmd = [resolve_cli("codex"), "exec", "--sandbox", "read-only", prompt]
         if use_model:
             cmd += ["--model", use_model]
         stdout, elapsed = _run_subprocess(cmd, self._timeout_s)
@@ -602,7 +611,7 @@ class GeminiEngine:
     ) -> tuple[str, dict]:
         assert_network_allowed("gemini CLI engine")
         use_model = model or self._model
-        cmd = [resolve_cli("gemini"), "-p", prompt]
+        cmd = [resolve_cli("gemini"), "--approval-mode", "plan", "-p", prompt]
         if use_model:
             cmd += ["--model", use_model]
         stdout, elapsed = _run_subprocess(cmd, self._timeout_s)

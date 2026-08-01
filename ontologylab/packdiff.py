@@ -15,7 +15,11 @@ from pathlib import Path
 from typing import Any
 
 from ontologylab.kgstore import KGStore
-from ontologylab.packbuilder import PackBuildError, pack_sqlite_path
+from ontologylab.packbuilder import (
+    PackBuildError,
+    pack_sqlite_path,
+    safe_pack_component,
+)
 
 # Manifest fields worth surfacing when they differ between two packs.
 _MANIFEST_FIELDS = (
@@ -37,6 +41,7 @@ _EDGE_FIELDS = (
 
 
 def _load_manifest(packs_dir: Path, pack_id: str) -> dict[str, Any]:
+    safe_pack_component(pack_id, kind="pack id")
     manifest_path = packs_dir / pack_id / "manifest.json"
     if not manifest_path.is_file():
         raise PackBuildError(f"pack {pack_id!r} has no manifest under {packs_dir}")

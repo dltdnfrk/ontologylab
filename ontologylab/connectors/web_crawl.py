@@ -22,6 +22,10 @@ from ontologylab.connectors.base import (
 )
 
 _SKIPPED_ELEMENTS = {"script", "style", "noscript", "template", "svg", "head"}
+
+# Same ceiling paper_api applies: an allowlisted host is still the network,
+# and an unbounded read lets one huge page exhaust the process.
+MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 _BLOCK_ELEMENTS = {
     "p", "div", "section", "article", "li", "ul", "ol", "table", "tr",
     "h1", "h2", "h3", "h4", "h5", "h6", "pre", "blockquote", "br",
@@ -103,7 +107,12 @@ def _fetch_url(url: str) -> str:
     request = Request(url, headers={"User-Agent": _USER_AGENT})
     with _opener.open(request, timeout=_FETCH_TIMEOUT_S) as response:
         charset = response.headers.get_content_charset() or "utf-8"
-        return response.read().decode(charset, errors="replace")
+        payload = response.read(MAX_RESPONSE_BYTES + 1)
+    if len(payload) > MAX_RESPONSE_BYTES:
+        raise ValueError(
+            f"response from {url} exceeded {MAX_RESPONSE_BYTES} bytes"
+        )
+    return payload.decode(charset, errors="replace")
 
 
 class WebCrawlConnector:

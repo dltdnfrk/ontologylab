@@ -113,6 +113,7 @@ def save_settings(settings: Settings, data_dir: Path | None = None) -> Settings:
     tmp_path.write_text(
         json.dumps(settings.model_dump(), indent=2), encoding="utf-8"
     )
+    tmp_path.chmod(0o600)
     tmp_path.replace(path)
     return settings
 

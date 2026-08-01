@@ -26,6 +26,16 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# PORT is interpolated into the generated launcher and later evaluated
+# with $((PREF_PORT+1)) — anything non-numeric becomes arithmetic
+# evaluation. Refuse it here.
+case "$PORT" in
+  ''|*[!0-9]*) echo "--port must be a number, got: $PORT" >&2; exit 2;;
+esac
+if [ "$PORT" -lt 1024 ] || [ "$PORT" -gt 65535 ]; then
+  echo "--port out of range (1024-65535): $PORT" >&2; exit 2
+fi
+
 PY="$REPO/.venv/bin/python"
 if [ ! -x "$PY" ]; then
   echo "error: venv python not found at $PY" >&2

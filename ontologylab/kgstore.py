@@ -504,6 +504,12 @@ class KGStore:
 
         db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(db_path), timeout=30.0)
+        # The KG holds a user's private research; default umask leaves it
+        # group/world-readable on a multi-user host. Owner-only, and the
+        # WAL sidecars sqlite creates get the same treatment.
+        for sidecar in (db_path, *db_path.parent.glob(db_path.name + "-*")):
+            if sidecar.is_file():
+                sidecar.chmod(0o600)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA foreign_keys=ON;")

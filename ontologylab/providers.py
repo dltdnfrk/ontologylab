@@ -156,9 +156,15 @@ def load_providers(data_dir: Path | str) -> list[Provider]:
         if not isinstance(entry, dict):
             continue
         try:
-            providers.append(_provider_from_dict(entry))
+            provider = _provider_from_dict(entry)
         except (KeyError, TypeError, ValueError):
             # One malformed entry never sinks the whole registry.
+            continue
+        try:
+            providers.append(validate_provider(provider))
+        except ProviderError:
+            # A tampered entry that registration would have refused is
+            # dropped here too: disk is not a trusted writer.
             continue
     return providers
 

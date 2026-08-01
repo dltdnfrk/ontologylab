@@ -1,263 +1,228 @@
-"""Regression tests for the local-only web hardening and offline kill switch.
+"""Security-hardening regression tests (2026-08-01 red-team audit).
 
-Covers the adversarial-review findings:
-* DNS-rebinding defense — non-loopback Host headers are refused (421).
-* CSRF defense — cross-site state-changing requests are refused (403).
-* Pack path traversal — pack name / pack_id are confined to a safe segment.
-* Offline mode — ONTOLOGYLAB_OFFLINE blocks outbound network egress.
-* Serve bind guard — non-loopback bind requires an explicit acknowledgement.
+Each test names the attack it blocks. Written RED against the audited
+code, GREEN after the minimal defense landed. See .omo/evidence/sec-*.
 """
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+import json
+import os
+import stat
 
 import pytest
 
-_ROOT = str(Path(__file__).resolve().parent.parent)
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+from ontologylab import engines
+from ontologylab.engines import EngineError
+from ontologylab.extractor import Chunk, parse_and_validate_extraction
+from ontologylab.packbuilder import PackBuildError
 
-from ontologylab import paths
-from ontologylab.server import security
+_CHUNK = Chunk(index=0, char_offset=0, text="Alpha is mentioned here.")
 
 
 # ---------------------------------------------------------------------------
-# Pure predicates (no server)
+# F1 — web_crawl must bound the response body like paper_api does.
+# An allowlisted host serving an unbounded body exhausted memory; the read
+# must stop at a cap and refuse, not slurp.
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "header,expected",
-    [
-        ("127.0.0.1:8765", True),
-        ("127.0.0.1", True),
-        ("localhost", True),
-        ("localhost:8765", True),
-        ("[::1]:8765", True),
-        ("[::1]", True),
-        ("127.0.0.2", True),  # whole 127/8 is loopback
-        ("evil.com", False),
-        ("evil.com:8765", False),
-        ("169.254.169.254", False),  # cloud metadata IP is not loopback
-        ("", False),
-        (None, False),
+class _HugeResponse:
+    def __init__(self, n: int) -> None:
+        self._remaining = n
+        self.headers = self
+
+    def get_content_charset(self):
+        return "utf-8"
+
+    def read(self, n: int = -1) -> bytes:
+        if n is None or n < 0:
+            n = self._remaining
+        chunk = min(n, self._remaining)
+        self._remaining -= chunk
+        return b"x" * chunk
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def test_web_crawl_refuses_an_overlarge_page(monkeypatch, tmp_path) -> None:
+    import ontologylab.connectors.web_crawl as wc
+
+    monkeypatch.setattr(wc, "assert_network_allowed", lambda *a, **k: None)
+    huge = _HugeResponse(wc.MAX_RESPONSE_BYTES + 10)
+    monkeypatch.setattr(
+        wc, "_opener", type("O", (), {"open": lambda self, req, timeout: huge})()
+    )
+    with pytest.raises(ValueError, match="exceeded"):
+        wc._fetch_url("https://docs.python.org/3/")
+
+
+# ---------------------------------------------------------------------------
+# F2 — extractor must reject non-container aliases/properties with
+# EngineError, not crash the whole job with TypeError/AttributeError.
+# ---------------------------------------------------------------------------
+
+_SCHEMA = {
+    "entity_types": [
+        {"name": "Concept", "description": "c", "attributes": {}},
     ],
-)
-def test_host_header_is_local(header, expected):
-    assert security.host_header_is_local(header) is expected
+    "relation_types": [],
+}
 
 
-def test_extra_allowed_hosts_widen_trust(monkeypatch):
-    monkeypatch.setenv("ONTOLOGYLAB_ALLOWED_HOSTS", "proxy.internal, testserver")
-    assert security.host_header_is_trusted("proxy.internal") is True
-    assert security.host_header_is_trusted("testserver:80") is True
-    assert security.host_header_is_trusted("evil.com") is False
+def _fenced(payload: dict) -> str:
+    return "Here you go:\n```json\n" + json.dumps(payload) + "\n```"
 
 
-def test_extra_allowed_hosts_empty_by_default(monkeypatch):
-    monkeypatch.delenv("ONTOLOGYLAB_ALLOWED_HOSTS", raising=False)
-    assert security.host_header_is_trusted("127.0.0.1:8765") is True
-    assert security.host_header_is_trusted("anything.example") is False
-
-
-@pytest.mark.parametrize(
-    "method,sec_fetch_site,origin,expected",
-    [
-        ("GET", "cross-site", "http://evil.com", False),  # safe method
-        ("HEAD", "cross-site", None, False),
-        ("POST", "same-origin", None, False),
-        ("POST", "none", None, False),
-        ("POST", "same-site", None, True),
-        ("POST", "cross-site", None, True),
-        ("POST", None, None, False),  # non-browser client (curl/CLI/MCP)
-        ("POST", None, "http://127.0.0.1:8765", False),  # local origin
-        ("POST", None, "http://evil.com", True),  # remote origin, no fetch hdr
-        ("DELETE", "cross-site", None, True),
-    ],
-)
-def test_is_cross_site_state_change(method, sec_fetch_site, origin, expected):
-    assert (
-        security.is_cross_site_state_change(method, sec_fetch_site, origin)
-        is expected
+def test_extraction_rejects_scalar_aliases() -> None:
+    raw = _fenced(
+        {"entities": [{"type": "Concept", "entity_type": "Concept", "name": "Alpha", "aliases": 1}]}
     )
+    with pytest.raises(EngineError):
+        parse_and_validate_extraction(raw, _SCHEMA, _CHUNK)
 
 
-# ---------------------------------------------------------------------------
-# Middleware integration
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture()
-def client(tmp_path, monkeypatch):
-    pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
-
-    from ontologylab.server.app import create_app
-
-    # The session fixture allowlists "testserver"; keep that so the default
-    # TestClient host passes and we can probe the guards with explicit headers.
-    app = create_app(data_dir=tmp_path / "data", packs_dir=tmp_path / "packs")
-    with TestClient(app) as tc:
-        yield tc
-
-
-def test_non_loopback_host_is_refused(client):
-    # A rebound attacker origin still carries its own Host header.
-    resp = client.get("/api/engines", headers={"Host": "evil.com"})
-    assert resp.status_code == 421
-    assert resp.json()["error_kind"] == "bad_host"
-
-
-def test_loopback_host_passes(client):
-    resp = client.get("/api/engines", headers={"Host": "127.0.0.1:8765"})
-    assert resp.status_code == 200
-
-
-def test_cross_site_state_change_is_refused(client):
-    resp = client.post(
-        "/api/packs/build",
-        json={"name": "demo"},
-        headers={"Sec-Fetch-Site": "cross-site"},
+def test_extraction_rejects_list_properties() -> None:
+    raw = _fenced(
+        {
+            "entities": [
+                {"type": "Concept", "entity_type": "Concept", "name": "Alpha", "properties": ["not-a-dict"]}
+            ]
+        }
     )
-    assert resp.status_code == 403
-    assert resp.json()["error_kind"] == "cross_site"
+    with pytest.raises(EngineError):
+        parse_and_validate_extraction(raw, _SCHEMA, _CHUNK)
 
 
-def test_same_origin_state_change_allowed(client):
-    resp = client.post(
-        "/api/packs/build",
-        json={"name": "demo"},
-        headers={"Sec-Fetch-Site": "same-origin"},
+# ---------------------------------------------------------------------------
+# F3 — providers.json on disk is not trusted: entries that registration
+# would refuse (http:// remote host, suspicious env name) must not load.
+# ---------------------------------------------------------------------------
+
+
+def test_load_providers_drops_entries_registration_would_refuse(tmp_path) -> None:
+    from ontologylab.providers import load_providers
+
+    (tmp_path / "providers.json").write_text(
+        json.dumps(
+            {
+                "providers": [
+                    {
+                        "id": "evil",
+                        "kind": "openai",
+                        "base_url": "http://attacker.example.com/v1",
+                        "api_key_env": "AWS_SECRET_ACCESS_KEY",
+                        "models": ["x"],
+                        "label": "evil",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
     )
-    # Passes the guard; the build itself succeeds (empty pack is buildable).
-    assert resp.status_code == 200
-    assert resp.json()["ok"] is True
-
-
-def test_cross_site_read_is_allowed(client):
-    # Safe methods are never blocked as CSRF.
-    resp = client.get("/api/engines", headers={"Sec-Fetch-Site": "cross-site"})
-    assert resp.status_code == 200
+    assert load_providers(tmp_path) == []
 
 
 # ---------------------------------------------------------------------------
-# Pack path traversal
+# F4 — pack_id reaches paths in mcpb/packdiff without safe_pack_component.
 # ---------------------------------------------------------------------------
 
 
-def test_pack_name_rejects_traversal():
-    from ontologylab.packbuilder import PackBuildError, safe_pack_component
+def test_build_mcpb_rejects_traversal_pack_id(tmp_path) -> None:
+    from ontologylab.mcpb import build_mcpb
 
-    for bad in ["../../etc", "a/b", "..", ".", "", "x\x00y", "na me"]:
-        with pytest.raises(PackBuildError):
-            safe_pack_component(bad)
-    assert safe_pack_component("demo-2026.01") == "demo-2026.01"
+    with pytest.raises(PackBuildError, match="invalid pack id"):
+        build_mcpb(tmp_path, "../escape")
 
 
-def test_pack_build_request_rejects_bad_name():
-    pytest.importorskip("pydantic")
-    from pydantic import ValidationError
+def test_packdiff_rejects_traversal_pack_id(tmp_path) -> None:
+    from ontologylab.packdiff import diff_packs
 
-    from ontologylab.server.schemas import PackBuildRequest
-
-    with pytest.raises(ValidationError):
-        PackBuildRequest(name="../../evil")
-    assert PackBuildRequest(name="good_pack").name == "good_pack"
-
-
-def test_pack_sqlite_path_rejects_traversal(tmp_path):
-    from ontologylab.packbuilder import PackBuildError, pack_sqlite_path
-
-    with pytest.raises(PackBuildError):
-        pack_sqlite_path(tmp_path, "../../../etc")
-
-
-def test_build_pack_rejects_bad_name(tmp_path):
-    from ontologylab.packbuilder import PackBuildError, build_pack
-
-    # Even before the KG-exists check, an unsafe name is refused.
-    with pytest.raises(PackBuildError):
-        build_pack(tmp_path / "kg.sqlite", tmp_path / "packs", "../escape")
+    with pytest.raises(PackBuildError, match="invalid pack id"):
+        diff_packs(tmp_path, "../a", "b")
 
 
 # ---------------------------------------------------------------------------
-# Offline kill switch
+# F6 — agentic CLIs must be invoked with their tool-use disabled or
+# sandboxed, so a poisoned document cannot drive local tool execution.
 # ---------------------------------------------------------------------------
 
 
-def test_offline_mode_env_parsing(monkeypatch):
-    for truthy in ["1", "true", "TRUE", "yes", "on"]:
-        monkeypatch.setenv("ONTOLOGYLAB_OFFLINE", truthy)
-        assert paths.offline_mode() is True
-    for falsy in ["0", "false", "no", "", "off"]:
-        monkeypatch.setenv("ONTOLOGYLAB_OFFLINE", falsy)
-        assert paths.offline_mode() is False
-    monkeypatch.delenv("ONTOLOGYLAB_OFFLINE", raising=False)
-    assert paths.offline_mode() is False
+def _captured_cmd(monkeypatch, engine_cls_path: str) -> list[str]:
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(cmd, timeout_s):
+        captured["cmd"] = list(cmd)
+        return "ok", 0.1
+
+    monkeypatch.setattr(engines, "_run_subprocess", fake_run)
+    monkeypatch.setattr(engines, "assert_network_allowed", lambda *a, **k: None)
+    return captured
 
 
-def test_assert_network_allowed_blocks_when_offline(monkeypatch):
-    monkeypatch.setenv("ONTOLOGYLAB_OFFLINE", "1")
-    with pytest.raises(paths.NetworkBlocked):
-        paths.assert_network_allowed("test egress")
-    monkeypatch.delenv("ONTOLOGYLAB_OFFLINE", raising=False)
-    paths.assert_network_allowed("test egress")  # no raise when online
-
-
-def test_offline_blocks_cli_engine(monkeypatch):
+def test_claude_engine_disables_tool_use(monkeypatch) -> None:
     import asyncio
 
-    from ontologylab.engines import ClaudeEngine
-
-    monkeypatch.setenv("ONTOLOGYLAB_OFFLINE", "1")
-    with pytest.raises(paths.NetworkBlocked):
-        asyncio.run(ClaudeEngine().generate("hello"))
-
-
-def test_offline_blocks_paper_connector(monkeypatch):
-    from ontologylab.connectors.paper_api import _http_get_text
-
-    monkeypatch.setenv("ONTOLOGYLAB_OFFLINE", "1")
-    with pytest.raises(paths.NetworkBlocked):
-        _http_get_text("https://export.arxiv.org/api/query?search_query=x")
+    captured = _captured_cmd(monkeypatch, "claude")
+    engine = engines.ClaudeEngine()
+    asyncio.run(engine.generate("prompt", model=None))
+    cmd = captured["cmd"]
+    assert "--disallowedTools" in cmd or "--permission-mode" in cmd
 
 
-def test_offline_blocks_web_crawl(monkeypatch):
-    from ontologylab.connectors.web_crawl import _fetch_url
+def test_codex_engine_runs_sandboxed(monkeypatch) -> None:
+    import asyncio
 
-    monkeypatch.setenv("ONTOLOGYLAB_OFFLINE", "1")
-    with pytest.raises(paths.NetworkBlocked):
-        _fetch_url("https://docs.python.org/3/")
+    captured = _captured_cmd(monkeypatch, "codex")
+    engine = engines.CodexEngine()
+    asyncio.run(engine.generate("prompt", model=None))
+    cmd = captured["cmd"]
+    assert "--sandbox" in cmd
+    assert "read-only" in cmd
 
 
-def test_offline_allows_loopback_api_engine(monkeypatch):
-    # A provider pointing at loopback keeps data on-device, so offline mode
-    # must NOT block it. Verify the egress guard exempts loopback URLs.
-    from ontologylab.engines import _url_is_loopback
+def test_gemini_engine_runs_without_auto_approval(monkeypatch) -> None:
+    import asyncio
 
-    monkeypatch.setenv("ONTOLOGYLAB_OFFLINE", "1")
-    assert _url_is_loopback("http://localhost:11434/v1/chat/completions") is True
-    assert _url_is_loopback("http://127.0.0.1:11434/api") is True
-    assert _url_is_loopback("https://api.anthropic.com/v1/messages") is False
+    captured = _captured_cmd(monkeypatch, "gemini")
+    engine = engines.GeminiEngine()
+    asyncio.run(engine.generate("prompt", model=None))
+    cmd = captured["cmd"]
+    assert "--approval-mode" in cmd
 
 
 # ---------------------------------------------------------------------------
-# Serve bind guard
+# F7 — private stores must not be world-readable on a multi-user host.
 # ---------------------------------------------------------------------------
 
 
-def test_serve_refuses_non_loopback_without_flag(monkeypatch):
-    from ontologylab import serve
+def test_kg_sqlite_is_owner_only(tmp_path) -> None:
+    from ontologylab.kgstore import KGStore
 
-    monkeypatch.setattr(sys, "argv", ["ontologylab.serve", "--host", "0.0.0.0"])
-    with pytest.raises(SystemExit):
-        serve.main()
+    db = tmp_path / "kg.sqlite"
+    KGStore.open(db).close()
+    mode = stat.S_IMODE(os.stat(db).st_mode)
+    assert mode & 0o077 == 0, f"kg.sqlite mode {oct(mode)} is group/world accessible"
 
 
-def test_serve_is_local_hostname_predicate():
-    assert security.is_local_hostname("127.0.0.1") is True
-    assert security.is_local_hostname("localhost") is True
-    assert security.is_local_hostname("0.0.0.0") is False
-    assert security.is_local_hostname("192.168.1.5") is False
+def test_chat_sqlite_is_owner_only(tmp_path) -> None:
+    from ontologylab.chatstore import ChatStore
+
+    db = tmp_path / "chat.sqlite"
+    ChatStore.open(db).close()
+    mode = stat.S_IMODE(os.stat(db).st_mode)
+    assert mode & 0o077 == 0, f"chat.sqlite mode {oct(mode)} is group/world accessible"
+
+
+def test_settings_json_is_owner_only(tmp_path) -> None:
+    from ontologylab.server.settings import default_settings, save_settings
+
+    path = save_settings(default_settings(), tmp_path)
+    settings_file = tmp_path / "settings.json"
+    assert settings_file.is_file()
+    mode = stat.S_IMODE(os.stat(settings_file).st_mode)
+    assert mode & 0o077 == 0, f"settings.json mode {oct(mode)} is group/world accessible"

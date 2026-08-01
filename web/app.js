@@ -991,7 +991,7 @@
       var cost = await api("/api/cost");
       $("#cost-pre").textContent = formatCost(cost);
     } catch (e) {
-      list.innerHTML = "<li class='err-msg'>" + e.message + "</li>";
+      list.innerHTML = "<li class='err-msg'>" + escapeHtml(e.message || String(e)) + "</li>";
     }
     // Providers render independently — its own try/catch keeps a provider
     // fetch failure from blanking the engine list (and vice versa).

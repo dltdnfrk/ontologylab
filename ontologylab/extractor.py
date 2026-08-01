@@ -282,11 +282,22 @@ def parse_and_validate_extraction(
             span = relocated
 
         aliases_raw = raw_ent.get("aliases") or []
+        if not isinstance(aliases_raw, list):
+            raise EngineError(
+                f"entity[{i}] {name!r}: aliases must be a list, got "
+                f"{type(aliases_raw).__name__}"
+            )
         aliases = [a.strip() for a in aliases_raw if isinstance(a, str) and a.strip()]
 
         allowed_attrs = entity_types[etype]["attributes"]
+        properties_raw = raw_ent.get("properties") or {}
+        if not isinstance(properties_raw, dict):
+            raise EngineError(
+                f"entity[{i}] {name!r}: properties must be an object, got "
+                f"{type(properties_raw).__name__}"
+            )
         properties: dict[str, Any] = {}
-        for prop_key, value in (raw_ent.get("properties") or {}).items():
+        for prop_key, value in properties_raw.items():
             spec = allowed_attrs.get(prop_key)
             if spec is None:
                 warnings.append(

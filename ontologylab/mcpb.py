@@ -26,7 +26,10 @@ from pathlib import Path
 from typing import Any
 
 from ontologylab import __version__
-from ontologylab.packbuilder import PackBuildError
+from ontologylab.packbuilder import (
+    PackBuildError,
+    safe_pack_component,
+)
 
 MCPB_MANIFEST_VERSION = "0.2"
 
@@ -111,6 +114,7 @@ def build_mcpb(
     ontologylab version (and thus the manifest) changed.
     """
     packs_dir = Path(packs_dir)
+    safe_pack_component(pack_id, kind="pack id")
     pack_dir = packs_dir / pack_id
     pack_manifest = _load_pack_manifest(pack_dir)
     if pack_manifest.get("pack_id") != pack_id:
