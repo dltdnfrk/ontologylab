@@ -36,7 +36,14 @@ from ontologylab.kgstore import KGStore
 
 DEFAULT_ALPHA = 0.05
 
-# Latest critic score per (kind, item), joined to the human decision.
+# Latest critic score per (kind, item), joined to the human decision —
+# restricted to the CURRENT critic stream. Split conformal needs
+# exchangeable scores, and a score's scale is a property of the
+# (engine, model, prompt_version) that produced it: mixing a cheap critic's
+# 0.1 with a frontier critic's 0.95 in one calibration set calibrates the
+# threshold to neither (2026-08-01 audit). The stream is whatever wrote the
+# most recent review; after a critic switch the honest answer is "not yet"
+# until the new stream has its own history.
 # `status` is the label: verified = the human kept it, rejected = the human
 # threw it out. Proposed items are the ones a threshold would triage, so
 # they are excluded from calibration by construction.
@@ -50,6 +57,12 @@ JOIN (
            ) AS rn
     FROM critic_reviews
     WHERE kind = :kind
+      AND engine = (SELECT engine FROM critic_reviews
+                    WHERE kind = :kind ORDER BY created_ts DESC LIMIT 1)
+      AND model IS (SELECT model FROM critic_reviews
+                    WHERE kind = :kind ORDER BY created_ts DESC LIMIT 1)
+      AND prompt_version = (SELECT prompt_version FROM critic_reviews
+                            WHERE kind = :kind ORDER BY created_ts DESC LIMIT 1)
 ) c ON c.item_id = n.id AND c.rn = 1
 WHERE n.status IN ('verified', 'rejected')
 """
