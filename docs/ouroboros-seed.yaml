@@ -1,0 +1,240 @@
+# Ouroboros Seed — ontologylab
+#
+# seed_id:      seed_4beda6e95da5
+# interview_id: interview_20260801_062141
+# generated_at: 2026-08-01
+# spec:         docs/PRODUCT_SPEC.md (사람이 읽는 명세서, 이 Seed를 부록 A에 포함)
+#
+# 이 파일은 인터뷰로 확정된 요구사항의 불변 스냅샷이다. 편집하지 않는다.
+# 요구사항이 바뀌면 인터뷰를 이어서 새 Seed를 생성한다.
+# 인터뷰 상태 원본: ~/.ouroboros/data/interview_interview_20260801_062141.json
+
+goal: Build OntologyLab as a local-first single-user knowledge graph pipeline where
+  AI proposes and humans verify, exposing immutable verified-only knowledge packs
+  to agents via a read-only MCP server — with the MUNI portfolio metadata (decisions,
+  rationale, boundaries, inter-project relationships) as the first domain pack instance
+  of a general-purpose pipeline.
+task_type: code
+brownfield_context:
+  project_type: brownfield
+  context_references:
+  - path: /Users/hyunjun/Documents/MUNI/ontologylab
+    role: primary
+    summary: Canonical project root — local-first KG pipeline with guided pipeline,
+      review queue, and graph browser screens implemented
+  - path: /Users/hyunjun/Documents/MUNI/ontologylab/ontologylab/kgstore.py
+    role: reference
+    summary: KG store with REVIEW_STATUSES = ("proposed", "verified", "rejected")
+      defining the lifecycle state machine
+  - path: /Users/hyunjun/Documents/MUNI/ontologylab/ontologylab/connectors/allowlist.py
+    role: reference
+    summary: Endpoint positive allowlist using host/source exact-match; PAPER_API_SOURCES
+      includes europepmc and clinicaltrials; no topic/domain filter
+  - path: /Users/hyunjun/Documents/MUNI/ontologylab/server/routes.py
+    role: reference
+    summary: FastAPI routes with 21 Query defaults — must not be called as plain functions
+      without supplying every parameter by name
+  - path: /Users/hyunjun/Documents/MUNI/ontologylab/tests
+    role: reference
+    summary: Test suite with conftest.py autouse fixture redirecting settings writes;
+      pytest configured with -q in pyproject.toml
+  existing_patterns:
+  - Proposal-to-verification state machine (proposed/verified/rejected) with human
+    approval gate
+  - Immutable pack generation from verified-only items with bitemporal tracking
+  - Endpoint positive allowlist for external network sources (host/source exact-match,
+    no topic filter)
+  - Local file collection path for non-network sources bypassing allowlist
+  - Ontology schema presets (schemas.PRESETS) with additive switching preserving schema_version_id
+    on existing proposals
+  - MCP server exposing read-only query surface
+  - Mutation testing over coverage as verification standard
+  - Data directory at ~/Library/Application Support/ontologylab/data (not ./data which
+    is stale)
+  existing_dependencies:
+  - FastAPI
+  - SQLite (kg.sqlite for KG store)
+  - Claude (LLM extraction engine via --engine claude)
+  - MCP protocol (read-only server for agent consumers)
+  - pytest (test suite with -q default in pyproject.toml)
+constraints:
+- Lifecycle states are exactly proposed/verified/rejected; 'excluded' is not a state
+  but a consequence of non-verification
+- Connector constraint is an endpoint positive allowlist (ontologylab/connectors/allowlist.py)
+  using host/source exact-match; no topic or domain filter exists; PAPER_API_SOURCES
+  already includes europepmc, clinicaltrials, and other bio sources; do not describe
+  as a domain blocklist
+- 'Semantic AC keys are immutable: ac_d203e3678fabfc47, ac_34a5c4d277f023a3, ac_9a2d0b86300e29c8,
+  ac_e9a037ace863e81d'
+- 'verify_command strings are byte-exact — no -q suffix, no option normalization:
+  ac_d203e3678fabfc47→python -m pytest tests/test_kgstore.py tests/test_entity_review.py
+  tests/test_e2e_mvp.py | ac_34a5c4d277f023a3→python -m pytest tests/test_packbuilder.py
+  tests/test_bitemporal.py | ac_9a2d0b86300e29c8→python -m pytest tests/test_mcp_session.py
+  tests/test_mcp_two_tier.py | ac_e9a037ace863e81d→python -m pytest tests/test_portfolio_benchmark.py'
+- ac_e9a037ace863e81d description must state that the test is a future artifact to
+  be created during MUNI pack work and that this AC remains unverifiable with no evidence
+  until then
+- Packs are immutable and contain only verified items; MCP surface is read-only
+- Pack is a derived view and never authoritative over source documents; pack vs original
+  conflict → original is correct and pack is stale
+- Every pack answer must include source reference (which document/decision record)
+  and basis timestamp (commit/date); stale knowledge presented as current is the most
+  dangerous failure mode
+- MUNI portfolio local files enter via existing local file collection path, not through
+  network connectors or endpoint allowlist; no new unified connector abstraction required
+  for this Seed
+- Allowlist is external network endpoint-only; local filesystem sources bypass it
+  entirely
+- Pipeline and ontology/connector structure maintain general-purpose reusability beyond
+  MUNI pack, but this Seed's implementation and verification scope is the MUNI first
+  pack only
+- Neutral domains only — guardrail-derived boundary, not a product decision; shipped
+  defaults center on software docs and public scholarly metadata
+- Build agent is Claude Fable; project boundaries are defined by what can be built
+  within Claude's guardrails
+- 'Accuracy over coverage: verified half is useful, complete-but-partially-wrong is
+  untrustable; unknown is the correct answer for absent knowledge'
+- 'Conflict resolution: temporal differences (decision vs implementation state) are
+  labeled and passed through; true contradictions (same tense, same subject, opposing
+  claims) are excluded as unverified; excluded items surface as human work queue'
+acceptance_criteria:
+- description: Extracted entities and relations follow the proposed→verified→rejected
+    lifecycle with explicit human approval gating all state transitions; no content
+    reaches verified status without human action
+  semantic_ac_key: ac_accd678e56a4bd52
+  verify_command: python -m pytest tests/test_kgstore.py tests/test_entity_review.py
+    tests/test_e2e_mvp.py
+- description: Knowledge packs are immutable bundles containing only verified items
+    with bitemporal tracking that distinguishes decision timestamps from implementation
+    state; each item carries source reference and basis timestamp; items with unresolved
+    contradictions are excluded and surfaced as a human review queue
+  semantic_ac_key: ac_db5dd84b05d77588
+  verify_command: python -m pytest tests/test_packbuilder.py tests/test_bitemporal.py
+- description: MCP server exposes packs as a read-only query surface for agent consumers;
+    absent knowledge returns unknown rather than uncertain answers; pending verified-but-unreflected
+    item count is exposed so agents can judge staleness
+  semantic_ac_key: ac_781b2e2a66576dbd
+  verify_command: python -m pytest tests/test_mcp_session.py tests/test_mcp_two_tier.py
+- description: MUNI portfolio benchmark — new session agents answer the seven archaeological
+    questions (existence rationale, confirmed decisions, decision rationale, non-goals
+    and boundaries, active work ownership, inter-project interface contracts, prior
+    failures and their causes) via pack queries without file searching; this test
+    is a future artifact to be created during MUNI pack work and until then this AC
+    remains unverifiable with no evidence
+  semantic_ac_key: ac_fd76310cf7bbd7d0
+  verify_command: python -m pytest tests/test_portfolio_benchmark.py
+ontology_schema:
+  name: KnowledgeGraphPipeline
+  description: Domain model for a local-first knowledge graph pipeline that manages
+    the lifecycle of AI-proposed knowledge items through human verification into immutable
+    packs exposed via MCP
+  fields:
+  - name: proposal_id
+    type: string
+    description: Unique identifier for an extracted entity or relation proposal
+    required: true
+  - name: entity_name
+    type: string
+    description: Name of a knowledge graph node
+    required: true
+  - name: entity_type
+    type: string
+    description: Type classified by the active ontology schema preset
+    required: true
+  - name: relation_type
+    type: string
+    description: Type of directed edge between two entities
+    required: true
+  - name: lifecycle_status
+    type: string
+    description: One of proposed, verified, or rejected — only human action transitions
+      from proposed
+    required: true
+  - name: source_reference
+    type: string
+    description: Origin document path or identifier with character spans for traceability
+    required: true
+  - name: schema_version_id
+    type: string
+    description: Ontology schema version the proposal was extracted against; proposals
+      retain their original schema even after schema switches
+    required: true
+  - name: basis_timestamp
+    type: string
+    description: Commit hash or date the content is based on; distinguishes decision-time
+      from implementation-state
+    required: true
+  - name: temporal_class
+    type: string
+    description: Whether the item records a confirmed decision or an observed implementation
+      state
+    required: true
+  - name: pack_id
+    type: string
+    description: Immutable pack identifier; a new pack is created rather than updating
+      an existing one
+    required: true
+  - name: pack_basis_commit
+    type: string
+    description: Git commit or date the pack was generated against; enables agents
+      to judge staleness
+    required: true
+  - name: pending_verified_count
+    type: number
+    description: Count of verified items not yet reflected in the latest pack; exposed
+      to consumers for staleness judgment
+    required: true
+  - name: exclusion_reason
+    type: string
+    description: Why an item was excluded from a pack — unresolved contradiction or
+      unverified status; excluded items form the human work queue
+    required: true
+evaluation_principles:
+- name: accuracy_over_coverage
+  description: Verified accuracy is strictly preferred over completeness; a wrong
+    answer causes more damage than a gap because agents use pack knowledge as ground
+    truth for code generation
+  weight: 0.3
+- name: provenance_traceability
+  description: Every fact in a pack traces to a specific source document and basis
+    timestamp so agents can verify and assess currency
+  weight: 0.25
+- name: human_gate_integrity
+  description: No content transitions to verified without explicit human approval;
+    the proposed-to-verified gate is the core trust mechanism and must never be bypassed
+  weight: 0.25
+- name: staleness_observability
+  description: Consumers can determine pack age and count of pending unreflected items;
+    observable state replaces rigid refresh schedules
+  weight: 0.15
+- name: safe_failure
+  description: Absent knowledge returns unknown rather than a guess with a warning;
+    missing answers force agents to consult originals, which is the safe failure mode
+  weight: 0.05
+exit_conditions:
+- name: benchmark_pass
+  description: MUNI portfolio benchmark questions are answerable via pack queries
+  criteria: New session agent resolves the seven archaeological questions without
+    searching project files
+- name: verification_gate
+  description: All pack contents are human-verified
+  criteria: No item with lifecycle_status=proposed exists inside any generated pack
+- name: mcp_read_only
+  description: MCP surface is read-only and exposes staleness metadata
+  criteria: Pack queries return data with basis timestamps and pending counts; no
+    write operations are accepted
+- name: pipeline_generality
+  description: Pipeline is not hardcoded to MUNI portfolio
+  criteria: Ontology schema, connector structure, and extraction pipeline accept different
+    domain configurations without structural changes
+metadata:
+  seed_id: seed_4beda6e95da5
+  version: 1.0.0
+  created_at: '2026-08-01T12:52:51.423739Z'
+  ambiguity_score: 0.121
+  interview_id: interview_20260801_062141
+  parent_seed_id: null
+  generation_mode: normal
+  degraded: false
+  unresolved_slots: []
+  recovery_reason: null
