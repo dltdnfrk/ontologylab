@@ -110,8 +110,21 @@ def normalize_name(name: str) -> str:
     does not unify its own §5.5 acceptance-test variants, so the key here is
     the stricter alphanumeric-only reduction. Still exact-match resolution —
     no fuzzy merging.)
+
+    Exception: when the alphanumeric skeleton is at most three characters,
+    punctuation IS the name — C, C++ and C# are different things, and a
+    skeleton of "c" would auto-merge them without human review (measured in
+    the 2026-08-01 algorithm audit: inserting C++ after C silently merged).
+    Short names therefore key on casefold with whitespace removed but
+    punctuation kept. Borderline short pairs that ARE the same thing
+    (IL-6 vs IL6) now stay separate at insert; the merge scanner proposes
+    them to a human, which is the safe direction for an auto-merge.
     """
-    return re.sub(r"[^0-9a-z]+", "", name.casefold())
+    folded = name.casefold()
+    alnum = re.sub(r"[^0-9a-z]+", "", folded)
+    if len(alnum) <= 3:
+        return re.sub(r"\s+", "", folded)
+    return alnum
 
 
 _SCHEMA = """
@@ -577,6 +590,22 @@ class KGStore:
                 "WHERE status IN ('proposed','verified') "
                 "AND invalidated_ts IS NULL"
             )
+
+        # normalize_name gained the short-symbol carve-out (C vs C++ must
+        # not share a key). Rows keyed under the old formula keep the old
+        # key until rewritten; a lookup computing the new key would miss
+        # them and re-insert duplicates. Rekeying is idempotent and
+        # one-directional (new keys are never broader than old ones).
+        stale_keys = conn.execute(
+            "SELECT id, name, normalized_name FROM nodes"
+        ).fetchall()
+        for row in stale_keys:
+            key = normalize_name(row["name"])
+            if row["normalized_name"] != key:
+                conn.execute(
+                    "UPDATE nodes SET normalized_name = ? WHERE id = ?",
+                    (key, row["id"]),
+                )
 
     def close(self) -> None:
         self.conn.close()
@@ -2587,18 +2616,23 @@ class KGStore:
         if not key:
             return []
         status_sql = _status_clause(include_proposed)
+        # The normalized key may now CONTAIN % or _ (short symbols keep
+        # punctuation), so LIKE patterns must escape them — normalization
+        # was never a sanitizer, and widening a literal keystroke into a
+        # wildcard match returns the whole graph.
+        escaped = key.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         rows = self.conn.execute(
             f"""
             SELECT *,
                    CASE WHEN normalized_name = ?      THEN 0
-                        WHEN normalized_name LIKE ?   THEN 1
+                        WHEN normalized_name LIKE ? ESCAPE '\\'   THEN 1
                         ELSE 2 END AS rank_bucket
             FROM nodes
-            WHERE {status_sql} AND normalized_name LIKE ?
+            WHERE {status_sql} AND normalized_name LIKE ? ESCAPE '\\'
             ORDER BY rank_bucket, LENGTH(name), name
             LIMIT ?
             """,
-            (key, key + "%", "%" + key + "%", limit),
+            (key, escaped + "%", "%" + escaped + "%", limit),
         ).fetchall()
         return [_node_dict(row) for row in rows]
 

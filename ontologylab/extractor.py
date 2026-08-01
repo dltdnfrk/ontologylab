@@ -207,12 +207,45 @@ def _locate(chunk_text: str, surface: str) -> SourceSpan | None:
     """
     match = re.search(re.escape(surface), chunk_text, re.IGNORECASE)
     if match is None:
-        return None
+        return _locate_skeleton(chunk_text, surface)
     return SourceSpan(start=match.start(), end=match.end())
 
 
+def _alnum_skeleton(text: str) -> str:
+    return re.sub(r"[^0-9a-z]+", "", text.casefold())
+
+
+def _locate_skeleton(chunk_text: str, surface: str) -> SourceSpan | None:
+    """Locate ``surface`` by alphanumeric skeleton, mapping back to offsets.
+
+    A name the model canonicalized (RateLimiter) is still grounded when the
+    document wrote it differently (rate-limiter) — rejecting those taught
+    the queue to drop real mentions (2026-08-01 audit). Matching runs on the
+    skeleton; the returned span indexes the ORIGINAL chunk text, and each
+    casefolded character keeps its own offset so length-changing folds
+    (ß→ss) cannot shift the citation."""
+    target = _alnum_skeleton(surface)
+    if not target:
+        return None
+    skeleton: list[str] = []
+    offsets: list[int] = []
+    for index, char in enumerate(chunk_text):
+        for folded in char.casefold():
+            if re.match(r"[0-9a-z]", folded):
+                skeleton.append(folded)
+                offsets.append(index)
+    pos = "".join(skeleton).find(target)
+    if pos < 0:
+        return None
+    return SourceSpan(start=offsets[pos], end=offsets[pos + len(target) - 1] + 1)
+
+
 def _span_cites(chunk_text: str, span: SourceSpan, surface: str) -> bool:
-    return surface.casefold() in chunk_text[span.start : span.end].casefold()
+    if surface.casefold() in chunk_text[span.start : span.end].casefold():
+        return True
+    return _alnum_skeleton(surface) in _alnum_skeleton(
+        chunk_text[span.start : span.end]
+    )
 
 
 def _clamp_confidence(raw: Any) -> float | None:
