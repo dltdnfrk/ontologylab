@@ -4,9 +4,9 @@
 schema_version: 1
 doc_id: ontologylab-product-spec-001
 project: ontologylab
-status: draft
+status: canonical
 owner: hyunjun (human-approval-required)
-baseline_commit: 7cdb730bc070362dfcfcd11e37588e2e7c5a1e40
+baseline_commit: d4039a8b2ac9ae46195a03a828d0d285bd9f3495
 class: new
 supersedes: none
 created_at: 2026-08-01
@@ -14,10 +14,16 @@ source_interview: interview_20260801_062141
 source_seed: seed_4beda6e95da5
 build_agent: Claude Fable
 governance_standard: MUNI/Ouroboros/documentation-governance (2026-08-01 확정)
+approvals:
+- approved_by: hyunjun
+  approved_at: 2026-08-01
+  gate: draft-to-canonical
+  checks: G0 경계 확인 통과(정본 경로·origin·HEAD·단일 워크트리 일치, 실행 중인 Ouroboros job 없음); G1 완전성 검사 통과(필수 6필드 + AC별 verification_method 존재) 및 충돌 검사 통과(다른 canonical 문서 부재, F2 문서 정합 리뷰 통과)
 ```
 
-> **상태 안내**: 이 문서는 `draft`다. 작업트리는 깨끗하나 `main`이 `origin/main`보다
-> 5커밋 앞서 있다(미푸시). 이 프로젝트는 포트폴리오 거버넌스의 **파일럿 1순위**다.
+> **상태 안내**: 이 문서는 `canonical`이다. 2026-08-01 사람 승인으로 `draft`에서
+> 승격됐다(검사 기록은 front matter의 `approvals` 참조). `main`이 `origin/main`보다
+> 7커밋 앞서 있다(미푸시). 이 프로젝트는 포트폴리오 거버넌스의 **파일럿 1순위**다.
 
 ---
 
@@ -329,10 +335,16 @@ Nipo에서 확정한 기록 부담 최소화 원칙과 같은 성격이며,
   MockEngine·`pytest -q`) 추가. 근거: 검수 보고와 코드 인용(`kgstore.py`, `allowlist.py`,
   `models.py`, `schemas.py`, `mcp_server.py`, `paths.py`, `engines.py`).
 
+- **2026-08-01 승격**: 사람 승인으로 `draft`에서 `canonical`으로 승격됐다.
+  G0 경계 확인과 G1 완전성·충돌 검사를 통과했고(기록은 front matter `approvals`),
+  거버넌스 규칙에 따라 `baseline_commit`이 정본화 시점 HEAD(`d4039a8`)로 갱신됐다.
+
 ## 커밋 지침 — 경로를 명시해서 스테이징할 것
 
-이 문서와 `docs/ouroboros-seed.yaml`은 2026-08-01에 생성된 **미추적 신규 파일**이다.
-Git 명령은 실행하지 않았으므로 커밋 여부는 이 프로젝트 세션에서 결정한다.
+**2026-08-01 실행 완료**: 이 문서와 `docs/ouroboros-seed.yaml`은 커밋 `d4039a8`으로
+경로 명시 스테이징(`git add docs/PRODUCT_SPEC.md docs/ouroboros-seed.yaml`)을 거쳐
+커밋됐다. 아래는 당시 적용된 절차의 기록이며, 이후 이 파일들을 수정해 커밋할 때도
+같은 규칙이 적용된다.
 
 **반드시 경로를 명시해서 스테이징한다:**
 
@@ -341,7 +353,7 @@ git add docs/PRODUCT_SPEC.md docs/ouroboros-seed.yaml
 ```
 
 **`git add -A`, `git add .`, `git add docs/`를 쓰지 않는다.**
-현재 이 저장소의 작업트리 상태는 0개 수정, 2개 미추적이며, `docs/` 안에 다른 미커밋 변경은 없다.
+배치 당시 이 저장소의 작업트리 상태는 0개 수정, 2개 미추적이었고, `docs/` 안에 다른 미커밋 변경은 없었다.
 일괄 스테이징하면 소유자와 완료 상태가 확인되지 않은 기존 변경까지 함께 커밋되어,
 2026-08-01에 확정한 귀속·서명 게이트를 건너뛰게 된다.
 
