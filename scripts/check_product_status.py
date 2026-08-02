@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 from dataclasses import asdict, dataclass
@@ -15,6 +16,37 @@ END: Final = "<!-- product-status:v1:end -->"
 REQUIRED_IDS: Final = ("AC-01", "AC-02", "AC-03", "CHUNK-SWEEP")
 VALID_STATUSES: Final = frozenset({"COMPLETE", "INCOMPLETE"})
 PATH_RE: Final = re.compile(r"`([^`]+)`")
+EVIDENCE_CONTRACT: Final = {
+    "AC-01": frozenset(
+        {
+            "tests/test_staleness.py::test_manifest_carries_basis_and_the_default_policy",
+            "tests/test_staleness.py::test_count_cancellation_still_reports_semantic_staleness",
+            "tests/test_staleness.py::test_same_stable_id_material_change_is_replacement",
+            "tests/test_staleness.py::test_pending_count_is_computed_live_against_the_store",
+        }
+    ),
+    "AC-02": frozenset(
+        {
+            "tests/test_registry.py::test_absent_cache_is_off_not_an_error_and_warns_once",
+            "tests/test_registry.py::test_csv_import_resolves_scientific_synonym_and_common_case_insensitively",
+            "tests/test_agrochem_schema.py::test_organisms_and_actives_carry_their_registry_identifier",
+            "tests/test_normalization.py::test_unresolved_organism_is_kept_flagged_and_model_code_is_dropped",
+            "tests/test_normalization.py::test_extraction_normalizes_before_storage_and_review_exposes_properties",
+            "tests/test_cas_normalization.py::test_alias_resolution_cache_authority_and_moa_follow_canonical_cas",
+            "tests/test_cas_normalization.py::test_unknown_active_is_flagged_without_moa_and_model_cas_is_dropped",
+        }
+    ),
+    "AC-03": frozenset(
+        {
+            "docs/FIRST-PACK-EVIDENCE.md",
+            "tests/test_mcp_two_tier.py::test_get_entity_full_record",
+            "tests/test_mcp_two_tier.py::test_fastmcp_exposes_two_tier_surface",
+        }
+    ),
+    "CHUNK-SWEEP": frozenset(
+        {"docs/CHUNK-SWEEP-2026-08.md", "scripts/sweep_chunk_size.py"}
+    ),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +127,51 @@ def _inside_root(root: Path, reference: str) -> Path | None:
     return None
 
 
+def _meaningful_test(path: Path, function_name: str) -> bool:
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, SyntaxError, UnicodeError):
+        return False
+    function = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == function_name
+        ),
+        None,
+    )
+    if function is None:
+        return False
+    return any(
+        isinstance(node, ast.Assert)
+        and not (isinstance(node.test, ast.Constant) and node.test.value is True)
+        for node in ast.walk(function)
+    )
+
+
+def _meaningful_sweep(path: Path) -> bool:
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, SyntaxError, UnicodeError):
+        return False
+    functions = {
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    chunk_sizes: object = None
+    for node in tree.body:
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if any(isinstance(target, ast.Name) and target.id == "CHUNK_SIZES" for target in targets):
+                try:
+                    chunk_sizes = ast.literal_eval(node.value)
+                except (ValueError, TypeError):
+                    pass
+    return chunk_sizes == (1500, 3000) and {"sweep_size", "run"} <= functions
+
+
 def check_status(document: Path, root: Path) -> StatusReport:
     root = root.resolve()
     document = document if document.is_absolute() else root / document
@@ -129,6 +206,12 @@ def check_status(document: Path, root: Path) -> StatusReport:
             )
         if not evidence:
             issues.append(Issue("empty_evidence", item_id, "at least one path is required"))
+        expected_evidence = EVIDENCE_CONTRACT.get(item_id)
+        if expected_evidence is not None and set(evidence) != expected_evidence:
+            missing = sorted(expected_evidence - set(evidence))
+            unexpected = sorted(set(evidence) - expected_evidence)
+            detail = f"missing={missing}; unexpected={unexpected}"
+            issues.append(Issue("evidence_contract", item_id, detail))
         if parsed_follow_up is None:
             issues.append(
                 Issue("invalid_followup", item_id, "use NONE, BLOCKING:, or NON-BLOCKING:")
@@ -154,11 +237,16 @@ def check_status(document: Path, root: Path) -> StatusReport:
             )
 
         for reference in evidence:
-            candidate = _inside_root(root, reference)
+            path_reference, separator, function_name = reference.partition("::")
+            candidate = _inside_root(root, path_reference)
             if candidate is None or not candidate.is_file():
-                issues.append(Issue("broken_path", item_id, reference))
-            else:
-                resolved_paths.add(reference)
+                issues.append(Issue("broken_path", item_id, path_reference))
+                continue
+            resolved_paths.add(path_reference)
+            if separator and not _meaningful_test(candidate, function_name):
+                issues.append(Issue("non_executable_evidence", item_id, reference))
+            elif reference == "scripts/sweep_chunk_size.py" and not _meaningful_sweep(candidate):
+                issues.append(Issue("non_executable_evidence", item_id, reference))
         entries.append(StatusEntry(item_id, status, evidence, follow_up, follow_up_detail))
 
     for item_id, count in counts.items():
