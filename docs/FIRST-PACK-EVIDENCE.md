@@ -1,5 +1,9 @@
 # First agrochem pack evidence - 2026-08-02
 
+<!-- product-evidence:v1:start -->
+{"claims":["sourced_entity_lookup","sourced_relation_traversal","full_entity_provenance","live_staleness"],"command":".venv/bin/python -m ontologylab.mcp_server --packs-dir <throwaway>/packs --live-store <throwaway>/data/kg.sqlite","evidence_id":"AC-03-FIRST-PACK","kind":"recorded-execution","result":{"content_hash":"sha256:eb233081b580a9100f08a17a4709223a9c05649607ad2848f4b6686f1e430449","edges_verified":28,"nodes_verified":29,"pack_id":"agrochem-first-20260802-223925","pending_verified_count":1}}
+<!-- product-evidence:v1:end -->
+
 This is the AC-03 evidence run over the real MCP stdio surface. It used the five
 constructed passages in `tests/gold/agrochem-mini/docs.json`, production
 `run_extraction`, and `get_engine("claude", model=None)` (resolved to

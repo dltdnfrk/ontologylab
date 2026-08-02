@@ -5,8 +5,11 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import json
 import re
+import subprocess
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Final
@@ -16,6 +19,8 @@ END: Final = "<!-- product-status:v1:end -->"
 REQUIRED_IDS: Final = ("AC-01", "AC-02", "AC-03", "CHUNK-SWEEP")
 VALID_STATUSES: Final = frozenset({"COMPLETE", "INCOMPLETE"})
 PATH_RE: Final = re.compile(r"`([^`]+)`")
+DOCUMENT_START: Final = "<!-- product-evidence:v1:start -->"
+DOCUMENT_END: Final = "<!-- product-evidence:v1:end -->"
 EVIDENCE_CONTRACT: Final = {
     "AC-01": frozenset(
         {
@@ -46,6 +51,54 @@ EVIDENCE_CONTRACT: Final = {
     "CHUNK-SWEEP": frozenset(
         {"docs/CHUNK-SWEEP-2026-08.md", "scripts/sweep_chunk_size.py"}
     ),
+}
+TEST_EVIDENCE_DIGESTS: Final = {
+    "tests/test_staleness.py::test_manifest_carries_basis_and_the_default_policy": "187ae53741bb61b723e528c0fed5974c67934271bbf23d17d54c09d2e2cbd2fd",
+    "tests/test_staleness.py::test_count_cancellation_still_reports_semantic_staleness": "490117e7b1ed4ab83eb3e7b9fea014e292dd30a51a51c2efbbee77d41507949d",
+    "tests/test_staleness.py::test_same_stable_id_material_change_is_replacement": "d39412c6b53cea442505fcc85e1953b313dd4a564f23cf9a5cf4b94cf03c60c3",
+    "tests/test_staleness.py::test_pending_count_is_computed_live_against_the_store": "c879c14e71112fdc9eaa365aa134215fc3d7ede2aff53063d14f5c37ac9669ea",
+    "tests/test_registry.py::test_absent_cache_is_off_not_an_error_and_warns_once": "c326eec4b610145db80a3d1b72becd69b32e1c772110be4f36ecff68ec515103",
+    "tests/test_registry.py::test_csv_import_resolves_scientific_synonym_and_common_case_insensitively": "0ce6de484d535417956cb912e9c02e7f92678e6d0d4f4fdd9376369c62fa538f",
+    "tests/test_agrochem_schema.py::test_organisms_and_actives_carry_their_registry_identifier": "5cb9fcfa261837e8668a0c8de2af08609fb3a7bc0c5a98aeb8bf9a484526988f",
+    "tests/test_normalization.py::test_unresolved_organism_is_kept_flagged_and_model_code_is_dropped": "e796e76ec19ced125b07c9376ab1aab12785ea95cd40c30dee032a99d45ee40e",
+    "tests/test_normalization.py::test_extraction_normalizes_before_storage_and_review_exposes_properties": "2b0c63e02f2ec11aeb4b4af4ae6a08b70aaba4ea67f8b75e05afb9ed933ca2dd",
+    "tests/test_cas_normalization.py::test_alias_resolution_cache_authority_and_moa_follow_canonical_cas": "5426ba3764035bda5cc22050c74b7353eff60ac47a08fb42bef8288a826afb9d",
+    "tests/test_cas_normalization.py::test_unknown_active_is_flagged_without_moa_and_model_cas_is_dropped": "5f4919c76a1300590de379f4e46f0fa34624a25ba0d5abbdb23de1f4748a8547",
+    "tests/test_mcp_two_tier.py::test_get_entity_full_record": "d88dc1a163345101f58ab9615f923c69e5998b8a899dbaf041bccb327774b7a6",
+    "tests/test_mcp_two_tier.py::test_fastmcp_exposes_two_tier_surface": "81899c9a0856c1515df3ef2fd90e16bc61a87c246c6ae069096152e823c94d75",
+}
+SWEEP_DIGEST: Final = "66eacf5b9d57b4687d7f0b378871ea6885ad79fd68b4e9718e3dc8b06df7045f"
+DOCUMENT_CONTRACTS: Final = {
+    "docs/FIRST-PACK-EVIDENCE.md": {
+        "claims": [
+            "sourced_entity_lookup",
+            "sourced_relation_traversal",
+            "full_entity_provenance",
+            "live_staleness",
+        ],
+        "command": ".venv/bin/python -m ontologylab.mcp_server --packs-dir <throwaway>/packs --live-store <throwaway>/data/kg.sqlite",
+        "evidence_id": "AC-03-FIRST-PACK",
+        "kind": "recorded-execution",
+        "result": {
+            "content_hash": "sha256:eb233081b580a9100f08a17a4709223a9c05649607ad2848f4b6686f1e430449",
+            "edges_verified": 28,
+            "nodes_verified": 29,
+            "pack_id": "agrochem-first-20260802-223925",
+            "pending_verified_count": 1,
+        },
+    },
+    "docs/CHUNK-SWEEP-2026-08.md": {
+        "command": ".venv/bin/python scripts/sweep_chunk_size.py --engine claude --output-dir /tmp/ontologylab-chunk-sweep-2026-08",
+        "decision": 3000,
+        "evidence_id": "CHUNK-SWEEP-2026-08",
+        "fixture": "tests/gold/agrochem-mini/docs.json",
+        "kind": "recorded-measurement",
+        "results": {
+            "1500": {"calls": 10, "triple_f1": 0.9643},
+            "3000": {"calls": 5, "triple_f1": 0.9818},
+        },
+        "sizes": [1500, 3000],
+    },
 }
 
 
@@ -127,11 +180,11 @@ def _inside_root(root: Path, reference: str) -> Path | None:
     return None
 
 
-def _meaningful_test(path: Path, function_name: str) -> bool:
+def _test_digest(path: Path, function_name: str) -> str | None:
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except (OSError, SyntaxError, UnicodeError):
-        return False
+        return None
     function = next(
         (
             node
@@ -142,34 +195,31 @@ def _meaningful_test(path: Path, function_name: str) -> bool:
         None,
     )
     if function is None:
-        return False
-    return any(
-        isinstance(node, ast.Assert)
-        and not (isinstance(node.test, ast.Constant) and node.test.value is True)
-        for node in ast.walk(function)
-    )
+        return None
+    normalized = ast.dump(function, annotate_fields=True, include_attributes=False)
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
-def _meaningful_sweep(path: Path) -> bool:
+def _documentary_evidence(path: Path, reference: str) -> bool:
     try:
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    except (OSError, SyntaxError, UnicodeError):
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
         return False
-    functions = {
-        node.name
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    }
-    chunk_sizes: object = None
-    for node in tree.body:
-        if isinstance(node, (ast.Assign, ast.AnnAssign)):
-            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-            if any(isinstance(target, ast.Name) and target.id == "CHUNK_SIZES" for target in targets):
-                try:
-                    chunk_sizes = ast.literal_eval(node.value)
-                except (ValueError, TypeError):
-                    pass
-    return chunk_sizes == (1500, 3000) and {"sweep_size", "run"} <= functions
+    if text.count(DOCUMENT_START) != 1 or text.count(DOCUMENT_END) != 1:
+        return False
+    payload_text = text.split(DOCUMENT_START, 1)[1].split(DOCUMENT_END, 1)[0].strip()
+    try:
+        payload = json.loads(payload_text)
+    except json.JSONDecodeError:
+        return False
+    return payload == DOCUMENT_CONTRACTS[reference]
+
+
+def _sweep_digest(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
 
 
 def check_status(document: Path, root: Path) -> StatusReport:
@@ -243,10 +293,19 @@ def check_status(document: Path, root: Path) -> StatusReport:
                 issues.append(Issue("broken_path", item_id, path_reference))
                 continue
             resolved_paths.add(path_reference)
-            if separator and not _meaningful_test(candidate, function_name):
-                issues.append(Issue("non_executable_evidence", item_id, reference))
-            elif reference == "scripts/sweep_chunk_size.py" and not _meaningful_sweep(candidate):
-                issues.append(Issue("non_executable_evidence", item_id, reference))
+            if separator:
+                expected_digest = TEST_EVIDENCE_DIGESTS.get(reference)
+                if expected_digest is None or _test_digest(candidate, function_name) != expected_digest:
+                    issues.append(Issue("evidence_integrity", item_id, reference))
+            elif reference in DOCUMENT_CONTRACTS and not _documentary_evidence(
+                candidate, reference
+            ):
+                issues.append(Issue("documentary_evidence", item_id, reference))
+            elif (
+                reference == "scripts/sweep_chunk_size.py"
+                and _sweep_digest(candidate) != SWEEP_DIGEST
+            ):
+                issues.append(Issue("evidence_integrity", item_id, reference))
         entries.append(StatusEntry(item_id, status, evidence, follow_up, follow_up_detail))
 
     for item_id, count in counts.items():
@@ -263,6 +322,25 @@ def check_status(document: Path, root: Path) -> StatusReport:
     )
 
 
+def _execute_test_evidence(root: Path) -> Issue | None:
+    node_ids = sorted(TEST_EVIDENCE_DIGESTS)
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", *node_ids],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return None
+    output = "\n".join(part.strip() for part in (result.stdout, result.stderr) if part.strip())
+    return Issue(
+        "evidence_execution",
+        "DOCUMENT",
+        f"pytest exit {result.returncode}: {output[-4000:]}",
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path.cwd(), help="repository root")
@@ -276,6 +354,20 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     report = check_status(args.document, args.root)
+    if report.ok:
+        execution_issue = _execute_test_evidence(args.root.resolve())
+        if execution_issue is not None:
+            report = StatusReport(
+                False,
+                report.entries,
+                report.resolved_paths,
+                report.issues + (execution_issue,),
+            )
+    if report.ok:
+        print(
+            f"EVIDENCE: {len(TEST_EVIDENCE_DIGESTS)} canonical pytest nodes passed",
+            file=sys.stderr,
+        )
     if args.json:
         print(json.dumps(report.payload(), ensure_ascii=False, sort_keys=True))
     else:

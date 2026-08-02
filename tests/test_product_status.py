@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import ast
 import json
 import re
 import shlex
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 from scripts.check_product_status import check_status
 
@@ -49,24 +52,17 @@ TEST_FUNCTIONS = {
 
 
 def _fixture(root: Path, rows: str = ROWS) -> Path:
-    (root / "docs").mkdir(exist_ok=True)
-    (root / "tests").mkdir(exist_ok=True)
-    (root / "scripts").mkdir(exist_ok=True)
-    for relative, names in TEST_FUNCTIONS.items():
-        path = root / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            "\n".join(f"def {name}():\n    assert object() is not None\n" for name in names),
-            encoding="utf-8",
-        )
-    (root / "docs/FIRST-PACK-EVIDENCE.md").write_text("# First pack evidence\n", encoding="utf-8")
-    (root / "docs/CHUNK-SWEEP-2026-08.md").write_text("# Chunk sweep\n", encoding="utf-8")
-    (root / "scripts/sweep_chunk_size.py").write_text(
-        "CHUNK_SIZES = (1500, 3000)\n"
-        "async def sweep_size():\n    return CHUNK_SIZES\n"
-        "async def run():\n    return await sweep_size()\n",
-        encoding="utf-8",
+    repository = Path(__file__).resolve().parents[1]
+    paths = (
+        *TEST_FUNCTIONS,
+        "docs/FIRST-PACK-EVIDENCE.md",
+        "docs/CHUNK-SWEEP-2026-08.md",
+        "scripts/sweep_chunk_size.py",
     )
+    for relative in paths:
+        destination = root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes((repository / relative).read_bytes())
     document = root / "docs/PRODUCT_SPEC.md"
     document.write_text(
         "# Product\n\n<!-- product-status:v1:start -->\n"
@@ -75,6 +71,21 @@ def _fixture(root: Path, rows: str = ROWS) -> Path:
         encoding="utf-8",
     )
     return document
+
+
+def _replace_test_body(path: Path, function_name: str, body: str) -> None:
+    source = path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == function_name
+    )
+    lines = source.splitlines(keepends=True)
+    replacement = "".join(f"    {line}\n" for line in body.splitlines())
+    lines[function.body[0].lineno - 1 : function.end_lineno] = [replacement]
+    path.write_text("".join(lines), encoding="utf-8")
 
 
 def test_parses_statuses_followups_and_resolved_paths(tmp_path: Path) -> None:
@@ -162,16 +173,70 @@ def test_missing_delimiters_and_invalid_status_fail(tmp_path: Path) -> None:
     assert any(issue.code == "invalid_status" for issue in invalid.issues)
 
 
-def test_semantically_hollow_or_comment_only_test_evidence_fails(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "body",
+    (
+        "assert 1",
+        "assert object() is not None",
+        "# assertion intentionally removed\n    pass",
+    ),
+)
+def test_tautological_or_comment_only_test_evidence_fails(
+    tmp_path: Path, body: str
+) -> None:
     document = _fixture(tmp_path)
-    (tmp_path / "tests/test_staleness.py").write_text(
-        "# def test_manifest_carries_basis_and_the_default_policy(): assert contract\n",
+    path = tmp_path / "tests/test_staleness.py"
+    _replace_test_body(
+        path,
+        "test_manifest_carries_basis_and_the_default_policy",
+        body,
+    )
+
+    report = check_status(document, tmp_path)
+
+    assert any(issue.code == "evidence_integrity" for issue in report.issues)
+
+
+def test_empty_documentary_evidence_fails(tmp_path: Path) -> None:
+    document = _fixture(tmp_path)
+    (tmp_path / "docs/FIRST-PACK-EVIDENCE.md").write_text("", encoding="utf-8")
+
+    report = check_status(document, tmp_path)
+
+    assert any(issue.code == "documentary_evidence" for issue in report.issues)
+
+
+@pytest.mark.parametrize(
+    "marker",
+    (
+        "",
+        "<!-- product-evidence:v1:start -->\nnot-json\n<!-- product-evidence:v1:end -->\n",
+        '<!-- product-evidence:v1:start -->\n{"evidence_id":"wrong"}\n<!-- product-evidence:v1:end -->\n',
+    ),
+)
+def test_missing_malformed_or_wrong_documentary_marker_fails(
+    tmp_path: Path, marker: str
+) -> None:
+    document = _fixture(tmp_path)
+    (tmp_path / "docs/CHUNK-SWEEP-2026-08.md").write_text(marker, encoding="utf-8")
+
+    report = check_status(document, tmp_path)
+
+    assert any(issue.code == "documentary_evidence" for issue in report.issues)
+
+
+def test_noop_sweep_implementation_fails(tmp_path: Path) -> None:
+    document = _fixture(tmp_path)
+    (tmp_path / "scripts/sweep_chunk_size.py").write_text(
+        "CHUNK_SIZES = (1500, 3000)\n"
+        "async def sweep_size():\n    pass\n"
+        "async def run():\n    pass\n",
         encoding="utf-8",
     )
 
     report = check_status(document, tmp_path)
 
-    assert any(issue.code == "non_executable_evidence" for issue in report.issues)
+    assert any(issue.code == "evidence_integrity" for issue in report.issues)
 
 
 def test_wrong_existing_evidence_fails_the_canonical_contract(tmp_path: Path) -> None:

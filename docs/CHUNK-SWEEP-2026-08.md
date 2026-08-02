@@ -1,5 +1,9 @@
 # Agrochem chunk-size sweep - 2026-08-02
 
+<!-- product-evidence:v1:start -->
+{"command":".venv/bin/python scripts/sweep_chunk_size.py --engine claude --output-dir /tmp/ontologylab-chunk-sweep-2026-08","decision":3000,"evidence_id":"CHUNK-SWEEP-2026-08","fixture":"tests/gold/agrochem-mini/docs.json","kind":"recorded-measurement","results":{"1500":{"calls":10,"triple_f1":0.9643},"3000":{"calls":5,"triple_f1":0.9818}},"sizes":[1500,3000]}
+<!-- product-evidence:v1:end -->
+
 ## Decision
 
 **Change `TARGET_CHUNK_TOKENS` from 1,500 to 3,000.** On the five-document
