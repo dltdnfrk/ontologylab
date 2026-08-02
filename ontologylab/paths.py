@@ -169,6 +169,16 @@ def jobs_dir(data_dir: Path | str) -> Path:
     return Path(data_dir) / "jobs"
 
 
+def eppo_registry_path(data_dir: Path | str) -> Path:
+    """Return the local EPPO lookup cache under ``data_dir``.
+
+    Registry exports are licensed, user-acquired data. Keeping the derived
+    cache beside ``providers.json`` puts it inside the same gitignored mutable
+    area rather than accidentally redistributing it with the package.
+    """
+    return Path(data_dir) / "registry-eppo.sqlite"
+
+
 def providers_path(data_dir: Path | str) -> Path:
     """Return the configurable-provider registry file under ``data_dir``.
 

@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -1017,6 +1018,67 @@ def cmd_embed(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# external registry caches (licensed data stays local and gitignored)
+# ---------------------------------------------------------------------------
+
+
+def cmd_registry_import_eppo(args: argparse.Namespace) -> int:
+    from ontologylab.registry import RegistryImportError, import_eppo
+
+    try:
+        report = import_eppo(args.path, Path(args.data_dir))
+    except RegistryImportError as exc:
+        print(f"[ontologylab] EPPO import failed: {exc}", file=sys.stderr)
+        return 2
+    counts = report["counts"]
+    extras = sum(
+        count
+        for kind, count in counts.items()
+        if kind not in {"scientific", "synonym", "common"}
+    )
+    suffix = f", other={extras}" if extras else ""
+    print(
+        "[ontologylab] imported EPPO registry: "
+        f"scientific={counts.get('scientific', 0)}, "
+        f"synonym={counts.get('synonym', 0)}, "
+        f"common={counts.get('common', 0)}{suffix}; "
+        f"{report['record_counts']['surface_forms']} surface form(s)"
+    )
+    print(
+        f"[ontologylab] source sha256: "
+        f"{report['metadata']['source_file_sha256']}"
+    )
+    return 0
+
+
+def cmd_registry_fetch_eppo(args: argparse.Namespace) -> int:
+    from ontologylab.registry import EPPO_API_TOKEN_ENV, verify_eppo_api
+
+    token = os.environ.get(EPPO_API_TOKEN_ENV, "").strip()
+    if not token:
+        print(
+            "[ontologylab] EPPO_API_TOKEN is not set. Register for a free "
+            "data.eppo.int REST token and set EPPO_API_TOKEN, or use "
+            "`ontologylab registry import eppo <path>` with a manually "
+            "downloaded EPPO CSV/SQLite export (automatic SQLite download "
+            "is discontinued).",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        verify_eppo_api(token)
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"[ontologylab] EPPO API verification failed: {exc}", file=sys.stderr)
+        return 2
+    print(
+        "[ontologylab] EPPO API access verified. The discontinued bulk "
+        "SQLite snapshot has no REST equivalent; build the coherent local "
+        "cache with `ontologylab registry import eppo <path>`."
+    )
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # provider registry (configurable API model backends; keys stay in env vars)
 # ---------------------------------------------------------------------------
 
@@ -1421,6 +1483,38 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     _add_data_dir(p_embed)
     p_embed.set_defaults(func=cmd_embed)
+
+    p_registry = sub.add_parser(
+        "registry",
+        help="Manage local external-identifier registry caches.",
+    )
+    registry_sub = p_registry.add_subparsers(
+        dest="registry_command", required=True
+    )
+    p_registry_import = registry_sub.add_parser(
+        "import", help="Import a user-acquired registry export."
+    )
+    registry_import_sub = p_registry_import.add_subparsers(
+        dest="registry_import_kind", required=True
+    )
+    p_registry_import_eppo = registry_import_sub.add_parser(
+        "eppo", help="Import an EPPO CSV or SQLite export."
+    )
+    p_registry_import_eppo.add_argument("path", help="EPPO export path.")
+    _add_data_dir(p_registry_import_eppo)
+    p_registry_import_eppo.set_defaults(func=cmd_registry_import_eppo)
+
+    p_registry_fetch = registry_sub.add_parser(
+        "fetch", help="Verify access to a registry's supported API."
+    )
+    registry_fetch_sub = p_registry_fetch.add_subparsers(
+        dest="registry_fetch_kind", required=True
+    )
+    p_registry_fetch_eppo = registry_fetch_sub.add_parser(
+        "eppo", help="Verify EPPO REST access (requires EPPO_API_TOKEN)."
+    )
+    _add_data_dir(p_registry_fetch_eppo)
+    p_registry_fetch_eppo.set_defaults(func=cmd_registry_fetch_eppo)
 
     p_provider = sub.add_parser(
         "provider",

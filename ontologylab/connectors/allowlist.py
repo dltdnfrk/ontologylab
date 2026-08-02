@@ -47,6 +47,11 @@ WEB_CRAWL_ALLOWED_HOSTS: set[str] = {
     "www.rfc-editor.org",
     "peps.python.org",
     "raw.githubusercontent.com",  # project READMEs / docs
+    # EPPO registry surfaces. Exact hosts only: the import-first registry
+    # command uses data.eppo.int, while gd.eppo.int is the manual-download
+    # surface users are directed to when no API token is configured.
+    "data.eppo.int",
+    "gd.eppo.int",
 }
 
 # Paper-API sources: every entry corresponds to exactly one fixed endpoint
