@@ -96,6 +96,7 @@ def test_constructing_second_app_for_same_store_does_not_interrupt_live_claim(
         "SELECT status FROM extraction_chunks WHERE run_id = ?",
         (plan.run_id,),
     ).fetchone()["status"] == "running"
+    state.close()
     store.close()
 
 

@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
+import os
 import sqlite3
-import threading
 import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, BinaryIO, Iterable
 
 
 _SCHEMA = """
@@ -58,8 +59,64 @@ CREATE INDEX IF NOT EXISTS idx_extraction_chunks_status
 """
 
 RETRYABLE_CHUNK_STATUSES = ("pending", "failed", "interrupted")
-_RECOVERED_STORES: set[Path] = set()
-_RECOVERY_LOCK = threading.Lock()
+
+
+class _StoreOwnerLock:
+    """Process-lifetime proof for the durable owner token in SQLite.
+
+    The token remains queryable in the run/chunk rows. Its adjacent lock file
+    binds that identity to an OS-managed exclusive lock, which is released by
+    the kernel if the process exits. Merely opening the store in another
+    process therefore cannot be mistaken for restart recovery.
+    """
+
+    def __init__(self, file: BinaryIO, path: Path) -> None:
+        self._file = file
+        self._path = path
+
+    @classmethod
+    def acquire(
+        cls, conn: sqlite3.Connection, owner_token: str,
+    ) -> _StoreOwnerLock | None:
+        database = next(
+            row["file"] for row in conn.execute("PRAGMA database_list")
+            if row["name"] == "main"
+        )
+        if not database:
+            return None
+        database_path = Path(database).resolve()
+        lock_dir = database_path.with_name(
+            database_path.name + ".extraction-owners"
+        )
+        lock_dir.mkdir(parents=True, exist_ok=True)
+        lock_name = hashlib.sha256(owner_token.encode("utf-8")).hexdigest()
+        lock_path = lock_dir / f"{lock_name}.lock"
+        file = lock_path.open("a+b")
+        try:
+            fcntl.flock(file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            file.close()
+            return None
+        file.seek(0)
+        file.truncate()
+        file.write(f"{os.getpid()} {owner_token}\n".encode("ascii"))
+        file.flush()
+        os.fsync(file.fileno())
+        return cls(file, lock_path)
+
+    def close(self) -> None:
+        if self._file.closed:
+            return
+        fcntl.flock(self._file.fileno(), fcntl.LOCK_UN)
+        self._file.close()
+        try:
+            self._path.unlink()
+        except FileNotFoundError:
+            pass
+        try:
+            self._path.parent.rmdir()
+        except OSError:
+            pass
 
 
 def ensure_schema(conn: sqlite3.Connection) -> None:
@@ -90,42 +147,58 @@ def effective_extractor_model(engine: Any, requested: str | None) -> str | None:
 
 
 def interrupt_running(conn: sqlite3.Connection) -> int:
-    """Turn state left by a dead app into explicit, resumable state."""
+    """Recover only running rows whose durable owner lock is unheld."""
     ensure_schema(conn)
-    now = time.time()
-    with conn:
-        chunks = conn.execute(
-            "UPDATE extraction_chunks SET status = 'interrupted', "
-            "finished_ts = ?, owner_token = NULL WHERE status = 'running'",
-            (now,),
-        ).rowcount
-        conn.execute(
-            "UPDATE extraction_runs SET status = 'interrupted', updated_ts = ?, "
-            "owner_token = NULL WHERE status = 'running'", (now,),
+    owner_tokens = [
+        row["owner_token"] for row in conn.execute(
+            "SELECT DISTINCT owner_token FROM extraction_runs "
+            "WHERE status = 'running'"
         )
-    return chunks
+    ]
+    recovered = 0
+    for owner_token in owner_tokens:
+        # NULL is legacy pre-ownership state and has no possible live owner.
+        owner_lock = (
+            _StoreOwnerLock.acquire(conn, owner_token)
+            if owner_token is not None else None
+        )
+        if owner_token is not None and owner_lock is None:
+            continue
+        try:
+            now = time.time()
+            owner_predicate = (
+                "owner_token IS NULL"
+                if owner_token is None else "owner_token = ?"
+            )
+            owner_args = () if owner_token is None else (owner_token,)
+            with conn:
+                recovered += conn.execute(
+                    "UPDATE extraction_chunks SET status = 'interrupted', "
+                    "finished_ts = ?, owner_token = NULL WHERE status = 'running' "
+                    f"AND {owner_predicate}",
+                    (now, *owner_args),
+                ).rowcount
+                conn.execute(
+                    "UPDATE extraction_runs SET status = 'interrupted', "
+                    "updated_ts = ?, owner_token = NULL WHERE status = 'running' "
+                    f"AND {owner_predicate}",
+                    (now, *owner_args),
+                )
+        finally:
+            if owner_lock is not None:
+                owner_lock.close()
+    return recovered
 
 
 def recover_running_once(conn: sqlite3.Connection) -> int:
-    """Recover abandoned claims once at this process's store startup.
+    """Recover claims iff the OS proves their process owner is gone.
 
-    Multiple FastAPI applications can intentionally share one local store.
-    Their registries are isolated, but constructing the later app is not a
-    process restart and must not interrupt the first app's worker. A genuine
-    process restart has an empty process-local set and deterministically
-    performs recovery before accepting work.
+    Recovery is safe to call at every CLI/app startup. Each live extraction
+    holds the lock named by its durable token, so another process skips its
+    rows. Process exit releases the lock in the kernel, allowing
+    the next startup to convert abandoned running state to interrupted.
     """
-    database = next(
-        row["file"] for row in conn.execute("PRAGMA database_list")
-        if row["name"] == "main"
-    )
-    key = Path(database).resolve()
-    with _RECOVERY_LOCK:
-        if key in _RECOVERED_STORES:
-            return 0
-        recovered = interrupt_running(conn)
-        _RECOVERED_STORES.add(key)
-        return recovered
+    return interrupt_running(conn)
 
 
 def _plan_hash(chunks: Iterable[Any]) -> str:
@@ -152,7 +225,17 @@ class ExtractionState:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
         self.owner_token = uuid.uuid4().hex
+        self._owner_lock: _StoreOwnerLock | None = None
         ensure_schema(conn)
+        self._owner_lock = _StoreOwnerLock.acquire(conn, self.owner_token)
+
+    def close(self) -> None:
+        if self._owner_lock is not None:
+            self._owner_lock.close()
+            self._owner_lock = None
+
+    def __del__(self) -> None:
+        self.close()
 
     def plan(
         self,
@@ -210,7 +293,10 @@ class ExtractionState:
             run_id, status = row["id"], row["status"]
 
         owns_run = False
-        if status in {"pending", "failed", "interrupted"}:
+        if (
+            self._owner_lock is not None
+            and status in {"pending", "failed", "interrupted"}
+        ):
             with self.conn:
                 owns_run = self.conn.execute(
                     "UPDATE extraction_runs SET status = 'running', "
@@ -219,7 +305,7 @@ class ExtractionState:
                     (now, self.owner_token, run_id),
                 ).rowcount == 1
             status = "running"
-        else:
+        elif self._owner_lock is not None:
             owns_run = self.conn.execute(
                 "SELECT owner_token = ? FROM extraction_runs WHERE id = ?",
                 (self.owner_token, run_id),
@@ -234,6 +320,8 @@ class ExtractionState:
         return RunPlan(run_id, status, retryable)
 
     def claim(self, run_id: str, chunk_index: int) -> bool:
+        if self._owner_lock is None:
+            return False
         now = time.time()
         with self.conn:
             changed = self.conn.execute(

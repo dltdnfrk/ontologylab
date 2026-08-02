@@ -12,7 +12,11 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 from pathlib import Path
+import subprocess
+import sys
+import textwrap
 
 import pytest
 from types import SimpleNamespace
@@ -220,7 +224,148 @@ def test_competing_lifecycle_cannot_steal_or_finish_live_run(tmp_path) -> None:
     ).fetchall()
     assert tuple(rows[0]) == (chunks[0].index, "running")
     assert {row["status"] for row in rows[1:]} == {"pending"}
+    competitor.close()
+    owner.close()
     store.close()
+
+
+def test_live_subprocess_owner_survives_competitor_then_dead_owner_is_reclaimed(
+    tmp_path,
+) -> None:
+    data_dir = tmp_path / "cross-process-data"
+    db = paths.kg_db_path(data_dir)
+    store = KGStore.open(db)
+    doc, _ = store.insert_document(
+        source_kind="upload", source_uri="file:///cross-process.txt",
+        title="cross-process",
+        raw_text="The PaymentGateway uses the DatabaseService.",
+        content_hash="sha256:cross-process",
+    )
+    store.close()
+
+    owner_code = textwrap.dedent("""
+        import json
+        import sys
+        from ontologylab.extraction_state import ExtractionState
+        from ontologylab.extractor import chunk_document
+        from ontologylab.kgstore import KGStore
+
+        store = KGStore.open(sys.argv[1])
+        state = ExtractionState(store.conn)
+        chunks = chunk_document(store.document_raw_text(sys.argv[2]))
+        plan = state.plan(
+            sys.argv[2], chunks, schema_version_id=1, engine="mock", model=None,
+            prompt_version="extract-v1", decode_params=None,
+        )
+        assert state.claim(plan.run_id, 0)
+        print(json.dumps({"run_id": plan.run_id, "owner": state.owner_token}),
+              flush=True)
+        sys.stdin.buffer.read(1)
+    """)
+    competitor_code = textwrap.dedent("""
+        import json
+        import sys
+        from ontologylab import paths
+        from ontologylab.extraction_state import ExtractionState
+        from ontologylab.extractor import chunk_document
+        from ontologylab.kgstore import KGStore
+        from ontologylab.server.jobs import JobRegistry
+
+        data_dir, db, doc_id, run_id = sys.argv[1:]
+        JobRegistry(data_dir)
+        store = KGStore.open(db)
+        state = ExtractionState(store.conn)
+        chunks = chunk_document(store.document_raw_text(doc_id))
+        plan = state.plan(
+            doc_id, chunks, schema_version_id=1, engine="mock", model=None,
+            prompt_version="extract-v1", decode_params=None,
+        )
+        claimed = state.claim(run_id, 0)
+        state.failed(run_id, 0, "competitor")
+        finished = state.finish(run_id)
+        row = store.conn.execute(
+            "SELECT status, owner_token, attempts FROM extraction_chunks "
+            "WHERE run_id = ? AND chunk_index = 0", (run_id,),
+        ).fetchone()
+        print(json.dumps({
+            "retryable": sorted(plan.retryable), "claimed": claimed,
+            "finished": finished, "row": list(row),
+        }), flush=True)
+    """)
+    recovery_code = textwrap.dedent("""
+        import json
+        import sys
+        from ontologylab.extraction_state import ExtractionState
+        from ontologylab.extractor import chunk_document
+        from ontologylab.kgstore import KGStore
+        from ontologylab.server.jobs import JobRegistry
+
+        data_dir, db, doc_id, run_id = sys.argv[1:]
+        JobRegistry(data_dir)
+        store = KGStore.open(db)
+        state = ExtractionState(store.conn)
+        chunks = chunk_document(store.document_raw_text(doc_id))
+        plan = state.plan(
+            doc_id, chunks, schema_version_id=1, engine="mock", model=None,
+            prompt_version="extract-v1", decode_params=None,
+        )
+        claimed = state.claim(run_id, 0)
+        row = store.conn.execute(
+            "SELECT status, owner_token, attempts FROM extraction_chunks "
+            "WHERE run_id = ? AND chunk_index = 0", (run_id,),
+        ).fetchone()
+        print(json.dumps({
+            "retryable": sorted(plan.retryable), "claimed": claimed,
+            "row": list(row),
+        }), flush=True)
+        state.finish(run_id, cancelled=True)
+    """)
+    args = [str(data_dir), str(db), doc.id]
+    owner = subprocess.Popen(
+        [sys.executable, "-c", owner_code, str(db), doc.id],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert owner.stdout is not None
+        ready_line = owner.stdout.readline()
+        assert ready_line, owner.stderr.read() if owner.stderr else "owner exited"
+        ready = json.loads(ready_line)
+
+        competitor = subprocess.run(
+            [sys.executable, "-c", competitor_code, *args, ready["run_id"]],
+            check=True, capture_output=True, text=True, timeout=10,
+        )
+        live = json.loads(competitor.stdout)
+        print("LIVE " + json.dumps(live, sort_keys=True))
+        assert live == {
+            "retryable": [], "claimed": False, "finished": "running",
+            "row": ["running", ready["owner"], 1],
+        }
+
+        owner.terminate()
+        owner.wait(timeout=10)
+        recovered = subprocess.run(
+            [sys.executable, "-c", recovery_code, *args, ready["run_id"]],
+            check=True, capture_output=True, text=True, timeout=10,
+        )
+        dead = json.loads(recovered.stdout)
+        print("DEAD " + json.dumps(dead, sort_keys=True))
+        assert dead["retryable"] == [0]
+        assert dead["claimed"] is True
+        assert dead["row"][0] == "running"
+        assert dead["row"][1] not in {None, ready["owner"]}
+        assert dead["row"][2] == 2
+    finally:
+        if owner.poll() is None:
+            owner.terminate()
+            owner.wait(timeout=10)
+        if owner.stdin is not None:
+            owner.stdin.close()
+        if owner.stdout is not None:
+            owner.stdout.close()
+        if owner.stderr is not None:
+            owner.stderr.close()
 
 
 def test_app_restart_marks_a_claim_interrupted_and_resumes_it(tmp_path) -> None:
@@ -238,7 +383,10 @@ def test_app_restart_marks_a_claim_interrupted_and_resumes_it(tmp_path) -> None:
         prompt_version="extract-v1", decode_params=None,
     )
     assert state.claim(plan.run_id, 0)
-    store.close()  # process dies while the chunk is running
+    # Releasing the process-lifetime owner lock models kernel cleanup after
+    # process death; closing SQLite alone is only an ordinary store close.
+    state.close()
+    store.close()
 
     JobRegistry(data_dir)  # real app startup recovery boundary
     store = KGStore.open(paths.kg_db_path(data_dir))

@@ -702,4 +702,5 @@ async def run_extraction(
         lifecycle.finish(plan.run_id, cancelled=abort_triggered)
         if stopped_reason:
             break
+    lifecycle.close()
     return stopped_reason
