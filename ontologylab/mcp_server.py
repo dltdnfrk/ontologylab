@@ -31,6 +31,7 @@ from ontologylab.packbuilder import (
     safe_pack_component,
 )
 from ontologylab.paths import default_packs_dir
+from ontologylab.semantic_staleness import baseline_compatible, semantic_deltas
 
 
 class NoActivePack(Exception):
@@ -222,15 +223,18 @@ class PackSession:
         return self._live_store
 
     def get_staleness(self) -> dict[str, Any]:
-        """Basis metadata of the latest pack + live-computed pending count.
+        """Compare the latest immutable baseline with current verified truth.
 
-        The pending count is deliberately NOT read from any manifest: right
-        after a manual build an embedded count would always read zero, which
-        is why it is computed here — verified items in the live store minus
-        items the latest pack reflects (nodes count as verified; edges must
-        also be currently valid, matching the pack build's own predicate).
+        ``pending_verified_count`` remains the historical count-difference
+        advisory. The semantic categories are authoritative and disjoint by
+        stable id: live-only, pack-only, and same-id changed content.
         """
         packs = discover_packs(self.packs_dir)
+        unknown = {
+            "semantic_additions": None,
+            "semantic_invalidations": None,
+            "semantic_replacements": None,
+        }
         if not packs:
             return {
                 "latest_pack_id": None,
@@ -240,14 +244,14 @@ class PackSession:
                 "pack_verified_count": None,
                 "store_verified_count": None,
                 "pending_verified_count": None,
-                "note": "no packs found in packs_dir",
+                **unknown,
+                "note": "no packs found in packs_dir; semantic deltas unavailable",
             }
         latest = max(packs, key=lambda p: p.get("created_ts", 0))
         counts = latest.get("counts") or {}
         pack_count = int(counts.get("nodes_verified", 0)) + int(
             counts.get("edges_verified", 0)
         )
-
         result: dict[str, Any] = {
             "latest_pack_id": latest.get("pack_id"),
             "basis_commit": latest.get("basis_commit"),
@@ -260,8 +264,9 @@ class PackSession:
             result.update(
                 store_verified_count=None,
                 pending_verified_count=None,
-                note="live store not configured; pass --live-store to enable "
-                "the pending count",
+                **unknown,
+                note="live store not configured; semantic deltas and advisory "
+                "pending count are unavailable (pass --live-store)",
             )
             return result
         store_count = live.conn.execute(
@@ -272,8 +277,30 @@ class PackSession:
         result.update(
             store_verified_count=store_count,
             pending_verified_count=max(0, store_count - pack_count),
-            note=None,
         )
+        marker = latest.get("semantic_fact_baseline")
+        if not baseline_compatible(marker):
+            result.update(
+                **unknown,
+                note="legacy or unsupported pack semantic baseline; semantic "
+                "deltas unavailable, advisory pending count retained",
+            )
+            return result
+        ephemeral = self.store is None or self.pack_id != latest["pack_id"]
+        packed = (
+            KGStore.open(
+                pack_sqlite_path(self.packs_dir, latest["pack_id"]), read_only=True
+            )
+            if ephemeral
+            else self.store
+        )
+        assert packed is not None
+        try:
+            deltas = semantic_deltas(packed.conn, live.conn)
+        finally:
+            if ephemeral:
+                packed.close()
+        result.update(**deltas, note=None)
         return result
 
     def _provenance(self) -> dict[str, Any]:
@@ -789,9 +816,9 @@ def build_mcp_app(session: PackSession) -> Any:
 
     @mcp.tool()
     def get_staleness() -> dict[str, Any]:
-        """Basis metadata of the latest pack and the live-computed count of
-        verified items not yet reflected in any pack (pending_verified_count).
-        Use it to judge whether a pack answer may be stale before relying on it."""
+        """Compare the latest pack's semantic fact baseline with current
+        verified truth. Additions, invalidations, and same-id replacements are
+        authoritative; pending_verified_count is backward-compatible advisory."""
         return session.get_staleness()
 
     @mcp.tool()
@@ -1012,8 +1039,8 @@ def main(argv: list[str] | None = None) -> None:
         metavar="KG_SQLITE",
         help=(
             "Path to the working kg.sqlite, opened read-only. Enables "
-            "get_staleness to compute pending_verified_count live; without "
-            "it the count is reported as unavailable (never a fabricated zero)."
+            "get_staleness to compute semantic deltas and the advisory "
+            "pending count; without it they are unavailable, never zero."
         ),
     )
     parser.add_argument(

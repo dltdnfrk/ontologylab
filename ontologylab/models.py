@@ -98,6 +98,9 @@ class PackManifest:
     # Durable extraction state for the exact source streams of shipped facts,
     # including any explicit operator override used to admit incompleteness.
     extraction_completeness: dict[str, Any] | None = None
+    # Version/algorithm capability marker for semantic comparison. Actual
+    # packed facts remain solely in the content-hashed immutable pack.sqlite.
+    semantic_fact_baseline: dict[str, Any] | None = None
 
 
 @runtime_checkable

@@ -33,6 +33,7 @@ from ontologylab import __version__
 from ontologylab.kgstore import _SCHEMA, KGStore
 from ontologylab.models import PackManifest
 from ontologylab.pack_completeness import extraction_completeness, with_override
+from ontologylab.semantic_staleness import semantic_baseline_marker
 
 
 class PackBuildError(Exception):
@@ -90,9 +91,9 @@ def safe_pack_component(value: str, *, kind: str = "pack name") -> str:
 DEFAULT_STALENESS_POLICY: dict[str, Any] = {
     "pending_verified_count_threshold": 0,
     "description": (
-        "When pending_verified_count (verified items in the live store minus "
-        "items reflected in this pack) exceeds the threshold, rebuilding the "
-        "pack is recommended. Advisory; consumers may set their own threshold."
+        "pending_verified_count is a backward-compatible count-difference "
+        "advisory, not semantic truth. Semantic additions, invalidations, and "
+        "replacements are authoritative; any nonzero delta recommends rebuilding."
     ),
 }
 
@@ -331,6 +332,7 @@ def build_pack(
         basis_commit=_git_head(),
         staleness_policy=dict(DEFAULT_STALENESS_POLICY),
         extraction_completeness=completeness,
+        semantic_fact_baseline=semantic_baseline_marker(),
     )
     (pack_dir / "manifest.json").write_text(
         json.dumps(manifest.__dict__, indent=2), encoding="utf-8"

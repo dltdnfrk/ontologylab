@@ -1,12 +1,10 @@
 """Staleness observability: the pack says what it is based on, the live tier says what it missed.
 
-A pack is immutable, so "how stale is this answer" cannot live inside it —
-right after a manual build the embedded count would always read zero, which
-is why the basis metadata ships in the manifest and the pending count is
-computed at query time against the live store. These tests pin both halves,
-plus the degrade paths: no git repo means basis_commit is None (never a
-fabricated hash), and no live store configured means pending is None with a
-note, never a silent zero.
+A pack is immutable, so it ships a versioned stable-id fingerprint baseline.
+The live tier compares that baseline with current verified truth, separating
+additions, removals/invalidations, and same-id replacements. The historical
+count difference remains advisory because equal-size swaps cancel. Degrade
+paths return unknown semantic deltas, never fabricated zeros.
 """
 
 from __future__ import annotations
@@ -80,6 +78,149 @@ def test_manifest_carries_basis_and_the_default_policy(tmp_path) -> None:
     assert on_disk["basis_commit"] == manifest.basis_commit
     assert on_disk["staleness_policy"] == manifest.staleness_policy
     assert "created_ts" in on_disk
+    baseline = on_disk["semantic_fact_baseline"]
+    assert baseline["version"] == 1
+    assert baseline == {
+        "version": 1,
+        "fingerprint_algorithm": "sha256-canonical-json-v1",
+        "source": "pack.sqlite",
+    }
+    assert "nodes" not in baseline
+    assert "edges" not in baseline
+    assert len(json.dumps(baseline)) < 128
+
+
+def test_unchanged_pack_and_live_store_have_zero_semantic_deltas(tmp_path) -> None:
+    store, _ = _seed_store(tmp_path)
+    store.close()
+    build_pack(name="p1", kg_db_path=tmp_path / "kg.sqlite",
+               packs_dir=tmp_path / "packs")
+
+    session = PackSession(tmp_path / "packs", live_store_path=tmp_path / "kg.sqlite")
+    try:
+        result = session.get_staleness()
+    finally:
+        session.close()
+
+    assert result["semantic_additions"] == {"count": 0, "nodes": [], "edges": []}
+    assert result["semantic_invalidations"] == {"count": 0, "nodes": [], "edges": []}
+    assert result["semantic_replacements"] == {"count": 0, "nodes": [], "edges": []}
+
+
+def test_count_cancellation_still_reports_semantic_staleness(tmp_path) -> None:
+    """One invalidation + one addition cancels the advisory count, not meaning."""
+    store, _ = _seed_store(tmp_path)
+    edge_id = store.conn.execute("SELECT id FROM edges").fetchone()["id"]
+    store.close()
+    build_pack(name="p1", kg_db_path=tmp_path / "kg.sqlite",
+               packs_dir=tmp_path / "packs")
+
+    store = KGStore.open(tmp_path / "kg.sqlite")
+    store.invalidate_edge(edge_id, by="t", reason="superseded")
+    doc_id = store.conn.execute("SELECT id FROM documents LIMIT 1").fetchone()["id"]
+    added = make_entity("Late replacement-sized fact")
+    stats = store.insert_proposed(
+        [added], [], source_doc_id=doc_id, extractor_engine="mock",
+    )
+    added_id = stats["id_map"][added.id]
+    store.approve(added_id, by="t")
+    store.close()
+
+    session = PackSession(tmp_path / "packs", live_store_path=tmp_path / "kg.sqlite")
+    try:
+        result = session.get_staleness()
+    finally:
+        session.close()
+
+    assert result["pending_verified_count"] == 0
+    assert result["semantic_additions"] == {
+        "count": 1,
+        "nodes": [{"id": added_id, "label": "Late replacement-sized fact"}],
+        "edges": [],
+    }
+    assert result["semantic_invalidations"]["count"] == 1
+    assert result["semantic_invalidations"]["nodes"] == []
+    assert result["semantic_invalidations"]["edges"][0]["id"] == edge_id
+    assert result["semantic_replacements"]["count"] == 0
+
+
+def test_same_stable_id_material_change_is_replacement(tmp_path) -> None:
+    store, _ = _seed_store(tmp_path)
+    node_id = store.conn.execute(
+        "SELECT id FROM nodes WHERE name = 'boscalid'"
+    ).fetchone()["id"]
+    store.close()
+    build_pack(name="p1", kg_db_path=tmp_path / "kg.sqlite",
+               packs_dir=tmp_path / "packs")
+
+    store = KGStore.open(tmp_path / "kg.sqlite")
+    store.conn.execute(
+        "UPDATE nodes SET properties_json = ? WHERE id = ?",
+        ('{"mode":"changed"}', node_id),
+    )
+    store.conn.commit()
+    store.close()
+
+    session = PackSession(tmp_path / "packs", live_store_path=tmp_path / "kg.sqlite")
+    try:
+        result = session.get_staleness()
+    finally:
+        session.close()
+
+    assert result["pending_verified_count"] == 0
+    assert result["semantic_additions"]["count"] == 0
+    assert result["semantic_invalidations"]["count"] == 0
+    assert result["semantic_replacements"] == {
+        "count": 1,
+        "nodes": [{"id": node_id, "label": "boscalid"}],
+        "edges": [],
+    }
+
+
+def test_same_id_citation_change_is_replacement_but_review_time_is_not(tmp_path) -> None:
+    store, _ = _seed_store(tmp_path)
+    node_id = store.conn.execute(
+        "SELECT id FROM nodes WHERE name = 'boscalid'"
+    ).fetchone()["id"]
+    store.close()
+    build_pack(name="p1", kg_db_path=tmp_path / "kg.sqlite",
+               packs_dir=tmp_path / "packs")
+
+    store = KGStore.open(tmp_path / "kg.sqlite")
+    store.conn.execute(
+        "UPDATE nodes SET verified_ts = verified_ts + 1000 WHERE id = ?",
+        (node_id,),
+    )
+    store.conn.commit()
+    session = PackSession(tmp_path / "packs", live_store_path=tmp_path / "kg.sqlite")
+    try:
+        before_citation = session.get_staleness()
+    finally:
+        session.close()
+    assert before_citation["semantic_replacements"]["count"] == 0
+
+    doc, _ = store.insert_document(
+        source_kind="upload", source_uri="file:///evidence.txt", title="evidence",
+        raw_text="new evidence", content_hash="new-evidence-hash",
+    )
+    store.conn.execute(
+        "INSERT INTO citations (kind, item_id, source_doc_id, source_span, created_ts) "
+        "VALUES ('node', ?, ?, ?, 999999)",
+        (node_id, doc.id, '{"start":0,"end":12}'),
+    )
+    store.conn.commit()
+    store.close()
+
+    session = PackSession(tmp_path / "packs", live_store_path=tmp_path / "kg.sqlite")
+    try:
+        result = session.get_staleness()
+    finally:
+        session.close()
+    assert result["semantic_replacements"] == {
+        "count": 1,
+        "nodes": [{"id": node_id, "label": "boscalid"}],
+        "edges": [],
+    }
 
 
 def test_pending_count_is_computed_live_against_the_store(tmp_path) -> None:
@@ -131,6 +272,9 @@ def test_pending_is_none_when_no_live_store_is_configured(tmp_path) -> None:
 
     assert result["pending_verified_count"] is None
     assert result["store_verified_count"] is None
+    assert result["semantic_additions"] is None
+    assert result["semantic_invalidations"] is None
+    assert result["semantic_replacements"] is None
     assert "live store" in result["note"].lower()
     assert result["latest_pack_id"] is not None
     assert "basis_commit" in result
@@ -148,7 +292,34 @@ def test_staleness_with_no_packs_says_so(tmp_path) -> None:
 
     assert result["latest_pack_id"] is None
     assert result["pending_verified_count"] is None
+    assert result["semantic_additions"] is None
+    assert result["semantic_invalidations"] is None
+    assert result["semantic_replacements"] is None
     assert "no packs" in result["note"].lower()
+
+
+def test_legacy_manifest_without_baseline_returns_unknown_semantics(tmp_path) -> None:
+    store, _ = _seed_store(tmp_path)
+    store.close()
+    manifest = build_pack(name="p1", kg_db_path=tmp_path / "kg.sqlite",
+                          packs_dir=tmp_path / "packs")
+    path = tmp_path / "packs" / manifest.pack_id / "manifest.json"
+    legacy = json.loads(path.read_text())
+    legacy.pop("semantic_fact_baseline")
+    path.write_text(json.dumps(legacy))
+
+    session = PackSession(tmp_path / "packs", live_store_path=tmp_path / "kg.sqlite")
+    try:
+        result = session.get_staleness()
+    finally:
+        session.close()
+
+    assert result["pending_verified_count"] == 0
+    assert result["semantic_additions"] is None
+    assert result["semantic_invalidations"] is None
+    assert result["semantic_replacements"] is None
+    assert "legacy" in result["note"].lower()
+    assert "baseline" in result["note"].lower()
 
 
 def test_pending_never_goes_negative(tmp_path) -> None:
