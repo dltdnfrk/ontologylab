@@ -47,7 +47,10 @@ from ontologylab.connectors.paper_api import (
 from ontologylab.connectors.web_crawl import WebCrawlConnector
 from ontologylab.engines import EngineError, engine_name_arg, get_engine
 from ontologylab.expansion import expand_query
-from ontologylab.extraction_state import interrupt_running
+from ontologylab.extraction_state import (
+    effective_extractor_model,
+    recover_running_once,
+)
 from ontologylab.extractor import (
     TOTALS_KEYS,
     extraction_decode_params,
@@ -254,7 +257,8 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
         print(f"[ontologylab] {exc}", file=sys.stderr)
         return 1
 
-    interrupt_running(store.conn)
+    recover_running_once(store.conn)
+    effective_model = effective_extractor_model(engine, args.model)
     doc_ids = args.doc_ids or extraction_doc_ids(store)
     if not doc_ids:
         print("[ontologylab] no unprocessed documents to extract")
@@ -264,7 +268,7 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
         "extract.start",
         {
             "engine": args.engine,
-            "model": args.model,
+            "model": effective_model,
             "decode_params": decode_params,
             "doc_ids": doc_ids,
         },
@@ -288,7 +292,7 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
         caps,
         doc_ids,
         extractor_engine=args.engine,
-        extractor_model=args.model,
+        extractor_model=effective_model,
         on_progress=_print,
         on_stats=_accumulate,
         should_abort=lambda: (

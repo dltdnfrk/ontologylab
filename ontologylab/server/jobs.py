@@ -33,7 +33,10 @@ from ontologylab.connectors.base import collapse_duplicates
 from ontologylab.connectors.fulltext import enrich_with_fulltext
 from ontologylab.connectors.paper_api import SOURCE_ORDER, fetch_sources
 from ontologylab.engines import EngineError, get_engine
-from ontologylab.extraction_state import interrupt_running
+from ontologylab.extraction_state import (
+    effective_extractor_model,
+    recover_running_once,
+)
 from ontologylab.extractor import (
     extraction_decode_params,
     extraction_doc_ids,
@@ -254,7 +257,7 @@ class JobRegistry:
         # dead daemon become explicit and resumable before requests arrive.
         store = KGStore.open(paths.kg_db_path(self.data_dir))
         try:
-            interrupt_running(store.conn)
+            recover_running_once(store.conn)
         finally:
             store.close()
 
@@ -551,6 +554,9 @@ class JobRegistry:
             )
         )
         engine = get_engine(job.engine, job.model, seed=seed, data_dir=self.data_dir)
+        effective_model = effective_extractor_model(engine, job.model)
+        with job._lock:
+            job.model = effective_model
 
         # sqlite connections are thread-bound: open fresh INSIDE the worker.
         store = KGStore.open(paths.kg_db_path(self.data_dir))
@@ -588,7 +594,7 @@ class JobRegistry:
                 caps,
                 doc_ids,
                 extractor_engine=job.engine,
-                extractor_model=job.model,
+                extractor_model=effective_model,
                 on_progress=job.log,
                 on_stats=_accumulate,
                 # The seam `run_extraction` exposes for exactly this: the CLI
@@ -659,6 +665,8 @@ class JobRegistry:
                 query_engine = get_engine(
                     job.engine, job.model, seed=seed, data_dir=self.data_dir
                 )
+                with job._lock:
+                    job.model = effective_extractor_model(query_engine, job.model)
             except EngineError as exc:
                 # Not fatal here. The extract phase resolves the engine again
                 # and will fail loudly if it is genuinely unusable; the search
@@ -798,9 +806,12 @@ class JobRegistry:
             engine = get_engine(
                 job.engine, job.model, seed=seed, data_dir=self.data_dir
             )
+            effective_model = effective_extractor_model(engine, job.model)
+            with job._lock:
+                job.model = effective_model
             provenance.log(
                 "extract.start",
-                {"engine": job.engine, "model": job.model, "doc_ids": doc_ids},
+                {"engine": job.engine, "model": effective_model, "doc_ids": doc_ids},
             )
 
             def _accumulate(stats: dict[str, int]) -> None:
@@ -815,7 +826,7 @@ class JobRegistry:
                 caps,
                 doc_ids,
                 extractor_engine=job.engine,
-                extractor_model=job.model,
+                extractor_model=effective_model,
                 on_progress=job.log,
                 on_stats=_accumulate,
                 should_abort=job.cancel_reason,

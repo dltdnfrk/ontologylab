@@ -8,6 +8,10 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
+from ontologylab import paths
+from ontologylab.extraction_state import ExtractionState
+from ontologylab.extractor import chunk_document
+from ontologylab.kgstore import KGStore
 from ontologylab.server.app import create_app
 from ontologylab.server.jobs import Job
 
@@ -64,6 +68,35 @@ def test_two_apps_keep_data_settings_provenance_and_packs_isolated(tmp_path) -> 
     assert not right_packs[0]["pack_id"].startswith("left-")
     assert (left_root / "packs" / left_packs[0]["pack_id"]).is_dir()
     assert (right_root / "packs" / right_packs[0]["pack_id"]).is_dir()
+
+
+def test_constructing_second_app_for_same_store_does_not_interrupt_live_claim(
+    tmp_path,
+) -> None:
+    data_dir = tmp_path / "shared" / "data"
+    first = create_app(data_dir=data_dir, packs_dir=tmp_path / "first-packs")
+    store = KGStore.open(paths.kg_db_path(data_dir))
+    doc, _ = store.insert_document(
+        source_kind="upload", source_uri="file:///live.txt", title="live",
+        raw_text="The PaymentGateway uses the DatabaseService.",
+        content_hash="sha256:app-live",
+    )
+    chunks = chunk_document(store.document_raw_text(doc.id))
+    state = ExtractionState(store.conn)
+    plan = state.plan(
+        doc.id, chunks, schema_version_id=1, engine="mock", model=None,
+        prompt_version="extract-v1", decode_params=None,
+    )
+    assert state.claim(plan.run_id, 0)
+
+    second = create_app(data_dir=data_dir, packs_dir=tmp_path / "second-packs")
+
+    assert first.state.jobs is not second.state.jobs
+    assert store.conn.execute(
+        "SELECT status FROM extraction_chunks WHERE run_id = ?",
+        (plan.run_id,),
+    ).fetchone()["status"] == "running"
+    store.close()
 
 
 def test_two_apps_keep_job_registries_and_http_job_lists_isolated(tmp_path) -> None:

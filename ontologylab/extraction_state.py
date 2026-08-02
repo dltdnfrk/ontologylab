@@ -5,9 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import threading
 import time
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Iterable
 
 
@@ -28,6 +30,7 @@ CREATE TABLE IF NOT EXISTS extraction_runs (
     created_ts            REAL NOT NULL,
     updated_ts            REAL NOT NULL,
     finished_ts           REAL,
+    owner_token           TEXT,
     UNIQUE (document_content_hash, schema_version_id, extractor_engine,
             extractor_model, prompt_version, decode_params, chunk_plan_hash)
 );
@@ -47,6 +50,7 @@ CREATE TABLE IF NOT EXISTS extraction_chunks (
     error_kind      TEXT,
     started_ts      REAL,
     finished_ts     REAL,
+    owner_token     TEXT,
     PRIMARY KEY (run_id, chunk_index)
 );
 CREATE INDEX IF NOT EXISTS idx_extraction_chunks_status
@@ -54,14 +58,35 @@ CREATE INDEX IF NOT EXISTS idx_extraction_chunks_status
 """
 
 RETRYABLE_CHUNK_STATUSES = ("pending", "failed", "interrupted")
+_RECOVERED_STORES: set[Path] = set()
+_RECOVERY_LOCK = threading.Lock()
 
 
 def ensure_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
+    # Existing working stores predate ownership. SQLite has no
+    # ``ADD COLUMN IF NOT EXISTS``, so inspect before applying the additive,
+    # backwards-compatible migration.
+    migrations = (
+        ("extraction_runs", "owner_token"),
+        ("extraction_chunks", "owner_token"),
+    )
+    for table, column in migrations:
+        columns = {
+            row["name"] for row in conn.execute(f"PRAGMA table_info({table})")
+        }
+        if column not in columns:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+    conn.commit()
 
 
 def canonical_decode_params(params: dict[str, Any] | None) -> str:
     return json.dumps(params, sort_keys=True, separators=(",", ":"))
+
+
+def effective_extractor_model(engine: Any, requested: str | None) -> str | None:
+    """Return the model the already-resolved engine will actually use."""
+    return requested or getattr(engine, "_model", None)
 
 
 def interrupt_running(conn: sqlite3.Connection) -> int:
@@ -71,13 +96,36 @@ def interrupt_running(conn: sqlite3.Connection) -> int:
     with conn:
         chunks = conn.execute(
             "UPDATE extraction_chunks SET status = 'interrupted', "
-            "finished_ts = ? WHERE status = 'running'", (now,),
+            "finished_ts = ?, owner_token = NULL WHERE status = 'running'",
+            (now,),
         ).rowcount
         conn.execute(
-            "UPDATE extraction_runs SET status = 'interrupted', updated_ts = ? "
-            "WHERE status = 'running'", (now,),
+            "UPDATE extraction_runs SET status = 'interrupted', updated_ts = ?, "
+            "owner_token = NULL WHERE status = 'running'", (now,),
         )
     return chunks
+
+
+def recover_running_once(conn: sqlite3.Connection) -> int:
+    """Recover abandoned claims once at this process's store startup.
+
+    Multiple FastAPI applications can intentionally share one local store.
+    Their registries are isolated, but constructing the later app is not a
+    process restart and must not interrupt the first app's worker. A genuine
+    process restart has an empty process-local set and deterministically
+    performs recovery before accepting work.
+    """
+    database = next(
+        row["file"] for row in conn.execute("PRAGMA database_list")
+        if row["name"] == "main"
+    )
+    key = Path(database).resolve()
+    with _RECOVERY_LOCK:
+        if key in _RECOVERED_STORES:
+            return 0
+        recovered = interrupt_running(conn)
+        _RECOVERED_STORES.add(key)
+        return recovered
 
 
 def _plan_hash(chunks: Iterable[Any]) -> str:
@@ -103,6 +151,7 @@ class ExtractionState:
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
+        self.owner_token = uuid.uuid4().hex
         ensure_schema(conn)
 
     def plan(
@@ -160,21 +209,28 @@ class ExtractionState:
         else:
             run_id, status = row["id"], row["status"]
 
+        owns_run = False
         if status in {"pending", "failed", "interrupted"}:
             with self.conn:
-                self.conn.execute(
+                owns_run = self.conn.execute(
                     "UPDATE extraction_runs SET status = 'running', "
-                    "updated_ts = ?, finished_ts = NULL WHERE id = ?",
-                    (now, run_id),
-                )
+                    "updated_ts = ?, finished_ts = NULL, owner_token = ? "
+                    "WHERE id = ? AND status IN ('pending','failed','interrupted')",
+                    (now, self.owner_token, run_id),
+                ).rowcount == 1
             status = "running"
+        else:
+            owns_run = self.conn.execute(
+                "SELECT owner_token = ? FROM extraction_runs WHERE id = ?",
+                (self.owner_token, run_id),
+            ).fetchone()[0] == 1
         retryable = frozenset(
             row["chunk_index"] for row in self.conn.execute(
                 "SELECT chunk_index FROM extraction_chunks WHERE run_id = ? "
                 "AND status IN ('pending','failed','interrupted')",
                 (run_id,),
             )
-        )
+        ) if owns_run else frozenset()
         return RunPlan(run_id, status, retryable)
 
     def claim(self, run_id: str, chunk_index: int) -> bool:
@@ -183,9 +239,12 @@ class ExtractionState:
             changed = self.conn.execute(
                 "UPDATE extraction_chunks SET status = 'running', "
                 "attempts = attempts + 1, started_ts = ?, finished_ts = NULL, "
-                "error_kind = NULL WHERE run_id = ? AND chunk_index = ? "
-                "AND status IN ('pending','failed','interrupted')",
-                (now, run_id, chunk_index),
+                "error_kind = NULL, owner_token = ? WHERE run_id = ? "
+                "AND chunk_index = ? AND status IN "
+                "('pending','failed','interrupted') AND EXISTS (SELECT 1 FROM "
+                "extraction_runs WHERE id = ? AND owner_token = ?)",
+                (now, self.owner_token, run_id, chunk_index, run_id,
+                 self.owner_token),
             ).rowcount
         return changed == 1
 
@@ -193,34 +252,51 @@ class ExtractionState:
         self.conn.rollback()
         now = time.time()
         with self.conn:
-            self.conn.execute(
+            changed = self.conn.execute(
                 "UPDATE extraction_chunks SET status = 'failed', error_kind = ?, "
-                "finished_ts = ? WHERE run_id = ? AND chunk_index = ?",
-                (error_kind, now, run_id, chunk_index),
-            )
-            self.conn.execute(
-                "UPDATE extraction_runs SET status = 'failed', updated_ts = ?, "
-                "finished_ts = ? WHERE id = ?", (now, now, run_id),
-            )
+                "finished_ts = ?, owner_token = NULL WHERE run_id = ? AND "
+                "chunk_index = ? AND status = 'running' AND owner_token = ?",
+                (error_kind, now, run_id, chunk_index, self.owner_token),
+            ).rowcount
+            if changed:
+                self.conn.execute(
+                    "UPDATE extraction_runs SET status = 'failed', updated_ts = ?, "
+                    "finished_ts = ? WHERE id = ? AND owner_token = ?",
+                    (now, now, run_id, self.owner_token),
+                )
 
     def succeeded(
         self, run_id: str, chunk_index: int, stats: dict[str, Any]
     ) -> None:
         # Commits proposal rows and their success marker atomically.
-        self.conn.execute(
+        changed = self.conn.execute(
             "UPDATE extraction_chunks SET status = 'succeeded', stats_json = ?, "
-            "finished_ts = ? WHERE run_id = ? AND chunk_index = ?",
-            (json.dumps(stats, sort_keys=True), time.time(), run_id, chunk_index),
-        )
+            "finished_ts = ?, owner_token = NULL WHERE run_id = ? AND "
+            "chunk_index = ? AND status = 'running' AND owner_token = ?",
+            (json.dumps(stats, sort_keys=True), time.time(), run_id, chunk_index,
+             self.owner_token),
+        ).rowcount
+        if changed != 1:
+            self.conn.rollback()
+            raise RuntimeError("extraction chunk ownership was lost before success")
         self.conn.commit()
 
     def finish(self, run_id: str, *, cancelled: bool = False) -> str:
         now = time.time()
         with self.conn:
+            current = self.conn.execute(
+                "SELECT status, owner_token FROM extraction_runs WHERE id = ?",
+                (run_id,),
+            ).fetchone()
+            if current is None:
+                raise ValueError(f"unknown extraction run {run_id!r}")
+            if current["owner_token"] != self.owner_token:
+                return current["status"]
             if cancelled:
                 self.conn.execute(
                     "UPDATE extraction_chunks SET status = 'cancelled', "
-                    "finished_ts = ? WHERE run_id = ? AND status != 'succeeded'",
+                    "finished_ts = ?, owner_token = NULL WHERE run_id = ? "
+                    "AND status != 'succeeded'",
                     (now, run_id),
                 )
                 status = "cancelled"
@@ -236,14 +312,17 @@ class ExtractionState:
                 elif any(counts.get(key) for key in ("pending", "running", "interrupted")):
                     self.conn.execute(
                         "UPDATE extraction_chunks SET status = 'interrupted', "
-                        "finished_ts = ? WHERE run_id = ? AND status = 'running'",
-                        (now, run_id),
+                        "finished_ts = ?, owner_token = NULL WHERE run_id = ? "
+                        "AND status = 'running' AND owner_token = ?",
+                        (now, run_id, self.owner_token),
                     )
                     status = "interrupted"
                 else:
                     status = "complete"
             self.conn.execute(
                 "UPDATE extraction_runs SET status = ?, updated_ts = ?, "
-                "finished_ts = ? WHERE id = ?", (status, now, now, run_id),
+                "finished_ts = ?, owner_token = NULL WHERE id = ? "
+                "AND owner_token = ?",
+                (status, now, now, run_id, self.owner_token),
             )
         return status

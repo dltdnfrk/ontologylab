@@ -13,6 +13,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 from pathlib import Path
+
+import pytest
 from types import SimpleNamespace
 
 from ontologylab import paths
@@ -20,7 +22,8 @@ from ontologylab.engines import MockEngine
 from ontologylab.extraction_state import ExtractionState
 from ontologylab.extractor import chunk_document, run_extraction
 from ontologylab.kgstore import KGStore
-from ontologylab.server.jobs import JobRegistry
+from ontologylab.server import jobs as jobs_module
+from ontologylab.server.jobs import Job, JobRegistry
 from ontologylab.provenance import Provenance
 from ontologylab.safety import Caps
 
@@ -121,6 +124,103 @@ def test_restart_retries_only_unfinished_chunks_without_duplicate_citations(
         assert [row["attempts"] for row in chunks] == [1] * chunk_count
     finally:
         store.close()
+
+
+def test_effective_provider_default_is_run_identity_and_provenance(
+    tmp_path, monkeypatch,
+) -> None:
+    data_dir = tmp_path / "data"
+    store = KGStore.open(paths.kg_db_path(data_dir))
+    doc, _ = store.insert_document(
+        source_kind="upload", source_uri="file:///default.txt", title="default",
+        raw_text="The PaymentGateway uses the DatabaseService.",
+        content_hash="sha256:default-model",
+    )
+    store.close()
+
+    engine = _CountingMock()
+    engine._model = "provider-default-v2"
+    monkeypatch.setattr(jobs_module, "get_engine", lambda *args, **kwargs: engine)
+    registry = JobRegistry(data_dir)
+    job_dir = tmp_path / "job-default-model"
+    job = Job(
+        job_id=job_dir.name, kind="extract", engine="api:local", model=None,
+        started_ts=0.0,
+    )
+
+    assert asyncio.run(registry._extract_async(
+        job, job_dir, doc_ids=[doc.id], max_engine_calls=10,
+        time_budget=60.0, seed=0,
+    )) == ""
+
+    engine._model = "provider-default-v3"
+    second_job_dir = tmp_path / "job-new-default-model"
+    second_job = Job(
+        job_id=second_job_dir.name, kind="extract", engine="api:local",
+        model=None, started_ts=0.0,
+    )
+    assert asyncio.run(registry._extract_async(
+        second_job, second_job_dir, doc_ids=[doc.id], max_engine_calls=10,
+        time_budget=60.0, seed=0,
+    )) == ""
+
+    store = KGStore.open(paths.kg_db_path(data_dir))
+    try:
+        assert {
+            row["extractor_model"] for row in store.conn.execute(
+                "SELECT extractor_model FROM extraction_runs"
+            )
+        } == {"provider-default-v2", "provider-default-v3"}
+        assert "" not in {
+            row["extractor_model"] or "" for row in store.conn.execute(
+                "SELECT extractor_model FROM nodes"
+            )
+        }
+    finally:
+        store.close()
+    provenance = (job_dir / "provenance.jsonl").read_text(encoding="utf-8")
+    assert '"model": "provider-default-v2"' in provenance
+    second_provenance = (
+        second_job_dir / "provenance.jsonl"
+    ).read_text(encoding="utf-8")
+    assert '"model": "provider-default-v3"' in second_provenance
+
+
+def test_competing_lifecycle_cannot_steal_or_finish_live_run(tmp_path) -> None:
+    store = KGStore.open(tmp_path / "ownership.sqlite")
+    text = "The PaymentGateway uses the DatabaseService. " * 900
+    doc, _ = store.insert_document(
+        source_kind="upload", source_uri="file:///owned.txt", title="owned",
+        raw_text=text, content_hash="sha256:owned",
+    )
+    chunks = chunk_document(text)
+    assert len(chunks) > 1
+    owner = ExtractionState(store.conn)
+    competitor = ExtractionState(store.conn)
+    owner_plan = owner.plan(
+        doc.id, chunks, schema_version_id=1, engine="mock", model=None,
+        prompt_version="extract-v1", decode_params=None,
+    )
+    assert owner.claim(owner_plan.run_id, chunks[0].index)
+
+    competing_plan = competitor.plan(
+        doc.id, chunks, schema_version_id=1, engine="mock", model=None,
+        prompt_version="extract-v1", decode_params=None,
+    )
+    assert competing_plan.run_id == owner_plan.run_id
+    assert competing_plan.retryable == frozenset()
+    assert competitor.claim(owner_plan.run_id, chunks[1].index) is False
+    with pytest.raises(RuntimeError, match="ownership was lost"):
+        competitor.succeeded(owner_plan.run_id, chunks[0].index, {})
+    assert competitor.finish(owner_plan.run_id) == "running"
+
+    rows = store.conn.execute(
+        "SELECT chunk_index, status FROM extraction_chunks WHERE run_id = ? "
+        "ORDER BY chunk_index", (owner_plan.run_id,),
+    ).fetchall()
+    assert tuple(rows[0]) == (chunks[0].index, "running")
+    assert {row["status"] for row in rows[1:]} == {"pending"}
+    store.close()
 
 
 def test_app_restart_marks_a_claim_interrupted_and_resumes_it(tmp_path) -> None:
