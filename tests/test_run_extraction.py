@@ -168,7 +168,9 @@ def test_the_call_budget_is_spent_but_never_exceeded(tmp_path) -> None:
     budget of 1 allows the first and refuses the second — it is a ceiling on
     spend, not a refusal to start.
     """
-    text = " ".join(TEXT for _ in range(40))  # long enough to need many chunks
+    # Keep this well above the measured 3,000-token default so the second
+    # call exists for the budget gate to refuse.
+    text = " ".join(TEXT for _ in range(80))
     store = KGStore.open(tmp_path / "kg.sqlite")
     _document(store, text, "long.md")
     engine = _CountingEngine()

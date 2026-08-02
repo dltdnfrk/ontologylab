@@ -46,7 +46,7 @@ PROMPT_VERSION = "extract-v1"
 
 # Heuristic tokenizer: ~4 chars/token (no model-specific tokenizer dep).
 CHARS_PER_TOKEN = 4
-TARGET_CHUNK_TOKENS = 1500
+TARGET_CHUNK_TOKENS = 3000
 OVERLAP_TOKENS = 150
 
 

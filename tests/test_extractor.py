@@ -1,11 +1,13 @@
 """Extraction pipeline: chunking, prompt/parse contract, span rebasing."""
 
 import json
+from pathlib import Path
 
 import pytest
 
 from ontologylab.engines import EngineError, MockEngine
 from ontologylab.extractor import (
+    TARGET_CHUNK_TOKENS,
     Chunk,
     build_extraction_prompt,
     chunk_document,
@@ -50,6 +52,14 @@ def test_short_document_is_single_chunk():
     assert len(chunks) == 1
     assert chunks[0].char_offset == 0
     assert chunks[0].text == "short text"
+
+
+def test_default_chunk_size_follows_measured_agrochem_sweep():
+    # The live measurement is part of the invariant: a future default change
+    # needs a new record, not an unexplained constant edit.
+    record = Path(__file__).parent.parent / "docs/CHUNK-SWEEP-2026-08.md"
+    assert record.is_file()
+    assert TARGET_CHUNK_TOKENS == 3000
 
 
 def test_long_document_chunks_overlap_and_cover():
