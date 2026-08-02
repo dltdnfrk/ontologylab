@@ -229,13 +229,16 @@ class ExtractionState:
         ensure_schema(conn)
         self._owner_lock = _StoreOwnerLock.acquire(conn, self.owner_token)
 
+    def __enter__(self) -> ExtractionState:
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+        self.close()
+
     def close(self) -> None:
         if self._owner_lock is not None:
             self._owner_lock.close()
             self._owner_lock = None
-
-    def __del__(self) -> None:
-        self.close()
 
     def plan(
         self,

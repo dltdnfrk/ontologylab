@@ -600,107 +600,136 @@ async def run_extraction(
             # suspicious proposal per organism, active, or chunk.
             provenance.log("extract.warning", {"warning": warning})
 
-    lifecycle = ExtractionState(store.conn)
     stopped_reason = ""
     abort_triggered = False
-    for doc_id in doc_ids:
-        raw_text = store.document_raw_text(doc_id)
-        chunks = chunk_document(raw_text)
-        plan = lifecycle.plan(
-            doc_id,
-            chunks,
-            schema_version_id=schema["schema_version_id"],
-            engine=extractor_engine,
-            model=extractor_model,
-            prompt_version=PROMPT_VERSION,
-            decode_params=decode_params,
-        )
-        provenance.log("extract.doc", {"doc_id": doc_id, "chunks": len(chunks)})
-        if plan.status in {"complete", "cancelled"}:
-            continue
-        for chunk in chunks:
-            if chunk.index not in plan.retryable:
-                continue
-            stop, reason = caps.should_stop(
-                {
-                    "elapsed": provenance.elapsed_s,
-                    "engine_calls": provenance.engine_calls,
-                }
-            )
-            if stop:
-                stopped_reason = reason
-                break
-            if should_abort is not None:
-                aborted = should_abort()
-                if aborted:
-                    stopped_reason = aborted
-                    abort_triggered = True
-                    break
-            if not lifecycle.claim(plan.run_id, chunk.index):
-                continue
-            prompt = build_extraction_prompt(schema, chunk.text)
-            try:
-                raw_response, usage = await engine.generate(
-                    prompt, model=extractor_model
-                )
-            except EngineError as exc:
-                provenance.log(
-                    "extract.engine_error",
-                    {"doc_id": doc_id, "chunk": chunk.index, "error": str(exc)},
-                )
-                on_progress(
-                    f"[ontologylab] engine error on {doc_id}#{chunk.index}: {exc}"
-                )
-                lifecycle.failed(plan.run_id, chunk.index, "engine_error")
-                continue
-            provenance.track_engine_call(
-                "extract", float(usage.get("elapsed") or 0.0), usage
-            )
-            try:
-                result = parse_and_validate_extraction(raw_response, schema, chunk)
-            except EngineError as exc:
-                # malformed/off-schema response: rejected + logged, never
-                # inserted, never a crash (M4 acceptance criterion)
-                provenance.log(
-                    "extract.parse_rejected",
-                    {"doc_id": doc_id, "chunk": chunk.index, "error": str(exc)},
-                )
-                lifecycle.failed(plan.run_id, chunk.index, "parse_rejected")
-                continue
-            for warning in result.warnings:
-                provenance.log(
-                    "extract.warning",
-                    {"doc_id": doc_id, "chunk": chunk.index, "warning": warning},
-                )
-            try:
-                for entity in result.entities:
-                    if registry is not None:
-                        normalize_proposal(entity, registry)
-                    if cas_registry is not None:
-                        normalize_proposal(entity, cas_registry, moa_registry)
-                stats = store.insert_proposed(
-                    result.entities,
-                    result.relations,
-                    source_doc_id=doc_id,
-                    extractor_engine=extractor_engine,
-                    extractor_model=extractor_model,
+    with ExtractionState(store.conn) as lifecycle:
+        active_run_id: str | None = None
+        try:
+            for doc_id in doc_ids:
+                raw_text = store.document_raw_text(doc_id)
+                chunks = chunk_document(raw_text)
+                plan = lifecycle.plan(
+                    doc_id,
+                    chunks,
+                    schema_version_id=schema["schema_version_id"],
+                    engine=extractor_engine,
+                    model=extractor_model,
                     prompt_version=PROMPT_VERSION,
-                    # What the provider actually used, not merely requested.
-                    decode_params=usage.get("decode_params"),
-                    commit=False,
+                    decode_params=decode_params,
                 )
-                lifecycle.succeeded(plan.run_id, chunk.index, stats)
-            except Exception:
-                lifecycle.failed(plan.run_id, chunk.index, "write_error")
-                raise
-            on_stats(stats)
-            on_progress(
-                f"[ontologylab] {doc_id}#{chunk.index}: "
-                f"+{stats['nodes_new']} nodes (+{stats['nodes_merged']} merged), "
-                f"+{stats['edges_new']} edges"
-            )
-        lifecycle.finish(plan.run_id, cancelled=abort_triggered)
-        if stopped_reason:
-            break
-    lifecycle.close()
+                if plan.status not in {"complete", "cancelled"}:
+                    active_run_id = plan.run_id
+                provenance.log(
+                    "extract.doc", {"doc_id": doc_id, "chunks": len(chunks)}
+                )
+                if active_run_id is None:
+                    continue
+                for chunk in chunks:
+                    if chunk.index not in plan.retryable:
+                        continue
+                    stop, reason = caps.should_stop(
+                        {
+                            "elapsed": provenance.elapsed_s,
+                            "engine_calls": provenance.engine_calls,
+                        }
+                    )
+                    if stop:
+                        stopped_reason = reason
+                        break
+                    if should_abort is not None:
+                        aborted = should_abort()
+                        if aborted:
+                            stopped_reason = aborted
+                            abort_triggered = True
+                            break
+                    if not lifecycle.claim(plan.run_id, chunk.index):
+                        continue
+                    prompt = build_extraction_prompt(schema, chunk.text)
+                    try:
+                        raw_response, usage = await engine.generate(
+                            prompt, model=extractor_model
+                        )
+                    except EngineError as exc:
+                        provenance.log(
+                            "extract.engine_error",
+                            {
+                                "doc_id": doc_id,
+                                "chunk": chunk.index,
+                                "error": str(exc),
+                            },
+                        )
+                        on_progress(
+                            f"[ontologylab] engine error on "
+                            f"{doc_id}#{chunk.index}: {exc}"
+                        )
+                        lifecycle.failed(plan.run_id, chunk.index, "engine_error")
+                        continue
+                    provenance.track_engine_call(
+                        "extract", float(usage.get("elapsed") or 0.0), usage
+                    )
+                    try:
+                        result = parse_and_validate_extraction(
+                            raw_response, schema, chunk
+                        )
+                    except EngineError as exc:
+                        # malformed/off-schema response: rejected + logged, never
+                        # inserted, never a crash (M4 acceptance criterion)
+                        provenance.log(
+                            "extract.parse_rejected",
+                            {
+                                "doc_id": doc_id,
+                                "chunk": chunk.index,
+                                "error": str(exc),
+                            },
+                        )
+                        lifecycle.failed(
+                            plan.run_id, chunk.index, "parse_rejected"
+                        )
+                        continue
+                    for warning in result.warnings:
+                        provenance.log(
+                            "extract.warning",
+                            {
+                                "doc_id": doc_id,
+                                "chunk": chunk.index,
+                                "warning": warning,
+                            },
+                        )
+                    try:
+                        for entity in result.entities:
+                            if registry is not None:
+                                normalize_proposal(entity, registry)
+                            if cas_registry is not None:
+                                normalize_proposal(
+                                    entity, cas_registry, moa_registry
+                                )
+                        stats = store.insert_proposed(
+                            result.entities,
+                            result.relations,
+                            source_doc_id=doc_id,
+                            extractor_engine=extractor_engine,
+                            extractor_model=extractor_model,
+                            prompt_version=PROMPT_VERSION,
+                            # What the provider actually used, not merely requested.
+                            decode_params=usage.get("decode_params"),
+                            commit=False,
+                        )
+                        lifecycle.succeeded(plan.run_id, chunk.index, stats)
+                    except Exception:
+                        lifecycle.failed(plan.run_id, chunk.index, "write_error")
+                        raise
+                    on_stats(stats)
+                    on_progress(
+                        f"[ontologylab] {doc_id}#{chunk.index}: "
+                        f"+{stats['nodes_new']} nodes "
+                        f"(+{stats['nodes_merged']} merged), "
+                        f"+{stats['edges_new']} edges"
+                    )
+                lifecycle.finish(plan.run_id, cancelled=abort_triggered)
+                active_run_id = None
+                if stopped_reason:
+                    break
+        finally:
+            if active_run_id is not None:
+                lifecycle.finish(active_run_id)
     return stopped_reason

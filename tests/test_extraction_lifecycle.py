@@ -23,7 +23,7 @@ from types import SimpleNamespace
 
 from ontologylab import paths
 from ontologylab.engines import MockEngine
-from ontologylab.extraction_state import ExtractionState
+from ontologylab.extraction_state import ExtractionState, recover_running_once
 from ontologylab.extractor import chunk_document, run_extraction
 from ontologylab.kgstore import KGStore
 from ontologylab.server import jobs as jobs_module
@@ -291,6 +291,8 @@ def test_live_subprocess_owner_survives_competitor_then_dead_owner_is_reclaimed(
             "retryable": sorted(plan.retryable), "claimed": claimed,
             "finished": finished, "row": list(row),
         }), flush=True)
+        state.close()
+        store.close()
     """)
     recovery_code = textwrap.dedent("""
         import json
@@ -319,6 +321,8 @@ def test_live_subprocess_owner_survives_competitor_then_dead_owner_is_reclaimed(
             "row": list(row),
         }), flush=True)
         state.finish(run_id, cancelled=True)
+        state.close()
+        store.close()
     """)
     args = [str(data_dir), str(db), doc.id]
     owner = subprocess.Popen(
@@ -366,6 +370,132 @@ def test_live_subprocess_owner_survives_competitor_then_dead_owner_is_reclaimed(
             owner.stdout.close()
         if owner.stderr is not None:
             owner.stderr.close()
+
+
+def _owner_lock_files(db: Path) -> list[Path]:
+    lock_dir = db.with_name(db.name + ".extraction-owners")
+    return list(lock_dir.glob("*.lock")) if lock_dir.exists() else []
+
+
+def test_retained_exception_task_releases_owner_lock_and_finishes_run(
+    tmp_path,
+) -> None:
+    db = tmp_path / "exception.sqlite"
+    store = KGStore.open(db)
+    doc, _ = store.insert_document(
+        source_kind="upload", source_uri="file:///exception.txt",
+        title="exception",
+        raw_text="The PaymentGateway uses the DatabaseService.",
+        content_hash="sha256:exception-cleanup",
+    )
+
+    async def exercise() -> asyncio.Task:
+        callback_entered = asyncio.Event()
+
+        def fail_after_commit(_line: str) -> None:
+            callback_entered.set()
+            raise RuntimeError("hostile progress callback")
+
+        task = asyncio.create_task(run_extraction(
+            store,
+            MockEngine(seed=0),
+            Provenance(str(tmp_path / "exception-job"), seed=0),
+            _caps(),
+            [doc.id],
+            extractor_engine="mock",
+            extractor_model=None,
+            on_progress=fail_after_commit,
+            on_stats=lambda _stats: None,
+        ))
+        await asyncio.wait_for(callback_entered.wait(), timeout=10)
+        with pytest.raises(RuntimeError, match="hostile progress callback"):
+            await task
+        return task
+
+    retained_task = asyncio.run(exercise())
+    assert retained_task.exception() is not None
+    assert _owner_lock_files(db) == []
+    run = store.conn.execute(
+        "SELECT status, owner_token FROM extraction_runs"
+    ).fetchone()
+    assert tuple(run) == ("complete", None)
+
+    competitor = KGStore.open(db)
+    try:
+        assert recover_running_once(competitor.conn) == 0
+    finally:
+        competitor.close()
+    store.close()
+
+
+def test_retained_cancelled_task_releases_owner_lock_and_is_resumable(
+    tmp_path,
+) -> None:
+    db = tmp_path / "cancelled-task.sqlite"
+    store = KGStore.open(db)
+    doc, _ = store.insert_document(
+        source_kind="upload", source_uri="file:///cancelled-task.txt",
+        title="cancelled-task",
+        raw_text="The PaymentGateway uses the DatabaseService.",
+        content_hash="sha256:cancelled-task-cleanup",
+    )
+
+    class _BlockedEngine:
+        def __init__(self) -> None:
+            self.entered = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def generate(self, prompt: str, *, model: str | None = None):
+            self.entered.set()
+            await self.release.wait()
+            return await MockEngine(seed=0).generate(prompt, model=model)
+
+    async def exercise() -> asyncio.Task:
+        engine = _BlockedEngine()
+        task = asyncio.create_task(run_extraction(
+            store,
+            engine,
+            Provenance(str(tmp_path / "cancelled-task-job"), seed=0),
+            _caps(),
+            [doc.id],
+            extractor_engine="mock",
+            extractor_model=None,
+            on_progress=lambda _line: None,
+            on_stats=lambda _stats: None,
+        ))
+        await asyncio.wait_for(engine.entered.wait(), timeout=10)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        return task
+
+    retained_task = asyncio.run(exercise())
+    assert retained_task.cancelled()
+    assert _owner_lock_files(db) == []
+    run = store.conn.execute(
+        "SELECT status, owner_token FROM extraction_runs"
+    ).fetchone()
+    chunk = store.conn.execute(
+        "SELECT status, owner_token, attempts FROM extraction_chunks"
+    ).fetchone()
+    assert tuple(run) == ("interrupted", None)
+    assert tuple(chunk) == ("interrupted", None, 1)
+
+    competitor = KGStore.open(db)
+    try:
+        assert recover_running_once(competitor.conn) == 0
+        engine = _CountingMock()
+        assert _drive(
+            competitor, engine, doc.id, tmp_path / "cancelled-task-resume"
+        ) == ""
+        assert engine.calls == 1
+        resumed = competitor.conn.execute(
+            "SELECT status, attempts FROM extraction_chunks"
+        ).fetchone()
+        assert tuple(resumed) == ("succeeded", 2)
+    finally:
+        competitor.close()
+    store.close()
 
 
 def test_app_restart_marks_a_claim_interrupted_and_resumes_it(tmp_path) -> None:
@@ -433,6 +563,7 @@ def test_unrelated_store_open_does_not_interrupt_a_live_claim(tmp_path) -> None:
         ).fetchone()
         assert row["status"] == "running"
     finally:
+        state.close()
         store.close()
 
 
@@ -511,4 +642,5 @@ def test_revision_and_stream_identity_create_fresh_runs(tmp_path) -> None:
             "SELECT COUNT(*) FROM extraction_runs"
         ).fetchone()[0] == 8  # seven above plus the canonical-order stream
     finally:
+        state.close()
         store.close()
