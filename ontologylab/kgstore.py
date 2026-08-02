@@ -9,8 +9,9 @@ explicit human approval call.** The write API is split so the extraction path
 ``approve()`` may set it.
 
 The same ``KGStore`` class serves the mutable working DB (read-write, WAL)
-and an immutable knowledge pack (``read_only=True``, opened via
-``file:...?mode=ro&immutable=1`` so no ``-wal`` sidecar is ever created).
+and immutable knowledge packs. Read-only callers explicitly distinguish an
+immutable finalized database from a mutable WAL-backed live store so live
+reads participate in SQLite's normal WAL snapshot semantics.
 
 Entity resolution (ARCHITECTURE.md §5.5) runs inside ``insert_proposed``:
 nodes are deduped by ``(schema_version_id, entity_type, normalized_name)``
@@ -464,8 +465,9 @@ class KGStore:
 
     Construct via :meth:`KGStore.open` — a real rewrite of drylab's
     ``memory.open()``: takes an explicit **file** path (not a directory) and
-    a ``read_only`` flag. Read-write mode enables WAL; ``read_only=True``
-    opens ``file:...?mode=ro&immutable=1`` and executes no DDL.
+    a ``read_only`` flag. Read-write mode enables WAL; read-only mode executes
+    no DDL and defaults to immutable pack semantics. Mutable live stores pass
+    ``immutable=False`` to retain normal read-only WAL behavior.
     """
 
     def __init__(self, conn: sqlite3.Connection, db_path: Path, read_only: bool) -> None:
@@ -514,11 +516,24 @@ class KGStore:
     # ------------------------------------------------------------------
 
     @classmethod
-    def open(cls, file_path: str | Path, *, read_only: bool = False) -> "KGStore":
-        """Open (creating if needed, unless read_only) the KG sqlite file."""
+    def open(
+        cls,
+        file_path: str | Path,
+        *,
+        read_only: bool = False,
+        immutable: bool = True,
+    ) -> "KGStore":
+        """Open the KG sqlite file.
+
+        ``immutable=True`` is for finalized packs. A mutable live database must
+        use ``read_only=True, immutable=False`` so committed WAL frames remain
+        visible and SQLite can maintain a normal read snapshot.
+        """
         db_path = Path(file_path)
         if read_only:
-            uri = f"file:{db_path}?mode=ro&immutable=1"
+            uri = f"{db_path.resolve().as_uri()}?mode=ro"
+            if immutable:
+                uri += "&immutable=1"
             conn = sqlite3.connect(uri, uri=True, timeout=30.0)
             conn.row_factory = sqlite3.Row
             return cls(conn, db_path, read_only=True)

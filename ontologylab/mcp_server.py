@@ -219,7 +219,9 @@ class PackSession:
         if self.live_store_path is None:
             return None
         if self._live_store is None:
-            self._live_store = KGStore.open(self.live_store_path, read_only=True)
+            self._live_store = KGStore.open(
+                self.live_store_path, read_only=True, immutable=False
+            )
         return self._live_store
 
     def get_staleness(self) -> dict[str, Any]:
@@ -269,39 +271,47 @@ class PackSession:
                 "pending count are unavailable (pass --live-store)",
             )
             return result
-        store_count = live.conn.execute(
-            "SELECT (SELECT COUNT(*) FROM nodes WHERE status='verified') + "
-            "(SELECT COUNT(*) FROM edges WHERE status='verified' AND "
-            "invalidated_ts IS NULL)"
-        ).fetchone()[0]
-        result.update(
-            store_verified_count=store_count,
-            pending_verified_count=max(0, store_count - pack_count),
-        )
-        marker = latest.get("semantic_fact_baseline")
-        if not baseline_compatible(marker):
-            result.update(
-                **unknown,
-                note="legacy or unsupported pack semantic baseline; semantic "
-                "deltas unavailable, advisory pending count retained",
-            )
-            return result
-        ephemeral = self.store is None or self.pack_id != latest["pack_id"]
-        packed = (
-            KGStore.open(
-                pack_sqlite_path(self.packs_dir, latest["pack_id"]), read_only=True
-            )
-            if ephemeral
-            else self.store
-        )
-        assert packed is not None
+        # BEGIN is deliberately explicit: Python's sqlite wrapper does not
+        # start a transaction for SELECTs. Count and all semantic fingerprint
+        # queries must describe the same live WAL snapshot.
+        live.conn.execute("BEGIN")
         try:
-            deltas = semantic_deltas(packed.conn, live.conn)
+            store_count = live.conn.execute(
+                "SELECT (SELECT COUNT(*) FROM nodes WHERE status='verified') + "
+                "(SELECT COUNT(*) FROM edges WHERE status='verified' AND "
+                "invalidated_ts IS NULL)"
+            ).fetchone()[0]
+            result.update(
+                store_verified_count=store_count,
+                pending_verified_count=max(0, store_count - pack_count),
+            )
+            marker = latest.get("semantic_fact_baseline")
+            if not baseline_compatible(marker):
+                result.update(
+                    **unknown,
+                    note="legacy or unsupported pack semantic baseline; semantic "
+                    "deltas unavailable, advisory pending count retained",
+                )
+                return result
+            ephemeral = self.store is None or self.pack_id != latest["pack_id"]
+            packed = (
+                KGStore.open(
+                    pack_sqlite_path(self.packs_dir, latest["pack_id"]),
+                    read_only=True,
+                )
+                if ephemeral
+                else self.store
+            )
+            assert packed is not None
+            try:
+                deltas = semantic_deltas(packed.conn, live.conn)
+            finally:
+                if ephemeral:
+                    packed.close()
+            result.update(**deltas, note=None)
+            return result
         finally:
-            if ephemeral:
-                packed.close()
-        result.update(**deltas, note=None)
-        return result
+            live.conn.rollback()
 
     def _provenance(self) -> dict[str, Any]:
         """Pack identity attached to every query response, so a caller can

@@ -10,12 +10,14 @@ paths return unknown semantic deltas, never fabricated zeros.
 from __future__ import annotations
 
 import json
+import sqlite3
 
 import pytest
 
 from ontologylab.kgstore import KGStore
 from ontologylab.mcp_server import PackSession
 from ontologylab.packbuilder import build_pack as _build_pack
+from ontologylab.semantic_staleness import semantic_deltas as _semantic_deltas
 from tests.conftest import make_entity, make_relation
 
 
@@ -220,6 +222,93 @@ def test_same_id_citation_change_is_replacement_but_review_time_is_not(tmp_path)
         "count": 1,
         "nodes": [{"id": node_id, "label": "boscalid"}],
         "edges": [],
+    }
+
+
+def test_live_staleness_reads_committed_uncheckpointed_wal(tmp_path) -> None:
+    """A read-only live reader must follow WAL, unlike an immutable pack."""
+    store, _ = _seed_store(tmp_path)
+    store.close()
+    build_pack(name="p1", kg_db_path=tmp_path / "kg.sqlite",
+               packs_dir=tmp_path / "packs")
+
+    writer = KGStore.open(tmp_path / "kg.sqlite")
+    writer.conn.execute("PRAGMA wal_autocheckpoint=0")
+    doc_id = writer.conn.execute(
+        "SELECT id FROM documents LIMIT 1"
+    ).fetchone()["id"]
+    late = make_entity("Committed in WAL")
+    stats = writer.insert_proposed(
+        [late], [], source_doc_id=doc_id, extractor_engine="mock",
+    )
+    late_id = stats["id_map"][late.id]
+    writer.approve(late_id, by="t")
+    wal_path = tmp_path / "kg.sqlite-wal"
+    assert wal_path.is_file() and wal_path.stat().st_size > 0
+
+    session = PackSession(tmp_path / "packs", live_store_path=tmp_path / "kg.sqlite")
+    try:
+        result = session.get_staleness()
+    finally:
+        session.close()
+        writer.close()
+
+    assert result["store_verified_count"] == 4
+    assert result["pending_verified_count"] == 1
+    assert result["semantic_additions"] == {
+        "count": 1,
+        "nodes": [{"id": late_id, "label": "Committed in WAL"}],
+        "edges": [],
+    }
+
+
+def test_staleness_count_and_semantic_deltas_share_one_live_snapshot(
+    tmp_path, monkeypatch,
+) -> None:
+    """A commit between query phases cannot split one response's snapshot."""
+    store, _ = _seed_store(tmp_path)
+    store.close()
+    build_pack(name="p1", kg_db_path=tmp_path / "kg.sqlite",
+               packs_dir=tmp_path / "packs")
+
+    writer = KGStore.open(tmp_path / "kg.sqlite")
+    writer.conn.execute("PRAGMA wal_autocheckpoint=0")
+    doc_id = writer.conn.execute(
+        "SELECT id FROM documents LIMIT 1"
+    ).fetchone()["id"]
+    late = make_entity("Approved between phases")
+    stats = writer.insert_proposed(
+        [late], [], source_doc_id=doc_id, extractor_engine="mock",
+    )
+    late_id = stats["id_map"][late.id]
+
+    # Use a normal SQLite read-only connection to isolate the transaction
+    # regression from the separate immutable-vs-live opening regression.
+    db_path = tmp_path / "kg.sqlite"
+    live_conn = sqlite3.connect(
+        f"{db_path.resolve().as_uri()}?mode=ro", uri=True, timeout=30.0,
+    )
+    live_conn.row_factory = sqlite3.Row
+    session = PackSession(tmp_path / "packs", live_store_path=db_path)
+    session._live_store = KGStore(live_conn, db_path, read_only=True)
+
+    def approve_between_phases(packed_conn, observed_live_conn):
+        writer.approve(late_id, by="t")
+        return _semantic_deltas(packed_conn, observed_live_conn)
+
+    monkeypatch.setattr(
+        "ontologylab.mcp_server.semantic_deltas", approve_between_phases
+    )
+    try:
+        result = session.get_staleness()
+    finally:
+        session.close()
+        writer.close()
+
+    assert result["store_verified_count"] == 3
+    assert result["pending_verified_count"] == 0
+    assert result["semantic_additions"] == {
+        "count": 0, "nodes": [], "edges": [],
     }
 
 
