@@ -266,11 +266,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_dedup
 -- every resolution-merge afterwards) appends one row here. The inline
 -- source_doc_id/source_span on nodes/edges stays the first citation.
 CREATE TABLE IF NOT EXISTS citations (
-    kind          TEXT NOT NULL CHECK (kind IN ('node','edge')),
-    item_id       TEXT NOT NULL,
-    source_doc_id TEXT NOT NULL REFERENCES documents(id),
-    source_span   TEXT,
-    created_ts    REAL NOT NULL
+    kind             TEXT NOT NULL CHECK (kind IN ('node','edge')),
+    item_id          TEXT NOT NULL,
+    source_doc_id    TEXT NOT NULL REFERENCES documents(id),
+    source_span      TEXT,
+    created_ts       REAL NOT NULL,
+    extractor_engine TEXT,
+    extractor_model  TEXT,
+    prompt_version   TEXT,
+    decode_params    TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_citations_item ON citations (kind, item_id);
 
@@ -606,6 +610,17 @@ class KGStore:
         }
         if "decode_params" not in node_columns:
             conn.execute("ALTER TABLE nodes ADD COLUMN decode_params TEXT")
+        citation_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(citations)")
+        }
+        for column in (
+            "extractor_engine",
+            "extractor_model",
+            "prompt_version",
+            "decode_params",
+        ):
+            if column not in citation_columns:
+                conn.execute(f"ALTER TABLE citations ADD COLUMN {column} TEXT")
         if "valid_from" not in edge_columns:
             # Backfill: assertion time defaults to ingestion time.
             conn.execute(
@@ -1049,7 +1064,17 @@ class KGStore:
             if ent.synthesized:
                 stats["synthesized_endpoints"] += 1
             id_map[ent.id] = node_id
-            self._add_citation("node", node_id, source_doc_id, span_json, now)
+            self._add_citation(
+                "node",
+                node_id,
+                source_doc_id,
+                span_json,
+                now,
+                extractor_engine,
+                extractor_model,
+                prompt_version,
+                decode_json,
+            )
 
         for rel in relations:
             try:
@@ -1099,7 +1124,17 @@ class KGStore:
                     ),
                 )
                 stats["edges_new"] += 1
-            self._add_citation("edge", edge_id, source_doc_id, span_json, now)
+            self._add_citation(
+                "edge",
+                edge_id,
+                source_doc_id,
+                span_json,
+                now,
+                extractor_engine,
+                extractor_model,
+                prompt_version,
+                decode_json,
+            )
 
         if commit:
             self.conn.commit()
@@ -1177,11 +1212,27 @@ class KGStore:
         source_doc_id: str,
         span_json: str | None,
         ts: float,
+        extractor_engine: str,
+        extractor_model: str | None,
+        prompt_version: str | None,
+        decode_params: str | None,
     ) -> None:
         self.conn.execute(
-            "INSERT INTO citations (kind, item_id, source_doc_id, source_span, created_ts) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (kind, item_id, source_doc_id, span_json, ts),
+            "INSERT INTO citations "
+            "(kind, item_id, source_doc_id, source_span, created_ts, "
+            "extractor_engine, extractor_model, prompt_version, decode_params) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                kind,
+                item_id,
+                source_doc_id,
+                span_json,
+                ts,
+                extractor_engine,
+                extractor_model,
+                prompt_version,
+                decode_params,
+            ),
         )
 
     def citations(self, kind: str, item_id: str) -> list[dict[str, Any]]:

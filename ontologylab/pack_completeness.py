@@ -8,11 +8,40 @@ from typing import Any
 
 
 _STREAMS_SQL = """
-WITH shipped_citation_documents AS (
+WITH shipped_citation_streams AS (
+    SELECT c.source_doc_id, n.schema_version_id,
+           COALESCE(c.extractor_engine, '') AS extractor_engine,
+           COALESCE(c.extractor_model, '') AS extractor_model,
+           COALESCE(c.prompt_version, '') AS prompt_version,
+           COALESCE(c.decode_params, 'null') AS decode_params
+    FROM citations c
+    JOIN nodes n ON c.kind = 'node' AND n.id = c.item_id
+    WHERE n.status = 'verified'
+      AND (c.extractor_engine IS NOT NULL
+           OR n.source_doc_id <> c.source_doc_id)
+    UNION ALL
+    SELECT c.source_doc_id, e.schema_version_id,
+           COALESCE(c.extractor_engine, '') AS extractor_engine,
+           COALESCE(c.extractor_model, '') AS extractor_model,
+           COALESCE(c.prompt_version, '') AS prompt_version,
+           COALESCE(c.decode_params, 'null') AS decode_params
+    FROM citations c
+    JOIN edges e ON c.kind = 'edge' AND e.id = c.item_id
+    JOIN nodes src ON src.id = e.src_node_id
+    JOIN nodes dst ON dst.id = e.dst_node_id
+    WHERE e.status = 'verified' AND e.invalidated_ts IS NULL
+      AND src.status = 'verified' AND dst.status = 'verified'
+      AND (c.extractor_engine IS NOT NULL
+           OR e.source_doc_id <> c.source_doc_id)
+),
+legacy_same_document_ambiguities AS (
     SELECT c.source_doc_id, n.schema_version_id
     FROM citations c
     JOIN nodes n ON c.kind = 'node' AND n.id = c.item_id
-    WHERE n.status = 'verified' AND n.source_doc_id <> c.source_doc_id
+    WHERE n.status = 'verified' AND c.extractor_engine IS NULL
+      AND n.source_doc_id = c.source_doc_id
+    GROUP BY c.kind, c.item_id, c.source_doc_id, n.schema_version_id
+    HAVING COUNT(*) > 1
     UNION
     SELECT c.source_doc_id, e.schema_version_id
     FROM citations c
@@ -20,8 +49,11 @@ WITH shipped_citation_documents AS (
     JOIN nodes src ON src.id = e.src_node_id
     JOIN nodes dst ON dst.id = e.dst_node_id
     WHERE e.status = 'verified' AND e.invalidated_ts IS NULL
-      AND e.source_doc_id <> c.source_doc_id
       AND src.status = 'verified' AND dst.status = 'verified'
+      AND c.extractor_engine IS NULL
+      AND e.source_doc_id = c.source_doc_id
+    GROUP BY c.kind, c.item_id, c.source_doc_id, e.schema_version_id
+    HAVING COUNT(*) > 1
 )
 SELECT DISTINCT
     f.source_doc_id AS document_id,
@@ -41,17 +73,16 @@ FROM (
     FROM edges
     WHERE status = 'verified' AND invalidated_ts IS NULL
     UNION ALL
+    SELECT source_doc_id, schema_version_id, extractor_engine,
+           extractor_model, prompt_version, decode_params
+    FROM shipped_citation_streams
+    UNION ALL
     SELECT r.document_id, r.schema_version_id, r.extractor_engine,
            r.extractor_model, r.prompt_version, r.decode_params
     FROM extraction_runs r
-    JOIN shipped_citation_documents c ON c.source_doc_id = r.document_id
-    UNION ALL
-    SELECT c.source_doc_id, c.schema_version_id, '', '', '', 'null'
-    FROM shipped_citation_documents c
-    WHERE NOT EXISTS (
-        SELECT 1 FROM extraction_runs r
-        WHERE r.document_id = c.source_doc_id
-    )
+    JOIN legacy_same_document_ambiguities a
+      ON a.source_doc_id = r.document_id
+     AND a.schema_version_id = r.schema_version_id
 ) AS f
 JOIN documents d ON d.id = f.source_doc_id
 ORDER BY document_id, schema_version_id, extractor_engine, extractor_model,
@@ -72,8 +103,9 @@ def extraction_completeness(conn: sqlite3.Connection) -> dict[str, Any]:
     """Summarize durable lifecycle state for exact streams of shipped rows.
 
     A stream is identified by document content, schema, engine/model, prompt,
-    and canonical decode parameters. Runs from other documents or streams are
-    intentionally invisible to this policy.
+    and canonical decode parameters. Citation provenance attributes merged
+    output to its exact producer; only ambiguous same-document citations from
+    pre-attribution stores fall back to all candidate runs for that document.
     """
     streams = conn.execute(_STREAMS_SQL).fetchall()
     if not streams:
@@ -82,6 +114,7 @@ def extraction_completeness(conn: sqlite3.Connection) -> dict[str, Any]:
     run_counts: Counter[str] = Counter()
     chunk_counts: Counter[str] = Counter()
     unknown: list[dict[str, Any]] = []
+    incomplete_streams: list[dict[str, Any]] = []
     incomplete = False
 
     for stream in streams:
@@ -107,12 +140,14 @@ def extraction_completeness(conn: sqlite3.Connection) -> dict[str, Any]:
             if run["status"] == "complete" and chunks_succeeded:
                 stream_satisfied = True
         if not stream_satisfied:
+            incomplete_streams.append(_stream_dict(values))
             incomplete = True
 
     return _summary(
         status="incomplete" if incomplete else "complete",
         streams=streams,
         unknown=unknown,
+        incomplete_streams=incomplete_streams,
         run_counts=run_counts,
         chunk_counts=chunk_counts,
     )
@@ -133,6 +168,7 @@ def _summary(
     status: str,
     streams: list[Any] | None = None,
     unknown: list[dict[str, Any]] | None = None,
+    incomplete_streams: list[dict[str, Any]] | None = None,
     run_counts: Counter[str] | None = None,
     chunk_counts: Counter[str] | None = None,
 ) -> dict[str, Any]:
@@ -142,6 +178,7 @@ def _summary(
         "relevant_stream_count": len(streams),
         "relevant_document_ids": sorted({row[0] for row in streams}),
         "unknown_streams": unknown or [],
+        "incomplete_streams": incomplete_streams or [],
         "run_status_counts": dict(sorted((run_counts or {}).items())),
         "chunk_status_counts": dict(sorted((chunk_counts or {}).items())),
     }
