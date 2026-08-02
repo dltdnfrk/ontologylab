@@ -25,6 +25,7 @@ import re
 import shutil
 import sqlite3
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -145,14 +146,6 @@ def build_pack(
     kg_db_path = Path(kg_db_path)
     if not kg_db_path.is_file():
         raise PackBuildError(f"working KG not found: {kg_db_path}")
-    # Ensure the source DB carries the current schema (e.g. W13 bitemporal
-    # columns) before the column-order-sensitive INSERT..SELECT * below, then
-    # gate before creating any pack artifact.
-    source_store = KGStore.open(kg_db_path)
-    try:
-        completeness = extraction_completeness(source_store.conn)
-    finally:
-        source_store.close()
     intent = (incomplete_extraction_intent or "").strip() or None
     if allow_incomplete_extraction and intent is None:
         raise PackBuildError(
@@ -163,6 +156,21 @@ def build_pack(
             "operator intent was supplied without enabling the "
             "incomplete-extraction override"
         )
+
+    # Migrate the working database first, then take one SQLite-consistent
+    # snapshot. Both the completeness gate and every exported source row read
+    # these exact bytes, so a concurrent write cannot pass one view and ship
+    # from another.
+    source_store = KGStore.open(kg_db_path)
+    snapshot_tmp = tempfile.TemporaryDirectory(prefix="ontologylab-pack-")
+    snapshot_path = Path(snapshot_tmp.name) / "source.sqlite"
+    snapshot_conn = sqlite3.connect(snapshot_path)
+    snapshot_conn.row_factory = sqlite3.Row
+    try:
+        source_store.conn.backup(snapshot_conn)
+    finally:
+        source_store.close()
+    completeness = extraction_completeness(snapshot_conn)
     override_used = completeness["status"] == "incomplete" and allow_incomplete_extraction
     completeness = with_override(
         completeness,
@@ -170,12 +178,16 @@ def build_pack(
         operator_intent=intent if override_used else None,
     )
     if completeness["status"] == "incomplete" and not override_used:
+        snapshot_conn.close()
+        snapshot_tmp.cleanup()
         raise IncompleteExtractionError(completeness)
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
     pack_id = f"{name}-{stamp}"
     pack_dir = Path(packs_dir) / pack_id
     if pack_dir.exists():
+        snapshot_conn.close()
+        snapshot_tmp.cleanup()
         raise PackBuildError(f"pack directory already exists: {pack_dir}")
     pack_dir.mkdir(parents=True)
     pack_sqlite = pack_dir / "pack.sqlite"
@@ -189,7 +201,7 @@ def build_pack(
         # and a read-only file never fires them anyway).
         for trigger in ("nodes_fts_ai", "nodes_fts_ad", "nodes_fts_au"):
             conn.execute(f"DROP TRIGGER IF EXISTS {trigger}")
-        conn.execute("ATTACH DATABASE ? AS live", (str(kg_db_path),))
+        conn.execute("ATTACH DATABASE ? AS live", (str(snapshot_path),))
 
         # Verified subgraph and everything it cites, in dependency order.
         conn.execute(
@@ -302,6 +314,8 @@ def build_pack(
         }
     finally:
         conn.close()
+        snapshot_conn.close()
+        snapshot_tmp.cleanup()
 
     content_hash = "sha256:" + hashlib.sha256(pack_sqlite.read_bytes()).hexdigest()
 

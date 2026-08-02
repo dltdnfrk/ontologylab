@@ -8,6 +8,21 @@ from typing import Any
 
 
 _STREAMS_SQL = """
+WITH shipped_citation_documents AS (
+    SELECT c.source_doc_id, n.schema_version_id
+    FROM citations c
+    JOIN nodes n ON c.kind = 'node' AND n.id = c.item_id
+    WHERE n.status = 'verified' AND n.source_doc_id <> c.source_doc_id
+    UNION
+    SELECT c.source_doc_id, e.schema_version_id
+    FROM citations c
+    JOIN edges e ON c.kind = 'edge' AND e.id = c.item_id
+    JOIN nodes src ON src.id = e.src_node_id
+    JOIN nodes dst ON dst.id = e.dst_node_id
+    WHERE e.status = 'verified' AND e.invalidated_ts IS NULL
+      AND e.source_doc_id <> c.source_doc_id
+      AND src.status = 'verified' AND dst.status = 'verified'
+)
 SELECT DISTINCT
     f.source_doc_id AS document_id,
     d.content_hash AS document_content_hash,
@@ -25,6 +40,18 @@ FROM (
            extractor_model, prompt_version, decode_params
     FROM edges
     WHERE status = 'verified' AND invalidated_ts IS NULL
+    UNION ALL
+    SELECT r.document_id, r.schema_version_id, r.extractor_engine,
+           r.extractor_model, r.prompt_version, r.decode_params
+    FROM extraction_runs r
+    JOIN shipped_citation_documents c ON c.source_doc_id = r.document_id
+    UNION ALL
+    SELECT c.source_doc_id, c.schema_version_id, '', '', '', 'null'
+    FROM shipped_citation_documents c
+    WHERE NOT EXISTS (
+        SELECT 1 FROM extraction_runs r
+        WHERE r.document_id = c.source_doc_id
+    )
 ) AS f
 JOIN documents d ON d.id = f.source_doc_id
 ORDER BY document_id, schema_version_id, extractor_engine, extractor_model,

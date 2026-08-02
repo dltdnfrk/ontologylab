@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from ontologylab import packbuilder
 from ontologylab.kgstore import KGStore
 from ontologylab.models import ProposedEntity
 from ontologylab.packbuilder import (
@@ -133,6 +134,95 @@ def test_complete_unrelated_stream_cannot_launder_shipped_stream(tmp_path: Path)
         build_pack(tmp_path / "kg.sqlite", tmp_path / "packs", "not-laundered")
 
     assert exc_info.value.summary["run_status_counts"] == {"failed": 1}
+
+
+def test_incomplete_later_citation_stream_blocks_complete_owning_stream(
+    tmp_path: Path,
+) -> None:
+    store = KGStore.open(tmp_path / "kg.sqlite")
+    owning_doc_id = _verified_fact(store, suffix="owning")
+    _run(store, owning_doc_id, "complete", "succeeded")
+
+    citation_doc, _ = store.insert_document(
+        source_kind="upload",
+        source_uri="file:///later-citation.txt",
+        title="later citation",
+        raw_text="RateLimiterowning",
+        content_hash="sha256:later-citation",
+    )
+    store.insert_proposed(
+        [
+            ProposedEntity(
+                id="merged-mention",
+                entity_type="Component",
+                name="RateLimiterowning",
+            )
+        ],
+        [],
+        source_doc_id=citation_doc.id,
+        extractor_engine="later-engine",
+        extractor_model="later-model",
+        prompt_version="later-prompt",
+    )
+    _run(
+        store,
+        citation_doc.id,
+        "failed",
+        "failed",
+        engine="later-engine",
+        model="later-model",
+        prompt="later-prompt",
+    )
+    store.close()
+
+    with pytest.raises(IncompleteExtractionError) as exc_info:
+        build_pack(tmp_path / "kg.sqlite", tmp_path / "packs", "citation-blocked")
+
+    summary = exc_info.value.summary
+    assert summary["status"] == "incomplete"
+    assert summary["relevant_document_ids"] == sorted(
+        [owning_doc_id, citation_doc.id]
+    )
+    assert summary["run_status_counts"] == {"complete": 1, "failed": 1}
+
+
+def test_pack_export_uses_the_same_snapshot_as_completeness_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    kg_path = tmp_path / "kg.sqlite"
+    store = KGStore.open(kg_path)
+    owning_doc_id = _verified_fact(store, suffix="snapshot-owner")
+    _run(store, owning_doc_id, "complete", "succeeded")
+    store.close()
+
+    original_completeness = packbuilder.extraction_completeness
+
+    def mutate_source_after_gate(conn):
+        summary = original_completeness(conn)
+        mutation_store = KGStore.open(kg_path)
+        late_doc_id = _verified_fact(mutation_store, suffix="post-gate")
+        _run(mutation_store, late_doc_id, "failed", "failed")
+        mutation_store.close()
+        return summary
+
+    monkeypatch.setattr(
+        packbuilder, "extraction_completeness", mutate_source_after_gate
+    )
+
+    manifest = build_pack(kg_path, tmp_path / "packs", "stable-snapshot")
+    pack_path = tmp_path / "packs" / manifest.pack_id / "pack.sqlite"
+    pack_store = KGStore.open(pack_path, read_only=True)
+    try:
+        shipped = pack_store.conn.execute(
+            "SELECT id FROM nodes WHERE id = 'node-post-gate'"
+        ).fetchone()
+    finally:
+        pack_store.close()
+
+    assert shipped is None
+    assert manifest.extraction_completeness["relevant_document_ids"] == [
+        owning_doc_id
+    ]
 
 
 def test_complete_run_satisfies_stream_despite_historical_failure(tmp_path: Path) -> None:
