@@ -455,6 +455,32 @@ uncertainty: LLM JSON-schema adherence) — prototype the extraction prompt/pars
 (against `MockEngine` fixtures and one real `claude` call) before wiring the full CLI/dashboard
 around it, so a redesign there doesn't cascade into M5–M8 rework.
 
+## Agrochem product-completion waves — completed 2026-08-02
+
+The first domain pack now completes the MVP loop above over the production
+Claude extraction and MCP stdio surfaces. Two pieces landed before the
+completion plan — the `agrochem-v1` preset (26 entity / 30 relation types) and
+the pack staleness contract (`basis_commit`, `staleness_policy`, and MCP
+`get_staleness` reading an optional live store) — and the plan itself landed in
+five waves:
+
+- [x] **Wave 1 — EPPO registry cache:** import-first local cache with
+  provenance metadata, a token-gated `registry fetch eppo`, and an honest
+  `cache_absent` status (the automatic EPPO SQLite download is discontinued).
+- [x] **Wave 2 — organism normalization:** Crop/Pathogen/Pest/Weed proposals
+  resolve to EPPO codes between extraction and review; a model-supplied code
+  survives only when the cache agrees, unresolved is flagged rather than
+  dropped, and an absent cache means the feature is off.
+- [x] **Wave 3 — substance normalization:** PubChem-derived CAS cache under the
+  same authority rule, with the FRAC/IRAC/HRAC mapping keyed on CAS identity so
+  a group is never attached to a bare name.
+- [x] **Wave 4 — measured chunk sweep:** the 1,500/3,000 Claude comparison in
+  `CHUNK-SWEEP-2026-08.md` selected 3,000 tokens on preserved quality and half
+  the calls.
+- [x] **Wave 5 — first pack evidence:** documents → Claude extraction → cache
+  normalization → `e2e-tester` approval → immutable pack → real MCP stdio
+  AC-03 answer, recorded in `FIRST-PACK-EVIDENCE.md`.
+
 **Top risks flagged across the roadmap:**
 1. LLM extraction JSON adherence (M4) — the single highest-uncertainty step; budget iteration
    time on the parse/validate/reject loop.

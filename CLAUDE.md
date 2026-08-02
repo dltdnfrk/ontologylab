@@ -58,6 +58,26 @@ Measured on 20 biomedical papers: under `software-docs`, 54% of relations
 came back `related_to`; under `biomed-v1`, 26%. If extraction output looks
 uselessly vague, check the active ontology before changing anything else.
 
+## Registry codes do not come from the model
+
+EPPO and PubChem/CAS caches are **import-first** local data. If a cache is
+absent, normalization is off for that registry and extraction continues with
+one provenance warning; absence is not a broken network fetch. The LLM is
+never the authority for EPPO or CAS codes: matching cache data supplies the
+code and an unsupported model-supplied code is dropped. The CAS identity then
+drives the local FRAC/IRAC/HRAC mapping.
+
+## The agrochem gold fixture is constructed
+
+`tests/gold/agrochem-mini/docs.json` contains five repeated, constructed
+passages, not real abstracts. It is useful for controlled extraction scoring
+and AC evidence, not representative-corpus claims.
+
+`TARGET_CHUNK_TOKENS` is 3,000 because the measured 1,500/3,000 Claude sweep
+preserved recall while halving calls; the protocol and limits are in
+`docs/CHUNK-SWEEP-2026-08.md`. Do not reset it from the old roadmap's 1,500
+without new measured evidence.
+
 ## Tests must not touch real state
 
 `tests/conftest.py` has an autouse fixture that redirects settings writes,
