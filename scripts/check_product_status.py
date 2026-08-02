@@ -7,9 +7,12 @@ import argparse
 import ast
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
+import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Final
@@ -322,15 +325,100 @@ def check_status(document: Path, root: Path) -> StatusReport:
     )
 
 
+def _validate_pytest_receipt(
+    receipt: Path,
+    *,
+    expected_count: int,
+    expected_nodes: frozenset[str] | None = None,
+) -> Issue | None:
+    try:
+        root = ET.parse(receipt).getroot()
+        suites = root.findall(".//testsuite")
+        testcases = root.findall(".//testcase")
+        tests = sum(int(suite.attrib.get("tests", "0")) for suite in suites)
+        failures = sum(int(suite.attrib.get("failures", "0")) for suite in suites)
+        errors = sum(int(suite.attrib.get("errors", "0")) for suite in suites)
+        skipped = sum(int(suite.attrib.get("skipped", "0")) for suite in suites)
+    except (ET.ParseError, OSError, ValueError):
+        return Issue("evidence_execution", "DOCUMENT", "pytest receipt is missing or malformed")
+
+    if failures or errors:
+        return Issue(
+            "evidence_execution",
+            "DOCUMENT",
+            f"pytest failed {failures + errors} canonical nodes",
+        )
+    if skipped:
+        return Issue(
+            "evidence_execution",
+            "DOCUMENT",
+            f"pytest skipped {skipped} canonical nodes",
+        )
+    if tests != expected_count:
+        return Issue(
+            "evidence_execution",
+            "DOCUMENT",
+            f"pytest executed {tests} of {expected_count} canonical nodes",
+        )
+    if expected_nodes is not None:
+        executed_nodes = frozenset(
+            f"{case.attrib['file']}::{case.attrib['name']}"
+            for case in testcases
+            if "file" in case.attrib and "name" in case.attrib
+        )
+        if executed_nodes != expected_nodes:
+            missing = sorted(expected_nodes - executed_nodes)
+            unexpected = sorted(executed_nodes - expected_nodes)
+            return Issue(
+                "evidence_execution",
+                "DOCUMENT",
+                f"pytest node mismatch: missing={missing}; unexpected={unexpected}",
+            )
+    return None
+
+
 def _execute_test_evidence(root: Path) -> Issue | None:
     node_ids = sorted(TEST_EVIDENCE_DIGESTS)
-    result = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", *node_ids],
-        cwd=root,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    environment = os.environ.copy()
+    environment.pop("PYTEST_ADDOPTS", None)
+    environment.pop("PYTEST_PLUGINS", None)
+    environment["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+    with tempfile.TemporaryDirectory(prefix="ontologylab-evidence-") as temporary:
+        temporary_path = Path(temporary)
+        receipt = temporary_path / "pytest.xml"
+        controlled_config = temporary_path / "pytest.ini"
+        controlled_config.write_text("[pytest]\naddopts =\n", encoding="utf-8")
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "-q",
+                "-c",
+                str(controlled_config),
+                "--rootdir",
+                str(root),
+                "-o",
+                "addopts=",
+                "-o",
+                "junit_family=legacy",
+                "--junitxml",
+                str(receipt),
+                *node_ids,
+            ],
+            cwd=root,
+            env=environment,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        receipt_issue = _validate_pytest_receipt(
+            receipt,
+            expected_count=len(node_ids),
+            expected_nodes=frozenset(node_ids),
+        )
+    if receipt_issue is not None:
+        return receipt_issue
     if result.returncode == 0:
         return None
     output = "\n".join(part.strip() for part in (result.stdout, result.stderr) if part.strip())

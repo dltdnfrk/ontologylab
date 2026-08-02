@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import ast
+import io
 import json
+import os
 import re
 import shlex
 import subprocess
 import sys
+import tarfile
 from pathlib import Path
 
 import pytest
 
-from scripts.check_product_status import check_status
+from scripts.check_product_status import Issue, _validate_pytest_receipt, check_status
 
 
 ROWS = """\
@@ -71,6 +74,19 @@ def _fixture(root: Path, rows: str = ROWS) -> Path:
         encoding="utf-8",
     )
     return document
+
+
+def _executable_fixture(root: Path) -> Path:
+    repository = Path(__file__).resolve().parents[1]
+    archive = subprocess.run(
+        ["git", "archive", "--format=tar", "0baab72"],
+        cwd=repository,
+        check=True,
+        capture_output=True,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as tar:
+        tar.extractall(root, filter="data")
+    return root / "docs/PRODUCT_SPEC.md"
 
 
 def _replace_test_body(path: Path, function_name: str, body: str) -> None:
@@ -251,12 +267,173 @@ def test_wrong_existing_evidence_fails_the_canonical_contract(tmp_path: Path) ->
     assert any(issue.code == "evidence_contract" for issue in report.issues)
 
 
+@pytest.mark.parametrize(
+    ("xml", "detail"),
+    (
+        (
+            '<testsuites><testsuite tests="0" failures="0" errors="0" skipped="0"/></testsuites>',
+            "pytest executed 0 of 13 canonical nodes",
+        ),
+        (
+            '<testsuites><testsuite tests="13" failures="0" errors="0" skipped="13"/></testsuites>',
+            "pytest skipped 13 canonical nodes",
+        ),
+        (
+            '<testsuites><testsuite tests="12" failures="0" errors="0" skipped="0"/></testsuites>',
+            "pytest executed 12 of 13 canonical nodes",
+        ),
+        (
+            '<testsuites><testsuite tests="13" failures="1" errors="0" skipped="0"/></testsuites>',
+            "pytest failed 1 canonical nodes",
+        ),
+    ),
+)
+def test_execution_receipt_rejects_zero_skipped_deselected_and_failed_evidence(
+    tmp_path: Path, xml: str, detail: str
+) -> None:
+    receipt = tmp_path / "pytest.xml"
+    receipt.write_text(xml, encoding="utf-8")
+
+    issue = _validate_pytest_receipt(receipt, expected_count=13)
+
+    assert issue == Issue("evidence_execution", "DOCUMENT", detail)
+
+
+def test_cli_ignores_collection_only_environment_and_executes_assertions() -> None:
+    root = Path(__file__).resolve().parents[1]
+    environment = dict(os.environ)
+    environment["PYTEST_ADDOPTS"] = "--collect-only"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/check_product_status.py",
+            "--root",
+            ".",
+            "--document",
+            "docs/PRODUCT_SPEC.md",
+            "--json",
+        ],
+        cwd=root,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["ok"] is True
+    assert "EVIDENCE: 13 canonical pytest nodes passed" in result.stderr
+
+
+def test_cli_overrides_tracked_collection_only_addopts(tmp_path: Path) -> None:
+    document = _executable_fixture(tmp_path)
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\naddopts = "--collect-only"\n',
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/check_product_status.py",
+            "--root",
+            str(tmp_path),
+            "--document",
+            str(document),
+            "--json",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["ok"] is True
+
+
+@pytest.mark.parametrize(
+    ("hook", "detail"),
+    (
+        (
+            "def pytest_configure(config): config.option.collectonly = True\n",
+            "pytest executed 0 of 13 canonical nodes",
+        ),
+        (
+            "def pytest_collection_modifyitems(config, items):\n"
+            "    config.hook.pytest_deselected(items=items)\n"
+            "    items[:] = []\n",
+            "pytest executed 0 of 13 canonical nodes",
+        ),
+        (
+            "def pytest_collection_modifyitems(config, items):\n"
+            "    removed = items.pop()\n"
+            "    config.hook.pytest_deselected(items=[removed])\n",
+            "pytest executed 12 of 13 canonical nodes",
+        ),
+        (
+            "import pytest\n"
+            "def pytest_collection_modifyitems(items):\n"
+            "    for item in items:\n"
+            "        item.add_marker(pytest.mark.skip(reason='hostile skip'))\n",
+            "pytest skipped 13 canonical nodes",
+        ),
+        (
+            "def pytest_runtest_call(item):\n"
+            "    raise AssertionError('hostile assertion')\n",
+            "pytest failed 13 canonical nodes",
+        ),
+    ),
+)
+def test_cli_rejects_nonexecuted_or_failing_canonical_nodes(
+    tmp_path: Path, hook: str, detail: str
+) -> None:
+    document = _executable_fixture(tmp_path)
+    (tmp_path / "conftest.py").write_text(hook, encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/check_product_status.py",
+            "--root",
+            str(tmp_path),
+            "--document",
+            str(document),
+            "--json",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    assert payload["issues"] == [
+        {"code": "evidence_execution", "id": "DOCUMENT", "detail": detail}
+    ]
+
+
 def test_ci_runs_canonical_checker_against_repository_document() -> None:
     workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/ci.yml").read_text(
         encoding="utf-8"
     )
 
     run_commands = re.findall(r"^\s*run:\s*(.+)$", workflow, flags=re.MULTILINE)
+    commands = [shlex.split(command) for command in run_commands]
+    assert [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-c",
+        "/dev/null",
+        "--rootdir",
+        ".",
+    ] in commands
+    assert re.search(r'PYTEST_ADDOPTS:\s*["\']{2}', workflow)
     assert [
         "python",
         "scripts/check_product_status.py",
@@ -264,7 +441,7 @@ def test_ci_runs_canonical_checker_against_repository_document() -> None:
         ".",
         "--document",
         "docs/PRODUCT_SPEC.md",
-    ] in [shlex.split(command) for command in run_commands]
+    ] in commands
 
 
 def test_cli_stale_fixture_exits_nonzero_with_json_reason(tmp_path: Path) -> None:

@@ -32,7 +32,9 @@ jobs:
       # The suite is offline by design: the mock engine drives extraction,
       # live-API paths are monkeypatched, and connectors are deny-by-default.
       - name: pytest
-        run: python -m pytest -q
+        env:
+          PYTEST_ADDOPTS: ""
+        run: python -m pytest -q -c /dev/null --rootdir .
 
       - name: Canonical product status
         run: python scripts/check_product_status.py --root . --document docs/PRODUCT_SPEC.md
