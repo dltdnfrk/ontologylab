@@ -1,0 +1,182 @@
+goal: Build a local-first agrochemistry knowledge graph where LLM-extracted proposals
+  from scholarly literature are human-approved into verified immutable packs served
+  read-only to agents over MCP, covering control relations, mode of action and resistance,
+  residue and safety, and formulation and efficacy trials across international sources.
+task_type: code
+brownfield_context:
+  project_type: brownfield
+  context_references:
+  - path: /Users/hyunjun/Documents/MUNI/ontologylab
+    role: primary
+    summary: 'Ontologylab codebase: local-first knowledge graph with 1213 passing
+      tests, agrochem-v1 preset, MCP two-tier read surface, per-edge atomic proposals,
+      and evaluation harness'
+  - path: tests/test_mcp_two_tier.py
+    role: reference
+    summary: 'Existing test confirming the MCP two-tier architecture: live verified
+      store tier and immutable pack tier, both read-only'
+  existing_patterns:
+  - Per-edge atomic proposals with approve/reject per individual node/edge ID
+  - Conformal triage scores per item in the review queue
+  - 'MCP two-tier read surface: live verified store tier and immutable pack tier'
+  - Sampling parameters selectable per provider kind and recorded on every extraction
+    row
+  - Single-stream evaluation harness scoring one extractor stream with stream filters
+  - Bitemporal valid_from/invalidated_ts on relations with resistant_to relation tested
+  - invalidate_edge retires exactly one human-verified edge
+  - agrochem-v1 ontology preset with 26 entity types, 30 relation types, and EPPO/CAS/FRAC-IRAC-HRAC/BBCH
+    identifier attributes
+  existing_dependencies:
+  - agrochem-v1 ontology preset (26 entity types, 30 relation types)
+  - EPPO / CAS / FRAC-IRAC-HRAC / BBCH identifier schemes as entity attributes
+  - MCP server with two-tier read-only surface
+  - Evaluation harness with stream filters and single-extractor scoring
+  - Review queue with per-item conformal triage and per-edge approve/reject
+constraints:
+- Nothing reaches verified without explicit human approval
+- Packs are immutable and contain only verified items
+- MCP surface is read-only over all system state (live store and pack tiers)
+- Every fact carries a source document and a basis timestamp
+- Temporal contradictions are both recorded with time labels and never silently overwritten
+- Only human-verified edges may be invalidated
+- Absent knowledge answers 'unknown' rather than guessing
+- International sources first; Korean domestic literature and registries deferred
+- EPPO/CAS/FRAC-IRAC-HRAC lookup data not redistributed in repo — local gitignored
+  caches with provenance built by explicit fetch commands
+- 'Per-edge atomic proposals: approve/reject acts on individual node/edge IDs'
+- LLM extractors emit organism/ingredient surface names only, never identifier codes
+- Test suite runs without external data caches — tests use fixtures
+- Existing 1213 tests continue to pass
+acceptance_criteria:
+- description: Pack manifests carry basis_commit and created_at, the MCP live tier
+    exposes pending_verified_count computed at query time, and a documented default
+    staleness policy ships in the manifest so agents can trust it without inventing
+    their own threshold
+  semantic_ac_key: ac_2a92f910cec12ead
+  verify_command: python -m pytest tests/ -k 'pack or manifest or staleness or pending_verified'
+    -q
+- description: Organism and active-ingredient identities are canonicalized — organisms
+    via EPPO codes with synonym and common-name resolution, active ingredients via
+    CAS numbers — with unresolvable names flagged for reviewer as exceptions; missing
+    lookup caches degrade gracefully with a single provenance warning rather than
+    hard-failing or flooding per-item exceptions
+  semantic_ac_key: ac_467f41806cb0cf7c
+  verify_command: python -m pytest tests/ -k 'normali or eppo or cas' -q
+- description: An agent querying what controls pathogen X on crop Y, by which mode
+    of action, and whether resistance is reported receives a sourced and dated answer
+    from the verified pack — or 'unknown'
+  semantic_ac_key: ac_b957dcaa757af568
+  verify_command: python -m pytest tests/ -k 'mcp' -q
+ontology_schema:
+  name: AgrochemKnowledgeGraph
+  description: Domain model for agrochemistry crop-protection knowledge covering control
+    relations, modes of action, resistance, residue safety, and formulation efficacy,
+    with bitemporal provenance, human-gated verification, and immutable pack distribution
+    over MCP.
+  fields:
+  - name: active_ingredient
+    type: object
+    description: Chemical substance with cas_number as canonical key, surface name,
+      and aliases for normalization against PubChem synonym tables
+    required: true
+  - name: organism
+    type: object
+    description: Pathogen, pest, or weed with eppo_code as canonical key, surface
+      name, aliases, common names, and organism type
+    required: true
+  - name: crop
+    type: object
+    description: Crop plant with eppo_code and common names
+    required: true
+  - name: mode_of_action_group
+    type: object
+    description: Resistance-classification group with scheme (FRAC/IRAC/HRAC), code
+      number, and description
+    required: true
+  - name: control_relation
+    type: object
+    description: Edge linking active_ingredient to organism on crop, with dose, source
+      document, valid_from timestamp, and optional invalidated_ts
+    required: true
+  - name: resistance_report
+    type: object
+    description: Edge recording resistance of organism to active_ingredient, with
+      mutation identifier, reporting year, source, and valid_from timestamp
+    required: true
+  - name: residue_safety
+    type: object
+    description: MRL value, pre-harvest interval in days, and toxicity classification
+      for an active_ingredient on a crop
+    required: true
+  - name: proposal
+    type: object
+    description: LLM-extracted node or edge pending human review, carrying source_document,
+      normalization status (eppo_code resolved or flagged), and surface aliases
+    required: true
+  - name: pack
+    type: object
+    description: Immutable snapshot of verified-only items with basis_commit, created_at,
+      and embedded default staleness policy
+    required: true
+  - name: source
+    type: object
+    description: Scholarly document reference with basis_timestamp for bitemporal
+      provenance tracking
+    required: true
+evaluation_principles:
+- name: Provenance fidelity
+  description: Every returned fact is traceable to its source document and basis timestamp;
+    no fact exists without attribution
+  weight: 0.25
+- name: Temporal integrity
+  description: Contradictions across time are preserved with time labels and never
+    silently overwritten; both the 2015 control claim and the 2023 resistance report
+    coexist
+  weight: 0.2
+- name: Identity canonicalization
+  description: Organisms resolve to EPPO codes and active ingredients to CAS numbers
+    without duplicate nodes; the normalization step catches synonyms, common names,
+    and abbreviations
+  weight: 0.2
+- name: Human gatekeeping
+  description: No unverified fact escapes into packs or agent-facing answers; the
+    approval boundary is never bypassed
+  weight: 0.2
+- name: Graceful degradation
+  description: Missing optional resources (EPPO cache, CAS cache) produce clear provenance
+    warnings without blocking extraction, flooding reviewer exceptions, or failing
+    tests
+  weight: 0.15
+exit_conditions:
+- name: Pack serves sourced answers
+  description: Agents receive sourced, dated control/MoA/resistance answers or 'unknown'
+    from a verified pack over MCP
+  criteria: An MCP query for control of a known pathogen on a known crop returns at
+    least one edge with source_document and basis_timestamp, or returns 'unknown'
+    for an unattested combination
+- name: Staleness observable
+  description: Pack manifest carries freshness metadata and the MCP layer exposes
+    live pending count
+  criteria: Pack manifest contains basis_commit and created_at; MCP live tier returns
+    pending_verified_count computed at query time; a documented default staleness
+    policy is embedded in the manifest
+- name: Entity identity canonical
+  description: Organism and active-ingredient normalization operational with graceful
+    cache-absent degradation
+  criteria: Normalization resolves EPPO synonyms/common names to codes and ingredient
+    names to CAS numbers; unresolvable names are flagged not dropped; absent cache
+    produces one warning and attaches no codes rather than failing
+- name: Regression guard
+  description: All pre-existing tests continue to pass after changes
+  criteria: The full test suite of 1213 tests passes with zero failures
+metadata:
+  seed_id: seed_80779f6e49b1
+  version: 1.0.0
+  created_at: '2026-08-02T11:28:12.107884Z'
+  ambiguity_score: 0.163
+  interview_id: interview_20260802_095257
+  parent_seed_id: null
+  generation_mode: normal
+  degraded: false
+  unresolved_slots: []
+  recovery_reason: null
