@@ -40,6 +40,9 @@ Homepage = "https://example.invalid/ontologylab"
 [tool.setuptools]
 packages = ["ontologylab", "ontologylab.connectors", "ontologylab.server"]
 
+[tool.setuptools.package-data]
+ontologylab = ["*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"

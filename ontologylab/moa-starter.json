@@ -1,0 +1,35 @@
+{
+  "metadata": {
+    "registry": "agrochemical-mode-of-action",
+    "source": "hand-seeded starter set",
+    "seed_date": "2026-08-02",
+    "expandable": true,
+    "description": "Starter classifications for common active ingredients; replace or extend the local data-dir copy as classifications evolve."
+  },
+  "mappings": [
+    {
+      "active": "boscalid",
+      "cas_number": "188425-85-6",
+      "scheme": "FRAC",
+      "code": "7"
+    },
+    {
+      "active": "azoxystrobin",
+      "cas_number": "131860-33-8",
+      "scheme": "FRAC",
+      "code": "11"
+    },
+    {
+      "active": "chlorantraniliprole",
+      "cas_number": "500008-45-7",
+      "scheme": "IRAC",
+      "code": "28"
+    },
+    {
+      "active": "glyphosate",
+      "cas_number": "1071-83-6",
+      "scheme": "HRAC",
+      "code": "9"
+    }
+  ]
+}

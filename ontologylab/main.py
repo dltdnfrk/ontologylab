@@ -1051,6 +1051,26 @@ def cmd_registry_import_eppo(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_registry_import_pubchem(args: argparse.Namespace) -> int:
+    from ontologylab.registry import RegistryImportError, import_pubchem
+
+    try:
+        report = import_pubchem(args.path, Path(args.data_dir))
+    except RegistryImportError as exc:
+        print(f"[ontologylab] PubChem import failed: {exc}", file=sys.stderr)
+        return 2
+    counts = report["record_counts"]
+    print(
+        "[ontologylab] imported PubChem CAS registry: "
+        f"{counts['compounds_with_cas']} compound(s) with CAS; "
+        f"{counts['surface_forms']} surface form(s)"
+    )
+    print(f"[ontologylab] source sha256: {report['metadata']['source_file_sha256']}")
+    if report["moa_seeded"]:
+        print("[ontologylab] installed local hand-seeded MoA starter table")
+    return 0
+
+
 def cmd_registry_fetch_eppo(args: argparse.Namespace) -> int:
     from ontologylab.registry import EPPO_API_TOKEN_ENV, verify_eppo_api
 
@@ -1503,6 +1523,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_registry_import_eppo.add_argument("path", help="EPPO export path.")
     _add_data_dir(p_registry_import_eppo)
     p_registry_import_eppo.set_defaults(func=cmd_registry_import_eppo)
+    p_registry_import_pubchem = registry_import_sub.add_parser(
+        "pubchem",
+        help="Import PubChem CID-Synonym-filtered[.gz] into the CAS cache.",
+    )
+    p_registry_import_pubchem.add_argument(
+        "path", help="PubChem CID-Synonym-filtered or .gz path."
+    )
+    _add_data_dir(p_registry_import_pubchem)
+    p_registry_import_pubchem.set_defaults(func=cmd_registry_import_pubchem)
 
     p_registry_fetch = registry_sub.add_parser(
         "fetch", help="Verify access to a registry's supported API."

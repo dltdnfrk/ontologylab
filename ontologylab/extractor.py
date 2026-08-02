@@ -35,8 +35,12 @@ from ontologylab.engines import (
 )
 from ontologylab.kgstore import normalize_name
 from ontologylab.models import ProposedEntity, ProposedRelation, SourceSpan
-from ontologylab.normalization import ORGANISM_ENTITY_TYPES, normalize_proposal
-from ontologylab.registry import RegistryCache
+from ontologylab.normalization import (
+    ACTIVE_ENTITY_TYPE,
+    ORGANISM_ENTITY_TYPES,
+    normalize_proposal,
+)
+from ontologylab.registry import CASRegistryCache, MoARegistryCache, RegistryCache
 
 PROMPT_VERSION = "extract-v1"
 
@@ -562,12 +566,22 @@ async def run_extraction(
         if entity["name"] in ORGANISM_ENTITY_TYPES
         and "eppo_code" in entity["attributes"]
     ]
+    active_specs = [
+        entity
+        for entity in schema["entity_types"]
+        if entity["name"] == ACTIVE_ENTITY_TYPE
+        and "cas_number" in entity["attributes"]
+    ]
     registry = RegistryCache(store.db_path.parent) if organism_specs else None
-    if registry is not None:
-        warning = registry.provenance_warning()
+    cas_registry = CASRegistryCache(store.db_path.parent) if active_specs else None
+    moa_registry = MoARegistryCache(store.db_path.parent) if active_specs else None
+    for authoritative_cache in (registry, cas_registry):
+        if authoritative_cache is None:
+            continue
+        warning = authoritative_cache.provenance_warning()
         if warning is not None:
             # Cache absence is one run-level configuration fact, not one
-            # suspicious proposal per organism or chunk.
+            # suspicious proposal per organism, active, or chunk.
             provenance.log("extract.warning", {"warning": warning})
 
     stopped_reason = ""
@@ -622,9 +636,11 @@ async def run_extraction(
                     "extract.warning",
                     {"doc_id": doc_id, "chunk": chunk.index, "warning": warning},
                 )
-            if registry is not None:
-                for entity in result.entities:
+            for entity in result.entities:
+                if registry is not None:
                     normalize_proposal(entity, registry)
+                if cas_registry is not None:
+                    normalize_proposal(entity, cas_registry, moa_registry)
             stats = store.insert_proposed(
                 result.entities,
                 result.relations,

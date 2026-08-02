@@ -179,6 +179,16 @@ def eppo_registry_path(data_dir: Path | str) -> Path:
     return Path(data_dir) / "registry-eppo.sqlite"
 
 
+def pubchem_registry_path(data_dir: Path | str) -> Path:
+    """Return the local PubChem name-to-CAS cache under ``data_dir``."""
+    return Path(data_dir) / "registry-pubchem.sqlite"
+
+
+def moa_registry_path(data_dir: Path | str) -> Path:
+    """Return the local active-ingredient mode-of-action table."""
+    return Path(data_dir) / "registry-moa.json"
+
+
 def providers_path(data_dir: Path | str) -> Path:
     """Return the configurable-provider registry file under ``data_dir``.
 
