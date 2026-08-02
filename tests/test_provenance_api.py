@@ -206,7 +206,6 @@ def test_only_node_and_edge_are_accepted(tmp_path, kind) -> None:
 
 def _client(tmp_path) -> TestClient:
     data_dir = tmp_path / "data"
-    routes.attach_data_dir(data_dir)
     return TestClient(create_app(data_dir=data_dir))
 
 

@@ -35,7 +35,6 @@ from ontologylab.server.app import create_app
 def client(tmp_path):
     os.environ.setdefault("ONTOLOGYLAB_ALLOWED_HOSTS", "testserver")
     data_dir = tmp_path / "data"
-    routes.attach_data_dir(data_dir)
     return TestClient(create_app(data_dir=data_dir, packs_dir=tmp_path / "packs"))
 
 
@@ -233,7 +232,8 @@ def test_research_from_chat_actually_starts_a_run(client, monkeypatch) -> None:
     )
     started = {}
 
-    def fake_start(body):
+    def fake_start(*, deps, body):
+        assert deps.data_dir == client.app.state.data_dir
         started["topic"] = body.topic
         started["engine"] = body.engine
         return {"ok": True, "job_id": "research-1", "status": "running"}
@@ -344,7 +344,8 @@ def test_a_turn_that_started_a_run_carries_its_job(client, monkeypatch) -> None:
     )
     monkeypatch.setattr(
         routes, "start_research",
-        lambda body: {"ok": True, "job_id": "research-1"}, raising=True,
+        lambda *, deps, body: {"ok": True, "job_id": "research-1"},
+        raising=True,
     )
 
     client.post("/api/chat", json={"message": "TP53 찾아줘", "engine": "mock"})

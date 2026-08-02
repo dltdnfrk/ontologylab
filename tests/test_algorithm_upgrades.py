@@ -448,7 +448,6 @@ def test_the_endpoint_is_read_only(tmp_path) -> None:
     from ontologylab.server.app import create_app
 
     data_dir = tmp_path / "data"
-    routes.attach_data_dir(data_dir)
     client = TestClient(create_app(data_dir=data_dir))
 
     body = client.get("/api/review/triage").json()
@@ -615,7 +614,6 @@ def test_the_calibration_endpoint_is_read_only(tmp_path) -> None:
     from ontologylab.server.app import create_app
 
     data_dir = tmp_path / "data"
-    routes.attach_data_dir(data_dir)
     client = TestClient(create_app(data_dir=data_dir))
 
     body = client.get("/api/review/calibration").json()

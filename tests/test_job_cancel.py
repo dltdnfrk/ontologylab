@@ -327,7 +327,7 @@ def test_the_endpoint_cancels_a_running_job(tmp_path, monkeypatch) -> None:
 
     assert body["ok"] is True
     assert body["cancelled"] is True
-    job = routes._registry().get(job_id)
+    job = client.app.state.jobs.get(job_id)
     _await_terminal(job)
     assert job.status == "cancelled"
     assert engine.calls == 1
@@ -349,7 +349,7 @@ def test_the_endpoint_reports_a_finished_job_as_not_cancelled(tmp_path) -> None:
     data_dir = tmp_path / "data"
     client = TestClient(create_app(data_dir=data_dir))
     job_id = client.post("/api/extract", json={"engine": "mock"}).json()["job_id"]
-    _await_terminal(routes._registry().get(job_id))
+    _await_terminal(client.app.state.jobs.get(job_id))
 
     body = client.post(f"/api/jobs/{job_id}/cancel").json()
 

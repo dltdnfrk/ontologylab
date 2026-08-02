@@ -294,7 +294,6 @@ def test_the_endpoint_marks_optional_sources_connectable_but_not_keyed(
     from ontologylab.server.app import create_app
 
     data_dir = tmp_path / "data"
-    routes.attach_data_dir(data_dir)
     client = TestClient(create_app(data_dir=data_dir))
 
     by_id = {
@@ -364,7 +363,6 @@ def test_the_endpoint_never_returns_a_key_value(tmp_path, monkeypatch) -> None:
 
     data_dir = tmp_path / "data"
     _connect(data_dir, OPENALEX_SOURCE, monkeypatch)
-    routes.attach_data_dir(data_dir)
     client = TestClient(create_app(data_dir=data_dir))
 
     body = client.get("/api/paper-sources").json()

@@ -55,7 +55,7 @@ from ontologylab.connectors.web_crawl import WebCrawlConnector
 from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError, UnknownItem
 from ontologylab.mcp_server import serve_args
 from ontologylab.packbuilder import PackBuildError, build_pack, list_packs
-from ontologylab.paths import default_data_dir, default_packs_dir, kg_db_path
+from ontologylab.paths import kg_db_path
 from ontologylab.providers import (
     Provider,
     ProviderError,
@@ -86,7 +86,8 @@ from ontologylab.sources import (
     validate_source,
 )
 from ontologylab.server import settings as settings_mod
-from ontologylab.server.jobs import JobAlreadyRunning, JobRegistry
+from ontologylab.server.dependencies import AppDependencies, AppDependency
+from ontologylab.server.jobs import JobAlreadyRunning
 from ontologylab.server.schemas import (
     AnnotationDecision,
     ChatMessage,
@@ -117,43 +118,10 @@ _log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
-# Bound once by app.create_app(); holds the data-dir Path for the working KG.
-_data_dir: Path = default_data_dir()
-
-# Bound once by app.create_app(); holds the packs output directory.
-_packs_dir: Path = default_packs_dir()
-
-# Bound once by app.create_app(); holds the extraction-job registry.
-_jobs_registry: JobRegistry | None = None
-
-
-def attach_data_dir(data_dir: Path) -> None:
-    global _data_dir
-    _data_dir = Path(data_dir)
-
-
-def attach_packs_dir(packs_dir: Path) -> None:
-    global _packs_dir
-    _packs_dir = Path(packs_dir)
-
-
-def attach_jobs_registry(registry: JobRegistry) -> None:
-    global _jobs_registry
-    _jobs_registry = registry
-
-
-def _registry() -> JobRegistry:
-    # create_app always attaches; the fallback keeps bare-router usage working.
-    global _jobs_registry
-    if _jobs_registry is None:
-        _jobs_registry = JobRegistry(_data_dir)
-    return _jobs_registry
-
-
-def _open_store() -> KGStore:
+def _open_store(deps: AppDependencies) -> KGStore:
     # Creates an empty store on first open, so the review UI boots cleanly
     # even before any collect job has run.
-    return KGStore.open(kg_db_path(_data_dir))
+    return KGStore.open(kg_db_path(deps.data_dir))
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +135,7 @@ def get_engines() -> list[EngineInfo]:
 
 
 @router.get("/paper-sources")
-def get_paper_sources() -> dict[str, Any]:
+def get_paper_sources(deps: AppDependency) -> dict[str, Any]:
     """List the paper sources this build can actually fetch from.
 
     The browser renders its picker from this, so the option list cannot
@@ -179,7 +147,7 @@ def get_paper_sources() -> dict[str, Any]:
     source with no key connected is implemented but not usable, and offering
     it as an ordinary choice would hand the user a guaranteed failure.
     """
-    usable = set(available_sources(_data_dir))
+    usable = set(available_sources(deps.data_dir))
     return {
         "sources": [
             {
@@ -192,7 +160,7 @@ def get_paper_sources() -> dict[str, Any]:
                 # key on the settings screen.
                 "keyed": source in KEYED_SOURCES,
                 "connectable": source in CONNECTABLE_SOURCES,
-                "key_present": bool(resolve_source_key(source, _data_dir)),
+                "key_present": bool(resolve_source_key(source, deps.data_dir)),
                 "available": source in usable,
             }
             for source in SOURCE_ORDER
@@ -202,12 +170,12 @@ def get_paper_sources() -> dict[str, Any]:
 
 
 @router.get("/settings", response_model=Settings)
-def get_settings() -> Settings:
-    return settings_mod.load_settings(_data_dir)
+def get_settings(deps: AppDependency) -> Settings:
+    return settings_mod.load_settings(deps.data_dir)
 
 
 @router.put("/settings", response_model=Settings)
-def put_settings(new_settings: Settings) -> Settings:
+def put_settings(deps: AppDependency, new_settings: Settings) -> Settings:
     """Save settings, refusing a SearXNG address that could never be used.
 
     Validated here rather than at fetch time. Storing a public instance and
@@ -223,7 +191,7 @@ def put_settings(new_settings: Settings) -> Settings:
             check_searxng_base_url(new_settings.searxng_url)
         except NotAllowlisted as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-    saved = settings_mod.save_settings(new_settings, _data_dir)
+    saved = settings_mod.save_settings(new_settings, deps.data_dir)
     # Takes effect now, not at the next restart. A setting that only
     # applies after a restart is one people conclude does not work.
     settings_mod.apply_to_environment(saved)
@@ -231,10 +199,10 @@ def put_settings(new_settings: Settings) -> Settings:
 
 
 @router.get("/cost", response_model=CostSummary)
-def get_cost() -> CostSummary:
+def get_cost(deps: AppDependency) -> CostSummary:
     # The active data dir, not the repository's — they differ on every
     # install started with `--data-dir`, which the launchd agent always does.
-    return settings_mod.cost_summary(data_dir=_data_dir)
+    return settings_mod.cost_summary(data_dir=deps.data_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -256,13 +224,13 @@ def _provider_public(provider: Provider) -> ProviderModel:
 
 
 @router.get("/providers")
-def list_providers() -> dict[str, Any]:
-    providers = [_provider_public(p) for p in load_providers(_data_dir)]
+def list_providers(deps: AppDependency) -> dict[str, Any]:
+    providers = [_provider_public(p) for p in load_providers(deps.data_dir)]
     return {"providers": providers}
 
 
 @router.post("/providers")
-def create_provider(body: ProviderCreate) -> dict[str, Any]:
+def create_provider(deps: AppDependency, body: ProviderCreate) -> dict[str, Any]:
     provider = Provider(
         id=body.id,
         kind=body.kind,
@@ -272,25 +240,25 @@ def create_provider(body: ProviderCreate) -> dict[str, Any]:
         label=body.label or "",
     )
     try:
-        add_provider(_data_dir, provider)
+        add_provider(deps.data_dir, provider)
     except ProviderError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "provider": _provider_public(provider)}
 
 
 @router.delete("/providers/{provider_id}")
-def delete_provider(provider_id: str) -> dict[str, Any]:
-    removed = remove_provider(_data_dir, provider_id)
+def delete_provider(deps: AppDependency, provider_id: str) -> dict[str, Any]:
+    removed = remove_provider(deps.data_dir, provider_id)
     return {"ok": True, "removed": removed}
 
 
 @router.post("/providers/{provider_id}/test", response_model=ProviderTestResult)
-async def test_provider(provider_id: str) -> ProviderTestResult:
+async def test_provider(deps: AppDependency, provider_id: str) -> ProviderTestResult:
     """One-shot ping via ApiEngine. Errors (incl. missing key) are returned as
     ``ok:false`` with a redacted message — the key is never leaked."""
     from ontologylab.engines import EngineError, get_engine
 
-    provider = get_provider(_data_dir, provider_id)
+    provider = get_provider(deps.data_dir, provider_id)
     if provider is None:
         return ProviderTestResult(
             ok=False, error=f"등록되지 않은 프로바이더예요: {provider_id}"
@@ -303,7 +271,7 @@ async def test_provider(provider_id: str) -> ProviderTestResult:
                 "키를 넣고 서버를 다시 시작해주세요."
             ),
         )
-    engine = get_engine(f"api:{provider_id}", data_dir=_data_dir)
+    engine = get_engine(f"api:{provider_id}", data_dir=deps.data_dir)
     start = time.monotonic()
     try:
         text, _usage = await engine.generate(
@@ -321,7 +289,7 @@ async def test_provider(provider_id: str) -> ProviderTestResult:
 
 
 @router.get("/review/triage")
-def get_triage(alpha: float = Query(0.05, gt=0.0, lt=1.0)) -> dict[str, Any]:
+def get_triage(deps: AppDependency, alpha: float = Query(0.05, gt=0.0, lt=1.0)) -> dict[str, Any]:
     """The conformal triage line for the review queue, if history supports one.
 
     Read-only by construction: the threshold orders and badges the queue,
@@ -331,7 +299,7 @@ def get_triage(alpha: float = Query(0.05, gt=0.0, lt=1.0)) -> dict[str, Any]:
     """
     from ontologylab.conformal import triage
 
-    store = _open_store()
+    store = _open_store(deps)
     try:
         return triage(store, alpha=alpha).to_dict()
     finally:
@@ -339,7 +307,7 @@ def get_triage(alpha: float = Query(0.05, gt=0.0, lt=1.0)) -> dict[str, Any]:
 
 
 @router.get("/review/calibration")
-def get_calibration() -> dict[str, Any]:
+def get_calibration(deps: AppDependency) -> dict[str, Any]:
     """How honest the extractor's confidence numbers are, measured.
 
     Raw ECE against review outcomes plus the fitted isotonic curve.
@@ -348,7 +316,7 @@ def get_calibration() -> dict[str, Any]:
     """
     from ontologylab.calibration import calibration_report
 
-    store = _open_store()
+    store = _open_store(deps)
     try:
         return calibration_report(store)
     finally:
@@ -356,7 +324,7 @@ def get_calibration() -> dict[str, Any]:
 
 
 @router.get("/proposals")
-def list_proposals(
+def list_proposals(deps: AppDependency,
     kind: str | None = Query(None, description="node | edge"),
     type_name: str | None = Query(None),
     source_doc_id: str | None = Query(None),
@@ -367,7 +335,7 @@ def list_proposals(
     ),
     limit: int = Query(100, ge=1, le=1000),
 ) -> dict[str, Any]:
-    store = _open_store()
+    store = _open_store(deps)
     try:
         try:
             items = store.pending_review(
@@ -386,8 +354,8 @@ def list_proposals(
 
 
 @router.post("/proposals/approve")
-def approve_proposal(body: ProposalAction) -> dict[str, Any]:
-    store = _open_store()
+def approve_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
+    store = _open_store(deps)
     try:
         result = store.approve(
             body.id, by=body.by, note=body.note, cascade=body.cascade
@@ -404,9 +372,9 @@ def approve_proposal(body: ProposalAction) -> dict[str, Any]:
 
 
 @router.post("/edges/{edge_id}/invalidate")
-def invalidate_edge(edge_id: str, body: ProposalAction) -> dict[str, Any]:
+def invalidate_edge(deps: AppDependency, edge_id: str, body: ProposalAction) -> dict[str, Any]:
     """W13: mark a verified edge as no-longer-current (kept as history)."""
-    store = _open_store()
+    store = _open_store(deps)
     try:
         result = store.invalidate_edge(edge_id, by=body.by, reason=body.note)
         return {"ok": True, **result}
@@ -419,8 +387,8 @@ def invalidate_edge(edge_id: str, body: ProposalAction) -> dict[str, Any]:
 
 
 @router.post("/proposals/reject")
-def reject_proposal(body: ProposalAction) -> dict[str, Any]:
-    store = _open_store()
+def reject_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
+    store = _open_store(deps)
     try:
         result = store.reject(body.id, by=body.by, note=body.note)
         return {"ok": True, **result}
@@ -433,13 +401,13 @@ def reject_proposal(body: ProposalAction) -> dict[str, Any]:
 
 
 @router.post("/proposals/reopen")
-def reopen_proposal(body: ProposalAction) -> dict[str, Any]:
+def reopen_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
     """Undo one approve/reject by putting the row back in the review queue.
 
     400 when a verified edge still depends on the node being reopened — the
     message names the blocking edges so the UI can say what to do next.
     """
-    store = _open_store()
+    store = _open_store(deps)
     try:
         result = store.reopen(body.id, by=body.by, note=body.note)
         return {"ok": True, **result}
@@ -457,7 +425,7 @@ def reopen_proposal(body: ProposalAction) -> dict[str, Any]:
 
 
 @router.get("/search")
-def search_entities(
+def search_entities(deps: AppDependency,
     q: str = Query(..., min_length=1, max_length=200),
     limit: int = Query(8, ge=1, le=25),
 ) -> dict[str, Any]:
@@ -474,7 +442,7 @@ def search_entities(
     reviewer is deciding about right now. `status` rides along so the
     caller can show which is which.
     """
-    store = _open_store()
+    store = _open_store(deps)
     try:
         matches = store.name_search(q, limit=limit, include_proposed=True)
     except KGStoreError:
@@ -498,7 +466,7 @@ def search_entities(
 
 
 @router.get("/provenance/{kind}/{item_id}")
-def get_provenance(kind: str, item_id: str) -> dict[str, Any]:
+def get_provenance(deps: AppDependency, kind: str, item_id: str) -> dict[str, Any]:
     """Why the graph believes one node or edge.
 
     Every field here has been stored since the first schema and none of it
@@ -507,7 +475,7 @@ def get_provenance(kind: str, item_id: str) -> dict[str, Any]:
     "Why does the KG believe this?" is the question this whole tool is built
     around, and answering it required opening sqlite.
     """
-    store = _open_store()
+    store = _open_store(deps)
     try:
         return store.provenance(kind, item_id)
     except UnknownItem as exc:
@@ -519,7 +487,7 @@ def get_provenance(kind: str, item_id: str) -> dict[str, Any]:
 
 
 @router.get("/schema")
-def get_schema() -> dict[str, Any]:
+def get_schema(deps: AppDependency) -> dict[str, Any]:
     """The active ontology, the ones this store has held, and the presets.
 
     The ontology is what the extractor is told to look for, so it is the
@@ -528,7 +496,7 @@ def get_schema() -> dict[str, Any]:
     """
     from ontologylab.schemas import PRESETS
 
-    store = _open_store()
+    store = _open_store(deps)
     try:
         return {
             "active": store.get_schema(),
@@ -549,7 +517,7 @@ def get_schema() -> dict[str, Any]:
 
 
 @router.post("/schema")
-def install_schema(body: SchemaInstall) -> dict[str, Any]:
+def install_schema(deps: AppDependency, body: SchemaInstall) -> dict[str, Any]:
     """Install an ontology and make it active, from a preset or in full.
 
     Additive: the previous ontology is deactivated, never edited, so
@@ -577,7 +545,7 @@ def install_schema(body: SchemaInstall) -> dict[str, Any]:
             detail="pass either `preset`, or `label` with `entity_types`",
         )
 
-    store = _open_store()
+    store = _open_store(deps)
     try:
         schema_id = store.install_schema(**payload)
         return {"ok": True, "schema_id": schema_id, "active": store.get_schema()}
@@ -588,9 +556,9 @@ def install_schema(body: SchemaInstall) -> dict[str, Any]:
 
 
 @router.post("/schema/{schema_id}/activate")
-def activate_schema(schema_id: int) -> dict[str, Any]:
+def activate_schema(deps: AppDependency, schema_id: int) -> dict[str, Any]:
     """Switch back to an ontology this store already holds."""
-    store = _open_store()
+    store = _open_store(deps)
     try:
         store.activate_schema(schema_id)
         return {"ok": True, "active": store.get_schema()}
@@ -601,14 +569,14 @@ def activate_schema(schema_id: int) -> dict[str, Any]:
 
 
 @router.get("/document/{doc_id}/review")
-def document_review(doc_id: str) -> dict[str, Any]:
+def document_review(deps: AppDependency, doc_id: str) -> dict[str, Any]:
     """The source text and every proposal drawn from it.
 
     What the document panel shows. Judging a proposal means judging whether
     the paper says it, and that question is easier to answer with the
     surrounding paragraph than with the 160 characters around the span.
     """
-    store = _open_store()
+    store = _open_store(deps)
     try:
         return store.document_review_context(doc_id)
     except UnknownItem as exc:
@@ -620,8 +588,8 @@ def document_review(doc_id: str) -> dict[str, Any]:
 
 
 @router.get("/entity/{entity_id}/review")
-def entity_review(entity_id: str) -> dict[str, Any]:
-    store = _open_store()
+def entity_review(deps: AppDependency, entity_id: str) -> dict[str, Any]:
+    store = _open_store(deps)
     try:
         return store.entity_review_context(entity_id)
     except UnknownItem as exc:
@@ -639,8 +607,8 @@ def entity_review(entity_id: str) -> dict[str, Any]:
 
 
 @router.get("/communities")
-def get_communities(limit: int = Query(20, ge=1, le=200)) -> dict[str, Any]:
-    store = _open_store()
+def get_communities(deps: AppDependency, limit: int = Query(20, ge=1, le=200)) -> dict[str, Any]:
+    store = _open_store(deps)
     try:
         communities = store.list_communities(limit=limit)
         return {"communities": communities, "count": len(communities)}
@@ -649,8 +617,8 @@ def get_communities(limit: int = Query(20, ge=1, le=200)) -> dict[str, Any]:
 
 
 @router.get("/communities/{community_id}")
-def get_community(community_id: str) -> dict[str, Any]:
-    store = _open_store()
+def get_community(deps: AppDependency, community_id: str) -> dict[str, Any]:
+    store = _open_store(deps)
     try:
         # community_members 404s on an unknown id (UnknownItem); on success
         # we attach the community's own summary/metadata row for the header.
@@ -676,7 +644,7 @@ def get_community(community_id: str) -> dict[str, Any]:
 
 
 @router.get("/graph")
-def get_graph(
+def get_graph(deps: AppDependency,
     include_proposed: bool = Query(
         True, description="False면 verified-only 서브그래프"
     ),
@@ -684,7 +652,7 @@ def get_graph(
     limit: int = Query(150, ge=1, le=500),
 ) -> dict[str, Any]:
     """Overview subgraph: up to ``limit`` nodes plus the edges among them."""
-    store = _open_store()
+    store = _open_store(deps)
     try:
         return store.graph_query(
             entity_type=entity_type or None,
@@ -696,14 +664,14 @@ def get_graph(
 
 
 @router.get("/graph/neighbors/{node_id}")
-def get_graph_neighbors(
+def get_graph_neighbors(deps: AppDependency,
     node_id: str,
     hops: int = Query(1, ge=1, le=3),
     include_proposed: bool = Query(True),
     limit: int = Query(100, ge=1, le=500),
 ) -> dict[str, Any]:
     """N-hop BFS neighborhood around one node (graph-browser expansion)."""
-    store = _open_store()
+    store = _open_store(deps)
     try:
         result = store.traverse_relations(
             [node_id],
@@ -726,13 +694,13 @@ def get_graph_neighbors(
 
 
 @router.post("/critic/run")
-async def critic_run(body: CriticRunRequest) -> dict[str, Any]:
+async def critic_run(deps: AppDependency, body: CriticRunRequest) -> dict[str, Any]:
     from ontologylab.critic import critic_review, resolve_critic_model
     from ontologylab.engines import get_engine
 
     critic_model = resolve_critic_model(body.engine, body.model)
-    engine = get_engine(body.engine, critic_model, data_dir=_data_dir)
-    store = _open_store()
+    engine = get_engine(body.engine, critic_model, data_dir=deps.data_dir)
+    store = _open_store(deps)
     try:
         stats = await critic_review(
             store, engine, model=critic_model,
@@ -749,7 +717,7 @@ async def critic_run(body: CriticRunRequest) -> dict[str, Any]:
 
 
 @router.post("/enrich")
-def enrich_nodes(limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+def enrich_nodes(deps: AppDependency, limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
     """Look verified nodes up in the curated resources; queue what matches.
 
     Synchronous and capped. Unlike a research run this makes at most
@@ -759,7 +727,7 @@ def enrich_nodes(limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
     """
     from ontologylab.enrichment import enrich
 
-    store = _open_store()
+    store = _open_store(deps)
     try:
         report = enrich(store, limit=limit)
         return {"ok": True, **report.as_dict()}
@@ -773,8 +741,8 @@ def enrich_nodes(limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
 
 
 @router.get("/annotations")
-def list_annotations(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
-    store = _open_store()
+def list_annotations(deps: AppDependency, limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+    store = _open_store(deps)
     try:
         return {
             "annotations": store.annotations_pending(limit=limit),
@@ -793,8 +761,8 @@ def list_annotations(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
 
 
 @router.post("/annotations/{annotation_id}/decide")
-def decide_annotation(annotation_id: str, body: AnnotationDecision) -> dict[str, Any]:
-    store = _open_store()
+def decide_annotation(deps: AppDependency, annotation_id: str, body: AnnotationDecision) -> dict[str, Any]:
+    store = _open_store(deps)
     try:
         decided = store.decide_annotation(
             annotation_id, accept=body.accept, note=body.note
@@ -808,10 +776,10 @@ def decide_annotation(annotation_id: str, body: AnnotationDecision) -> dict[str,
 
 
 @router.post("/merge/scan")
-def merge_scan(body: MergeScanRequest) -> dict[str, Any]:
+def merge_scan(deps: AppDependency, body: MergeScanRequest) -> dict[str, Any]:
     from ontologylab.merge import scan_merge_candidates
 
-    store = _open_store()
+    store = _open_store(deps)
     try:
         stats = scan_merge_candidates(store, name_threshold=body.min_similarity)
         return {"ok": True, **stats}
@@ -820,8 +788,8 @@ def merge_scan(body: MergeScanRequest) -> dict[str, Any]:
 
 
 @router.get("/merge/candidates")
-def merge_candidates(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
-    store = _open_store()
+def merge_candidates(deps: AppDependency, limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+    store = _open_store(deps)
     try:
         items = store.merge_candidates_pending(limit=limit)
         return {"items": items, "count": len(items)}
@@ -830,8 +798,8 @@ def merge_candidates(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
 
 
 @router.post("/merge/candidates/{candidate_id}/merge")
-def merge_candidate_merge(candidate_id: str, body: MergeAction) -> dict[str, Any]:
-    store = _open_store()
+def merge_candidate_merge(deps: AppDependency, candidate_id: str, body: MergeAction) -> dict[str, Any]:
+    store = _open_store(deps)
     try:
         candidate = store._merge_candidate_row(candidate_id)
         pair = {candidate["node_a_id"], candidate["node_b_id"]}
@@ -858,8 +826,8 @@ def merge_candidate_merge(candidate_id: str, body: MergeAction) -> dict[str, Any
 
 
 @router.post("/merge/candidates/{candidate_id}/dismiss")
-def merge_candidate_dismiss(candidate_id: str, body: MergeDismiss) -> dict[str, Any]:
-    store = _open_store()
+def merge_candidate_dismiss(deps: AppDependency, candidate_id: str, body: MergeDismiss) -> dict[str, Any]:
+    store = _open_store(deps)
     try:
         result = store.dismiss_merge_candidate(
             candidate_id, by=body.by, note=body.note
@@ -885,13 +853,13 @@ MAX_SOURCE_KEY_LEN = 4096
 
 
 @router.get("/sources")
-def list_sources() -> dict[str, Any]:
+def list_sources(deps: AppDependency) -> dict[str, Any]:
     """Connected publisher sources. Presence only — never a key value."""
-    return {"sources": [source_public(s) for s in load_sources(_data_dir)]}
+    return {"sources": [source_public(s) for s in load_sources(deps.data_dir)]}
 
 
 @router.post("/sources")
-def create_source(body: SourceCreate) -> dict[str, Any]:
+def create_source(deps: AppDependency, body: SourceCreate) -> dict[str, Any]:
     """Connect a source, storing its key in the Keychain.
 
     Gate failures answer 200 with a typed `error_kind`, like `collect` — the
@@ -951,20 +919,20 @@ def create_source(body: SourceCreate) -> dict[str, Any]:
                 detail = "the Keychain rejected the key"
             return {"ok": False, "error_kind": "failed", "detail": detail}
 
-    add_source(_data_dir, source)
+    add_source(deps.data_dir, source)
     return {"ok": True, "source": source_public(source)}
 
 
 @router.delete("/sources/{source_id}")
-def delete_source(source_id: str) -> dict[str, Any]:
+def delete_source(deps: AppDependency, source_id: str) -> dict[str, Any]:
     """Disconnect a source. The stored key is left alone.
 
     Removing a configuration row and destroying a credential are different
     decisions, so they are different requests. `key_retained` tells the UI
     whether to offer the second one.
     """
-    source = get_source(_data_dir, source_id)
-    removed = remove_source(_data_dir, source_id)
+    source = get_source(deps.data_dir, source_id)
+    removed = remove_source(deps.data_dir, source_id)
     retained = bool(
         source is not None
         and source.keychain_account
@@ -974,13 +942,13 @@ def delete_source(source_id: str) -> dict[str, Any]:
 
 
 @router.delete("/sources/{source_id}/key")
-def forget_source_key(source_id: str) -> dict[str, Any]:
+def forget_source_key(deps: AppDependency, source_id: str) -> dict[str, Any]:
     """Delete the stored key itself, leaving the registry entry in place.
 
     Separated from the row deletion because it is the destructive half, and
     because a user rotating a key wants exactly this and nothing else.
     """
-    source = get_source(_data_dir, source_id)
+    source = get_source(deps.data_dir, source_id)
     if source is None or not source.keychain_account:
         return {"ok": True, "forgotten": False, "reason": "no stored key"}
     return {"ok": True, "forgotten": delete_key(source.keychain_account)}
@@ -992,8 +960,8 @@ def forget_source_key(source_id: str) -> dict[str, Any]:
 
 
 @router.get("/documents")
-def get_documents() -> dict[str, Any]:
-    store = _open_store()
+def get_documents(deps: AppDependency) -> dict[str, Any]:
+    store = _open_store(deps)
     try:
         documents = [
             {
@@ -1012,13 +980,13 @@ def get_documents() -> dict[str, Any]:
 
 
 @router.post("/collect")
-def collect(body: CollectRequest) -> dict[str, Any]:
+def collect(deps: AppDependency, body: CollectRequest) -> dict[str, Any]:
     """Run a collect synchronously, mirroring main.cmd_collect's gate order.
 
     Gate failures return 200 with {"ok": false, "error_kind", "detail"} so
     the dashboard can render them inline — never a 4xx/5xx.
     """
-    job_dir = paths.new_job_dir(_data_dir, "collect")
+    job_dir = paths.new_job_dir(deps.data_dir, "collect")
     provenance = Provenance(str(job_dir), seed=0)
     # Logged before the gates so a rejected attempt still leaves a trace,
     # and bounded because that ordering means these values have passed no
@@ -1046,7 +1014,7 @@ def collect(body: CollectRequest) -> dict[str, Any]:
         for url in body.urls:
             check_url(url)
         for file_arg in body.files:
-            check_collect_file(file_arg, _data_dir)
+            check_collect_file(file_arg, deps.data_dir)
         for paper_query in body.paper_queries:
             check_paper_query(body.paper_source, paper_query)
             check_source_implemented(body.paper_source)
@@ -1138,7 +1106,7 @@ def collect(body: CollectRequest) -> dict[str, Any]:
                 # keyed source is refused as `unconfigured` even when its key
                 # is connected — the research path passed it, this one did
                 # not, and the two disagreed about the same configuration.
-                "data_dir": _data_dir,
+                "data_dir": deps.data_dir,
             },
         )
         if fetched is None:
@@ -1165,7 +1133,7 @@ def collect(body: CollectRequest) -> dict[str, Any]:
         provenance.log("collect.end", {"documents": 0, "created": 0})
         return {"ok": True, "documents": 0, "created": 0, "duplicates": 0}
 
-    store = _open_store()
+    store = _open_store(deps)
     try:
         created_count = 0
         for raw in raw_docs:
@@ -1219,7 +1187,7 @@ CouponEngine 은 MemberDatabase 의 방문 기록을 참고해요.
 
 
 @router.post("/collect/sample")
-def collect_sample() -> dict[str, Any]:
+def collect_sample(deps: AppDependency) -> dict[str, Any]:
     """Ingest the bundled onboarding sample document (offline, idempotent)."""
     raw = RawDocument(
         source_kind="upload",
@@ -1227,7 +1195,7 @@ def collect_sample() -> dict[str, Any]:
         title=SAMPLE_DOC_TITLE,
         raw_text=SAMPLE_DOC_TEXT,
     )
-    store = _open_store()
+    store = _open_store(deps)
     try:
         doc, created = store.insert_document(
             source_kind=raw.source_kind,
@@ -1252,8 +1220,8 @@ def collect_sample() -> dict[str, Any]:
 
 
 @router.post("/extract", status_code=202)
-def start_extract(body: ExtractRequest) -> dict[str, Any]:
-    job = _registry().create(
+def start_extract(deps: AppDependency, body: ExtractRequest) -> dict[str, Any]:
+    job = deps.jobs.create(
         engine=body.engine,
         model=body.model,
         doc_ids=body.doc_ids,
@@ -1265,7 +1233,7 @@ def start_extract(body: ExtractRequest) -> dict[str, Any]:
 
 
 @router.post("/research")
-def start_research(body: ResearchRequest) -> dict[str, Any]:
+def start_research(deps: AppDependency, body: ResearchRequest) -> dict[str, Any]:
     """Collect a topic across sources and extract it, as one job.
 
     Every gate runs here, synchronously, before a job exists. `Job` carries
@@ -1279,7 +1247,7 @@ def start_research(body: ResearchRequest) -> dict[str, Any]:
     # publisher source that is connected. An explicit list is honoured as
     # given, so asking for `elsevier` without a key still answers with a
     # typed `unconfigured` rather than silently dropping it.
-    sources = body.sources or available_sources(_data_dir)
+    sources = body.sources or available_sources(deps.data_dir)
 
     def _record(step: str, payload: dict[str, Any]) -> None:
         """Write a refusal to provenance, creating its run dir on demand.
@@ -1295,7 +1263,7 @@ def start_research(body: ResearchRequest) -> dict[str, Any]:
         holding Enter on an empty topic box degraded that screen permanently.
         A rejected request is not a run and should not look like one.
         """
-        rejects = paths.jobs_dir(_data_dir) / "research-rejected"
+        rejects = paths.jobs_dir(deps.data_dir) / "research-rejected"
         rejects.mkdir(parents=True, exist_ok=True)
         provenance = Provenance(str(rejects), seed=0)
         provenance.log(
@@ -1333,7 +1301,7 @@ def start_research(body: ResearchRequest) -> dict[str, Any]:
     # requests both pass. `create_research` decides under the same lock that
     # registers the job, and says no by raising.
     try:
-        job = _registry().create_research(
+        job = deps.jobs.create_research(
             topic=body.topic,
             sources=sources,
             limit=body.limit,
@@ -1379,11 +1347,13 @@ CHAT_SEARCH_LIMIT = 8
 CHAT_ENRICH_LIMIT = 10
 
 
-def _open_chat_store() -> ChatStore:
-    return ChatStore.open(paths.chat_db_path(_data_dir))
+def _open_chat_store(deps: AppDependencies) -> ChatStore:
+    return ChatStore.open(paths.chat_db_path(deps.data_dir))
 
 
-def _record_turn(body: ChatMessage, payload: dict[str, Any]) -> Optional[str]:
+def _record_turn(
+    body: ChatMessage, payload: dict[str, Any], deps: AppDependencies
+) -> Optional[str]:
     """Write one turn to the transcript, or return None if that failed.
 
     Deliberately never raises. The transcript is a convenience — being able
@@ -1394,7 +1364,7 @@ def _record_turn(body: ChatMessage, payload: dict[str, Any]) -> Optional[str]:
     """
     result = payload.get("result") or {}
     try:
-        store = _open_chat_store()
+        store = _open_chat_store(deps)
         try:
             return store.record(
                 message=body.message,
@@ -1424,7 +1394,7 @@ def _record_turn(body: ChatMessage, payload: dict[str, Any]) -> Optional[str]:
 
 
 @router.post("/chat")
-async def chat(body: ChatMessage) -> dict[str, Any]:
+async def chat(deps: AppDependency, body: ChatMessage) -> dict[str, Any]:
     """Read one message, run the action it names, return a rendered result.
 
     The model classifies; this dispatches. It never receives code, a URL or
@@ -1459,11 +1429,11 @@ async def chat(body: ChatMessage) -> dict[str, Any]:
         # unanswered and once done, and the unanswered copy would still
         # show its button — a second, stale way to authorise the change.
         if result.get("kind") != "confirm":
-            payload["turn_id"] = _record_turn(body, payload)
+            payload["turn_id"] = _record_turn(body, payload, deps)
         return payload
 
     try:
-        engine = get_engine(body.engine, body.model, data_dir=_data_dir)
+        engine = get_engine(body.engine, body.model, data_dir=deps.data_dir)
     except EngineError as exc:
         trace.append(Step(body.engine, "classify", "failed", "unavailable"))
         return reply(False, error_kind="unsupported",
@@ -1503,13 +1473,13 @@ async def chat(body: ChatMessage) -> dict[str, Any]:
     # that loop, so a chat-initiated build would freeze the progress display
     # of a research run happening at the same time.
     payload["result"] = await run_in_threadpool(
-        _run_intent, intent, trace, body
+        _run_intent, intent, trace, body, deps
     )
     return reply(True, **payload)
 
 
 def _run_intent(
-    intent: "Intent", trace: list[Step], body: ChatMessage
+    intent: "Intent", trace: list[Step], body: ChatMessage, deps: AppDependencies
 ) -> dict[str, Any]:
     """Perform one already-classified, already-confirmed action."""
     action, params = intent.action, intent.params
@@ -1526,7 +1496,7 @@ def _run_intent(
         # unsupported source, offline, already-running — lives there, and a
         # second path into the fan-out would be a second, laxer entrance to
         # the same network calls.
-        started = start_research(ResearchRequest(
+        started = start_research(deps=deps, body=ResearchRequest(
             topic=topic, engine=body.engine, model=body.model,
         ))
         if not started.get("ok"):
@@ -1544,28 +1514,28 @@ def _run_intent(
             trace.append(Step("store", "search", "failed", "no_query"))
             return {"kind": "blocked", "error_kind": "shape",
                     "detail": "which name should I look for?"}
-        found = search_entities(q=query, limit=CHAT_SEARCH_LIMIT)
+        found = search_entities(deps=deps, q=query, limit=CHAT_SEARCH_LIMIT)
         trace.append(
             Step("store", "search", "ok", str(len(found.get("results", []))))
         )
         return {"kind": "search", "query": query, **found}
 
     if action == "enrich":
-        result = enrich_nodes(limit=CHAT_ENRICH_LIMIT)
+        result = enrich_nodes(deps=deps, limit=CHAT_ENRICH_LIMIT)
         trace.append(
             Step("resources", "lookup", "ok", str(result.get("proposed", 0)))
         )
         return {"kind": "enrich", **result}
 
     if action == "build_pack":
-        built = packs_build(PackBuildRequest(name=params.get("name") or None))
+        built = packs_build(deps=deps, body=PackBuildRequest(name=params.get("name") or None))
         trace.append(Step("ontologylab", "build", "ok",
                           str(built.get("pack_id", ""))))
         return {"kind": "pack", **built}
 
     # Everything else is a read. One store round-trip, and the browser
     # decides which screen the answer belongs on.
-    store = _open_store()
+    store = _open_store(deps)
     try:
         counts = store.counts()
     finally:
@@ -1593,9 +1563,9 @@ def _run_intent(
 
 
 @router.get("/chat/history")
-def chat_history(limit: int = Query(100, ge=1, le=MAX_TURNS)) -> dict[str, Any]:
+def chat_history(deps: AppDependency, limit: int = Query(100, ge=1, le=MAX_TURNS)) -> dict[str, Any]:
     """The conversation so far, oldest first."""
-    store = _open_chat_store()
+    store = _open_chat_store(deps)
     try:
         return {"turns": store.history(limit=limit)}
     finally:
@@ -1603,14 +1573,14 @@ def chat_history(limit: int = Query(100, ge=1, le=MAX_TURNS)) -> dict[str, Any]:
 
 
 @router.delete("/chat/history")
-def chat_history_clear() -> dict[str, Any]:
+def chat_history_clear(deps: AppDependency) -> dict[str, Any]:
     """Forget the conversation.
 
     A local-first tool that keeps a transcript owes the person a way to end
     it. Nothing else is touched: documents, proposals and packs are the
     knowledge, and this is only the record of what was asked.
     """
-    store = _open_chat_store()
+    store = _open_chat_store(deps)
     try:
         return {"ok": True, "cleared": store.clear()}
     finally:
@@ -1618,12 +1588,12 @@ def chat_history_clear() -> dict[str, Any]:
 
 
 @router.get("/jobs")
-def list_jobs() -> dict[str, Any]:
-    return {"jobs": [job.as_status() for job in _registry().list()]}
+def list_jobs(deps: AppDependency) -> dict[str, Any]:
+    return {"jobs": [job.as_status() for job in deps.jobs.list()]}
 
 
 @router.get("/jobs/{job_id}/asked")
-def job_asked(job_id: str) -> dict[str, Any]:
+def job_asked(deps: AppDependency, job_id: str) -> dict[str, Any]:
     """Which question started this run.
 
     A run records what it did in great detail and nothing about why it was
@@ -1634,7 +1604,7 @@ def job_asked(job_id: str) -> dict[str, Any]:
     Returns `{"turn": null}` for a run started from the form — that is an
     absence, not a failure.
     """
-    store = _open_chat_store()
+    store = _open_chat_store(deps)
     try:
         return {"turn": store.turn_for_job(job_id)}
     finally:
@@ -1642,7 +1612,7 @@ def job_asked(job_id: str) -> dict[str, Any]:
 
 
 @router.post("/jobs/{job_id}/cancel")
-def cancel_job(job_id: str) -> dict[str, Any]:
+def cancel_job(deps: AppDependency, job_id: str) -> dict[str, Any]:
     """Ask a running job to stop at its next checkpoint.
 
     Returns 200 either way: `cancelled` false means the job was unknown or
@@ -1652,7 +1622,7 @@ def cancel_job(job_id: str) -> dict[str, Any]:
     This is a request, not a kill — the worker stops between chunks, and a
     blocking fetch already in flight runs to its socket timeout first.
     """
-    job = _registry().get(job_id)
+    job = deps.jobs.get(job_id)
     if job is None:
         return {"ok": True, "cancelled": False, "reason": "unknown job"}
     if not job.cancel():
@@ -1667,7 +1637,7 @@ JOBS_STREAM_WAIT_S = 15.0
 
 
 @router.get("/jobs/stream")
-async def stream_jobs(
+async def stream_jobs(deps: AppDependency,
     request: Request,
     max_events: int | None = Query(
         None,
@@ -1684,7 +1654,7 @@ async def stream_jobs(
     comments so proxies don't drop the connection. The dashboard falls
     back to GET /api/jobs polling when EventSource is unavailable.
     """
-    registry = _registry()
+    registry = deps.jobs
 
     async def event_source() -> AsyncIterator[str]:
         last_seen = -1  # registry starts at 0 → first wait returns at once
@@ -1717,8 +1687,8 @@ async def stream_jobs(
 
 
 @router.get("/jobs/{job_id}", response_model=JobStatus)
-def get_job(job_id: str) -> JobStatus:
-    job = _registry().get(job_id)
+def get_job(deps: AppDependency, job_id: str) -> JobStatus:
+    job = deps.jobs.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"unknown job {job_id!r}")
     return JobStatus(**job.as_status())
@@ -1730,14 +1700,14 @@ def get_job(job_id: str) -> JobStatus:
 
 
 @router.get("/packs")
-def get_packs() -> dict[str, Any]:
-    packs = list_packs(_packs_dir)
+def get_packs(deps: AppDependency) -> dict[str, Any]:
+    packs = list_packs(deps.packs_dir)
     return {"packs": packs, "count": len(packs)}
 
 
 @router.post("/packs/build")
-def packs_build(body: PackBuildRequest) -> dict[str, Any]:
-    job_dir = paths.new_job_dir(_data_dir, "build-pack")
+def packs_build(deps: AppDependency, body: PackBuildRequest) -> dict[str, Any]:
+    job_dir = paths.new_job_dir(deps.data_dir, "build-pack")
     provenance = Provenance(str(job_dir), seed=0)
     provenance.log(
         "build_pack.start",
@@ -1749,11 +1719,11 @@ def packs_build(body: PackBuildRequest) -> dict[str, Any]:
     )
     # Zero collected documents / zero verified rows is still a buildable
     # (empty) pack: ensure the working DB exists before handing it over.
-    _open_store().close()
+    _open_store(deps).close()
     try:
         manifest = build_pack(
-            kg_db_path(_data_dir),
-            _packs_dir,
+            kg_db_path(deps.data_dir),
+            deps.packs_dir,
             body.name,
             source_job_id=job_dir.name,
             provenance_jsonl=provenance.jsonl_path,
@@ -1782,23 +1752,23 @@ def packs_build(body: PackBuildRequest) -> dict[str, Any]:
 
 
 @router.get("/packs/{pack_a_id}/diff/{pack_b_id}")
-def packs_diff(pack_a_id: str, pack_b_id: str) -> dict[str, Any]:
+def packs_diff(deps: AppDependency, pack_a_id: str, pack_b_id: str) -> dict[str, Any]:
     """W14: manifest + node/edge deltas between two built packs."""
     from ontologylab.packdiff import diff_packs
 
     try:
-        return diff_packs(_packs_dir, pack_a_id, pack_b_id)
+        return diff_packs(deps.packs_dir, pack_a_id, pack_b_id)
     except PackBuildError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/packs/{pack_id}/mcpb")
-def packs_build_mcpb(pack_id: str) -> dict[str, Any]:
+def packs_build_mcpb(deps: AppDependency, pack_id: str) -> dict[str, Any]:
     """Bundle one built pack as a downloadable .mcpb file."""
     from ontologylab.mcpb import build_mcpb
 
     try:
-        bundle = build_mcpb(_packs_dir, pack_id)
+        bundle = build_mcpb(deps.packs_dir, pack_id)
     except (PackBuildError, OSError) as exc:
         return {"ok": False, "detail": str(exc)}
     return {
@@ -1811,15 +1781,15 @@ def packs_build_mcpb(pack_id: str) -> dict[str, Any]:
 
 
 @router.get("/packs/{pack_id}/mcpb/download")
-def packs_download_mcpb(pack_id: str) -> Any:
+def packs_download_mcpb(deps: AppDependency, pack_id: str) -> Any:
     from fastapi.responses import FileResponse
 
     from ontologylab.mcpb import build_mcpb
 
-    bundle = Path(_packs_dir) / f"{pack_id}.mcpb"
+    bundle = Path(deps.packs_dir) / f"{pack_id}.mcpb"
     if not bundle.is_file():
         try:
-            bundle = build_mcpb(_packs_dir, pack_id)
+            bundle = build_mcpb(deps.packs_dir, pack_id)
         except (PackBuildError, OSError) as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
     return FileResponse(
@@ -1835,10 +1805,10 @@ def packs_download_mcpb(pack_id: str) -> Any:
 
 
 @router.get("/mcp/status")
-def mcp_status() -> dict[str, Any]:
-    packs_abs = str(Path(_packs_dir).resolve())
+def mcp_status(deps: AppDependency) -> dict[str, Any]:
+    packs_abs = str(Path(deps.packs_dir).resolve())
     entries: list[dict[str, Any]] = []
-    for manifest in list_packs(_packs_dir):
+    for manifest in list_packs(deps.packs_dir):
         pack_id = manifest.get("pack_id")
         entries.append(
             {

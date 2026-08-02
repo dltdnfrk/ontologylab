@@ -401,14 +401,13 @@ def _research(tmp_path, monkeypatch, *, fulltext: bool):
     monkeypatch.setattr(paper_api, "_http_get_text", lambda *a, **k: JATS)
 
     data_dir = tmp_path / "data"
-    routes.attach_data_dir(data_dir)
     client = TestClient(create_app(data_dir=data_dir))
     started = client.post(
         "/api/research",
         json={"topic": "dna repair", "engine": "mock", "fulltext": fulltext},
     ).json()
     assert started["ok"] is True, started
-    job = routes._registry().get(started["job_id"])
+    job = client.app.state.jobs.get(started["job_id"])
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline and job.status not in TERMINAL_STATUSES:
         time.sleep(0.02)

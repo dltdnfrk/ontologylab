@@ -69,7 +69,6 @@ def _isolated_keychain(monkeypatch):
 
 def _client(tmp_path: Path) -> TestClient:
     data_dir = tmp_path / "data"
-    routes.attach_data_dir(data_dir)
     return TestClient(create_app(data_dir=data_dir))
 
 

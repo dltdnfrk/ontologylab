@@ -473,7 +473,6 @@ def test_collecting_from_an_unconnected_publisher_is_a_typed_refusal(
     from ontologylab.server.app import create_app
 
     data_dir = tmp_path / "data"
-    routes.attach_data_dir(data_dir)
     client = TestClient(create_app(data_dir=data_dir))
 
     response = client.post(
@@ -503,7 +502,6 @@ def test_an_oversized_publisher_response_is_a_typed_refusal(
         paper_api, "_http_get_text",
         lambda *a, **k: (_ for _ in ()).throw(ResponseTooLarge("too big")),
     )
-    routes.attach_data_dir(data_dir)
     client = TestClient(create_app(data_dir=data_dir))
 
     response = client.post(

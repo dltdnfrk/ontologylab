@@ -144,7 +144,6 @@ def test_the_http_route_refuses_before_reading_anything(tmp_path: Path) -> None:
 
     data_dir = tmp_path / "data"
     secret = _write(data_dir / "sources.json", '{"api_key": "ELS-must-not-leak"}')
-    routes.attach_data_dir(data_dir)
     client = TestClient(create_app(data_dir=data_dir))
 
     response = client.post("/api/collect", json={"files": [str(secret)]})
@@ -166,7 +165,6 @@ def test_the_http_route_still_collects_a_sibling_file(tmp_path: Path) -> None:
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     notes = _write(tmp_path / "notes.md", "a real research note")
-    routes.attach_data_dir(data_dir)
     client = TestClient(create_app(data_dir=data_dir))
 
     response = client.post("/api/collect", json={"files": [str(notes)]})

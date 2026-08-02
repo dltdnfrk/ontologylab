@@ -269,7 +269,7 @@ def test_jobs_stream_pushes_on_registry_change(tmp_path: Path, monkeypatch) -> N
 
     monkeypatch.setattr(routes, "JOBS_STREAM_WAIT_S", 0.2)
     client = _client(tmp_path)
-    registry = routes._registry()
+    registry = client.app.state.jobs
     # 요청이 두 번째 이벤트를 기다리며 파킹된 동안 레지스트리를 건드린다.
     threading.Timer(0.15, registry.touch).start()
     resp = client.get("/api/jobs/stream", params={"max_events": 2})

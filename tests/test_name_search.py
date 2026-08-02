@@ -224,7 +224,6 @@ def test_proposals_are_included_by_default(tmp_path) -> None:
 
 def _client(tmp_path) -> TestClient:
     data_dir = tmp_path / "data"
-    routes.attach_data_dir(data_dir)
     return TestClient(create_app(data_dir=data_dir))
 
 

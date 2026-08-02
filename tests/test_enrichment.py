@@ -722,7 +722,6 @@ def test_the_annotations_endpoint_states_the_scope(tmp_path) -> None:
 
     os.environ.setdefault("ONTOLOGYLAB_ALLOWED_HOSTS", "testserver")
     data_dir = tmp_path / "data"
-    routes.attach_data_dir(data_dir)
     client = TestClient(create_app(data_dir=data_dir))
 
     body = client.get("/api/annotations").json()

@@ -202,7 +202,6 @@ def test_an_unknown_schema_cannot_be_activated(tmp_path) -> None:
 def client(tmp_path):
     os.environ.setdefault("ONTOLOGYLAB_ALLOWED_HOSTS", "testserver")
     data_dir = tmp_path / "data"
-    routes.attach_data_dir(data_dir)
     return TestClient(create_app(data_dir=data_dir, packs_dir=tmp_path / "packs"))
 
 

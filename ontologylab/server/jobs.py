@@ -232,8 +232,7 @@ def _source_event_line(kind: str, source: str, detail: object) -> str:
 class JobRegistry:
     """Per-app registry of extraction jobs, newest first.
 
-    Created by ``app.create_app()`` and bound into routes via
-    ``routes.attach_jobs_registry`` (same pattern as ``attach_data_dir``).
+    Created by ``app.create_app()`` and owned by that FastAPI app's state.
     """
 
     def __init__(self, data_dir: Path) -> None:
@@ -642,7 +641,7 @@ class JobRegistry:
         )
 
         # sqlite connections are thread-bound: the worker owns this one for
-        # both phases. `routes._open_store()` belongs to the request thread.
+        # both phases. Route stores belong to their request's application.
         store = KGStore.open(paths.kg_db_path(self.data_dir))
         try:
             # ---------------- phase 1: collect ----------------

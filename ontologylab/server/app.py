@@ -16,12 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from ontologylab.paths import ROOT, default_data_dir, default_packs_dir
 from ontologylab.server.jobs import JobRegistry
-from ontologylab.server.routes import (
-    attach_data_dir,
-    attach_jobs_registry,
-    attach_packs_dir,
-    router,
-)
+from ontologylab.server.routes import router
 from ontologylab.server.security import (
     host_header_is_trusted,
     is_cross_site_state_change,
@@ -51,18 +46,15 @@ def create_app(
 
     resolved = Path(data_dir) if data_dir is not None else default_data_dir()
     resolved.mkdir(parents=True, exist_ok=True)
-    attach_data_dir(resolved)
     app.state.data_dir = resolved
 
     resolved_packs = (
         Path(packs_dir) if packs_dir is not None else default_packs_dir()
     )
-    attach_packs_dir(resolved_packs)
     app.state.packs_dir = resolved_packs
 
-    jobs = JobRegistry(resolved)
-    attach_jobs_registry(jobs)
-    app.state.jobs = jobs
+    # Construction performs G002 startup recovery for this app's store.
+    app.state.jobs = JobRegistry(resolved)
 
     app.include_router(router)
 

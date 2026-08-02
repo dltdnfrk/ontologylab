@@ -90,7 +90,6 @@ def _fake_fetch(batches, failures=()):
 
 def _client(tmp_path: Path) -> TestClient:
     data_dir = tmp_path / "data"
-    routes.attach_data_dir(data_dir)
     return TestClient(create_app(data_dir=data_dir))
 
 
@@ -104,7 +103,7 @@ def _run(client: TestClient, **body):
     payload = {"topic": TOPIC, "engine": "mock", **body}
     started = client.post("/api/research", json=payload).json()
     assert started.get("ok") is True, started
-    job = routes._registry().get(started["job_id"])
+    job = client.app.state.jobs.get(started["job_id"])
     _await_terminal(job)
     return job
 
@@ -528,7 +527,7 @@ def test_a_second_research_run_is_refused_while_one_is_going(
     assert second["ok"] is False
     assert second["error_kind"] == "busy"
     assert second["job_id"] == first["job_id"], "the caller is told which run"
-    _await_terminal(routes._registry().get(first["job_id"]))
+    _await_terminal(client.app.state.jobs.get(first["job_id"]))
 
 
 def test_a_new_run_is_allowed_once_the_previous_one_finishes(
@@ -545,7 +544,7 @@ def test_a_new_run_is_allowed_once_the_previous_one_finishes(
     second = client.post("/api/research", json={"topic": TOPIC}).json()
 
     assert second["ok"] is True
-    _await_terminal(routes._registry().get(second["job_id"]))
+    _await_terminal(client.app.state.jobs.get(second["job_id"]))
 
 
 def test_an_extraction_job_does_not_block_a_research_run(
@@ -563,7 +562,7 @@ def test_an_extraction_job_does_not_block_a_research_run(
     body = client.post("/api/research", json={"topic": TOPIC}).json()
 
     assert body["ok"] is True
-    _await_terminal(routes._registry().get(body["job_id"]))
+    _await_terminal(client.app.state.jobs.get(body["job_id"]))
 
 
 # --------------------------------------------------------------------------
@@ -592,7 +591,7 @@ def test_cancelling_during_collect_stops_before_anything_is_stored(
     assert entered.wait(20)
     client.post(f"/api/jobs/{job_id}/cancel")
     release.set()
-    job = routes._registry().get(job_id)
+    job = client.app.state.jobs.get(job_id)
     _await_terminal(job)
 
     assert job.status == "cancelled"
@@ -650,7 +649,7 @@ def test_cancelling_during_extraction_stops_spending_engine_calls(
     assert engine.entered.wait(20), "extraction never reached the engine"
     client.post(f"/api/jobs/{job_id}/cancel")
     engine.release.set()
-    job = routes._registry().get(job_id)
+    job = client.app.state.jobs.get(job_id)
     _await_terminal(job)
 
     assert engine.calls == 1, (
@@ -735,7 +734,7 @@ def test_a_cancelled_research_run_is_not_reported_complete(
     entered.wait(20)
     client.post(f"/api/jobs/{job_id}/cancel")
     release.set()
-    job = routes._registry().get(job_id)
+    job = client.app.state.jobs.get(job_id)
     _await_terminal(job)
 
     assert job.status == "cancelled"
@@ -824,7 +823,7 @@ def test_a_totals_key_the_extractor_never_reports_does_not_kill_the_run(
     client = _client(tmp_path)
 
     job_id = client.post("/api/research", json={"topic": TOPIC}).json()["job_id"]
-    job = routes._registry().get(job_id)
+    job = client.app.state.jobs.get(job_id)
     assert entered.wait(20)
     with job._lock:
         job.totals["documents_collected"] = 0
