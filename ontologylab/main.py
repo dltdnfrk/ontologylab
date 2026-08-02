@@ -47,10 +47,12 @@ from ontologylab.connectors.paper_api import (
 from ontologylab.connectors.web_crawl import WebCrawlConnector
 from ontologylab.engines import EngineError, engine_name_arg, get_engine
 from ontologylab.expansion import expand_query
+from ontologylab.extraction_state import interrupt_running
 from ontologylab.extractor import (
     TOTALS_KEYS,
+    extraction_decode_params,
+    extraction_doc_ids,
     run_extraction,
-    unprocessed_doc_ids,
 )
 from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError
 from ontologylab.packbuilder import build_pack
@@ -252,7 +254,8 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
         print(f"[ontologylab] {exc}", file=sys.stderr)
         return 1
 
-    doc_ids = args.doc_ids or unprocessed_doc_ids(store)
+    interrupt_running(store.conn)
+    doc_ids = args.doc_ids or extraction_doc_ids(store)
     if not doc_ids:
         print("[ontologylab] no unprocessed documents to extract")
         return 0
@@ -291,6 +294,7 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
         should_abort=lambda: (
             "kill switch triggered" if kill_switch.triggered() else ""
         ),
+        decode_params=extraction_decode_params(engine),
     )
 
     provenance.log("extract.end", {"totals": totals, "stopped": stopped_reason})

@@ -33,7 +33,12 @@ from ontologylab.connectors.base import collapse_duplicates
 from ontologylab.connectors.fulltext import enrich_with_fulltext
 from ontologylab.connectors.paper_api import SOURCE_ORDER, fetch_sources
 from ontologylab.engines import EngineError, get_engine
-from ontologylab.extractor import run_extraction, unprocessed_doc_ids
+from ontologylab.extraction_state import interrupt_running
+from ontologylab.extractor import (
+    extraction_decode_params,
+    extraction_doc_ids,
+    run_extraction,
+)
 from ontologylab.kgstore import KGStore, KGStoreError
 from ontologylab.paths import NetworkBlocked
 from ontologylab.provenance import Provenance
@@ -245,6 +250,14 @@ class JobRegistry:
         # dashboard this server is scoped to; revisit before multi-user.
         self._version = 0
         self._cond = threading.Condition()
+
+        # App creation is the process-restart boundary.  Claims left by a
+        # dead daemon become explicit and resumable before requests arrive.
+        store = KGStore.open(paths.kg_db_path(self.data_dir))
+        try:
+            interrupt_running(store.conn)
+        finally:
+            store.close()
 
     def touch(self) -> None:
         """Record a visible change and wake any waiting stream clients."""
@@ -544,7 +557,7 @@ class JobRegistry:
         store = KGStore.open(paths.kg_db_path(self.data_dir))
         try:
             if not doc_ids:
-                doc_ids = unprocessed_doc_ids(store)
+                doc_ids = extraction_doc_ids(store)
             if not doc_ids:
                 job.log("[ontologylab] no unprocessed documents to extract")
                 return ""
@@ -584,6 +597,7 @@ class JobRegistry:
                 # cancellation. Checked between chunks and before each engine
                 # call, so a cancelled run stops without a partial write.
                 should_abort=job.cancel_reason,
+                decode_params=extraction_decode_params(engine),
             )
 
             with job._lock:
@@ -806,6 +820,7 @@ class JobRegistry:
                 on_progress=job.log,
                 on_stats=_accumulate,
                 should_abort=job.cancel_reason,
+                decode_params=extraction_decode_params(engine),
             )
 
             with job._lock:

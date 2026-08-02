@@ -536,6 +536,9 @@ class KGStore:
         conn.execute("PRAGMA foreign_keys=ON;")
         conn.executescript(_SCHEMA)
         cls._migrate(conn)
+        from ontologylab.extraction_state import ensure_schema
+
+        ensure_schema(conn)
         conn.commit()
         store = cls(conn, db_path, read_only=False)
         store._seed_default_schema()
@@ -960,6 +963,7 @@ class KGStore:
         extractor_model: str | None = None,
         prompt_version: str | None = None,
         decode_params: dict[str, Any] | None = None,
+        commit: bool = True,
     ) -> dict[str, Any]:
         """Insert extraction output as ``proposed`` rows, resolving entities.
 
@@ -1082,7 +1086,8 @@ class KGStore:
                 stats["edges_new"] += 1
             self._add_citation("edge", edge_id, source_doc_id, span_json, now)
 
-        self.conn.commit()
+        if commit:
+            self.conn.commit()
         stats["id_map"] = id_map
         return stats
 
