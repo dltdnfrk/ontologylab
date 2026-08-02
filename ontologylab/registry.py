@@ -372,6 +372,7 @@ def install_starter_moa(data_dir: Path | str) -> bool:
     if target.exists():
         return False
     target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(".json.tmp")
     try:
         payload = files("ontologylab").joinpath("moa-starter.json").read_text(
             encoding="utf-8"
@@ -382,14 +383,12 @@ def install_starter_moa(data_dir: Path | str) -> bool:
             parsed.get("mappings"), list
         ):
             raise ValueError("starter has no metadata/mappings objects")
-        tmp = target.with_suffix(".json.tmp")
         tmp.write_text(payload, encoding="utf-8")
         tmp.replace(target)
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         raise RegistryImportError(f"cannot install starter MoA table {target}: {exc}") from exc
     finally:
-        if "tmp" in locals():
-            tmp.unlink(missing_ok=True)
+        tmp.unlink(missing_ok=True)
     return True
 
 
@@ -634,7 +633,7 @@ class MoARegistryCache:
                     raise ValueError(f"CAS {cas_number} has conflicting MoA mappings")
                 resolved[cas_number] = value
             return resolved
-        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        except (OSError, KeyError, TypeError, ValueError) as exc:
             raise RuntimeError(f"cannot read local MoA table {self.path}: {exc}") from exc
 
     def resolve(self, cas_number: str) -> tuple[str, str] | None:
@@ -646,7 +645,7 @@ class MoARegistryCache:
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
             return dict(payload["metadata"])
-        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        except (OSError, KeyError, TypeError, ValueError) as exc:
             raise RuntimeError(f"cannot read local MoA metadata {self.path}: {exc}") from exc
 
 

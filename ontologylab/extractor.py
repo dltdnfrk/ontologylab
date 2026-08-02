@@ -560,21 +560,19 @@ async def run_extraction(
     one malformed response must not discard the document's other chunks.
     """
     schema = store.get_schema()
-    organism_specs = [
-        entity
-        for entity in schema["entity_types"]
-        if entity["name"] in ORGANISM_ENTITY_TYPES
+    has_organisms = any(
+        entity["name"] in ORGANISM_ENTITY_TYPES
         and "eppo_code" in entity["attributes"]
-    ]
-    active_specs = [
-        entity
         for entity in schema["entity_types"]
-        if entity["name"] == ACTIVE_ENTITY_TYPE
+    )
+    has_actives = any(
+        entity["name"] == ACTIVE_ENTITY_TYPE
         and "cas_number" in entity["attributes"]
-    ]
-    registry = RegistryCache(store.db_path.parent) if organism_specs else None
-    cas_registry = CASRegistryCache(store.db_path.parent) if active_specs else None
-    moa_registry = MoARegistryCache(store.db_path.parent) if active_specs else None
+        for entity in schema["entity_types"]
+    )
+    registry = RegistryCache(store.db_path.parent) if has_organisms else None
+    cas_registry = CASRegistryCache(store.db_path.parent) if has_actives else None
+    moa_registry = MoARegistryCache(store.db_path.parent) if has_actives else None
     for authoritative_cache in (registry, cas_registry):
         if authoritative_cache is None:
             continue
