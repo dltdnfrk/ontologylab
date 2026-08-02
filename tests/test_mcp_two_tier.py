@@ -73,7 +73,10 @@ def pack_session(tmp_path: Path):
     store.approve("n_tb")
     store.approve("e_uses")
     store.close()
-    manifest = build_pack(kg, packs, name="w9-demo")
+    manifest = build_pack(
+        kg, packs, name="w9-demo", allow_incomplete_extraction=True,
+        incomplete_extraction_intent="synthetic MCP two-tier fixture",
+    )
     session = PackSession(packs)
     session.load_pack(manifest.pack_id)
     yield session, manifest.pack_id

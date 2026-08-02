@@ -26,6 +26,7 @@ except ImportError:  # pragma: no cover
 if TestClient is None:
     pytest.skip("fastapi is not installed", allow_module_level=True)
 
+from ontologylab.kgstore import KGStore  # noqa: E402
 from ontologylab.mcp_server import PackSession  # noqa: E402
 from ontologylab.server.app import create_app  # noqa: E402
 
@@ -309,6 +310,41 @@ def test_packs_build_list_and_mcp_status(tmp_path: Path) -> None:
             "-m", "ontologylab.mcp_server", "--packs-dir", packs_abs,
             "--pack", pack_id,
         ],
+    }
+
+
+def test_packs_api_refuses_incomplete_and_accepts_audited_override(
+    tmp_path: Path,
+) -> None:
+    client, data_dir, _ = _make_client(tmp_path)
+    client.post("/api/collect", json={"files": [str(_sample_file(tmp_path))]})
+    job_id = client.post("/api/extract", json={"engine": "mock"}).json()["job_id"]
+    assert _wait_for_job(client, job_id)["status"] == "complete"
+    _approve_all(client)
+
+    store = KGStore.open(data_dir / "kg.sqlite")
+    store.conn.execute("UPDATE extraction_runs SET status = 'interrupted'")
+    store.conn.execute("UPDATE extraction_chunks SET status = 'interrupted'")
+    store.conn.commit()
+    store.close()
+
+    refused = client.post("/api/packs/build", json={"name": "refused"}).json()
+    assert refused["ok"] is False
+    assert refused["error_code"] == "incomplete_extraction"
+    assert refused["extraction_completeness"]["status"] == "incomplete"
+
+    built = client.post(
+        "/api/packs/build",
+        json={
+            "name": "overridden",
+            "allow_incomplete_extraction": True,
+            "override_intent": "publish after manual review",
+        },
+    ).json()
+    assert built["ok"] is True
+    assert built["manifest"]["extraction_completeness"]["override"] == {
+        "used": True,
+        "operator_intent": "publish after manual review",
     }
 
 

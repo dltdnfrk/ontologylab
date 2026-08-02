@@ -102,7 +102,11 @@ def test_pack_manifest_records_embedding_tier(tmp_path, store, doc):
     insert(store, doc, [make_entity("RateLimiter", "Component")])
     store.bulk_approve()
     store.embed_nodes(HashingEmbedder())
-    manifest = build_pack(store.db_path, tmp_path / "packs", name="emb-demo")
+    manifest = build_pack(
+        store.db_path, tmp_path / "packs", name="emb-demo",
+        allow_incomplete_extraction=True,
+        incomplete_extraction_intent="synthetic embeddings fixture",
+    )
     assert manifest.search_tier == "fts5+vec-rrf"
     assert manifest.embedding_model == "hash-v1"
 
@@ -121,7 +125,11 @@ def test_pack_manifest_records_embedding_tier(tmp_path, store, doc):
 def test_pack_without_embeddings_stays_fts5(tmp_path, store, doc):
     insert(store, doc, [make_entity("OrderService", "Component")])
     store.bulk_approve()
-    manifest = build_pack(store.db_path, tmp_path / "packs", name="plain")
+    manifest = build_pack(
+        store.db_path, tmp_path / "packs", name="plain",
+        allow_incomplete_extraction=True,
+        incomplete_extraction_intent="synthetic embeddings fixture",
+    )
     assert manifest.search_tier == "fts5"
     assert manifest.embedding_model is None
 

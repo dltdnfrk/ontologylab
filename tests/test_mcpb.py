@@ -20,7 +20,11 @@ def pack(store, doc, tmp_path):
     node_id = store.conn.execute("SELECT id FROM nodes").fetchone()["id"]
     store.approve(node_id, by="tester")
     packs_dir = tmp_path / "packs"
-    manifest = build_pack(store.db_path, packs_dir, "bundle-test")
+    manifest = build_pack(
+        store.db_path, packs_dir, "bundle-test",
+        allow_incomplete_extraction=True,
+        incomplete_extraction_intent="synthetic MCPB fixture",
+    )
     return packs_dir, manifest
 
 
@@ -108,7 +112,14 @@ def _build_pack_via_api(client) -> str:
     node_id = store.conn.execute("SELECT id FROM nodes").fetchone()["id"]
     store.approve(node_id, by="tester")
     store.close()
-    res = client.post("/api/packs/build", json={"name": "api-bundle"})
+    res = client.post(
+        "/api/packs/build",
+        json={
+            "name": "api-bundle",
+            "allow_incomplete_extraction": True,
+            "override_intent": "synthetic MCPB API fixture",
+        },
+    )
     assert res.json()["ok"] is True
     return res.json()["manifest"]["pack_id"]
 

@@ -149,7 +149,10 @@ def test_e2e_mvp_loop(tmp_path: Path) -> None:
     store.close()
 
     # 4. build pack
-    manifest = build_pack(kg_path, packs, name="e2e-mvp")
+    manifest = build_pack(
+        kg_path, packs, name="e2e-mvp", allow_incomplete_extraction=True,
+        incomplete_extraction_intent="legacy canned extraction fixture",
+    )
     assert manifest.counts["nodes_verified"] >= 3
 
     # 5. MCP query against pack

@@ -17,8 +17,14 @@ import pytest
 
 from ontologylab.kgstore import KGStore
 from ontologylab.mcp_server import PackSession
-from ontologylab.packbuilder import build_pack
+from ontologylab.packbuilder import build_pack as _build_pack
 from tests.conftest import make_entity, make_relation
+
+
+def build_pack(*args, **kwargs):
+    kwargs.setdefault("allow_incomplete_extraction", True)
+    kwargs.setdefault("incomplete_extraction_intent", "synthetic staleness fixture")
+    return _build_pack(*args, **kwargs)
 
 
 def _seed_store(tmp_path, *, extra_verified: int = 0):

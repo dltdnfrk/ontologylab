@@ -125,7 +125,10 @@ def community_pack(tmp_path: Path):
     assert len(report["nodes_approved"]) == 5
     assert len(report["edges_approved"]) == 3
     store.close()
-    manifest = build_pack(kg, packs, name="w12-demo")
+    manifest = build_pack(
+        kg, packs, name="w12-demo", allow_incomplete_extraction=True,
+        incomplete_extraction_intent="synthetic communities fixture",
+    )
     return packs, manifest
 
 
@@ -206,7 +209,8 @@ def test_cli_build_pack_with_mock_summaries(community_pack, tmp_path, capsys):
             "build-pack", "--name", "w12-llm",
             "--packs-dir", str(tmp_path / "packs2"),
             "--summarize-engine", "mock",
-            "--data-dir", kg_dir,
+            "--allow-incomplete-extraction", "--override-intent",
+            "synthetic communities CLI fixture", "--data-dir", kg_dir,
         ])
     assert exc.value.code == 0
     import json as json_mod

@@ -375,6 +375,14 @@
         <label>이름
           <input type="text" id="pack-name" placeholder="my-pack" required />
         </label>
+        <label class="check-label">
+          <input type="checkbox" id="pack-allow-incomplete" />
+          미완료 추출 상태를 운영자 판단으로 허용
+        </label>
+        <label>운영자 의도 (허용 시 필수)
+          <textarea id="pack-override-intent" rows="2" maxlength="500"
+            placeholder="왜 미완료 상태로 팩을 발행하는지 기록하세요"></textarea>
+        </label>
         <div class="form-actions">
           <button type="submit" id="pack-build-submit" class="btn btn-primary">팩 빌드</button>
         </div>

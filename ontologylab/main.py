@@ -55,7 +55,7 @@ from ontologylab.extractor import (
     run_extraction,
 )
 from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError
-from ontologylab.packbuilder import build_pack
+from ontologylab.packbuilder import PackBuildError, build_pack
 from ontologylab.provenance import Provenance
 from ontologylab.safety import Caps, KillSwitch
 
@@ -795,7 +795,14 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir)
     job_dir = paths.new_job_dir(data_dir, "build-pack")
     provenance = Provenance(str(job_dir), seed=0)
-    provenance.log("build_pack.start", {"name": args.name})
+    provenance.log(
+        "build_pack.start",
+        {
+            "name": args.name,
+            "allow_incomplete_extraction": args.allow_incomplete_extraction,
+            "operator_intent": args.override_intent,
+        },
+    )
     summarizer = None
     summary_method = "extractive"
     if args.summarize_engine:
@@ -808,15 +815,25 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
             model=args.summarize_model,
         )
         summary_method = f"llm:{args.summarize_engine}"
-    manifest = build_pack(
-        paths.kg_db_path(data_dir),
-        args.packs_dir,
-        args.name,
-        source_job_id=job_dir.name,
-        provenance_jsonl=provenance.jsonl_path,
-        summarizer=summarizer,
-        summary_method=summary_method,
-    )
+    try:
+        manifest = build_pack(
+            paths.kg_db_path(data_dir),
+            args.packs_dir,
+            args.name,
+            source_job_id=job_dir.name,
+            provenance_jsonl=provenance.jsonl_path,
+            summarizer=summarizer,
+            summary_method=summary_method,
+            allow_incomplete_extraction=args.allow_incomplete_extraction,
+            incomplete_extraction_intent=args.override_intent,
+        )
+    except (PackBuildError, OSError) as exc:
+        payload = {"error": str(exc)}
+        if hasattr(exc, "summary"):
+            payload["extraction_completeness"] = exc.summary
+        provenance.log("build_pack.failed", payload)
+        print(f"[ontologylab] ERROR: {exc}", file=sys.stderr)
+        return 2
     provenance.log(
         "build_pack.end",
         {"pack_id": manifest.pack_id, "counts": manifest.counts},
@@ -1436,6 +1453,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
              "failure falls back to extractive per community.",
     )
     p_build.add_argument("--summarize-model", default=None)
+    p_build.add_argument(
+        "--allow-incomplete-extraction", action="store_true",
+        help="Operator override for incomplete/unknown extraction state; "
+             "requires --override-intent and is recorded in the pack.",
+    )
+    p_build.add_argument(
+        "--override-intent", default=None, metavar="REASON",
+        help="Operator intent recorded when --allow-incomplete-extraction is used.",
+    )
     _add_data_dir(p_build)
     p_build.set_defaults(func=cmd_build_pack)
 

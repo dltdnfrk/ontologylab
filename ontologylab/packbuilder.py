@@ -32,10 +32,34 @@ from typing import Any
 from ontologylab import __version__
 from ontologylab.kgstore import _SCHEMA, KGStore
 from ontologylab.models import PackManifest
+from ontologylab.pack_completeness import extraction_completeness, with_override
 
 
 class PackBuildError(Exception):
     """Raised when a pack cannot be built."""
+
+
+class IncompleteExtractionError(PackBuildError):
+    """Typed default refusal for incomplete or unknown shipped streams."""
+
+    code = "incomplete_extraction"
+
+    def __init__(self, summary: dict[str, Any]) -> None:
+        self.summary = summary
+        runs = ", ".join(
+            f"{status}={count}"
+            for status, count in summary["run_status_counts"].items()
+        ) or "none"
+        chunks = ", ".join(
+            f"{status}={count}"
+            for status, count in summary["chunk_status_counts"].items()
+        ) or "none"
+        super().__init__(
+            "pack build refused: extraction incomplete for shipped fact streams "
+            f"(unknown={len(summary['unknown_streams'])}; runs: {runs}; "
+            f"chunks: {chunks}). Use an explicit incomplete-extraction override "
+            "with operator intent to proceed."
+        )
 
 
 # A pack id/name becomes a directory segment under packs_dir. Restrict it to a
@@ -105,6 +129,8 @@ def build_pack(
     provenance_jsonl: str | Path | None = None,
     summarizer=None,
     summary_method: str = "extractive",
+    allow_incomplete_extraction: bool = False,
+    incomplete_extraction_intent: str | None = None,
 ) -> PackManifest:
     """Snapshot the verified subgraph into a new immutable pack directory.
 
@@ -119,8 +145,31 @@ def build_pack(
     if not kg_db_path.is_file():
         raise PackBuildError(f"working KG not found: {kg_db_path}")
     # Ensure the source DB carries the current schema (e.g. W13 bitemporal
-    # columns) before the column-order-sensitive INSERT..SELECT * below.
-    KGStore.open(kg_db_path).close()
+    # columns) before the column-order-sensitive INSERT..SELECT * below, then
+    # gate before creating any pack artifact.
+    source_store = KGStore.open(kg_db_path)
+    try:
+        completeness = extraction_completeness(source_store.conn)
+    finally:
+        source_store.close()
+    intent = (incomplete_extraction_intent or "").strip() or None
+    if allow_incomplete_extraction and intent is None:
+        raise PackBuildError(
+            "incomplete-extraction override requires non-empty operator intent"
+        )
+    if intent is not None and not allow_incomplete_extraction:
+        raise PackBuildError(
+            "operator intent was supplied without enabling the "
+            "incomplete-extraction override"
+        )
+    override_used = completeness["status"] == "incomplete" and allow_incomplete_extraction
+    completeness = with_override(
+        completeness,
+        used=override_used,
+        operator_intent=intent if override_used else None,
+    )
+    if completeness["status"] == "incomplete" and not override_used:
+        raise IncompleteExtractionError(completeness)
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
     pack_id = f"{name}-{stamp}"
@@ -281,15 +330,17 @@ def build_pack(
         content_hash=content_hash,
         basis_commit=_git_head(),
         staleness_policy=dict(DEFAULT_STALENESS_POLICY),
+        extraction_completeness=completeness,
     )
     (pack_dir / "manifest.json").write_text(
         json.dumps(manifest.__dict__, indent=2), encoding="utf-8"
     )
 
+    pack_provenance = pack_dir / "provenance.jsonl"
     if provenance_jsonl and Path(provenance_jsonl).is_file():
-        shutil.copyfile(provenance_jsonl, pack_dir / "provenance.jsonl")
+        shutil.copyfile(provenance_jsonl, pack_provenance)
     else:
-        (pack_dir / "provenance.jsonl").write_text(
+        pack_provenance.write_text(
             json.dumps(
                 {
                     "ts": time.time(),
@@ -300,6 +351,21 @@ def build_pack(
             + "\n",
             encoding="utf-8",
         )
+    if override_used:
+        with pack_provenance.open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "ts": time.time(),
+                        "step": "build_pack.extraction_override",
+                        "payload": {
+                            "summary": completeness,
+                            "operator_intent": intent,
+                        },
+                    }
+                )
+                + "\n"
+            )
     return manifest
 
 

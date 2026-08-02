@@ -101,7 +101,11 @@ def test_pack_build_from_vec_indexed_db(store, doc, tmp_path):
     _seed(store, doc, NAMES)
     emb = HashingEmbedder()
     store.embed_nodes(emb)
-    manifest = build_pack(store.db_path, tmp_path / "packs", name="vec-pack")
+    manifest = build_pack(
+        store.db_path, tmp_path / "packs", name="vec-pack",
+        allow_incomplete_extraction=True,
+        incomplete_extraction_intent="synthetic sqlite-vec fixture",
+    )
     assert manifest.search_tier == "fts5+vec-rrf"
 
     pack = KGStore.open(

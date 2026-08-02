@@ -7,9 +7,15 @@ from pathlib import Path
 import pytest
 
 from ontologylab.kgstore import KGStore
-from ontologylab.packbuilder import PackBuildError, build_pack
+from ontologylab.packbuilder import PackBuildError, build_pack as _build_pack
 from ontologylab.packdiff import diff_packs
 from tests.conftest import insert, make_entity, make_relation
+
+
+def build_pack(*args, **kwargs):
+    kwargs.setdefault("allow_incomplete_extraction", True)
+    kwargs.setdefault("incomplete_extraction_intent", "synthetic pack-diff fixture")
+    return _build_pack(*args, **kwargs)
 
 
 @pytest.fixture()

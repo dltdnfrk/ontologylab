@@ -3,6 +3,7 @@ approve --filter -> build-pack, all through ontologylab.main (in-process)."""
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -79,6 +80,50 @@ def test_cli_mvp_loop(tmp_path: Path) -> None:
     packs = list_packs(packs_dir)
     assert len(packs) == 1
     assert packs[0]["counts"]["nodes_verified"] >= 2
+
+
+def test_cli_pack_refusal_and_audited_override(tmp_path: Path, capsys) -> None:
+    data_dir = tmp_path / "data"
+    packs_dir = tmp_path / "packs"
+    fixture = tmp_path / "notes.md"
+    fixture.write_text(FIXTURE, encoding="utf-8")
+    assert _run("collect", "--file", str(fixture), "--data-dir", str(data_dir)) == 0
+    assert _run("extract", "--engine", "mock", "--data-dir", str(data_dir)) == 0
+    assert _run(
+        "approve", "--filter", "min_confidence=0", "--data-dir", str(data_dir)
+    ) == 0
+    assert _run(
+        "approve", "--filter", "min_confidence=0", "--data-dir", str(data_dir)
+    ) == 0
+
+    store = KGStore.open(data_dir / "kg.sqlite")
+    store.conn.execute("UPDATE extraction_runs SET status = 'failed'")
+    store.conn.execute("UPDATE extraction_chunks SET status = 'failed'")
+    store.conn.commit()
+    store.close()
+
+    assert _run(
+        "build-pack", "--name", "refused", "--packs-dir", str(packs_dir),
+        "--data-dir", str(data_dir),
+    ) == 2
+    assert "pack build refused" in capsys.readouterr().err
+    assert _run(
+        "build-pack", "--name", "overridden", "--packs-dir", str(packs_dir),
+        "--data-dir", str(data_dir), "--allow-incomplete-extraction",
+        "--override-intent", "publish reviewed facts after operator review",
+    ) == 0
+    manifest = list_packs(packs_dir)[0]
+    assert manifest["extraction_completeness"]["override"]["used"] is True
+    provenance = (
+        packs_dir / manifest["pack_id"] / "provenance.jsonl"
+    ).read_text(encoding="utf-8")
+    event = next(
+        json.loads(line) for line in provenance.splitlines()
+        if "build_pack.extraction_override" in line
+    )
+    assert event["payload"]["operator_intent"] == (
+        "publish reviewed facts after operator review"
+    )
 
 
 def test_cli_collect_rejects_non_allowlisted_url(tmp_path: Path) -> None:

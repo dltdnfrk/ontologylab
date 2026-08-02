@@ -1739,7 +1739,14 @@ def get_packs() -> dict[str, Any]:
 def packs_build(body: PackBuildRequest) -> dict[str, Any]:
     job_dir = paths.new_job_dir(_data_dir, "build-pack")
     provenance = Provenance(str(job_dir), seed=0)
-    provenance.log("build_pack.start", {"name": body.name})
+    provenance.log(
+        "build_pack.start",
+        {
+            "name": body.name,
+            "allow_incomplete_extraction": body.allow_incomplete_extraction,
+            "operator_intent": body.override_intent,
+        },
+    )
     # Zero collected documents / zero verified rows is still a buildable
     # (empty) pack: ensure the working DB exists before handing it over.
     _open_store().close()
@@ -1750,10 +1757,23 @@ def packs_build(body: PackBuildRequest) -> dict[str, Any]:
             body.name,
             source_job_id=job_dir.name,
             provenance_jsonl=provenance.jsonl_path,
+            allow_incomplete_extraction=body.allow_incomplete_extraction,
+            incomplete_extraction_intent=body.override_intent,
         )
     except (PackBuildError, OSError) as exc:
-        provenance.log("build_pack.failed", {"error": str(exc)})
-        return {"ok": False, "detail": str(exc)}
+        failure = {"error": str(exc)}
+        if hasattr(exc, "summary"):
+            failure["extraction_completeness"] = exc.summary
+        provenance.log("build_pack.failed", failure)
+        return {
+            "ok": False,
+            "detail": str(exc),
+            "error_code": getattr(exc, "code", "pack_build_error"),
+            **(
+                {"extraction_completeness": exc.summary}
+                if hasattr(exc, "summary") else {}
+            ),
+        }
     provenance.log(
         "build_pack.end",
         {"pack_id": manifest.pack_id, "counts": manifest.counts},

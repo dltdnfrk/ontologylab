@@ -59,7 +59,10 @@ def test_build_pack_verified_only_and_fts(tmp_path: Path) -> None:
     _populate(store)
     store.close()
 
-    manifest = build_pack(kg, packs, name="demo")
+    manifest = build_pack(
+        kg, packs, name="demo", allow_incomplete_extraction=True,
+        incomplete_extraction_intent="synthetic packbuilder fixture",
+    )
     assert manifest.counts["nodes_verified"] == 2
     assert manifest.counts["edges_verified"] == 1
 

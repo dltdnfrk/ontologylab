@@ -632,7 +632,11 @@ def test_an_approved_annotation_reaches_the_pack_a_client_reads(tmp_path) -> Non
         store.close()
 
     packs = tmp_path / "packs"
-    build_pack(kg_db_path=tmp_path / "kg.sqlite", packs_dir=packs, name="e2e")
+    build_pack(
+        kg_db_path=tmp_path / "kg.sqlite", packs_dir=packs, name="e2e",
+        allow_incomplete_extraction=True,
+        incomplete_extraction_intent="synthetic enrichment fixture",
+    )
 
     session = PackSession(packs)
     try:

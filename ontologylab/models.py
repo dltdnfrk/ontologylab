@@ -95,6 +95,9 @@ class PackManifest:
     # The documented default staleness policy (threshold + prose). Advisory
     # and overridable; it exists so consumers do not each invent a policy.
     staleness_policy: dict[str, Any] | None = None
+    # Durable extraction state for the exact source streams of shipped facts,
+    # including any explicit operator override used to admit incompleteness.
+    extraction_completeness: dict[str, Any] | None = None
 
 
 @runtime_checkable

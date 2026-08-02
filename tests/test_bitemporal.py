@@ -112,7 +112,11 @@ def test_reassertion_coexists_with_invalidated_history(store, doc):
 def test_pack_excludes_invalidated_edges(store, doc, tmp_path):
     edge_id = _seed_verified_edge(store, doc)
     store.invalidate_edge(edge_id, by="tester")
-    manifest = build_pack(store.db_path, tmp_path / "packs", "bitemp")
+    manifest = build_pack(
+        store.db_path, tmp_path / "packs", "bitemp",
+        allow_incomplete_extraction=True,
+        incomplete_extraction_intent="synthetic bitemporal fixture",
+    )
     assert manifest.counts["edges_verified"] == 0
     assert manifest.counts["nodes_verified"] == 2
 
@@ -163,7 +167,11 @@ def test_migration_adds_columns_and_fixes_dedup_index(tmp_path):
 def test_legacy_pack_without_bitemporal_columns_still_serves(store, doc, tmp_path):
     """Packs built before W13 lack the columns; read paths must not break."""
     edge_id = _seed_verified_edge(store, doc)
-    manifest = build_pack(store.db_path, tmp_path / "packs", "legacy")
+    manifest = build_pack(
+        store.db_path, tmp_path / "packs", "legacy",
+        allow_incomplete_extraction=True,
+        incomplete_extraction_intent="synthetic legacy-pack fixture",
+    )
     pack_sqlite = tmp_path / "packs" / manifest.pack_id / "pack.sqlite"
 
     conn = sqlite3.connect(pack_sqlite)

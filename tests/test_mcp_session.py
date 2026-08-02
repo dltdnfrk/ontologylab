@@ -50,7 +50,10 @@ def _build_fixture_pack(tmp_path: Path) -> tuple[Path, str, str, str]:
     store.approve("n_tb")
     store.approve("e_uses")
     store.close()
-    manifest = build_pack(kg, packs, name="mcp-demo")
+    manifest = build_pack(
+        kg, packs, name="mcp-demo", allow_incomplete_extraction=True,
+        incomplete_extraction_intent="synthetic MCP session fixture",
+    )
     return packs, manifest.pack_id, "n_rl", "n_tb"
 
 

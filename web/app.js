@@ -2430,14 +2430,24 @@
     var box = $("#pack-build-result");
     var btn = $("#pack-build-submit");
     var name = $("#pack-name").value.trim();
+    var allowIncomplete = $("#pack-allow-incomplete").checked;
+    var overrideIntent = $("#pack-override-intent").value.trim();
     if (!name) {
       showResult(box, "팩 이름을 지어주세요.", true);
+      return;
+    }
+    if (allowIncomplete && !overrideIntent) {
+      showResult(box, "미완료 추출을 허용하는 운영자 의도를 기록해주세요.", true);
       return;
     }
     btn.disabled = true;
     showResult(box, "<span class='muted'>팩 빌드 중…</span>");
     try {
-      var res = await apiSend("/api/packs/build", { name: name });
+      var res = await apiSend("/api/packs/build", {
+        name: name,
+        allow_incomplete_extraction: allowIncomplete,
+        override_intent: allowIncomplete ? overrideIntent : null
+      });
       if (res && res.ok) {
         var manifest = res.manifest || {};
         var counts = manifest.counts || {};
@@ -2455,6 +2465,8 @@
             " data-goto='mcp'>연결 →</button>"
         );
         $("#pack-name").value = "";
+        $("#pack-allow-incomplete").checked = false;
+        $("#pack-override-intent").value = "";
         await loadPacks();
         await loadMcp();
       } else {

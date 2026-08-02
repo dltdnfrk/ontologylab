@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ontologylab.connectors.paper_api import (
     DEFAULT_LIMIT as PAPER_DEFAULT_LIMIT,
@@ -102,6 +102,8 @@ class PackBuildRequest(BaseModel):
     """Build a verified-only knowledge pack (Packs screen)."""
 
     name: str = Field(min_length=1, max_length=64)
+    allow_incomplete_extraction: bool = False
+    override_intent: Optional[str] = Field(default=None, max_length=500)
 
     @field_validator("name")
     @classmethod
@@ -114,6 +116,20 @@ class PackBuildRequest(BaseModel):
             return safe_pack_component(value, kind="pack name")
         except PackBuildError as exc:
             raise ValueError(str(exc)) from exc
+
+    @model_validator(mode="after")
+    def _override_has_intent(self) -> "PackBuildRequest":
+        intent = (self.override_intent or "").strip()
+        if self.allow_incomplete_extraction and not intent:
+            raise ValueError(
+                "allow_incomplete_extraction requires non-empty override_intent"
+            )
+        if intent and not self.allow_incomplete_extraction:
+            raise ValueError(
+                "override_intent requires allow_incomplete_extraction=true"
+            )
+        self.override_intent = intent or None
+        return self
 
 
 class EngineInfo(BaseModel):
