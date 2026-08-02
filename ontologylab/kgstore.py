@@ -195,8 +195,14 @@ CREATE TABLE IF NOT EXISTS nodes (
     review_note       TEXT,
 
     embedding         BLOB,
-    embedding_model   TEXT
+    embedding_model   TEXT,
+    decode_params     TEXT
 );
+-- (decode_params on nodes/edges: the sampling parameters the producing run
+-- selected, as canonical JSON with sorted keys; NULL when the engine has no
+-- sampler control. Kept out of the CREATE body for the same reason as the
+-- bitemporal note below: sqlite's ALTER TABLE DROP COLUMN chokes on
+-- in-parens comments.)
 CREATE INDEX IF NOT EXISTS idx_nodes_type_status ON nodes (entity_type, status);
 CREATE INDEX IF NOT EXISTS idx_nodes_source_doc  ON nodes (source_doc_id);
 CREATE INDEX IF NOT EXISTS idx_nodes_name        ON nodes (name);
@@ -238,7 +244,8 @@ CREATE TABLE IF NOT EXISTS edges (
     valid_from            REAL,
     invalidated_ts        REAL,
     invalidated_by        TEXT,
-    invalidation_reason   TEXT
+    invalidation_reason   TEXT,
+    decode_params         TEXT
 );
 -- (The last four edge columns are W13 bitemporal: event-time vs ingestion-
 -- time, and invalidation INSTEAD of deletion — a contradicted fact stays
@@ -400,7 +407,8 @@ _NODE_COLUMNS = (
     "id, schema_version_id, entity_type, name, normalized_name, aliases_json, "
     "properties_json, status, confidence, source_doc_id, source_span, "
     "extractor_engine, extractor_model, prompt_version, created_ts, "
-    "verified_ts, verified_by, review_note, embedding, embedding_model"
+    "verified_ts, verified_by, review_note, embedding, embedding_model, "
+    "decode_params"
 )
 
 
@@ -568,9 +576,18 @@ class KGStore:
                 "invalidation_reason",
                 "ALTER TABLE edges ADD COLUMN invalidation_reason TEXT",
             ),
+            (
+                "decode_params",
+                "ALTER TABLE edges ADD COLUMN decode_params TEXT",
+            ),
         ):
             if column not in edge_columns:
                 conn.execute(ddl)
+        node_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(nodes)")
+        }
+        if "decode_params" not in node_columns:
+            conn.execute("ALTER TABLE nodes ADD COLUMN decode_params TEXT")
         if "valid_from" not in edge_columns:
             # Backfill: assertion time defaults to ingestion time.
             conn.execute(
@@ -942,6 +959,7 @@ class KGStore:
         extractor_engine: str,
         extractor_model: str | None = None,
         prompt_version: str | None = None,
+        decode_params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Insert extraction output as ``proposed`` rows, resolving entities.
 
@@ -955,6 +973,14 @@ class KGStore:
         self._assert_writable()
         sv_id = self.active_schema_version()["id"]
         now = time.time()
+        # Canonical JSON (keys sorted, no spaces): one setting must store as
+        # one string regardless of the caller's dict order, or scoping a
+        # score to a sampler would split it into two streams.
+        decode_json = (
+            json.dumps(decode_params, sort_keys=True, separators=(",", ":"))
+            if decode_params is not None
+            else None
+        )
         stats = {
             "nodes_new": 0,
             "nodes_merged": 0,
@@ -978,8 +1004,8 @@ class KGStore:
                     "(id, schema_version_id, entity_type, name, normalized_name, "
                     " aliases_json, properties_json, status, confidence, "
                     " source_doc_id, source_span, extractor_engine, extractor_model, "
-                    " prompt_version, created_ts) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?)",
+                    " prompt_version, created_ts, decode_params) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         node_id,
                         sv_id,
@@ -995,6 +1021,7 @@ class KGStore:
                         extractor_model,
                         prompt_version,
                         now,
+                        decode_json,
                     ),
                 )
                 for alias in ent.aliases:
@@ -1032,8 +1059,8 @@ class KGStore:
                     "(id, schema_version_id, relation_type, src_node_id, dst_node_id, "
                     " properties_json, status, confidence, source_doc_id, source_span, "
                     " extractor_engine, extractor_model, prompt_version, created_ts, "
-                    " valid_from) "
-                    "VALUES (?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " valid_from, decode_params) "
+                    "VALUES (?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         edge_id,
                         sv_id,
@@ -1049,6 +1076,7 @@ class KGStore:
                         prompt_version,
                         now,
                         now,  # valid_from: assertion time defaults to ingestion
+                        decode_json,
                     ),
                 )
                 stats["edges_new"] += 1

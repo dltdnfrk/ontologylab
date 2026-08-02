@@ -626,6 +626,65 @@ class GeminiEngine:
 # Anthropic Messages API requires an output-token cap on every request.
 _API_MAX_TOKENS = 4096
 
+# Extraction is a parsing task, not a creative one, so the default sampler
+# is deterministic-ish. Which keys are legal at all is a property of the
+# provider's API, not of this codebase: the Anthropic Messages API takes
+# top_k and refuses seed; every OpenAI-compatible /chat/completions endpoint
+# (OpenAI, xAI, OpenRouter, a local Ollama/LM Studio) takes seed and refuses
+# top_k. Sending an unsupported key is a 400 from the provider, so it is
+# refused here first.
+DECODE_PARAM_SUPPORT: dict[str, frozenset[str]] = {
+    "anthropic": frozenset({"temperature", "top_p", "top_k"}),
+    "openai": frozenset({"temperature", "top_p", "seed"}),
+}
+
+DEFAULT_DECODE_PARAMS: dict[str, float] = {"temperature": 0.0}
+
+# T=0 is a request, not bit-determinism: batch composition, MoE routing, and
+# float reduction order still move the logits. The name says "requested" so
+# no reader upgrades it into a reproducibility guarantee.
+DECODE_PARAMS_NOTE = (
+    "decode_params are the sampling parameters REQUESTED of the provider; "
+    "identical parameters do not guarantee identical output."
+)
+
+
+def validate_decode_params(
+    kind: str, params: Optional[dict[str, Any]]
+) -> dict[str, Any]:
+    """Return the parameters to send for ``kind``; raise on anything unsendable.
+
+    None means the caller made no choice and gets the pinned default. An
+    unknown key is almost always a typo, and an unsupported key is a 400
+    from the provider — both fail here, loudly, instead of at the wire.
+    """
+    if params is None:
+        return dict(DEFAULT_DECODE_PARAMS)
+    supported = DECODE_PARAM_SUPPORT.get(kind, frozenset())
+    for key, value in params.items():
+        if key not in supported:
+            raise EngineError(
+                f"decode parameter {key!r} is not supported by provider kind "
+                f"{kind!r} (supported: {sorted(supported)})"
+            )
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise EngineError(
+                f"decode parameter {key!r} must be a number, got {value!r}"
+            )
+        if key == "temperature" and not 0.0 <= value <= 2.0:
+            raise EngineError(
+                f"temperature must be within [0.0, 2.0], got {value}"
+            )
+        if key == "top_p" and not 0.0 < value <= 1.0:
+            raise EngineError(
+                f"top_p must be within (0.0, 1.0], got {value}"
+            )
+        if key == "top_k" and (not isinstance(value, int) or value < 1):
+            raise EngineError(f"top_k must be an integer >= 1, got {value!r}")
+        if key == "seed" and not isinstance(value, int):
+            raise EngineError(f"seed must be an integer, got {value!r}")
+    return dict(params)
+
 
 def _http_post_json(
     url: str, headers: dict[str, str], payload: dict, timeout_s: float
@@ -659,10 +718,12 @@ class ApiEngine:
         provider: Provider,
         model: Optional[str] = None,
         timeout_s: float = _DEFAULT_TIMEOUT_S,
+        decode_params: Optional[dict[str, Any]] = None,
     ) -> None:
         self._provider = provider
         self._model = model or (provider.models[0] if provider.models else None)
         self._timeout_s = timeout_s
+        self._decode_params = validate_decode_params(provider.kind, decode_params)
 
     def name(self) -> str:
         return f"api:{self._provider.id}"
@@ -682,6 +743,7 @@ class ApiEngine:
                 "model": model,
                 "max_tokens": _API_MAX_TOKENS,
                 "messages": [{"role": "user", "content": prompt}],
+                **self._decode_params,
             }
             return f"{base}/messages", headers, body
         # kind == "openai" (validated at registration time)
@@ -689,7 +751,11 @@ class ApiEngine:
             "Authorization": f"Bearer {key}",
             "content-type": "application/json",
         }
-        body = {"model": model, "messages": [{"role": "user", "content": prompt}]}
+        body = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            **self._decode_params,
+        }
         return f"{base}/chat/completions", headers, body
 
     def _parse_response(self, response: dict) -> tuple[str, dict]:
@@ -776,6 +842,7 @@ class ApiEngine:
             "elapsed": elapsed,
             "engine": self.name(),
             "model": effective_model,
+            "decode_params": dict(self._decode_params),
             **tokens,
         }
         return text, usage
@@ -826,13 +893,24 @@ def get_engine(
     model: Optional[str] = None,
     seed: int = 7,
     data_dir=None,
+    decode_params: Optional[dict[str, Any]] = None,
 ):
     """Return an Engine instance for ``name``.
 
     ``name`` is one of {mock, claude, codex, gemini}, or ``api:<provider-id>``
     to use a configured provider (loaded from ``data_dir`` or the default data
     dir). ``seed`` only affects MockEngine; the CLI-backed engines ignore it.
+
+    ``decode_params`` selects sampling parameters, and only an API provider
+    can honour them — the CLI adapters have no sampling flag, so passing a
+    selection to one raises instead of silently recording a parameter the
+    run never used.
     """
+    if decode_params is not None and not name.startswith(_API_ENGINE_PREFIX):
+        raise EngineError(
+            f"engine {name!r} cannot apply sampling parameters (no CLI flag "
+            f"exists); use an api:<provider-id> engine"
+        )
     if name == "mock":
         return MockEngine(seed=seed)
     if name == "claude":
@@ -849,5 +927,5 @@ def get_engine(
                 f"unknown provider {provider_id!r}; register it with "
                 "`ontologylab provider add`"
             )
-        return ApiEngine(provider, model=model)
+        return ApiEngine(provider, model=model, decode_params=decode_params)
     raise EngineError(f"unknown engine {name!r}; expected one of {_ENGINE_NAMES}")

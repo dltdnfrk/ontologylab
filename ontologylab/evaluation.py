@@ -90,23 +90,84 @@ def load_gold(path: str | Path) -> Gold:
                 path=str(p))
 
 
+def canonical_decode_params(params: dict[str, Any] | None) -> str | None:
+    """The stored form of a sampler setting: key-sorted, space-free JSON.
+
+    Must stay byte-identical to what ``KGStore.insert_proposed`` writes, or
+    a filter would never match the rows it names.
+    """
+    if params is None:
+        return None
+    return json.dumps(params, sort_keys=True, separators=(",", ":"))
+
+
+def _stream_clause(
+    alias: str,
+    engine: str | None,
+    model: str | None,
+    prompt_version: str | None,
+    decode_params: str | None = None,
+) -> tuple[str, list[str]]:
+    """SQL fragment + params restricting ``alias`` to one extractor stream.
+
+    A None filter is absent, not a match against NULL: "no engine given"
+    means "score every engine", which is what an unfiltered report has
+    always meant.
+    """
+    clauses: list[str] = []
+    params: list[str] = []
+    for column, value in (
+        ("extractor_engine", engine),
+        ("extractor_model", model),
+        ("prompt_version", prompt_version),
+        ("decode_params", decode_params),
+    ):
+        if value is not None:
+            clauses.append(f"AND {alias}.{column} = ?")
+            params.append(value)
+    return " ".join(clauses), params
+
+
 def store_view(
-    store: KGStore, *, include_proposed: bool = True
+    store: KGStore,
+    *,
+    include_proposed: bool = True,
+    engine: str | None = None,
+    model: str | None = None,
+    prompt_version: str | None = None,
+    decode_params: dict[str, Any] | None = None,
 ) -> tuple[set[str], set[tuple[str, str, str]]]:
     """What the store currently holds, in the gold file's terms.
 
     ``include_proposed=True`` is the default because this harness measures
     the *extractor*: proposals are its raw output, and scoring only what a
     human already approved would measure the reviewer instead.
+
+    The stream filters exist because one store can hold several extractors'
+    output. Scored together, one engine's hits mask another's misses and the
+    number names neither of them — the same mixing that made the conformal
+    calibration set meaningless. A triple is attributed by its *edge*'s
+    stream, since that is the row the extractor actually proposed.
     """
     statuses = ("proposed", "verified") if include_proposed else ("verified",)
     marks = ",".join("?" for _ in statuses)
+    decode_json = canonical_decode_params(decode_params)
+    node_clause, node_params = _stream_clause(
+        "n", engine, model, prompt_version, decode_json
+    )
+    edge_clause, edge_params = _stream_clause(
+        "e", engine, model, prompt_version, decode_json
+    )
 
     entities = {
         row["normalized_name"]
         for row in store.conn.execute(
-            f"SELECT normalized_name FROM nodes WHERE status IN ({marks})",
-            statuses,
+            f"""
+            SELECT n.normalized_name
+            FROM nodes n
+            WHERE n.status IN ({marks}) {node_clause}
+            """,
+            (*statuses, *node_params),
         )
     }
     triples = {
@@ -118,9 +179,9 @@ def store_view(
             FROM edges e
             JOIN nodes s ON s.id = e.src_node_id
             JOIN nodes d ON d.id = e.dst_node_id
-            WHERE e.status IN ({marks})
+            WHERE e.status IN ({marks}) {edge_clause}
             """,
-            statuses,
+            (*statuses, *edge_params),
         )
     }
     return entities, triples
@@ -226,6 +287,17 @@ class Report:
     triple_f1_ci: dict[str, float] = field(default_factory=dict)
     missing_triples: list[tuple[str, str, str]] = field(default_factory=list)
     spurious_triples: list[tuple[str, str, str]] = field(default_factory=list)
+    # Which extractor stream this score is about. All-None reads "every
+    # stream in the store", so a mixed number can never be mistaken for one
+    # extractor's measurement.
+    stream: dict[str, Any] = field(
+        default_factory=lambda: {
+            "engine": None,
+            "model": None,
+            "prompt_version": None,
+            "decode_params": None,
+        }
+    )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -236,17 +308,36 @@ class Report:
             "counts": dict(self.counts),
             "missing_triples": [list(t) for t in self.missing_triples],
             "spurious_triples": [list(t) for t in self.spurious_triples],
+            "stream": dict(self.stream),
         }
 
 
 def evaluate_store(
-    store: KGStore, gold: Gold, *, include_proposed: bool = True
+    store: KGStore,
+    gold: Gold,
+    *,
+    include_proposed: bool = True,
+    engine: str | None = None,
+    model: str | None = None,
+    prompt_version: str | None = None,
+    decode_params: dict[str, Any] | None = None,
 ) -> Report:
     """Score the store's extractions against the gold reference."""
     found_entities, found_triples = store_view(
-        store, include_proposed=include_proposed
+        store,
+        include_proposed=include_proposed,
+        engine=engine,
+        model=model,
+        prompt_version=prompt_version,
+        decode_params=decode_params,
     )
     return Report(
+        stream={
+            "engine": engine,
+            "model": model,
+            "prompt_version": prompt_version,
+            "decode_params": decode_params,
+        },
         entity=_prf(gold.entities, found_entities),
         triple=_prf(gold.triples, found_triples),
         entity_f1_ci=bootstrap_f1_interval(gold.entities, found_entities),

@@ -228,7 +228,28 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
     kill_switch = KillSwitch(str(job_dir))
     kill_switch.install()
 
-    engine = get_engine(args.engine, args.model, seed=args.seed, data_dir=data_dir)
+    # Only a stated choice is passed down: absent flags mean "no selection",
+    # which lets the API engines apply their pinned default and keeps the CLI
+    # engines (which have no sampling flag) usable as before.
+    decode_params = {
+        key: value
+        for key, value in (
+            ("temperature", args.temperature),
+            ("top_p", args.top_p),
+        )
+        if value is not None
+    } or None
+    try:
+        engine = get_engine(
+            args.engine,
+            args.model,
+            seed=args.seed,
+            data_dir=data_dir,
+            decode_params=decode_params,
+        )
+    except EngineError as exc:
+        print(f"[ontologylab] {exc}", file=sys.stderr)
+        return 1
 
     doc_ids = args.doc_ids or unprocessed_doc_ids(store)
     if not doc_ids:
@@ -237,7 +258,12 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
 
     provenance.log(
         "extract.start",
-        {"engine": args.engine, "model": args.model, "doc_ids": doc_ids},
+        {
+            "engine": args.engine,
+            "model": args.model,
+            "decode_params": decode_params,
+            "doc_ids": doc_ids,
+        },
     )
     totals = dict.fromkeys(TOTALS_KEYS, 0)
 
@@ -571,16 +597,48 @@ def cmd_eval(args: argparse.Namespace) -> int:
         print(f"[ontologylab] BAD GOLD FILE: {exc}", file=sys.stderr)
         return 2
 
+    # Exit 2 is "the harness input was bad", which a malformed filter is —
+    # the same code a bad gold file gets, and distinct from a quality gate.
+    try:
+        decode_filter = (
+            json.loads(args.decode_params) if args.decode_params else None
+        )
+    except json.JSONDecodeError as exc:
+        print(f"[ontologylab] BAD --decode-params: {exc}", file=sys.stderr)
+        return 2
+    if decode_filter is not None and not isinstance(decode_filter, dict):
+        print(
+            "[ontologylab] BAD --decode-params: expected a JSON object, "
+            f"got {type(decode_filter).__name__}",
+            file=sys.stderr,
+        )
+        return 2
+
     store = _open_store(args)
     try:
         report = evaluate_store(
-            store, gold, include_proposed=not args.verified_only
+            store,
+            gold,
+            include_proposed=not args.verified_only,
+            engine=args.engine,
+            model=args.model,
+            prompt_version=args.prompt_version,
+            decode_params=decode_filter,
         )
     finally:
         store.close()
 
     scope = "verified only" if args.verified_only else "proposed+verified"
-    print(f"[ontologylab] eval vs {gold.path} ({scope})")
+    stream = ", ".join(
+        f"{key}={value}"
+        for key, value in report.stream.items()
+        if value is not None
+    )
+    print(
+        f"[ontologylab] eval vs {gold.path} ({scope}"
+        + (f"; {stream}" if stream else "; every extractor stream")
+        + ")"
+    )
     for unit in ("entity", "triple"):
         scores = getattr(report, unit)
         interval = getattr(report, f"{unit}_f1_ci")
@@ -1102,6 +1160,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_extract.add_argument("--doc-ids", nargs="*", default=None,
                            help="Documents to extract (default: all unprocessed).")
     p_extract.add_argument("--seed", type=int, default=paths.DEFAULT_SEED)
+    # Default None, not 0.0: "unset" must stay distinguishable from "chose
+    # zero", because only the former may reach a CLI engine.
+    p_extract.add_argument(
+        "--temperature", type=float, default=None,
+        help="Sampling temperature for api:<provider-id> engines "
+             "(default: the pinned 0.0; CLI engines cannot apply it).",
+    )
+    p_extract.add_argument(
+        "--top-p", type=float, default=None,
+        help="Nucleus-sampling top_p for api:<provider-id> engines.",
+    )
     p_extract.add_argument("--max-engine-calls", type=int,
                            default=paths.DEFAULT_MAX_ENGINE_CALLS)
     p_extract.add_argument("--time-budget", type=float,
@@ -1200,6 +1269,25 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_eval.add_argument(
         "--min-triple-f1", type=float, default=None,
         help="Exit 3 when triple F1 falls below this (CI gate).",
+    )
+    # Filters, not validators: they must accept any value a past run stored,
+    # including engines and prompt versions this build no longer offers.
+    p_eval.add_argument(
+        "--engine", default=None,
+        help="Score only rows this extractor engine proposed (default: all).",
+    )
+    p_eval.add_argument(
+        "--model", default=None,
+        help="Score only rows this extractor model proposed (default: all).",
+    )
+    p_eval.add_argument(
+        "--prompt-version", default=None,
+        help="Score only rows this prompt version produced (default: all).",
+    )
+    p_eval.add_argument(
+        "--decode-params", default=None, metavar="JSON",
+        help='Score only rows produced with these sampling parameters, '
+             'e.g. \'{"temperature": 0.0}\' (default: all).',
     )
     _add_data_dir(p_eval)
     p_eval.set_defaults(func=cmd_eval)

@@ -613,6 +613,10 @@ async def run_extraction(
                 extractor_engine=extractor_engine,
                 extractor_model=extractor_model,
                 prompt_version=PROMPT_VERSION,
+                # The engine reports what it actually asked the provider for;
+                # an adapter with no sampler control reports nothing, and the
+                # row stores NULL rather than a parameter it never used.
+                decode_params=usage.get("decode_params"),
             )
             on_stats(stats)
             on_progress(
