@@ -88,6 +88,13 @@ class PackManifest:
     embedding_model: str | None
     ontologylab_version: str
     content_hash: str
+    # The commit the pack was built against, so a consumer can judge how
+    # much has happened since. None when the build host is not a git repo —
+    # never a fabricated value.
+    basis_commit: str | None = None
+    # The documented default staleness policy (threshold + prose). Advisory
+    # and overridable; it exists so consumers do not each invent a policy.
+    staleness_policy: dict[str, Any] | None = None
 
 
 @runtime_checkable

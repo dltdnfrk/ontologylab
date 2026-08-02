@@ -193,6 +193,7 @@ class PackSession:
         expansion_engine: str | None = None,
         expansion_model: str | None = None,
         embedder=None,
+        live_store_path: str | Path | None = None,
     ) -> None:
         self.packs_dir = Path(packs_dir)
         self.store: KGStore | None = None
@@ -201,6 +202,79 @@ class PackSession:
         self.expansion_engine = expansion_engine
         self.expansion_model = expansion_model
         self.embedder = embedder
+        self.live_store_path = (
+            Path(live_store_path) if live_store_path is not None else None
+        )
+        self._live_store: KGStore | None = None
+
+    def _live(self) -> KGStore | None:
+        """The working store, opened read-only on first use.
+
+        Staleness is a live question — "what is verified now that the latest
+        pack does not reflect" — so it cannot be answered from the immutable
+        packs alone. Absent path means the feature is off, and the caller
+        reports that honestly instead of inventing a zero.
+        """
+        if self.live_store_path is None:
+            return None
+        if self._live_store is None:
+            self._live_store = KGStore.open(self.live_store_path, read_only=True)
+        return self._live_store
+
+    def get_staleness(self) -> dict[str, Any]:
+        """Basis metadata of the latest pack + live-computed pending count.
+
+        The pending count is deliberately NOT read from any manifest: right
+        after a manual build an embedded count would always read zero, which
+        is why it is computed here — verified items in the live store minus
+        items the latest pack reflects (nodes count as verified; edges must
+        also be currently valid, matching the pack build's own predicate).
+        """
+        packs = discover_packs(self.packs_dir)
+        if not packs:
+            return {
+                "latest_pack_id": None,
+                "basis_commit": None,
+                "created_ts": None,
+                "staleness_policy": None,
+                "pack_verified_count": None,
+                "store_verified_count": None,
+                "pending_verified_count": None,
+                "note": "no packs found in packs_dir",
+            }
+        latest = max(packs, key=lambda p: p.get("created_ts", 0))
+        counts = latest.get("counts") or {}
+        pack_count = int(counts.get("nodes_verified", 0)) + int(
+            counts.get("edges_verified", 0)
+        )
+
+        result: dict[str, Any] = {
+            "latest_pack_id": latest.get("pack_id"),
+            "basis_commit": latest.get("basis_commit"),
+            "created_ts": latest.get("created_ts"),
+            "staleness_policy": latest.get("staleness_policy"),
+            "pack_verified_count": pack_count,
+        }
+        live = self._live()
+        if live is None:
+            result.update(
+                store_verified_count=None,
+                pending_verified_count=None,
+                note="live store not configured; pass --live-store to enable "
+                "the pending count",
+            )
+            return result
+        store_count = live.conn.execute(
+            "SELECT (SELECT COUNT(*) FROM nodes WHERE status='verified') + "
+            "(SELECT COUNT(*) FROM edges WHERE status='verified' AND "
+            "invalidated_ts IS NULL)"
+        ).fetchone()[0]
+        result.update(
+            store_verified_count=store_count,
+            pending_verified_count=max(0, store_count - pack_count),
+            note=None,
+        )
+        return result
 
     def _provenance(self) -> dict[str, Any]:
         """Pack identity attached to every query response, so a caller can
@@ -212,6 +286,9 @@ class PackSession:
             self.store.close()
             self.store = None
             self.pack_id = None
+        if self._live_store is not None:
+            self._live_store.close()
+            self._live_store = None
 
     def _require_store(self) -> KGStore:
         if self.store is None:
@@ -711,6 +788,13 @@ def build_mcp_app(session: PackSession) -> Any:
         return session.list_packs()
 
     @mcp.tool()
+    def get_staleness() -> dict[str, Any]:
+        """Basis metadata of the latest pack and the live-computed count of
+        verified items not yet reflected in any pack (pending_verified_count).
+        Use it to judge whether a pack answer may be stale before relying on it."""
+        return session.get_staleness()
+
+    @mcp.tool()
     def load_pack(pack_id: str) -> LoadPackResult:
         """Set/switch the active pack (read-only connection; never mutates KG)."""
         return session.load_pack(pack_id)
@@ -923,6 +1007,16 @@ def main(argv: list[str] | None = None) -> None:
         help="Optional model name for the expansion engine.",
     )
     parser.add_argument(
+        "--live-store",
+        default=None,
+        metavar="KG_SQLITE",
+        help=(
+            "Path to the working kg.sqlite, opened read-only. Enables "
+            "get_staleness to compute pending_verified_count live; without "
+            "it the count is reported as unavailable (never a fabricated zero)."
+        ),
+    )
+    parser.add_argument(
         "--embedder",
         default=None,
         help="Enable BM25+vector RRF search for packs that carry matching "
@@ -949,6 +1043,7 @@ def main(argv: list[str] | None = None) -> None:
         expansion_engine=args.expansion_engine,
         expansion_model=args.expansion_model,
         embedder=embedder,
+        live_store_path=args.live_store,
     )
     if args.pack:
         try:

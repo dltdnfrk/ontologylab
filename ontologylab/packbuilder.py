@@ -24,6 +24,7 @@ import json
 import re
 import shutil
 import sqlite3
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,43 @@ def safe_pack_component(value: str, *, kind: str = "pack name") -> str:
             "(no path separators)"
         )
     return value
+
+
+# The documented default staleness policy, embedded in every manifest so a
+# consumer has a shipped baseline instead of inventing its own. Advisory and
+# overridable: a threshold of 0 reads "any verified item the pack does not
+# reflect is a reason to consider rebuilding".
+DEFAULT_STALENESS_POLICY: dict[str, Any] = {
+    "pending_verified_count_threshold": 0,
+    "description": (
+        "When pending_verified_count (verified items in the live store minus "
+        "items reflected in this pack) exceeds the threshold, rebuilding the "
+        "pack is recommended. Advisory; consumers may set their own threshold."
+    ),
+}
+
+
+def _git_head() -> str | None:
+    """HEAD of the repository this code runs from, or None when there is none.
+
+    A pack must say what it was built against so an agent can judge how much
+    has happened since. The candidate is the package's parent directory,
+    which is the repo in a checkout and site-packages in an install — git
+    answers for us, and any failure (not a repo, no git, timeout) is None,
+    never a fabricated hash.
+    """
+    candidate = Path(__file__).resolve().parent.parent
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(candidate), "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    head = result.stdout.strip()
+    return head if len(head) == 40 else None
 
 
 def build_pack(
@@ -241,6 +279,8 @@ def build_pack(
         embedding_model=pack_embedding_model,
         ontologylab_version=__version__,
         content_hash=content_hash,
+        basis_commit=_git_head(),
+        staleness_policy=dict(DEFAULT_STALENESS_POLICY),
     )
     (pack_dir / "manifest.json").write_text(
         json.dumps(manifest.__dict__, indent=2), encoding="utf-8"
