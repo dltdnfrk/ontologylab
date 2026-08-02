@@ -10,7 +10,7 @@ baseline_commit: c6bf0d0860025ad9e49977e1964163c65307cdfb
 class: revision
 supersedes: ontologylab-product-spec-001 @ baseline d4039a8 (2026-08-01)
 created_at: 2026-08-01
-revised_at: 2026-08-02
+revised_at: 2026-08-03
 source_interview: interview_20260802_095257
 source_seed: seed_80779f6e49b1
 seed_lineage: seed_4beda6e95da5 (2026-08-01, 퇴역 — MUNI 첫 도메인 팩 목표)
@@ -288,16 +288,33 @@ live+pack 2티어를 결정필놨다"고 `test_mcp_two_tier.py`를 근거로 썼
 
 ## 7. 수락기준
 
-후속 Seed(`seed_80779f6e49b1`)의 수락기준을 따른다. `verify_command`는 Seed 원문 그대로이며,
-아직 대상 기능이 없는 명령은 매칭 테스트 부재로 실패(exit 5)하는 것이 **미충족 게이트의
-올바른 상태**다.
+후속 Seed(`seed_80779f6e49b1`)의 수락기준을 따른다. 아래 marked table이 현재 상태의
+단일 정본이다. `python scripts/check_product_status.py`가 필수 ID, 상태, 근거 경로,
+그리고 blocking/non-blocking 후속 단계의 모순을 검사한다.
 
-| ID | 수락기준 | verification_method | 상태 |
+<!-- product-status:v1:start -->
+| ID | Status | Evidence | Follow-up |
 |---|---|---|---|
-| AC-01 | 팩 매니페스트가 `basis_commit`과 생성 시각을 담고, MCP live 티어가 쿼리 시점 계산의 `pending_verified_count`를 노출하며, 문서화된 기본 신선도 정책이 매니페스트에 내장된다 (`ac_2a92f910cec12ead`) | `automated_test` | **미구현** — §13 다음 단계 |
-| AC-02 | 생물은 EPPO 코드(동의어·통용명 포함), 유효성분은 CAS 번호로 정본화되고, 미해소 이름은 리뷰어 예외로 플래그되며, 캐시 부재는 단일 provenance 경고로 저하한다 (`ac_467f41806cb0cf7c`) | `automated_test` | **미구현** — §13 다음 단계 |
-| AC-03 | "병원체 X를 작물 Y에서 무엇이 방제하는가, 작용기작은, 저항성 보고가 있는가"에 대한 MCP 쿼리가 출처·시점이 붙은 답 또는 'unknown'을 반환한다 (`ac_b957dcaa757af568`) | `automated_test` | 부분 충족 — 신선도 메타데이터 후 완전 충족 |
-| AC-04 | 기존 테스트 전체(1213개)가 계속 통과한다 | `automated_test` | **충족 중** — 회귀 가드 |
+| AC-01 | COMPLETE | `tests/test_staleness.py` | NONE |
+| AC-02 | COMPLETE | `tests/test_registry.py`, `tests/test_agrochem_schema.py` | NONE |
+| AC-03 | COMPLETE | `docs/FIRST-PACK-EVIDENCE.md`, `tests/test_mcp_two_tier.py` | NONE |
+| CHUNK-SWEEP | COMPLETE | `docs/CHUNK-SWEEP-2026-08.md`, `scripts/sweep_chunk_size.py` | NON-BLOCKING: 대표 실제 corpus에서 3,000-token 결정을 재검증 |
+<!-- product-status:v1:end -->
+
+- **AC-01** (`ac_2a92f910cec12ead`): `basis_commit`, 생성 시각, 기본 정책,
+  live `pending_verified_count`, 그리고 semantic additions/invalidation/replacement까지
+  구현·검증됐다.
+- **AC-02** (`ac_467f41806cb0cf7c`): EPPO 코드와 CAS/MoA 정규화, 미해소 플래그,
+  import-first cache 및 honest absence가 구현·검증됐다.
+- **AC-03** (`ac_b957dcaa757af568`): 읽기 전용 MCP 2-tier 도구와 첫 agrochem
+  pack의 출처 기반 응답 증거가 있으며, 신선도 결과도 함께 노출된다.
+- **AC-04 회귀 가드**: 전체 suite가 계속 통과해야 한다. 개수는 기능 추가 때마다
+  변하므로 명세에 고정하지 않고 CI/검증 출력으로 증명한다.
+
+2026-08-03 아키텍처 무결성 근거: durable extraction `5b93f94`, incomplete-pack
+gate `31deb06`, semantic staleness `7248024`, FastAPI app-state isolation
+`eedb3d5`. 이 커밋들은 제품 수락기준을 바꾸지 않고, 그 기준을 부분 상태나
+process-global leakage 없이 지키게 한다.
 
 **퇴역**: 2026-08-01 표의 AC-03(MUNI 팩 7개 질문 응답)과 AC-04(고고학 벤치마크)는
 도메인 폐기와 함께 퇴역했다. `tests/test_portfolio_benchmark.py`는 만들어지지 않으며
@@ -355,8 +372,9 @@ live+pack 2티어를 결정필놨다"고 `test_mcp_two_tier.py`를 근거로 썼
 
 ## 11. 미결정 사항
 
-1. **청크 예산 측정** — `TARGET_CHUNK_TOKENS` 1500 대 3000 스윕으로 스캐폴 비중
-   (61% 대 44%)과 재현율을 함께 잰다. 스키마 설명 트리밍은 측정 후에만
+1. **대표 실제 corpus 재검증** — 1,500 대 3,000 synthetic sweep는 완료됐다.
+   첫 대표 실제 corpus에서 품질 비열화와 비용 절감을 다시 확인하기 전에는
+   3,000을 도메인 독립 최적값으로 일반화하지 않는다
 2. **축별 추출 품질** — agrochem-v1의 네 축이 골고루 추출되는지, 스트림 필터가
    붙은 평가 하니스로 골드 세트 기준 측정. 골드 세트 자체가 미래 산출물
 3. **모순 감지 웨이브** — `conflicts_with` 스키마 선언 + clash 스캐너(D5 유예분)
@@ -373,24 +391,23 @@ live+pack 2티어를 결정필놨다"고 `test_mcp_two_tier.py`를 근거로 썼
   seed_80779f6e49b1(2026-08-02, 농화학 목표). 퇴역 스냅샷은 불변이므로 편집하지 않는다
 - 인터뷰(2026-08-01): `interview_20260801_062141`, `interview_20260801_022908`
 - 기존 문서: `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/DESIGN-RATIONALE.md`
-  (36편 논문 근거), `HANDOFF.md`
+  (36편 논문 근거)
 - ouroboros 게이트: `.ouroboros/mechanical.toml` (`test = "pytest"`)
 
 **거버넌스 파일럿 관련(2026-08-01 확정, 유효)**:
 - baseline 이원화 — as-planned 원점은 최초 커밋 `fd511f7`, 거버넌스
   `baseline_commit`은 정본화 시점 HEAD
-- `docs/OPEN_DECISIONS.md`는 독립 파일로, `DOC_INDEX.yaml`은 단순 등재만
+- 저장소 밖 거버넌스 handoff/index 기록은 historical context이며 이 저장소의
+  local evidence path로 취급하지 않는다
 
 ## 13. 다음 단계
 
-1. **매니페스트 신선도 메타데이터** (AC-01, 차단 항목) — `PackManifest`에
-   `basis_commit` + 생성 시각 + 기본 신선도 정책 필드, MCP live 티어에
-   `pending_verified_count` 실시간 계산 노출
-2. **EPPO 정규화** (AC-02, 차단 항목) — allowlist 추가, fetch 명령 + 로컬 캐시,
-   추출-검토 사이 정규화 단계, 미해소 플래그, 캐시 부재 저하
-3. **청크 스윕 측정** — `TARGET_CHUNK_TOKENS` 1500/3000 비교(§11-1)
-4. **골드 세트 + 축별 품질 측정** — 농화학 초록 골드 작성, 스트림 필터로 축별 F1
-5. **후속 웨이브** — 모순 감지(`conflicts_with`), CAS/PubChem 정규화, 레지스트리 확대
+1. **대표 실제 corpus + 축별 품질 측정** — synthetic chunk sweep의 결정을
+   대표 실제 초록에서 재검증하고, 네 농화학 축의 스트림별 F1을 측정
+2. **모순 감지 웨이브** — `conflicts_with` 스키마 선언과 clash scanner(D5 유예분)
+3. **레지스트리 확대** — 현재 EPPO·CAS/MoA 이후 PPDB, EU Pesticides DB,
+   PubChem/FRAC 갱신 절차
+4. **국내 소스 재검토** — 한국어 청킹 수정과 국내 커넥터를 한 묶음으로 평가
 
 ### 정정 이력
 
