@@ -35,6 +35,8 @@ from ontologylab.engines import (
 )
 from ontologylab.kgstore import normalize_name
 from ontologylab.models import ProposedEntity, ProposedRelation, SourceSpan
+from ontologylab.normalization import ORGANISM_ENTITY_TYPES, normalize_proposal
+from ontologylab.registry import RegistryCache
 
 PROMPT_VERSION = "extract-v1"
 
@@ -554,6 +556,20 @@ async def run_extraction(
     one malformed response must not discard the document's other chunks.
     """
     schema = store.get_schema()
+    organism_specs = [
+        entity
+        for entity in schema["entity_types"]
+        if entity["name"] in ORGANISM_ENTITY_TYPES
+        and "eppo_code" in entity["attributes"]
+    ]
+    registry = RegistryCache(store.db_path.parent) if organism_specs else None
+    if registry is not None:
+        warning = registry.provenance_warning()
+        if warning is not None:
+            # Cache absence is one run-level configuration fact, not one
+            # suspicious proposal per organism or chunk.
+            provenance.log("extract.warning", {"warning": warning})
+
     stopped_reason = ""
     for doc_id in doc_ids:
         raw_text = store.document_raw_text(doc_id)
@@ -606,6 +622,9 @@ async def run_extraction(
                     "extract.warning",
                     {"doc_id": doc_id, "chunk": chunk.index, "warning": warning},
                 )
+            if registry is not None:
+                for entity in result.entities:
+                    normalize_proposal(entity, registry)
             stats = store.insert_proposed(
                 result.entities,
                 result.relations,

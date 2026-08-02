@@ -1938,8 +1938,31 @@ class KGStore:
             )
             out.append(row)
         self._label_edge_endpoints(out)
+        self._attach_properties(out)
         self._attach_evidence(out)
         return out
+
+    def _attach_properties(self, rows: list[dict[str, Any]]) -> None:
+        """Expose stored proposal properties on the review-queue surface."""
+        for kind, table in (("node", "nodes"), ("edge", "edges")):
+            ids = [row["id"] for row in rows if row.get("kind") == kind]
+            for start in range(0, len(ids), 500):
+                chunk = ids[start : start + 500]
+                placeholders = ",".join("?" * len(chunk))
+                payloads = {
+                    row["id"]: row["properties_json"]
+                    for row in self.conn.execute(
+                        f"SELECT id, properties_json FROM {table} "
+                        f"WHERE id IN ({placeholders})",
+                        chunk,
+                    )
+                }
+                for item in rows:
+                    if item.get("kind") == kind and item.get("id") in payloads:
+                        try:
+                            item["properties"] = json.loads(payloads[item["id"]])
+                        except (TypeError, ValueError):
+                            item["properties"] = {}
 
     def _attach_evidence(self, rows: list[dict[str, Any]]) -> None:
         """Attach the source excerpt each proposal was extracted from, in place.
