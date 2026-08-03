@@ -13,7 +13,9 @@ import site
 import subprocess
 import sys
 import tarfile
+import types
 from pathlib import Path
+from types import CodeType
 
 import pytest
 
@@ -1534,6 +1536,136 @@ def _mutate_registry_method(root: Path) -> str:
     return pristine
 
 
+def test_cli_rejects_a_timestamp_valid_stale_pyc(tmp_path: Path) -> None:
+    """A cached `.pyc` that still looks fresh but executes older constants is caught.
+
+    Bytecode alone is not meaning. Replacing a string constant with another of the same
+    length leaves `co_code` byte-identical, so a stale `.pyc` whose source mtime was restored
+    -- an ordinary rebase or checkout artefact -- ran the previous constant while the file on
+    disk said something else, and the gate passed. The fingerprint now folds in constants and
+    nested code objects, and leaves out line numbers and filenames so that relocating code is
+    not mistaken for substituting it.
+    """
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/normalization.py"
+    original = source.stat()
+    py_compile.compile(str(source), doraise=True)
+    text = source.read_text(encoding="utf-8")
+    assert '"no_eppo_match"' in text
+    source.write_text(text.replace('"no_eppo_match"', '"xx_eppo_match"'), encoding="utf-8")
+    os.utime(source, (original.st_atime, original.st_mtime))
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    (issue,) = payload["issues"]
+    assert issue["detail"] == (
+        "product code the bodies called is not what its own source compiles to: "
+        "['ontologylab/normalization.py::_normalize_organism is not compiled from this "
+        "file under that name']"
+    )
+
+
+def test_cli_validates_every_binding_path_of_an_aliased_class(tmp_path: Path) -> None:
+    """`class A`, `class B`, then a leftover `B = A` -- both names are checked.
+
+    Cycle prevention used one visited-object set for the whole module, so whichever name
+    sorted first was validated and the other binding path was skipped entirely. That is the
+    opposite of keying by where a thing is bound. The alias here carries the gutted method,
+    and the canonical name is what the tests call.
+    """
+    document = _executable_fixture(tmp_path)
+    registry = tmp_path / "ontologylab/registry.py"
+    pristine = registry.read_text(encoding="utf-8")
+    _mutate_registry_method(tmp_path)
+    registry.write_text(
+        registry.read_text(encoding="utf-8")
+        + "\n\nimport sys as _sys\n\n"
+        'if "--junitxml" in _sys.argv:\n'
+        "    _ns = dict(globals())\n"
+        "    exec(compile(%r, __file__, \"exec\"), _ns)\n"
+        "    AAACache = _ns[\"RegistryCache\"]\n"
+        "    RegistryCache = AAACache\n" % pristine,
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    (issue,) = payload["issues"]
+    reported = issue["detail"]
+    # Both binding paths of the aliased class are audited. The canonical name is the one the
+    # canonical nodes call, so naming only the alias would report the wrong thing -- and a
+    # visited-object set shared across the module skips whichever path sorts later.
+    assert "RegistryCache.resolve_with_status" in reported, reported
+    assert "AAACache.resolve_with_status" in reported, reported
+
+
+def test_every_binding_path_is_walked_even_when_two_names_share_one_class() -> None:
+    """Aliasing a class does not remove either name from the audit.
+
+    Owned separately from the CLI test above because the traversal is the guarantee: with a
+    module-wide visited set, `B = A` produced binding paths for `A` only. This measures the
+    shipped walker directly, so it fails when cycle prevention is widened back to suppress a
+    second top-level binding of the same object.
+    """
+    walker = _shipped_helpers("live_code_objects", "_code_objects_of")["live_code_objects"]
+    module = types.ModuleType("aliased_demo")
+    exec(
+        compile(
+            "class A:\n    def go(self):\n        return 1\nB = A\n",
+            "aliased_demo.py",
+            "exec",
+        ),
+        module.__dict__,
+    )
+    for value in list(module.__dict__.values()):
+        if isinstance(value, type):
+            value.__module__ = "aliased_demo"
+
+    paths = {path for path, _code in walker(module)}
+
+    assert paths == {"A.go", "B.go"}, sorted(paths)
+
+
+def test_cli_rejects_a_product_binding_compiled_from_synthetic_source(
+    tmp_path: Path,
+) -> None:
+    """An ordinary leftover bound from `compile(..., "<string>", ...)` is not exempt.
+
+    Every synthetic origin used to be skipped, which was far wider than the `@dataclass`
+    dunders it was meant to cover: a product name rebound to `exec`/`eval`/`compile` output
+    inherited the same pass. The exemption is now the specific generated dunders, and
+    anything else claiming a synthetic origin is reported under its binding path.
+    """
+    document = _executable_fixture(tmp_path)
+    normalization = tmp_path / "ontologylab/normalization.py"
+    pristine = normalization.read_text(encoding="utf-8")
+    _mutate_normalization(tmp_path)
+    normalization.write_text(
+        normalization.read_text(encoding="utf-8")
+        + "\n\nimport sys as _sys\n\n"
+        'if "--junitxml" in _sys.argv:\n'
+        "    _g = dict(globals())\n"
+        '    exec(compile(%r, "<string>", "exec"), _g)\n'
+        "    normalize_proposal = _g[\"normalize_proposal\"]\n" % pristine,
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    assert "normalize_proposal was compiled from <string>" in details, details
+
+
+
 def test_cli_rejects_a_rebound_module_level_lookup_table(tmp_path: Path) -> None:
     """A swapped constant is the same accident as a swapped function.
 
@@ -2199,6 +2331,27 @@ DERIVED_JOINEDSTR = f"{LITERAL_STR}-suffix"
 """
 
 
+def _shipped_helpers(*names: str) -> dict[str, object]:
+    """Lift named helpers out of the child program the checker actually ships."""
+    source = (
+        Path(__file__).resolve().parents[1] / "scripts/check_product_status.py"
+    ).read_text(encoding="utf-8")
+    child = source.split('EVIDENCE_EXECUTOR_PROGRAM: Final = """', 1)[1].split('"""', 1)[0]
+    tree = ast.parse(child)
+    namespace: dict[str, object] = {"ast": ast, "hashlib": hashlib, "CodeType": CodeType}
+    for name in names:
+        definition = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == name
+        )
+        exec(
+            compile(ast.Module(body=[definition], type_ignores=[]), "<child>", "exec"),
+            namespace,
+        )
+    return namespace
+
+
 def _shipped_literal_assignments():
     """The `literal_assignments` the checker actually ships, lifted out of the child program."""
     source = (
@@ -2270,8 +2423,20 @@ def test_the_declared_data_guarantee_matches_what_the_checker_binds() -> None:
     assert "리터럴" in data_bullet, data_bullet
     assert "§7.1.1" in protected
 
-    # The residual is a limit of static analysis, not a fourth hostile-committer exclusion.
-    assert "적대적 제외" in residual
+    # The residual is a fourth, non-hostile item, and must stay outside the hostile list.
+    # Checked by label rather than by phrase: asserting that the words "hostile exclusion"
+    # appear somewhere still passed when the residual was merged into that very list.
+    assert "`residual-4-non-hostile`" in residual
+    hostile = _spec_section("**막지 않는 것", "#### 7.1.1")
+    hostile_labels = set(re.findall(r"`(hostile-\d)`", hostile))
+    assert hostile_labels == {"hostile-1", "hostile-2", "hostile-3"}, sorted(hostile_labels)
+    # The three hostile cases are declared where the code points at them, and the residual
+    # is not one of them.
+    assert "residual-4" not in hostile
+    checker = (
+        Path(__file__).resolve().parents[1] / "scripts/check_product_status.py"
+    ).read_text(encoding="utf-8")
+    assert checker.count("DECLARED BOUNDARY (docs/PRODUCT_SPEC.md \u00a77.1, case") == 3
 
 
 

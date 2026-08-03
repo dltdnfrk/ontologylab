@@ -168,6 +168,11 @@ LIBRARY_ROOTS = tuple(
 # way to narrow the audit, and that is worth refusing on principle rather than on coverage.
 LIBRARY_ROOTS = tuple(root for root in LIBRARY_ROOTS if root != ROOT)
 LEDGER = {"executed": {}, "modules": {}, "unaudited": [], "product": {}, "substituted": []}
+# The dunders `@dataclass` emits with the filename "<string>". Measured against this product:
+# these five names are the only synthetic-origin methods the evidence path produces.
+GENERATED_DUNDERS = frozenset(
+    {"__init__", "__eq__", "__hash__", "__setattr__", "__delattr__", "__repr__"}
+)
 # Every source file this interpreter compiles, recorded by an audit hook installed before
 # anything else runs. Walking `sys.modules` was evadable two ways that both keep working
 # code off the list -- `del sys.modules[name]` after import, and `exec` of a file that never
@@ -278,6 +283,45 @@ def module_origin(module):
     return None, True
 
 
+def _stable_repr(value):
+    # `repr` of a set or frozenset depends on hash randomisation, so it differs between the
+    # parent's compile and the child's live object for the same constant. Order-insensitive
+    # containers are rendered sorted by their element reprs; everything else is `repr`.
+    if isinstance(value, (set, frozenset)):
+        return f"{type(value).__name__}({sorted(_stable_repr(item) for item in value)})"
+    if isinstance(value, tuple):
+        return f"({', '.join(_stable_repr(item) for item in value)})"
+    return repr(value)
+
+
+def code_fingerprint(code):
+    # A semantic fingerprint of a code object: bytecode alone is not the meaning. Changing a
+    # string constant to another of the same length leaves `co_code` byte-identical, so a
+    # timestamp-valid stale `.pyc` executing the previous constant compared equal to source
+    # that no longer says it. Constants and nested code are folded in; line numbers and
+    # filenames are left out so that legitimate relocation is not reported as substitution.
+    parts = [
+        code.co_name,
+        code.co_argcount,
+        code.co_posonlyargcount,
+        code.co_kwonlyargcount,
+        code.co_flags,
+        code.co_code,
+        code.co_names,
+        code.co_varnames,
+        code.co_freevars,
+        code.co_cellvars,
+    ]
+    constants = []
+    for const in code.co_consts:
+        if isinstance(const, CodeType):
+            constants.append(("code", code_fingerprint(const)))
+        else:
+            constants.append((type(const).__name__, _stable_repr(const)))
+    parts.append(tuple(constants))
+    return hashlib.sha256(repr(tuple(parts)).encode("utf-8")).hexdigest()
+
+
 def literal_assignments(source, filename):
     # Module-level `NAME = <literal>` bindings, as the file declares them.
     try:
@@ -330,25 +374,30 @@ def literal_assignments(source, filename):
     return found
 
 
-def live_code_objects(module, seen=None):
+def live_code_objects(module):
     # Every code object the module exposes as its own, including methods, so that a rebound
     # or duplicated *class* is as visible as a rebound function. The previous rule looked
     # only at module-level attributes carrying `__code__`, which left every method in every
     # class outside the audit -- the same divergence shape one attribute type over.
-    if seen is None:
-        seen = set()
+    #
+    # Every *binding path* is walked, not every object. `class A`, `class B`, then a leftover
+    # `B = A` binds one class object at two names; a set of visited objects shared across the
+    # whole module validated whichever sorted first and silently skipped the other, which is
+    # the opposite of "keyed by where it is bound". Cycle prevention is per path instead, so
+    # self-referential containers still terminate.
     name = getattr(module, "__name__", None)
     for attribute, value in sorted(vars(module).items(), key=lambda item: item[0]):
-        yield from _code_objects_of(attribute, value, name, seen)
+        yield from _code_objects_of(attribute, value, name, ())
 
 
-def _code_objects_of(prefix, value, module_name, seen):
-    if id(value) in seen:
+def _code_objects_of(prefix, value, module_name, ancestry):
+    # `ancestry` is the chain of containers on *this* path only.
+    if any(identity == id(value) for identity in ancestry):
         return
     for unwrap in ("__func__", "fget", "fset", "fdel", "func"):
         inner = getattr(value, unwrap, None)
         if inner is not None and getattr(inner, "__code__", None) is not None:
-            yield from _code_objects_of(prefix, inner, module_name, seen)
+            yield from _code_objects_of(prefix, inner, module_name, ancestry)
             return
     code = getattr(value, "__code__", None)
     if code is not None:
@@ -359,12 +408,11 @@ def _code_objects_of(prefix, value, module_name, seen):
             yield prefix, code
         return
     if isinstance(value, type) and getattr(value, "__module__", None) == module_name:
-        seen.add(id(value))
         for attribute, member in sorted(
             vars(value).items(), key=lambda item: item[0]
         ):
             yield from _code_objects_of(
-                f"{prefix}.{attribute}", member, module_name, seen
+                f"{prefix}.{attribute}", member, module_name, (*ancestry, id(value))
             )
 
 
@@ -418,7 +466,7 @@ def product_identity():
         pending = [compiled]
         while pending:
             code = pending.pop()
-            producible.setdefault(code.co_qualname, set()).add(code.co_code)
+            producible.setdefault(code.co_qualname, set()).add(code_fingerprint(code))
             pending.extend(
                 const for const in code.co_consts if isinstance(const, CodeType)
             )
@@ -439,13 +487,19 @@ def product_identity():
                 )
         for qualname, code in live_code_objects(module):
             origin = code.co_filename
-            # Code the interpreter or a library generated for this module: `@dataclass`
-            # compiles `__init__`/`__eq__` with the filename "<string>", and `reprlib`
-            # supplies the `__repr__` wrapper from its own file. Neither exists in this
-            # source, so neither can be re-derived from it. They are library output, and the
-            # library boundary is where they belong -- not silently dropped, but not charged
-            # to a file that never contained them either.
+            # Compiler-generated methods, narrowly. `@dataclass` compiles exactly these
+            # dunders with the filename "<string>", and they genuinely do not exist in the
+            # source, so they cannot be re-derived from it. Exempting *every* synthetic
+            # origin was far wider than that: an ordinary leftover binding a product name to
+            # `exec`/`eval`/`compile(..., "<string>", ...)` output inherited the same pass.
+            # Anything else claiming a synthetic origin is reported under its binding path.
             if origin.startswith("<") and origin.endswith(">"):
+                attribute = qualname.rsplit(".", 1)[-1]
+                if origin == "<string>" and attribute in GENERATED_DUNDERS:
+                    continue
+                substitutions.append(
+                    f"{relative}::{qualname} was compiled from {origin}"
+                )
                 continue
             if any(
                 library in Path(origin).resolve().parents
@@ -457,7 +511,7 @@ def product_identity():
                 substitutions.append(
                     f"{relative}::{qualname} claims {origin}"
                 )
-            elif code.co_code not in producible.get(qualname, frozenset()):
+            elif code_fingerprint(code) not in producible.get(qualname, frozenset()):
                 substitutions.append(
                     f"{relative}::{qualname} is not compiled from this file under that name"
                 )
