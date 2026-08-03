@@ -104,7 +104,9 @@ import hashlib
 import hmac
 import json
 import os
+import struct
 import sys
+import types
 from pathlib import Path
 from types import CodeType
 
@@ -300,15 +302,63 @@ def module_origin(module):
     return None, True
 
 
-def _stable_repr(value):
-    # `repr` of a set or frozenset depends on hash randomisation, so it differs between the
-    # parent's compile and the child's live object for the same constant. Order-insensitive
-    # containers are rendered sorted by their element reprs; everything else is `repr`.
-    if isinstance(value, (set, frozenset)):
-        return f"{type(value).__name__}({sorted(_stable_repr(item) for item in value)})"
-    if isinstance(value, tuple):
-        return f"({', '.join(_stable_repr(item) for item in value)})"
-    return repr(value)
+def _frame(tag, payload):
+    # A tag says what a value is; a fixed-width length says exactly where it ends. Concatenated
+    # values therefore cannot collide through punctuation, repr formatting, or nesting.
+    return tag + len(payload).to_bytes(8, "big") + payload
+
+
+def _constant_bytes(value, ancestry=()):
+    # The compiler's scalar domain, plus the containers CodeType.replace accepts in tests and
+    # tooling. Exact type checks keep bool distinct from int. IEEE bytes preserve every float
+    # distinction Python can observe, including signed zero and NaN sign/payload bits.
+    value_type = type(value)
+    if value is None:
+        return _frame(b"N", b"")
+    if value is Ellipsis:
+        return _frame(b"E", b"")
+    if value_type is bool:
+        return _frame(b"B", b"1" if value else b"0")
+    if value_type is int:
+        return _frame(b"I", str(value).encode("ascii"))
+    if value_type is float:
+        return _frame(b"F", struct.pack(">d", value))
+    if value_type is complex:
+        return _frame(b"C", struct.pack(">dd", value.real, value.imag))
+    if value_type is str:
+        return _frame(b"S", value.encode("utf-8"))
+    if value_type is bytes:
+        return _frame(b"Y", value)
+    if any(identity == id(value) for identity in ancestry):
+        raise ValueError("cyclic code constant")
+    descendants = (*ancestry, id(value))
+    if value_type is tuple:
+        return _frame(
+            b"T", b"".join(_constant_bytes(item, descendants) for item in value)
+        )
+    if value_type is list:
+        return _frame(
+            b"L", b"".join(_constant_bytes(item, descendants) for item in value)
+        )
+    if value_type in {set, frozenset}:
+        items = sorted(_constant_bytes(item, descendants) for item in value)
+        return _frame(b"R" if value_type is frozenset else b"Q", b"".join(items))
+    if value_type is dict:
+        items = sorted(
+            _frame(
+                b"P",
+                _constant_bytes(key, descendants)
+                + _constant_bytes(item, descendants),
+            )
+            for key, item in value.items()
+        )
+        return _frame(b"D", b"".join(items))
+    if value_type is CodeType:
+        return _frame(b"K", _code_bytes(value, descendants))
+    raise TypeError(
+        "unsupported code constant: "
+        f"{value_type.__module__}.{value_type.__qualname__}"
+    )
 
 
 def dataclass_aliases(tree):
@@ -398,13 +448,11 @@ def regenerated_matches(module, class_node, attribute, code):
     return code_fingerprint(reference) == code_fingerprint(code)
 
 
-def code_fingerprint(code):
-    # A semantic fingerprint of a code object: bytecode alone is not the meaning. Changing a
-    # string constant to another of the same length leaves `co_code` byte-identical, so a
-    # timestamp-valid stale `.pyc` executing the previous constant compared equal to source
-    # that no longer says it. Constants and nested code are folded in; line numbers and
-    # filenames are left out so that legitimate relocation is not reported as substitution.
-    parts = [
+def _code_bytes(code, ancestry=()):
+    # Line tables and filenames describe placement, not meaning. Every semantic field retained
+    # by the prior fingerprint is encoded through the same typed, length-delimited format, and
+    # nested code objects recurse through this function rather than falling back to repr.
+    fields = (
         code.co_name,
         code.co_argcount,
         code.co_posonlyargcount,
@@ -415,15 +463,15 @@ def code_fingerprint(code):
         code.co_varnames,
         code.co_freevars,
         code.co_cellvars,
-    ]
-    constants = []
-    for const in code.co_consts:
-        if isinstance(const, CodeType):
-            constants.append(("code", code_fingerprint(const)))
-        else:
-            constants.append((type(const).__name__, _stable_repr(const)))
-    parts.append(tuple(constants))
-    return hashlib.sha256(repr(tuple(parts)).encode("utf-8")).hexdigest()
+        code.co_consts,
+    )
+    return _constant_bytes(fields, ancestry)
+
+
+def code_fingerprint(code):
+    # The digest is deterministic across processes and hash seeds because unordered values are
+    # sorted by their complete canonical byte encoding before framing.
+    return hashlib.sha256(_code_bytes(code)).hexdigest()
 
 
 def literal_assignments(source, filename):
@@ -479,44 +527,114 @@ def literal_assignments(source, filename):
 
 
 def live_code_objects(module):
-    # Every code object the module exposes as its own, including methods, so that a rebound
-    # or duplicated *class* is as visible as a rebound function. The previous rule looked
-    # only at module-level attributes carrying `__code__`, which left every method in every
-    # class outside the audit -- the same divergence shape one attribute type over.
-    #
-    # Every *binding path* is walked, not every object. `class A`, `class B`, then a leftover
-    # `B = A` binds one class object at two names; a set of visited objects shared across the
-    # whole module validated whichever sorted first and silently skipped the other, which is
-    # the opposite of "keyed by where it is bound". Cycle prevention is per path instead, so
-    # self-referential containers still terminate.
+    # Every binding path is walked independently. The second path in each result is the source
+    # binding a descriptor decorates: `Owner.marker.callback` is explicit live ownership, while
+    # `Owner.marker` is the qualified name compiling that declaration must produce.
     name = getattr(module, "__name__", None)
     for attribute, value in sorted(vars(module).items(), key=lambda item: item[0]):
         yield from _code_objects_of(attribute, value, name, ())
 
 
-def _code_objects_of(prefix, value, module_name, ancestry):
-    # `ancestry` is the chain of containers on *this* path only.
+def _descriptor_members(value):
+    # Read descriptor-owned state without calling its __get__, custom __getattribute__, or a
+    # property. Ordinary instance dictionaries are obtained through the interpreter's concrete
+    # __dict__ getset descriptor; user slots are concrete member descriptors. The traversal
+    # boundary is this static state plus nested built-in containers -- arbitrary referenced
+    # objects are not opened, so this cannot turn into an external object-graph crawl.
+    descriptor_type = type(value)
+    if not any(
+        name in vars(base)
+        for base in descriptor_type.__mro__
+        for name in ("__get__", "__set__", "__delete__")
+    ):
+        return ()
+    found = {}
+    for base in descriptor_type.__mro__:
+        namespace = vars(base)
+        dictionary_descriptor = namespace.get("__dict__")
+        if isinstance(dictionary_descriptor, types.GetSetDescriptorType):
+            try:
+                state = dictionary_descriptor.__get__(value, descriptor_type)
+            except AttributeError:
+                state = None
+            if type(state) is dict:
+                found.update(state)
+        for attribute, slot in namespace.items():
+            if (
+                isinstance(slot, types.MemberDescriptorType)
+                and attribute not in {"__dict__", "__weakref__"}
+                and attribute not in found
+            ):
+                try:
+                    found[attribute] = slot.__get__(value, descriptor_type)
+                except AttributeError:
+                    continue
+    return tuple(sorted(found.items(), key=lambda item: item[0]))
+
+
+def _code_objects_of(
+    prefix,
+    value,
+    module_name,
+    ancestry,
+    source_binding=None,
+    descriptor_owned=False,
+):
+    # Cycle prevention is per binding path, so aliases remain visible while a descriptor state
+    # dictionary that points back to itself terminates. Only descriptor-owned built-in
+    # containers are opened; module globals and arbitrary referenced objects are not crawled.
     if any(identity == id(value) for identity in ancestry):
         return
-    for unwrap in ("__func__", "fget", "fset", "fdel", "func"):
-        inner = getattr(value, unwrap, None)
-        if inner is not None and getattr(inner, "__code__", None) is not None:
-            yield from _code_objects_of(prefix, inner, module_name, ancestry)
-            return
-    code = getattr(value, "__code__", None)
-    if code is not None:
-        if getattr(value, "__module__", None) == module_name:
-            # Keyed by where it is bound, not by what it calls itself. A function rebound to
-            # a sibling in the same file reports its own honest `__qualname__`, so trusting
-            # that would let any same-file swap through.
-            yield prefix, code
+    descendants = (*ancestry, id(value))
+    if isinstance(value, (types.FunctionType, types.MethodType)):
+        code = value.__code__
+        if value.__module__ == module_name:
+            yield prefix, source_binding or prefix, code
         return
     if isinstance(value, type) and getattr(value, "__module__", None) == module_name:
-        for attribute, member in sorted(
-            vars(value).items(), key=lambda item: item[0]
-        ):
+        for attribute, member in sorted(vars(value).items(), key=lambda item: item[0]):
+            binding = f"{prefix}.{attribute}"
             yield from _code_objects_of(
-                f"{prefix}.{attribute}", member, module_name, (*ancestry, id(value))
+                binding, member, module_name, descendants, binding
+            )
+        return
+    members = _descriptor_members(value)
+    if members:
+        declared_binding = source_binding or prefix
+        for attribute, member in members:
+            yield from _code_objects_of(
+                f"{prefix}.{attribute}",
+                member,
+                module_name,
+                descendants,
+                declared_binding,
+                True,
+            )
+        return
+    if descriptor_owned and type(value) in {list, tuple}:
+        for index, member in enumerate(value):
+            yield from _code_objects_of(
+                f"{prefix}[{index}]",
+                member,
+                module_name,
+                descendants,
+                source_binding,
+                True,
+            )
+    elif descriptor_owned and type(value) is dict:
+        for key, member in value.items():
+            if type(key) not in {str, bytes, int, float, bool, type(None)}:
+                raise TypeError(
+                    "unsupported descriptor-state key: "
+                    f"{type(key).__module__}.{type(key).__qualname__}"
+                )
+            yield from _code_objects_of(
+                f"{prefix}[{key!r}]",
+                member,
+                module_name,
+                descendants,
+                source_binding,
+                True,
             )
 
 
@@ -600,7 +718,7 @@ def product_identity():
                 substitutions.append(
                     f"{relative}::{attribute} does not hold the value this file assigns"
                 )
-        for qualname, code in live_code_objects(module):
+        for binding, qualname, code in live_code_objects(module):
             origin = code.co_filename
             # Compiler-generated methods, narrowly. `@dataclass` compiles exactly these
             # dunders with the filename "<string>", and they genuinely do not exist in the
@@ -618,7 +736,7 @@ def product_identity():
                 ):
                     continue
                 substitutions.append(
-                    f"{relative}::{qualname} was compiled from {origin}"
+                    f"{relative}::{binding} was compiled from {origin}"
                 )
                 continue
             if any(
@@ -629,11 +747,11 @@ def product_identity():
                 continue
             if origin != str(path):
                 substitutions.append(
-                    f"{relative}::{qualname} claims {origin}"
+                    f"{relative}::{binding} claims {origin}"
                 )
             elif code_fingerprint(code) not in producible.get(qualname, frozenset()):
                 substitutions.append(
-                    f"{relative}::{qualname} is not compiled from this file under that name"
+                    f"{relative}::{binding} is not compiled from this file under that name"
                 )
     return digests, sorted(set(substitutions))
 

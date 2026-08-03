@@ -10,6 +10,7 @@ import py_compile
 import re
 import shlex
 import site
+import struct
 import subprocess
 import sys
 import tarfile
@@ -1568,6 +1569,109 @@ def test_cli_rejects_a_timestamp_valid_stale_pyc(tmp_path: Path) -> None:
     )
 
 
+def test_semantic_constant_encoding_is_typed_canonical_and_exact() -> None:
+    """The fingerprint input is injective over the constant domain it accepts."""
+    encode = _shipped_helpers("_frame", "_constant_bytes")["_constant_bytes"]
+    positive_nan = compile(
+        "def probe():\n    return 1e1000 - 1e1000\n", "probe.py", "exec"
+    ).co_consts[0].co_consts[1]
+    negative_nan = compile(
+        "def probe():\n    return -(1e1000 - 1e1000)\n", "probe.py", "exec"
+    ).co_consts[0].co_consts[1]
+    scalars = (
+        None,
+        Ellipsis,
+        False,
+        True,
+        0,
+        1,
+        -1,
+        0.0,
+        -0.0,
+        positive_nan,
+        negative_nan,
+        0j,
+        complex(-0.0, 0.0),
+        "",
+        b"",
+    )
+
+    encoded = [encode(value) for value in scalars]
+
+    assert len(set(encoded)) == len(scalars)
+    assert struct.pack(">d", positive_nan) == bytes.fromhex("7ff8000000000000")
+    assert struct.pack(">d", negative_nan) == bytes.fromhex("fff8000000000000")
+    assert encode({"second": 2, "first": 1}) == encode({"first": 1, "second": 2})
+    assert encode(frozenset({"second", "first"})) == encode(
+        frozenset({"first", "second"})
+    )
+
+
+def test_semantic_constant_encoding_rejects_unsupported_and_cyclic_values() -> None:
+    """Values outside the deliberate domain fail instead of sharing a fallback encoding."""
+    encode = _shipped_helpers("_frame", "_constant_bytes")["_constant_bytes"]
+    cyclic: list[object] = []
+    cyclic.append(cyclic)
+
+    with pytest.raises(TypeError, match="unsupported code constant"):
+        encode(object())
+    with pytest.raises(ValueError, match="cyclic code constant"):
+        encode(cyclic)
+
+
+def test_semantic_fingerprint_preserves_nested_code_meaning() -> None:
+    """A nested function's constants remain part of its enclosing code's identity."""
+    fingerprint = _shipped_helpers(
+        "_frame", "_constant_bytes", "_code_bytes", "code_fingerprint"
+    )["code_fingerprint"]
+    first = compile(
+        "def outer():\n    def inner():\n        return 'first'\n    return inner\n",
+        "probe.py",
+        "exec",
+    ).co_consts[0]
+    second = compile(
+        "def outer():\n    def inner():\n        return 'other'\n    return inner\n",
+        "probe.py",
+        "exec",
+    ).co_consts[0]
+
+    assert first.co_code == second.co_code
+    assert fingerprint(first) != fingerprint(second)
+
+
+def test_cli_rejects_opposite_sign_nan_in_a_timestamp_valid_stale_pyc(
+    tmp_path: Path,
+) -> None:
+    """NaN sign bits are observable meaning even though both values repr as ``nan``."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/normalization.py"
+    positive = "\n\ndef a10_nan_probe():\n    return 1e1000 - 1e1000   \n"
+    negative = "\n\ndef a10_nan_probe():\n    return -(1e1000 - 1e1000)\n"
+    assert len(positive.encode()) == len(negative.encode())
+    source.write_text(source.read_text(encoding="utf-8") + positive, encoding="utf-8")
+    compiled_stat = source.stat()
+    py_compile.compile(str(source), doraise=True)
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(positive, negative),
+        encoding="utf-8",
+    )
+    os.utime(
+        source,
+        ns=(compiled_stat.st_atime_ns, compiled_stat.st_mtime_ns),
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    assert (
+        "ontologylab/normalization.py::a10_nan_probe is not compiled from this file "
+        "under that name"
+    ) in details, details
+
+
 def test_cli_validates_every_binding_path_of_an_aliased_class(tmp_path: Path) -> None:
     """`class A`, `class B`, then a leftover `B = A` -- both names are checked.
 
@@ -1613,7 +1717,9 @@ def test_every_binding_path_is_walked_even_when_two_names_share_one_class() -> N
     shipped walker directly, so it fails when cycle prevention is widened back to suppress a
     second top-level binding of the same object.
     """
-    walker = _shipped_helpers("live_code_objects", "_code_objects_of")["live_code_objects"]
+    walker = _shipped_helpers(
+        "_descriptor_members", "live_code_objects", "_code_objects_of"
+    )["live_code_objects"]
     module = types.ModuleType("aliased_demo")
     exec(
         compile(
@@ -1627,7 +1733,7 @@ def test_every_binding_path_is_walked_even_when_two_names_share_one_class() -> N
         if isinstance(value, type):
             value.__module__ = "aliased_demo"
 
-    paths = {path for path, _code in walker(module)}
+    paths = {path for path, _source_binding, _code in walker(module)}
 
     assert paths == {"A.go", "B.go"}, sorted(paths)
 
@@ -1787,6 +1893,102 @@ def test_cli_accepts_genuinely_generated_dataclass_methods(tmp_path: Path) -> No
     assert payload["issues"] == []
     assert "EVIDENCE: 13 canonical pytest nodes passed" in result.stderr
 
+
+
+def test_cli_rejects_a_callable_rebound_inside_a_custom_descriptor(
+    tmp_path: Path,
+) -> None:
+    """A descriptor's ordinary instance state is part of its product binding."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + "\n\nclass A10Descriptor:\n"
+        "    def __init__(self, callback):\n"
+        "        self.callback = callback\n\n"
+        "    def __get__(self, instance, owner):\n"
+        "        return self.callback.__get__(instance, owner)\n\n\n"
+        "class A10DescriptorOwner:\n"
+        "    @A10Descriptor\n"
+        "    def marker(self):\n"
+        "        return 'source'\n\n\n"
+        "_a10_descriptor_ns = {'__name__': __name__}\n"
+        "exec(compile(\"def marker(self): return 'leftover'\", \"<string>\", \"exec\"), "
+        "_a10_descriptor_ns)\n"
+        "vars(A10DescriptorOwner)['marker'].callback = _a10_descriptor_ns['marker']\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    assert (
+        "A10DescriptorOwner.marker.callback was compiled from <string>" in details
+    ), details
+
+
+def test_cli_accepts_a_clean_custom_descriptor(tmp_path: Path) -> None:
+    """Static descriptor-state traversal does not reject source-declared callbacks."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + "\n\nclass A10CleanDescriptor:\n"
+        "    def __init__(self, callback):\n"
+        "        self.callback = callback\n\n"
+        "    def __get__(self, instance, owner):\n"
+        "        return self.callback.__get__(instance, owner)\n\n\n"
+        "class A10CleanDescriptorOwner:\n"
+        "    @A10CleanDescriptor\n"
+        "    def marker(self):\n"
+        "        return 'source'\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["ok"] is True
+    assert payload["issues"] == []
+    assert "EVIDENCE: 13 canonical pytest nodes passed" in result.stderr
+
+
+def test_descriptor_state_traversal_is_static_nested_and_cycle_safe() -> None:
+    """Owned dict/list state is followed without invoking descriptor behavior."""
+    walker = _shipped_helpers(
+        "_descriptor_members", "live_code_objects", "_code_objects_of"
+    )["live_code_objects"]
+    module = types.ModuleType("descriptor_demo")
+    exec(
+        compile(
+            "class Descriptor:\n"
+            "    def __init__(self, callback):\n"
+            "        state = {'callbacks': [callback]}\n"
+            "        state['cycle'] = state\n"
+            "        self.state = state\n"
+            "    def __get__(self, instance, owner):\n"
+            "        raise AssertionError('descriptor behavior was invoked')\n"
+            "class Owner:\n"
+            "    @Descriptor\n"
+            "    def marker(self): return 'source'\n",
+            "descriptor_demo.py",
+            "exec",
+        ),
+        module.__dict__,
+    )
+
+    found = list(walker(module))
+
+    assert any(
+        binding == "Owner.marker.state['callbacks'][0]"
+        and source_binding == "Owner.marker"
+        and code.co_qualname == "Owner.marker"
+        for binding, source_binding, code in found
+    )
 
 
 def test_cli_rejects_a_product_binding_compiled_from_synthetic_source(
@@ -2495,7 +2697,13 @@ def _shipped_helpers(*names: str) -> dict[str, object]:
     ).read_text(encoding="utf-8")
     child = source.split('EVIDENCE_EXECUTOR_PROGRAM: Final = """', 1)[1].split('"""', 1)[0]
     tree = ast.parse(child)
-    namespace: dict[str, object] = {"ast": ast, "hashlib": hashlib, "CodeType": CodeType}
+    namespace: dict[str, object] = {
+        "ast": ast,
+        "hashlib": hashlib,
+        "struct": struct,
+        "types": types,
+        "CodeType": CodeType,
+    }
     for name in names:
         definition = next(
             node
