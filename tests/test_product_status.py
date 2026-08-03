@@ -1632,6 +1632,163 @@ def test_every_binding_path_is_walked_even_when_two_names_share_one_class() -> N
     assert paths == {"A.go", "B.go"}, sorted(paths)
 
 
+@pytest.mark.parametrize(
+    ("target", "dunder", "body"),
+    (
+        pytest.param(
+            "ontologylab/registry.py",
+            "__repr__",
+            "def __repr__(self): return '<leftover>'",
+            id="repr-on-a-plain-class",
+        ),
+        pytest.param(
+            "ontologylab/registry.py",
+            "__init__",
+            "def __init__(self, data_dir): self.path = None",
+            id="init-on-a-plain-class",
+        ),
+        pytest.param(
+            "ontologylab/registry.py",
+            "__eq__",
+            "def __eq__(self, other): return True",
+            id="eq-on-a-plain-class",
+        ),
+        pytest.param(
+            "ontologylab/registry.py",
+            "__hash__",
+            "def __hash__(self): return 0",
+            id="hash-on-a-plain-class",
+        ),
+        pytest.param(
+            "ontologylab/registry.py",
+            "__setattr__",
+            "def __setattr__(self, name, value): object.__setattr__(self, name, value)",
+            id="setattr-on-a-plain-class",
+        ),
+        pytest.param(
+            "ontologylab/registry.py",
+            "__delattr__",
+            "def __delattr__(self, name): object.__delattr__(self, name)",
+            id="delattr-on-a-plain-class",
+        ),
+    ),
+)
+def test_cli_rejects_a_dynamically_compiled_dunder_on_a_plain_class(
+    tmp_path: Path, target: str, dunder: str, body: str
+) -> None:
+    """A whitelisted name is not provenance. Every whitelisted name is covered.
+
+    The exemption used to be a name table: any `<string>` code object bound to one of six
+    dunder names was skipped, which proved nothing about who generated it. `RegistryCache` is
+    an ordinary class, so nothing about it is generated, and each of these is an unconditional
+    dynamic-binding leftover of the kind a refactor leaves behind.
+    """
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / target
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + "\n\n_leftover_ns = {\"__name__\": __name__}\n"
+        f"exec(compile({body!r}, \"<string>\", \"exec\"), _leftover_ns)\n"
+        f"RegistryCache.{dunder} = _leftover_ns[\"{dunder}\"]\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    assert f"RegistryCache.{dunder} was compiled from <string>" in details, details
+
+
+@pytest.mark.parametrize(
+    ("dunder", "body"),
+    (
+        pytest.param(
+            "__repr__", "def __repr__(self): return '<leftover>'", id="repr-generated"
+        ),
+        pytest.param(
+            "__init__",
+            "def __init__(self, index, char_offset, text): self.index = index",
+            id="init-generated",
+        ),
+    ),
+)
+def test_cli_rejects_a_leftover_on_a_genuine_dataclass(
+    tmp_path: Path, dunder: str, body: str
+) -> None:
+    """Even on a real dataclass, on a name it really does generate, a leftover is caught.
+
+    Declaring the class a dataclass is necessary but not sufficient: a leftover can target a
+    genuine dataclass on a genuine generated name, and a declaration-only rule would exempt
+    it. Provenance is therefore established by re-derivation -- the class statement alone is
+    executed in a copy of the module namespace and the fingerprints compared -- so the
+    trailing assignment in the same file cannot launder itself into the regenerated result.
+    `__init__` is the dataclass-critical case; `__repr__` is the reported reproduction.
+    """
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/extractor.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + "\n\n_leftover_ns = {\"__name__\": __name__}\n"
+        f"exec(compile({body!r}, \"<string>\", \"exec\"), _leftover_ns)\n"
+        f"Chunk.{dunder} = _leftover_ns[\"{dunder}\"]\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    assert f"Chunk.{dunder}" in details, details
+
+
+def test_cli_accepts_genuinely_generated_dataclass_methods(tmp_path: Path) -> None:
+    """The false-alarm control: real generated methods still pass, untouched.
+
+    A legitimate frozen dataclass exercising `__init__`, `__repr__`, `__eq__`, `__hash__`,
+    `__setattr__` and `__delattr__` -- every name on the old table -- alongside a property, a
+    cached_property, a staticmethod and a classmethod, all added to product code the canonical
+    nodes import. None of it may be reported.
+    """
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + "\n\nimport functools as _functools\n"
+        "from dataclasses import dataclass as _dataclass\n\n\n"
+        "@_dataclass(frozen=True)\n"
+        "class LegitimateGenerated:\n"
+        "    label: str\n"
+        "    size: int = 3\n\n"
+        "    @property\n"
+        "    def doubled(self):\n"
+        "        return self.size * 2\n\n"
+        "    @_functools.cached_property\n"
+        "    def tripled(self):\n"
+        "        return self.size * 3\n\n"
+        "    @staticmethod\n"
+        "    def helper():\n"
+        "        return 1\n\n"
+        "    @classmethod\n"
+        "    def build(cls):\n"
+        "        return cls(label='x')\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["ok"] is True
+    assert payload["issues"] == []
+    assert "EVIDENCE: 13 canonical pytest nodes passed" in result.stderr
+
+
+
 def test_cli_rejects_a_product_binding_compiled_from_synthetic_source(
     tmp_path: Path,
 ) -> None:

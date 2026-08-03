@@ -168,11 +168,28 @@ LIBRARY_ROOTS = tuple(
 # way to narrow the audit, and that is worth refusing on principle rather than on coverage.
 LIBRARY_ROOTS = tuple(root for root in LIBRARY_ROOTS if root != ROOT)
 LEDGER = {"executed": {}, "modules": {}, "unaudited": [], "product": {}, "substituted": []}
-# The dunders `@dataclass` emits with the filename "<string>". Measured against this product:
-# these five names are the only synthetic-origin methods the evidence path produces.
-GENERATED_DUNDERS = frozenset(
-    {"__init__", "__eq__", "__hash__", "__setattr__", "__delattr__", "__repr__"}
-)
+# Which method names `@dataclass` is allowed to synthesise, per decorator argument. The
+# decorator's own arguments decide: `frozen=True` is what permits `__setattr__`/`__delattr__`,
+# `order=True` the comparisons, and so on. A name is only ever exempt when the *source* shows
+# a dataclass-decorated class that does not define it in its own body.
+DATACLASS_GENERATED = {
+    "init": ("__init__",),
+    "repr": ("__repr__",),
+    "eq": ("__eq__",),
+    "order": ("__lt__", "__le__", "__gt__", "__ge__"),
+    "frozen": ("__setattr__", "__delattr__"),
+    "unsafe_hash": ("__hash__",),
+    "match_args": ("__match_args__",),
+}
+# `eq=True` with `frozen=True` also synthesises `__hash__`; dataclasses documents this.
+DATACLASS_DEFAULTS = {
+    "init": True,
+    "repr": True,
+    "eq": True,
+    "order": False,
+    "frozen": False,
+    "unsafe_hash": False,
+}
 # Every source file this interpreter compiles, recorded by an audit hook installed before
 # anything else runs. Walking `sys.modules` was evadable two ways that both keep working
 # code off the list -- `del sys.modules[name]` after import, and `exec` of a file that never
@@ -292,6 +309,93 @@ def _stable_repr(value):
     if isinstance(value, tuple):
         return f"({', '.join(_stable_repr(item) for item in value)})"
     return repr(value)
+
+
+def dataclass_aliases(tree):
+    # Local names that refer to `dataclasses.dataclass` in this file, so that
+    # `from dataclasses import dataclass as _dc` is recognised as the decorator it is.
+    aliases = {"dataclass", "dataclasses.dataclass"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "dataclasses":
+            for alias in node.names:
+                if alias.name == "dataclass":
+                    aliases.add(alias.asname or alias.name)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "dataclasses" and alias.asname:
+                    aliases.add(f"{alias.asname}.dataclass")
+    return aliases
+
+
+def dataclass_generated_names(tree):
+    # Names each dataclass-decorated class in this source may have synthesised, read off the
+    # class declaration rather than off the attribute name. A class the source does not
+    # decorate generates nothing, so a `<string>` method on it is a leftover, not library
+    # output -- which is the whole difference between proving provenance and matching a name.
+    generated = {}
+    aliases = dataclass_aliases(tree)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        options = None
+        for decorator in node.decorator_list:
+            target = decorator.func if isinstance(decorator, ast.Call) else decorator
+            if isinstance(target, ast.Attribute):
+                name = f"{getattr(target.value, 'id', '')}.{target.attr}"
+            else:
+                name = getattr(target, "id", None)
+            if name not in aliases:
+                continue
+            options = dict(DATACLASS_DEFAULTS)
+            if isinstance(decorator, ast.Call):
+                for keyword in decorator.keywords:
+                    if keyword.arg in options and isinstance(keyword.value, ast.Constant):
+                        options[keyword.arg] = bool(keyword.value.value)
+        if options is None:
+            continue
+        allowed = set()
+        for option, names in DATACLASS_GENERATED.items():
+            if options.get(option, False):
+                allowed.update(names)
+        if options["eq"] and options["frozen"]:
+            allowed.add("__hash__")
+        if options["eq"] and not options["unsafe_hash"] and not options["frozen"]:
+            allowed.add("__hash__")
+        # A method the class body defines itself is written, not generated: dataclasses
+        # leaves it alone, so it must come from this file like any other definition.
+        written = {
+            member.name
+            for member in node.body
+            if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        generated[node.name] = allowed - written
+    return generated
+
+
+def regenerated_matches(module, class_node, attribute, code):
+    # Provenance by re-derivation. Declaring the class a dataclass is necessary but not
+    # sufficient: a leftover can target a real dataclass on a name that dataclass does
+    # generate. So regenerate it -- execute only that class definition, in a copy of the
+    # module's own namespace, and compare fingerprints. Only the class statement runs, so a
+    # trailing `Cls.__repr__ = ...` in the same file cannot launder itself into the result.
+    if class_node is None:
+        return False
+    namespace = dict(vars(module))
+    try:
+        exec(
+            compile(
+                ast.Module(body=[class_node], type_ignores=[]), "<regenerated>", "exec"
+            ),
+            namespace,
+        )
+        regenerated = vars(namespace[class_node.name]).get(attribute)
+    except Exception:
+        return False
+    target = getattr(regenerated, "__func__", regenerated)
+    reference = getattr(target, "__code__", None)
+    if reference is None:
+        return False
+    return code_fingerprint(reference) == code_fingerprint(code)
 
 
 def code_fingerprint(code):
@@ -462,6 +566,17 @@ def product_identity():
         # name is what makes this a binding rather than a lookup: a function rebound to a
         # different function *from the same file* used to pass, because the old check asked
         # only whether the bytecode appeared anywhere in the file.
+        try:
+            module_tree = ast.parse(source, filename=str(path))
+            generated_by_dataclass = dataclass_generated_names(module_tree)
+            class_nodes = {
+                node.name: node
+                for node in ast.walk(module_tree)
+                if isinstance(node, ast.ClassDef)
+            }
+        except SyntaxError:
+            generated_by_dataclass = {}
+            class_nodes = {}
         producible = {}
         pending = [compiled]
         while pending:
@@ -494,8 +609,13 @@ def product_identity():
             # `exec`/`eval`/`compile(..., "<string>", ...)` output inherited the same pass.
             # Anything else claiming a synthetic origin is reported under its binding path.
             if origin.startswith("<") and origin.endswith(">"):
-                attribute = qualname.rsplit(".", 1)[-1]
-                if origin == "<string>" and attribute in GENERATED_DUNDERS:
+                owner, _, attribute = qualname.rpartition(".")
+                permitted = generated_by_dataclass.get(owner, frozenset())
+                if (
+                    origin == "<string>"
+                    and attribute in permitted
+                    and regenerated_matches(module, class_nodes.get(owner), attribute, code)
+                ):
                     continue
                 substitutions.append(
                     f"{relative}::{qualname} was compiled from {origin}"
