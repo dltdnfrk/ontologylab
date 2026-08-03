@@ -749,23 +749,20 @@ def test_missing_ledger_is_not_a_silent_pass(tmp_path: Path) -> None:
     )
 
 
-def test_cli_reports_the_canonical_receipt_for_the_pristine_repository() -> None:
-    """The gate still passes honestly, and the count comes from what ran."""
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/check_product_status.py",
-            "--root",
-            ".",
-            "--document",
-            "docs/PRODUCT_SPEC.md",
-            "--json",
-        ],
-        cwd=Path(__file__).resolve().parents[1],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+def test_cli_reports_the_canonical_receipt_for_the_pristine_repository(
+    tmp_path: Path,
+) -> None:
+    """The gate still passes honestly, and the count comes from what ran.
+
+    Audited through an isolated copy of the working tree rather than the checkout itself.
+    Pointing `--root` at the live repository made this race with the surrounding pytest
+    session, which writes `.pytest_cache` into that same directory while the checker is
+    snapshotting it -- the read-only guarantee then correctly reported a write and this test
+    failed only in full-suite order. The audit is read-only; the harness around it was not.
+    """
+    document = _executable_fixture(tmp_path)
+
+    result = _run_checker(tmp_path, document)
 
     assert result.returncode == 0
     assert json.loads(result.stdout)["ok"] is True
@@ -2180,6 +2177,102 @@ def _workflow_steps(workflow: str) -> list[str]:
         elif steps:
             steps[-1] += "\n" + line
     return steps
+
+
+# One probe assignment per form, so the contract test measures the shipped function rather
+# than trusting a comment about it. The literal forms must be bound; everything derived from
+# an expression must not be, and whatever comes back unbound has to be declared in the spec.
+_DATA_BINDING_PROBE = """
+LITERAL_STR = "a"
+LITERAL_INT = 1
+LITERAL_TUPLE = (1, 2)
+LITERAL_DICT = {"k": 1}
+LITERAL_FROZENSET = frozenset({"x"})
+LITERAL_SET = set(["y"])
+ANNOTATED_LITERAL: int = 5
+DERIVED_CALL = compute()
+DERIVED_ATTRIBUTE = other.value
+DERIVED_NAME = LITERAL_INT
+DERIVED_BINOP = 2 * 1024 * 1024
+DERIVED_COMPOUND = {"k": LITERAL_INT}
+DERIVED_JOINEDSTR = f"{LITERAL_STR}-suffix"
+"""
+
+
+def _shipped_literal_assignments():
+    """The `literal_assignments` the checker actually ships, lifted out of the child program."""
+    source = (
+        Path(__file__).resolve().parents[1] / "scripts/check_product_status.py"
+    ).read_text(encoding="utf-8")
+    child = source.split('EVIDENCE_EXECUTOR_PROGRAM: Final = """', 1)[1].split('"""', 1)[0]
+    definition = next(
+        node
+        for node in ast.parse(child).body
+        if isinstance(node, ast.FunctionDef) and node.name == "literal_assignments"
+    )
+    namespace: dict[str, object] = {"ast": ast}
+    exec(
+        compile(ast.Module(body=[definition], type_ignores=[]), "<child>", "exec"),
+        namespace,
+    )
+    return namespace["literal_assignments"]
+
+
+def _spec_section(heading: str, stop: str) -> str:
+    spec = (
+        Path(__file__).resolve().parents[1] / "docs/PRODUCT_SPEC.md"
+    ).read_text(encoding="utf-8")
+    assert heading in spec, f"docs/PRODUCT_SPEC.md no longer declares {heading!r}"
+    return spec[spec.index(heading) : spec.index(stop)]
+
+
+def test_the_declared_data_guarantee_matches_what_the_checker_binds() -> None:
+    """The spec's data promise is exactly as wide as `literal_assignments()` actually is.
+
+    The gate deliberately binds only literal assignments, which is a defensible limit. What
+    is not defensible is promising more than that: §7.1 used to say unqualifiedly that a
+    module-level constant holding a value other than the one its file declares is caught, and
+    an ordinary cross-module refactor leftover (`r._MAX_INFO_BYTES = 2 * 1024 * 1024`, an
+    arithmetic expression) passed the gate while that sentence stood.
+
+    This measures the shipped function against one probe per assignment form and requires the
+    spec to declare every form it leaves unbound. It fails if the residual declaration
+    disappears, and equally if the function is widened without the spec following -- neither
+    side can drift alone. It does not pin any sentence.
+    """
+    literal_assignments = _shipped_literal_assignments()
+    bound = literal_assignments(_DATA_BINDING_PROBE, "<probe>")
+
+    assigned = {
+        node.targets[0].id if isinstance(node, ast.Assign) else node.target.id: node.value
+        for node in ast.parse(_DATA_BINDING_PROBE).body
+        if isinstance(node, (ast.Assign, ast.AnnAssign))
+    }
+    unbound = {name: value for name, value in assigned.items() if name not in bound}
+
+    # The literal forms the spec claims are bound really are.
+    assert set(bound) == {name for name in assigned if name.startswith("LITERAL_")} | {
+        "ANNOTATED_LITERAL"
+    }, sorted(bound)
+    # And the derived ones really are not, so the residual is real rather than rhetorical.
+    assert set(unbound) == {name for name in assigned if name.startswith("DERIVED_")}
+
+    residual = _spec_section("#### 7.1.1", "## 8. 비목표")
+    declared_kinds = set(re.findall(r"`([A-Z][A-Za-z]+)`", residual))
+    observed_kinds = {type(value).__name__ for value in unbound.values()}
+    assert observed_kinds <= declared_kinds, sorted(observed_kinds - declared_kinds)
+
+    # The guarantee bullet must point at the qualification rather than stand unqualified.
+    protected = _spec_section("**막는 것", "#### 7.1.1")
+    data_bullet = next(
+        line for line in protected.splitlines() if "모듈 수준 상수" in line
+    )
+    assert "리터럴" in data_bullet, data_bullet
+    assert "§7.1.1" in protected
+
+    # The residual is a limit of static analysis, not a fourth hostile-committer exclusion.
+    assert "적대적 제외" in residual
+
 
 
 def test_the_declared_boundaries_in_code_match_the_spec_section() -> None:

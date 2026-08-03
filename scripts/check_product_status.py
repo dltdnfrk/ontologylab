@@ -425,9 +425,10 @@ def product_identity():
         # Module-level data. A rebound constant or a swapped lookup table is the same
         # accident as a rebound function, and the code-object rule cannot see it. Every
         # module-level name whose assignment in the file is a literal is compared against
-        # that literal. Names assigned from a call or an attribute lookup are not statically
-        # knowable and are left unbound -- declared in docs/PRODUCT_SPEC.md §7.1 rather than
-        # silently skipped.
+        # that literal. Values derived from an expression -- a call, an attribute lookup, a
+        # name, arithmetic -- are not statically knowable and are left unbound. That residual
+        # is a limit of the analysis, not one of the three checker-targeting exclusions, and
+        # is declared as such in docs/PRODUCT_SPEC.md §7.1.1.
         for attribute, expected in literal_assignments(source, str(path)).items():
             if attribute not in vars(module):
                 continue
