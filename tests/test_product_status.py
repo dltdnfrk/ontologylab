@@ -1619,6 +1619,89 @@ def test_semantic_constant_encoding_rejects_unsupported_and_cyclic_values() -> N
         encode(cyclic)
 
 
+def test_semantic_fingerprint_includes_execution_metadata_but_not_locations() -> None:
+    """All CPython 3.13 CodeType constructor fields are classified explicitly."""
+    fingerprint = _shipped_helpers(
+        "_frame", "_constant_bytes", "_code_bytes", "code_fingerprint"
+    )["code_fingerprint"]
+    code = compile(
+        "def guarded(value):\n"
+        "    try:\n        return 10 // value\n"
+        "    except ZeroDivisionError:\n        return 99\n",
+        "first.py",
+        "exec",
+    ).co_consts[0]
+    without_handlers = code.replace(co_exceptiontable=b"")
+
+    assert code.co_exceptiontable
+    assert fingerprint(code) != fingerprint(without_handlers)
+    assert types.FunctionType(code, {})(0) == 99
+    with pytest.raises(ZeroDivisionError):
+        types.FunctionType(without_handlers, {})(0)
+    assert fingerprint(code) != fingerprint(
+        code.replace(co_stacksize=code.co_stacksize + 1)
+    )
+    assert fingerprint(code) == fingerprint(
+        code.replace(
+            co_filename="relocated.py",
+            co_firstlineno=code.co_firstlineno + 100,
+            co_linetable=b"",
+        )
+    )
+
+
+def test_semantic_fingerprint_preserves_nested_exception_tables() -> None:
+    """Nested CodeType values recurse through the complete semantic inventory."""
+    fingerprint = _shipped_helpers(
+        "_frame", "_constant_bytes", "_code_bytes", "code_fingerprint"
+    )["code_fingerprint"]
+    outer = compile(
+        "def outer():\n"
+        "    def inner(value):\n"
+        "        try:\n            return 10 // value\n"
+        "        except ZeroDivisionError:\n            return 99\n"
+        "    return inner\n",
+        "probe.py",
+        "exec",
+    ).co_consts[0]
+    inner_index = next(
+        index for index, value in enumerate(outer.co_consts) if isinstance(value, CodeType)
+    )
+    inner = outer.co_consts[inner_index]
+    constants = list(outer.co_consts)
+    constants[inner_index] = inner.replace(co_exceptiontable=b"")
+    changed = outer.replace(co_consts=tuple(constants))
+
+    assert fingerprint(outer) != fingerprint(changed)
+
+
+def test_cli_rejects_a_replaced_exception_table(tmp_path: Path) -> None:
+    """Live exception dispatch must match what compiling the product source produces."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + "\n\ndef a11_guarded(value):\n"
+        "    try:\n"
+        "        return 10 // value\n"
+        "    except ZeroDivisionError:\n"
+        "        return 99\n\n"
+        "a11_guarded.__code__ = a11_guarded.__code__.replace(co_exceptiontable=b'')\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    assert (
+        "ontologylab/registry.py::a11_guarded is not compiled from this file under that name"
+        in details
+    ), details
+
+
 def test_semantic_fingerprint_preserves_nested_code_meaning() -> None:
     """A nested function's constants remain part of its enclosing code's identity."""
     fingerprint = _shipped_helpers(
@@ -1957,10 +2040,185 @@ def test_cli_accepts_a_clean_custom_descriptor(tmp_path: Path) -> None:
     assert "EVIDENCE: 13 canonical pytest nodes passed" in result.stderr
 
 
+@pytest.mark.parametrize("container", ("set", "frozenset"))
+def test_cli_rejects_a_callable_rebound_inside_descriptor_set_state(
+    tmp_path: Path, container: str
+) -> None:
+    """Exact set and frozenset are part of statically owned descriptor state."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + "\n\nclass A11SetDescriptor:\n"
+        "    def __init__(self, callback):\n"
+        f"        self.callbacks = {container}({{callback}})\n\n"
+        "    def __get__(self, instance, owner):\n"
+        "        return next(iter(self.callbacks)).__get__(instance, owner)\n\n\n"
+        "class A11SetOwner:\n"
+        "    @A11SetDescriptor\n"
+        "    def marker(self):\n"
+        "        return 'source'\n\n\n"
+        "_a11_set_ns = {'__name__': __name__}\n"
+        "exec(compile(\"def marker(self): return 'leftover'\", \"<string>\", \"exec\"), "
+        "_a11_set_ns)\n"
+        f"vars(A11SetOwner)['marker'].callbacks = {container}({{_a11_set_ns['marker']}})\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    assert "A11SetOwner.marker.callbacks" in details, details
+    assert "was compiled from <string>" in details, details
+
+
+@pytest.mark.parametrize(
+    ("container", "hash_seed"),
+    (("set", "1"), ("set", "271"), ("frozenset", "1"), ("frozenset", "271")),
+)
+def test_cli_accepts_clean_descriptor_set_state_across_hash_seeds(
+    tmp_path: Path, container: str, hash_seed: str
+) -> None:
+    """Canonical traversal is clean and independent of hash iteration order."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + "\n\nclass A11CleanSetDescriptor:\n"
+        "    def __init__(self, callback):\n"
+        f"        self.callbacks = {container}({{callback}})\n\n"
+        "    def __get__(self, instance, owner):\n"
+        "        return next(iter(self.callbacks)).__get__(instance, owner)\n\n\n"
+        "class A11CleanSetOwner:\n"
+        "    @A11CleanSetDescriptor\n"
+        "    def marker(self):\n"
+        "        return 'source'\n",
+        encoding="utf-8",
+    )
+    environment = {**os.environ, "PYTHONHASHSEED": hash_seed}
+
+    result = _run_checker(tmp_path, document, environment=environment)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["ok"] is True
+    assert payload["issues"] == []
+
+
+def test_descriptor_container_paths_are_canonical_and_unambiguous() -> None:
+    """Same-repr keys and members receive stable, distinct non-repr path tokens."""
+    walker = _shipped_helpers(
+        "_frame",
+        "_constant_bytes",
+        "_code_bytes",
+        "code_fingerprint",
+        "_descriptor_value_bytes",
+        "_descriptor_members",
+        "live_code_objects",
+        "_code_objects_of",
+    )["live_code_objects"]
+    module = types.ModuleType("descriptor_tokens")
+    exec(
+        compile(
+            "import struct\n"
+            "class Descriptor:\n"
+            "    def __init__(self, first, second):\n"
+            "        one = struct.unpack('>d', bytes.fromhex('7ff8000000000000'))[0]\n"
+            "        two = struct.unpack('>d', bytes.fromhex('7ff8000000000000'))[0]\n"
+            "        self.mapping = {one: first, two: second}\n"
+            "        self.members = {first, second}\n"
+            "    def __get__(self, instance, owner): raise AssertionError\n"
+            "class Owner:\n"
+            "    def first(self): return 1\n"
+            "    def second(self): return 2\n"
+            "    marker = Descriptor(first, second)\n",
+            "descriptor_tokens.py",
+            "exec",
+        ),
+        module.__dict__,
+    )
+
+    paths = [
+        binding
+        for binding, source_binding, _code in walker(module)
+        if source_binding == "Owner.marker"
+    ]
+
+    mapping_paths = [path for path in paths if ".mapping[" in path]
+    member_paths = [path for path in paths if ".members{" in path]
+    assert len(mapping_paths) == len(set(mapping_paths)) == 2
+    assert len(member_paths) == len(set(member_paths)) == 2
+    assert all("nan" not in path for path in mapping_paths)
+
+
+def test_cli_accepts_a_source_declared_descriptor_alias(tmp_path: Path) -> None:
+    """A class-body alias retains the callback declaration's original binding."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + "\n\nclass A11AliasDescriptor:\n"
+        "    def __init__(self, callback): self.callback = callback\n"
+        "    def __get__(self, instance, owner):\n"
+        "        return self.callback.__get__(instance, owner)\n\n"
+        "class A11AliasOwner:\n"
+        "    @A11AliasDescriptor\n"
+        "    def marker(self): return 'source'\n"
+        "    alias = marker\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["ok"] is True
+    assert payload["issues"] == []
+
+
+def test_cli_rejects_a_rebound_source_declared_descriptor_alias(tmp_path: Path) -> None:
+    """Source alias structure does not excuse a callback replaced after declaration."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + "\n\nclass A11BadAliasDescriptor:\n"
+        "    def __init__(self, callback): self.callback = callback\n"
+        "    def __get__(self, instance, owner):\n"
+        "        return self.callback.__get__(instance, owner)\n\n"
+        "class A11BadAliasOwner:\n"
+        "    @A11BadAliasDescriptor\n"
+        "    def marker(self): return 'source'\n"
+        "    alias = marker\n\n"
+        "_a11_alias_ns = {'__name__': __name__}\n"
+        "exec(compile(\"def marker(self): return 'leftover'\", '<string>', 'exec'), "
+        "_a11_alias_ns)\n"
+        "vars(A11BadAliasOwner)['alias'].callback = _a11_alias_ns['marker']\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    assert "A11BadAliasOwner.alias.callback was compiled from <string>" in details, details
+
+
 def test_descriptor_state_traversal_is_static_nested_and_cycle_safe() -> None:
     """Owned dict/list state is followed without invoking descriptor behavior."""
     walker = _shipped_helpers(
-        "_descriptor_members", "live_code_objects", "_code_objects_of"
+        "_frame",
+        "_constant_bytes",
+        "_code_bytes",
+        "_descriptor_value_bytes",
+        "_descriptor_members",
+        "live_code_objects",
+        "_code_objects_of",
     )["live_code_objects"]
     module = types.ModuleType("descriptor_demo")
     exec(
@@ -1984,7 +2242,8 @@ def test_descriptor_state_traversal_is_static_nested_and_cycle_safe() -> None:
     found = list(walker(module))
 
     assert any(
-        binding == "Owner.marker.state['callbacks'][0]"
+        binding.startswith("Owner.marker.state[key:")
+        and binding.endswith("][0]")
         and source_binding == "Owner.marker"
         and code.co_qualname == "Owner.marker"
         for binding, source_binding, code in found

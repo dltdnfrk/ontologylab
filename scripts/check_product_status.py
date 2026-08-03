@@ -449,21 +449,28 @@ def regenerated_matches(module, class_node, attribute, code):
 
 
 def _code_bytes(code, ancestry=()):
-    # Line tables and filenames describe placement, not meaning. Every semantic field retained
-    # by the prior fingerprint is encoded through the same typed, length-delimited format, and
-    # nested code objects recurse through this function rather than falling back to repr.
+    # CPython 3.13's CodeType constructor has eighteen fields. Filename, first line, and the
+    # line table are location/debug metadata and are deliberately normalized away. The other
+    # fifteen fields are execution or observable function metadata and are retained here.
+    # In particular, the exception table controls handler dispatch and stack size controls
+    # frame allocation; neither may collide merely because both are compiler-derived. Nested
+    # code objects recurse through this same inventory rather than falling back to repr.
     fields = (
         code.co_name,
+        code.co_qualname,
         code.co_argcount,
         code.co_posonlyargcount,
         code.co_kwonlyargcount,
+        code.co_nlocals,
+        code.co_stacksize,
         code.co_flags,
         code.co_code,
+        code.co_consts,
         code.co_names,
         code.co_varnames,
+        code.co_exceptiontable,
         code.co_freevars,
         code.co_cellvars,
-        code.co_consts,
     )
     return _constant_bytes(fields, ancestry)
 
@@ -526,13 +533,80 @@ def literal_assignments(source, filename):
     return found
 
 
-def live_code_objects(module):
+def source_member_aliases(tree):
+    # Preserve aliases explicitly declared by a class body (`alias = marker`). This is source
+    # structure, not an identity shortcut: a later module-level `B = A` is absent from this map,
+    # so every exposed class binding remains independently accountable.
+    aliases = {}
+
+    def visit_class(node, parent=""):
+        owner = f"{parent}.{node.name}" if parent else node.name
+        for statement in node.body:
+            if (
+                isinstance(statement, ast.Assign)
+                and isinstance(statement.value, ast.Name)
+            ):
+                target = f"{owner}.{statement.value.id}"
+                for assigned in statement.targets:
+                    if isinstance(assigned, ast.Name):
+                        aliases[f"{owner}.{assigned.id}"] = target
+            elif isinstance(statement, ast.ClassDef):
+                visit_class(statement, owner)
+
+    for statement in tree.body:
+        if isinstance(statement, ast.ClassDef):
+            visit_class(statement)
+    for alias in aliases:
+        target = aliases[alias]
+        seen = {alias}
+        while target in aliases and target not in seen:
+            seen.add(target)
+            target = aliases[target]
+        aliases[alias] = target
+    return aliases
+
+
+def live_code_objects(module, source_aliases=None):
     # Every binding path is walked independently. The second path in each result is the source
     # binding a descriptor decorates: `Owner.marker.callback` is explicit live ownership, while
     # `Owner.marker` is the qualified name compiling that declaration must produce.
     name = getattr(module, "__name__", None)
+    aliases = source_aliases or {}
     for attribute, value in sorted(vars(module).items(), key=lambda item: item[0]):
-        yield from _code_objects_of(attribute, value, name, ())
+        yield from _code_objects_of(attribute, value, name, (), source_aliases=aliases)
+
+
+def _descriptor_value_bytes(value):
+    # Set order and path labels must not depend on hashes, addresses, or repr. Supported scalar
+    # values use the fingerprint's canonical encoding; callables use semantic code bytes. For an
+    # opaque hashable object we encode only its concrete type: equal-type duplicates then receive
+    # deterministic ordinals, while traversal still refuses to open that external object.
+    if isinstance(value, (types.FunctionType, types.MethodType)):
+        return _frame(b"F", _code_bytes(value.__code__))
+    if type(value) in {
+        type(None),
+        bool,
+        int,
+        float,
+        complex,
+        str,
+        bytes,
+        tuple,
+        frozenset,
+        CodeType,
+    }:
+        try:
+            return _constant_bytes(value)
+        except TypeError:
+            if type(value) is tuple:
+                return _frame(b"T", b"".join(_descriptor_value_bytes(v) for v in value))
+            if type(value) is frozenset:
+                return _frame(
+                    b"R", b"".join(sorted(_descriptor_value_bytes(v) for v in value))
+                )
+            raise
+    kind = f"{type(value).__module__}.{type(value).__qualname__}".encode("utf-8")
+    return _frame(b"O", kind)
 
 
 def _descriptor_members(value):
@@ -579,6 +653,7 @@ def _code_objects_of(
     ancestry,
     source_binding=None,
     descriptor_owned=False,
+    source_aliases=None,
 ):
     # Cycle prevention is per binding path, so aliases remain visible while a descriptor state
     # dictionary that points back to itself terminates. Only descriptor-owned built-in
@@ -594,8 +669,14 @@ def _code_objects_of(
     if isinstance(value, type) and getattr(value, "__module__", None) == module_name:
         for attribute, member in sorted(vars(value).items(), key=lambda item: item[0]):
             binding = f"{prefix}.{attribute}"
+            declared = (source_aliases or {}).get(binding, binding)
             yield from _code_objects_of(
-                binding, member, module_name, descendants, binding
+                binding,
+                member,
+                module_name,
+                descendants,
+                declared,
+                source_aliases=source_aliases,
             )
         return
     members = _descriptor_members(value)
@@ -609,6 +690,7 @@ def _code_objects_of(
                 descendants,
                 declared_binding,
                 True,
+                source_aliases,
             )
         return
     if descriptor_owned and type(value) in {list, tuple}:
@@ -620,21 +702,40 @@ def _code_objects_of(
                 descendants,
                 source_binding,
                 True,
+                source_aliases,
             )
     elif descriptor_owned and type(value) is dict:
+        entries = []
         for key, member in value.items():
             if type(key) not in {str, bytes, int, float, bool, type(None)}:
                 raise TypeError(
                     "unsupported descriptor-state key: "
                     f"{type(key).__module__}.{type(key).__qualname__}"
                 )
+            entries.append((_constant_bytes(key), member))
+        entries.sort(key=lambda item: item[0])
+        for ordinal, (token, member) in enumerate(entries):
             yield from _code_objects_of(
-                f"{prefix}[{key!r}]",
+                f"{prefix}[key:{hashlib.sha256(token).hexdigest()}:{ordinal}]",
                 member,
                 module_name,
                 descendants,
                 source_binding,
                 True,
+                source_aliases,
+            )
+    elif descriptor_owned and type(value) in {set, frozenset}:
+        members = [(_descriptor_value_bytes(member), member) for member in value]
+        members.sort(key=lambda item: item[0])
+        for ordinal, (token, member) in enumerate(members):
+            yield from _code_objects_of(
+                f"{prefix}{{member:{hashlib.sha256(token).hexdigest()}:{ordinal}}}",
+                member,
+                module_name,
+                descendants,
+                source_binding,
+                True,
+                source_aliases,
             )
 
 
@@ -687,6 +788,7 @@ def product_identity():
         try:
             module_tree = ast.parse(source, filename=str(path))
             generated_by_dataclass = dataclass_generated_names(module_tree)
+            member_aliases = source_member_aliases(module_tree)
             class_nodes = {
                 node.name: node
                 for node in ast.walk(module_tree)
@@ -694,6 +796,7 @@ def product_identity():
             }
         except SyntaxError:
             generated_by_dataclass = {}
+            member_aliases = {}
             class_nodes = {}
         producible = {}
         pending = [compiled]
@@ -718,7 +821,7 @@ def product_identity():
                 substitutions.append(
                     f"{relative}::{attribute} does not hold the value this file assigns"
                 )
-        for binding, qualname, code in live_code_objects(module):
+        for binding, qualname, code in live_code_objects(module, member_aliases):
             origin = code.co_filename
             # Compiler-generated methods, narrowly. `@dataclass` compiles exactly these
             # dunders with the filename "<string>", and they genuinely do not exist in the
