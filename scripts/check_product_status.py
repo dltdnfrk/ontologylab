@@ -629,270 +629,348 @@ def _assigned_pairs(target, value):
 
 
 def source_descriptor_callables(tree, aliases, module_name):
-    # Constructor ownership is source proof: declarations stay keyed by their full lexical
-    # owner, and Name/Attribute calls are resolved in the class body that contains the call.
-    # Constructors are never run and argument position alone proves none.
+    # Source-only binding model, walked in execution order. Aliases, shadows, and deletions
+    # retain exactly the constructor identity visible when each descriptor call occurred.
     classes = {}
 
-    def index_classes(body, parent=""):
+    def index(body, parent=''):
         for node in body:
-            if not isinstance(node, ast.ClassDef):
-                continue
-            qualname = f"{parent}.{node.name}" if parent else node.name
-            classes[qualname] = node
-            index_classes(node.body, qualname)
+            if isinstance(node, ast.ClassDef):
+                q = f'{parent}.{node.name}' if parent else node.name
+                classes[q] = node
+                index(node.body, q)
+    index(tree.body)
 
-    index_classes(tree.body)
+    def dotted(node):
+        out = []
+        while isinstance(node, ast.Attribute):
+            out.append(node.attr)
+            node = node.value
+        return (node.id, *reversed(out)) if isinstance(node, ast.Name) else None
+    module = {}
 
-    def dotted(expression):
-        parts = []
-        while isinstance(expression, ast.Attribute):
-            parts.append(expression.attr)
-            expression = expression.value
-        if not isinstance(expression, ast.Name):
+    def resolve(node, local):
+        parts = dotted(node)
+        if not parts:
             return None
-        return ".".join((expression.id, *reversed(parts)))
-
-    def resolve_class(expression, owner):
-        name = dotted(expression)
-        if name is None:
+        binding = local.get(parts[0], module.get(parts[0]))
+        if not binding:
             return None
-        first, _, rest = name.partition(".")
-        local = f"{owner}.{first}"
-        candidate = local + (f".{rest}" if rest else "")
-        if candidate in classes:
-            return candidate
-        return name if name in classes else None
-
+        kind, value = binding
+        tail = parts[1:]
+        if kind == 'class':
+            q = '.'.join((value, *tail))
+            return (kind, q) if q in classes else None
+        if kind == 'import':
+            mod, path = value
+            return ('external', (mod, (*path, *tail)))
+        return binding if not tail else None
     constructors = {}
-    for qualname, node in classes.items():
-        init = next(
-            (
-                item
-                for item in node.body
-                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
-                and item.name == "__init__"
-            ),
-            None,
-        )
-        if init is None:
+    inits = {}
+    for q, node in classes.items():
+        init = next((x for x in node.body if isinstance(x, (ast.FunctionDef, ast.AsyncFunctionDef)) and x.name == '__init__'), None)
+        if not init:
             continue
-        positional = [*init.args.posonlyargs, *init.args.args][1:]
-        positions = {argument.arg: index for index, argument in enumerate(positional)}
-        parameters = set(positions) | {argument.arg for argument in init.args.kwonlyargs}
+        inits[q] = init
+        pos = [*init.args.posonlyargs, *init.args.args][1:]
+        positions = {x.arg: i for i, x in enumerate(pos)}
+        params = set(positions) | {x.arg for x in init.args.kwonlyargs}
         owned = {}
-        for statement in init.body:
-            if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
-                pairs = _assigned_pairs(statement.targets[0], statement.value)
-            elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
-                pairs = _assigned_pairs(statement.target, statement.value)
-            else:
-                pairs = ()
+        for st in init.body:
+            pairs = _assigned_pairs(st.targets[0], st.value) if isinstance(st, ast.Assign) and len(st.targets) == 1 else _assigned_pairs(st.target, st.value) if isinstance(st, ast.AnnAssign) and st.value is not None else ()
             for target, value in pairs:
-                if (
-                    isinstance(target, ast.Attribute)
-                    and isinstance(target.value, ast.Name)
-                    and target.value.id == "self"
-                    and isinstance(value, ast.Name)
-                    and value.id in parameters
-                ):
+                if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and (target.value.id == 'self') and isinstance(value, ast.Name) and (value.id in params):
                     owned[target.attr] = (value.id, positions.get(value.id))
         if owned:
-            constructors[qualname] = owned
+            constructors[q] = owned
 
-    def declared_slots(qualname):
-        node = classes[qualname]
+    def slots(q):
         names = []
-        for statement in node.body:
-            if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
-                target, value = statement.targets[0], statement.value
-            elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
-                target, value = statement.target, statement.value
-            else:
+        declared = False
+        for st in classes[q].body:
+            target, value = (st.targets[0], st.value) if isinstance(st, ast.Assign) and len(st.targets) == 1 else (st.target, st.value) if isinstance(st, ast.AnnAssign) and st.value is not None else (None, None)
+            if not isinstance(target, ast.Name) or target.id != '__slots__':
                 continue
-            if not (isinstance(target, ast.Name) and target.id == "__slots__"):
-                continue
+            declared = True
             try:
-                declared = ast.literal_eval(value)
+                value = ast.literal_eval(value)
             except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
                 return None
-            if isinstance(declared, str):
-                declared = (declared,)
-            if not isinstance(declared, (tuple, list)) or not all(
-                isinstance(name, str) for name in declared
-            ):
+            if isinstance(value, str):
+                value = (value,)
+            elif isinstance(value, dict):
+                value = tuple(value)
+            if not isinstance(value, (list, tuple)) or not all((isinstance(x, str) for x in value)):
                 return None
-            names.extend(declared)
-        return tuple(name for name in names if name not in {"__dict__", "__weakref__"})
+            names.extend(value)
+        return (tuple(names), declared)
+    bases = {}
 
-    def class_lineage(qualname, seen=None):
-        seen = set() if seen is None else seen
-        if qualname in seen:
+    def c3(q, active=()):
+        if q in active or bases.get(q) is None:
             return None
-        seen.add(qualname)
-        lineage = []
-        for base in classes[qualname].bases:
-            base_name = resolve_class(base, qualname.rpartition(".")[0])
-            if base_name is None:
-                continue
-            inherited = class_lineage(base_name, seen)
-            if inherited is None:
+        inherited = []
+        for base in bases[q]:
+            line = c3(base, (*active, q))
+            if line is None:
                 return None
-            lineage.extend(inherited)
-        lineage.append(qualname)
-        return lineage
+            inherited.append(list(line))
+        seq = [*inherited, list(bases[q])]
+        merged = []
+        while any(seq):
+            seq = [x for x in seq if x]
+            head = next((x[0] for x in seq if not any((x[0] in y[1:] for y in seq))), None)
+            if head is None:
+                return None
+            merged.append(head)
+            for x in seq:
+                if x and x[0] == head:
+                    x.pop(0)
+        return (q, *merged)
 
-    def source_receiver_bytes(qualname, is_class):
-        identity = _constant_bytes((module_name, qualname))
-        if is_class:
-            return _frame(b"C", identity)
-        lineage = class_lineage(qualname)
-        if lineage is None:
+    def encoded(node, params):
+        if isinstance(node, ast.Name) and node.id in params:
+            return params[node.id]
+        value = _source_default(node)
+        return None if value is UNBOUND_DEFAULT else value
+
+    def bind(init, args, kws, parent=None):
+        if any((isinstance(x, ast.Starred) for x in args)) or any((x.arg is None for x in kws)):
             return None
-        entries = []
-        for declaring in lineage:
-            slots = declared_slots(declaring)
-            if slots is None:
+        parent = parent or {}
+        pos = [*init.args.posonlyargs, *init.args.args][1:]
+        ko = list(init.args.kwonlyargs)
+        if len(args) > len(pos):
+            return None
+        values = {}
+        for param, node in zip(pos, args):
+            value = encoded(node, parent)
+            if value is None:
                 return None
-            init = next(
-                (
-                    item
-                    for item in classes[declaring].body
-                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
-                    and item.name == "__init__"
-                ),
-                None,
-            )
-            assigned = {}
-            if init is not None:
-                for statement in init.body:
-                    if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
-                        pairs = _assigned_pairs(statement.targets[0], statement.value)
-                    elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
-                        pairs = _assigned_pairs(statement.target, statement.value)
-                    else:
-                        pairs = ()
-                    for target, value in pairs:
-                        if (
-                            isinstance(target, ast.Attribute)
-                            and isinstance(target.value, ast.Name)
-                            and target.value.id == "self"
-                        ):
-                            assigned[target.attr] = _source_default(value)
-            short_name = declaring.rsplit(".", 1)[-1].lstrip("_")
-            for source_name in sorted(slots):
-                storage_name = (
-                    f"_{short_name}{source_name}"
-                    if source_name.startswith("__") and not source_name.endswith("__")
-                    else source_name
-                )
-                value = assigned.get(source_name, UNBOUND_DEFAULT)
-                if value is UNBOUND_DEFAULT and source_name in assigned:
+            values[param.arg] = value
+        allowed = {x.arg for x in (*pos, *ko)}
+        po = {x.arg for x in init.args.posonlyargs[1:]}
+        for kw in kws:
+            if kw.arg not in allowed or kw.arg in po or kw.arg in values:
+                return None
+            value = encoded(kw.value, parent)
+            if value is None:
+                return None
+            values[kw.arg] = value
+        defaults = {x.arg: y for x, y in zip(pos[-len(init.args.defaults):], init.args.defaults)} if init.args.defaults else {}
+        defaults.update({x.arg: y for x, y in zip(ko, init.args.kw_defaults) if y is not None})
+        for param in (*pos, *ko):
+            if param.arg not in values:
+                if param.arg not in defaults:
                     return None
-                if source_name in assigned:
-                    entries.append((module_name, declaring, storage_name, True, value))
-                else:
-                    entries.append((module_name, declaring, storage_name, False, None))
-        # Values are already canonical bytes, so frame the structural slot record directly.
-        slot_bytes = b"".join(
-            _frame(
-                b"S",
-                _constant_bytes((owner_module, owner, name, present))
-                + (value if present else b""),
-            )
-            for owner_module, owner, name, present, value in entries
-        )
-        return _frame(b"I", identity + _constant_bytes({}) + _frame(b"L", slot_bytes))
+                value = encoded(defaults[param.arg], parent)
+                if value is None:
+                    return None
+                values[param.arg] = value
+        return values
 
+    def receiver_bytes(q, call):
+        mro = c3(q)
+        if mro is None:
+            return None
+        records = {}
+        by_source = {}
+        has_dict = False
+        for owner in reversed(mro):
+            declaration = slots(owner)
+            if declaration is None:
+                return None
+            names, declared = declaration
+            has_dict |= not declared or '__dict__' in names
+            short = owner.rsplit('.', 1)[-1].lstrip('_')
+            for name in names:
+                if name in {'__dict__', '__weakref__'}:
+                    continue
+                storage = f'_{short}{name}' if name.startswith('__') and (not name.endswith('__')) else name
+                records[owner, storage] = (False, None)
+                by_source.setdefault(name, []).append((owner, storage))
+        dictionary = {}
+
+        def store(name, value, owner):
+            short = owner.rsplit('.', 1)[-1].lstrip('_')
+            storage = f'_{short}{name}' if name.startswith('__') and (not name.endswith('__')) else name
+            choices = [record for cls in mro for record in by_source.get(name, ()) if record[0] == cls]
+            if choices:
+                records[choices[0]] = (True, value)
+            elif has_dict:
+                dictionary[storage] = value
+            else:
+                return False
+            return True
+
+        def run(start, args, kws, parent=None):
+            i = next((i for i in range(start, len(mro)) if mro[i] in inits), None)
+            if i is None:
+                return not args and (not kws)
+            owner = mro[i]
+            init = inits[owner]
+            params = bind(init, args, kws, parent)
+            if params is None:
+                return False
+            for st in init.body:
+                if isinstance(st, ast.Pass) or (isinstance(st, ast.Expr) and isinstance(st.value, ast.Constant) and isinstance(st.value.value, str)):
+                    continue
+                pairs = _assigned_pairs(st.targets[0], st.value) if isinstance(st, ast.Assign) and len(st.targets) == 1 else _assigned_pairs(st.target, st.value) if isinstance(st, ast.AnnAssign) and st.value is not None else ()
+                if pairs:
+                    for target, node in pairs:
+                        if not (isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and (target.value.id == 'self')):
+                            return False
+                        value = encoded(node, params)
+                        if value is None or not store(target.attr, value, owner):
+                            return False
+                    continue
+                if isinstance(st, ast.Expr) and isinstance(st.value, ast.Call):
+                    callnode = st.value
+                    func = dotted(callnode.func)
+                    super_call = isinstance(callnode.func, ast.Attribute) and callnode.func.attr == '__init__' and isinstance(callnode.func.value, ast.Call) and (dotted(callnode.func.value.func) == ('super',)) and (not callnode.func.value.args) and (not callnode.func.value.keywords)
+                    if super_call:
+                        if not run(i + 1, callnode.args, callnode.keywords, params):
+                            return False
+                        continue
+                    if func == ('object', '__setattr__') and len(callnode.args) == 3 and (not callnode.keywords) and isinstance(callnode.args[0], ast.Name) and (callnode.args[0].id == 'self') and isinstance(callnode.args[1], ast.Constant) and isinstance(callnode.args[1].value, str):
+                        value = encoded(callnode.args[2], params)
+                        if value is None or not store(callnode.args[1].value, value, owner):
+                            return False
+                        continue
+                return False
+            return True
+        if not run(0, call.args, call.keywords):
+            return None
+        ident = _constant_bytes((module_name, q))
+        db = _frame(b'D', b''.join(sorted((_frame(b'P', _constant_bytes(k) + v) for k, v in dictionary.items()))))
+        sb = b''.join((_frame(b'S', _constant_bytes((module_name, o, n, p)) + (v if p else b'')) for (o, n), (p, v) in records.items()))
+        return _frame(b'I', ident + db + _frame(b'L', sb))
     found = {}
 
-    def callable_expression(expression, owner, local_names):
-        if isinstance(expression, ast.Name):
-            name = f"{owner}.{expression.id}" if expression.id in local_names else expression.id
-            return name, "function", None, None
-        if (
-            isinstance(expression, ast.Call)
-            and dotted(expression.func) is not None
-            and dotted(expression.func).rsplit(".", 1)[-1] == "MethodType"
-            and len(expression.args) == 2
-            and not expression.keywords
-        ):
-            callback = callable_expression(expression.args[0], owner, local_names)
-            receiver = expression.args[1]
-            if callback is None:
+    def callable_expr(node, local):
+        if isinstance(node, ast.Name):
+            binding = resolve(node, local)
+            return (binding[1], 'function', None, None) if binding and binding[0] == 'function' else None
+        if not (isinstance(node, ast.Call) and dotted(node.func) and (dotted(node.func)[-1] == 'MethodType') and (len(node.args) == 2) and (not node.keywords)):
+            return None
+        callback = callable_expr(node.args[0], local)
+        if callback is None:
+            return None
+        recv = node.args[1]
+        if isinstance(recv, ast.Call):
+            binding = resolve(recv.func, local)
+            if not binding or binding[0] != 'class':
                 return None
-            if (
-                isinstance(receiver, ast.Call)
-                and not receiver.args
-                and not receiver.keywords
-            ):
-                receiver_name = resolve_class(receiver.func, owner)
-                is_class = False
+            identity = (module_name, binding[1])
+            state = receiver_bytes(binding[1], recv)
+        else:
+            binding = resolve(recv, local)
+            if not binding or binding[0] not in {'class', 'external'}:
+                return None
+            if binding[0] == 'class':
+                identity = (module_name, binding[1])
             else:
-                receiver_name = resolve_class(receiver, owner)
-                is_class = True
-            if receiver_name is None:
-                return None
-            receiver_state = source_receiver_bytes(receiver_name, is_class)
-            if receiver_state is None:
-                return None
-            return callback[0], "method", receiver_name, receiver_state
-        return None
+                mod, path = binding[1]
+                if not path:
+                    return None
+                identity = (mod, '.'.join(path))
+            state = None if binding[0] == 'external' else _frame(b'C', _constant_bytes(identity))
+        if isinstance(recv, ast.Call) and state is None:
+            return None
+        return (callback[0], 'method', identity, state)
 
-    def visit(body, parent=""):
-        for node in body:
-            if not isinstance(node, ast.ClassDef):
+    def imports(st):
+        out = {}
+        if isinstance(st, ast.Import):
+            for x in st.names:
+                key = x.asname or x.name.split('.', 1)[0]
+                mod = x.name if x.asname else x.name.split('.', 1)[0]
+                out[key] = ('import', (mod, ()))
+        elif isinstance(st, ast.ImportFrom) and st.module and (st.level == 0):
+            for x in st.names:
+                if x.name != '*':
+                    out[x.asname or x.name] = ('import', (st.module, tuple(x.name.split('.'))))
+        return out
+
+    def assignment(st):
+        if isinstance(st, ast.Assign) and len(st.targets) == 1:
+            return (st.targets[0], st.value)
+        if isinstance(st, ast.AnnAssign) and st.value is not None:
+            return (st.target, st.value)
+        return (None, None)
+
+    def record(owner, target, value, local):
+        if not isinstance(target, ast.Name) or not isinstance(value, ast.Call):
+            return
+        descriptor = resolve(value.func, local)
+        if not descriptor or descriptor[0] != 'class':
+            return
+        for attr, (param, pos) in constructors.get(descriptor[1], {}).items():
+            expr = next((x.value for x in value.keywords if x.arg == param), value.args[pos] if pos is not None and pos < len(value.args) else None)
+            provenance = callable_expr(expr, local) if expr is not None else None
+            if provenance:
+                found[f'{owner}.{target.id}.{attr}'] = provenance
+
+    def process_class(node, owner, enclosing):
+        local = {}
+        resolved = []
+        bad = False
+        for base in node.bases:
+            binding = resolve(base, enclosing)
+            if binding and binding[0] == 'class':
+                resolved.append(binding[1])
+            elif dotted(base) != ('object',):
+                bad = True
+        bases[owner] = None if bad else tuple(resolved)
+        for st in node.body:
+            if isinstance(st, (ast.Import, ast.ImportFrom)):
+                local.update(imports(st))
                 continue
-            owner = f"{parent}.{node.name}" if parent else node.name
-            local_names = {
-                item.name
-                for item in node.body
-                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-            }
-            for statement in node.body:
-                if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    for decorator in statement.decorator_list:
-                        descriptor = resolve_class(decorator, owner)
-                        for attribute, (parameter, position) in constructors.get(
-                            descriptor, {}
-                        ).items():
-                            if position == 0 or parameter == "callback":
-                                found[f"{owner}.{statement.name}.{attribute}"] = (
-                                    f"{owner}.{statement.name}", "function", None, None
-                                )
-                    continue
-                if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
-                    target, value = statement.targets[0], statement.value
-                elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
-                    target, value = statement.target, statement.value
-                else:
-                    continue
-                if not (isinstance(target, ast.Name) and isinstance(value, ast.Call)):
-                    continue
-                descriptor = resolve_class(value.func, owner)
-                for attribute, (parameter, position) in constructors.get(descriptor, {}).items():
-                    expression = next(
-                        (keyword.value for keyword in value.keywords if keyword.arg == parameter),
-                        value.args[position]
-                        if position is not None and position < len(value.args)
-                        else None,
-                    )
-                    provenance = (
-                        callable_expression(expression, owner, local_names)
-                        if expression is not None
-                        else None
-                    )
-                    if provenance is not None:
-                        found[f"{owner}.{target.id}.{attribute}"] = provenance
-            visit(node.body, owner)
-
-    visit(tree.body)
+            if isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for decorator in st.decorator_list:
+                    descriptor = resolve(decorator, local)
+                    if descriptor and descriptor[0] == 'class':
+                        for attr, (param, pos) in constructors.get(descriptor[1], {}).items():
+                            if pos == 0 or param == 'callback':
+                                found[f'{owner}.{st.name}.{attr}'] = (f'{owner}.{st.name}', 'function', None, None)
+                local[st.name] = ('function', f'{owner}.{st.name}')
+                continue
+            if isinstance(st, ast.ClassDef):
+                nested = f'{owner}.{st.name}'
+                process_class(st, nested, local)
+                local[st.name] = ('class', nested)
+                continue
+            target, value = assignment(st)
+            record(owner, target, value, local)
+            if isinstance(target, ast.Name):
+                local[target.id] = resolve(value, local)
+            if isinstance(st, ast.Delete):
+                for target in st.targets:
+                    if isinstance(target, ast.Name):
+                        local.pop(target.id, None)
+    for st in tree.body:
+        if isinstance(st, (ast.Import, ast.ImportFrom)):
+            module.update(imports(st))
+            continue
+        if isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            module[st.name] = ('function', st.name)
+            continue
+        if isinstance(st, ast.ClassDef):
+            process_class(st, st.name, {})
+            module[st.name] = ('class', st.name)
+            continue
+        target, value = assignment(st)
+        if isinstance(target, ast.Name):
+            module[target.id] = resolve(value, {})
+        if isinstance(st, ast.Delete):
+            for target in st.targets:
+                if isinstance(target, ast.Name):
+                    module.pop(target.id, None)
     for alias, target in aliases.items():
         for binding, provenance in tuple(found.items()):
-            if binding.startswith(target + "."):
+            if binding.startswith(target + '.'):
                 found[alias + binding[len(target):]] = provenance
     return found
-
 
 def live_code_objects(module, source_aliases=None, source_callables=None):
     # Every binding path is walked independently. The second path in each result is its
@@ -908,13 +986,24 @@ def live_code_objects(module, source_aliases=None, source_callables=None):
 
 
 def _receiver_bytes(receiver):
-    receiver_type = receiver if isinstance(receiver, type) else type(receiver)
-    identity = _constant_bytes((receiver_type.__module__, receiver_type.__qualname__))
-    if isinstance(receiver, type):
+    # type() and type.__getattribute__ bypass an instance's custom __getattribute__ and a
+    # class's custom metaclass lookup. A receiver is a class exactly when its concrete type's
+    # static MRO contains type; isinstance(receiver, type) would consult receiver.__class__.
+    concrete_type = type(receiver)
+    is_class = type in type.__getattribute__(concrete_type, "__mro__")
+    receiver_type = receiver if is_class else concrete_type
+    receiver_mro = type.__getattribute__(receiver_type, "__mro__")
+    identity = _constant_bytes(
+        (
+            type.__getattribute__(receiver_type, "__module__"),
+            type.__getattribute__(receiver_type, "__qualname__"),
+        )
+    )
+    if is_class:
         return _frame(b"C", identity)
     state = {}
-    for base in receiver_type.__mro__:
-        descriptor = vars(base).get("__dict__")
+    for base in receiver_mro:
+        descriptor = type.__getattribute__(base, "__dict__").get("__dict__")
         if isinstance(descriptor, (types.GetSetDescriptorType, types.MemberDescriptorType)):
             try:
                 candidate = descriptor.__get__(receiver, receiver_type)
@@ -924,8 +1013,9 @@ def _receiver_bytes(receiver):
                 state = candidate
             break
     slots = []
-    for base in reversed(receiver_type.__mro__):
-        for name, descriptor in sorted(vars(base).items()):
+    for base in reversed(receiver_mro):
+        namespace = type.__getattribute__(base, "__dict__")
+        for name, descriptor in sorted(namespace.items()):
             if name in {"__dict__", "__weakref__"} or not isinstance(
                 descriptor, types.MemberDescriptorType
             ):
@@ -941,7 +1031,14 @@ def _receiver_bytes(receiver):
             slots.append(
                 _frame(
                     b"S",
-                    _constant_bytes((base.__module__, base.__qualname__, name, present))
+                    _constant_bytes(
+                        (
+                            type.__getattribute__(base, "__module__"),
+                            type.__getattribute__(base, "__qualname__"),
+                            name,
+                            present,
+                        )
+                    )
                     + encoded,
                 )
             )
@@ -968,7 +1065,7 @@ def _descriptor_value_bytes(value):
     # values use the fingerprint's canonical encoding; callables use semantic code bytes. For an
     # opaque hashable object we encode only its concrete type: equal-type duplicates then receive
     # deterministic ordinals, while traversal still refuses to open that external object.
-    if isinstance(value, (types.FunctionType, types.MethodType)):
+    if type(value) in {types.FunctionType, types.MethodType}:
         return _callable_bytes(value)
     if type(value) in {
         type(None),
@@ -1049,7 +1146,7 @@ def _code_objects_of(
     if any(identity == id(value) for identity in ancestry):
         return
     descendants = (*ancestry, id(value))
-    if isinstance(value, (types.FunctionType, types.MethodType)):
+    if type(value) in {types.FunctionType, types.MethodType}:
         code = value.__code__
         # Mutable function metadata remains a useful narrow filter for top-level imported
         # library bindings. Once a class-bound descriptor root has established ownership,
@@ -1059,8 +1156,14 @@ def _code_objects_of(
         if descriptor_owned or value.__module__ == module_name:
             yield prefix, source_binding or prefix, code, value
         return
-    if isinstance(value, type) and getattr(value, "__module__", None) == module_name:
-        for attribute, member in sorted(vars(value).items(), key=lambda item: item[0]):
+    value_type = type(value)
+    value_is_class = type in type.__getattribute__(value_type, "__mro__")
+    if (
+        value_is_class
+        and type.__getattribute__(value, "__module__") == module_name
+    ):
+        namespace = type.__getattribute__(value, "__dict__")
+        for attribute, member in sorted(namespace.items(), key=lambda item: item[0]):
             binding = f"{prefix}.{attribute}"
             declared = (source_aliases or {}).get(binding, binding)
             yield from _code_objects_of(
@@ -1320,8 +1423,26 @@ def product_identity():
                     )
                     continue
                 receiver = function.__self__
-                receiver_type = receiver if isinstance(receiver, type) else type(receiver)
-                if receiver_type.__module__ != module.__name__ or receiver_type.__qualname__ != receiver_name:
+                concrete_type = type(receiver)
+                is_class_receiver = type in type.__getattribute__(concrete_type, "__mro__")
+                receiver_type = receiver if is_class_receiver else concrete_type
+                live_receiver_identity = (
+                    type.__getattribute__(receiver_type, "__module__"),
+                    type.__getattribute__(receiver_type, "__qualname__"),
+                )
+                expected_module, expected_qualname = receiver_name
+                same_receiver = (
+                    live_receiver_identity == receiver_name
+                    or (
+                        expected_module != module.__name__
+                        and live_receiver_identity[1] == expected_qualname
+                        and (
+                            live_receiver_identity[0] == expected_module
+                            or live_receiver_identity[0].startswith(expected_module + ".")
+                        )
+                    )
+                )
+                if not same_receiver:
                     substitutions.append(
                         f"{relative}::{binding} has a method receiver that differs from its source declaration"
                     )
@@ -1333,7 +1454,7 @@ def product_identity():
                         f"{relative}::{binding} has unsupported method receiver state"
                     )
                     continue
-                if receiver_state != callable_source[3]:
+                if callable_source[3] is not None and receiver_state != callable_source[3]:
                     substitutions.append(
                         f"{relative}::{binding} has a method receiver state that differs from its source declaration"
                     )

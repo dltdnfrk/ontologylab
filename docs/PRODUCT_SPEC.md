@@ -415,11 +415,26 @@ process-global leakage 없이 지키게 한다.
 소스가 명시적으로 만드는 `MethodType`은 수신자 클래스 정체성과 지원되는 직접 상태를
 묶는다. 일반 instance dictionary와 함께 수신자 MRO의 구체적인 CPython slot member
 descriptor를 getter나 custom `__getattribute__` 없이 읽으며, 선언 클래스·slot 이름·
-presence·타입 보존 값을 결정적으로 인코딩한다. 상속 slot과 unset slot도 구조에 포함하고
+presence·타입 보존 값을 결정적으로 인코딩한다. 직접 `self.name = literal`과 생성자
+인자·keyword·default에서 정적으로 바인딩되는 같은 할당을 지원한다. 상속 초기화는
+인자 없이 상속된 `__init__`, 정적으로 바인딩되는 `super().__init__(...)`, 그리고 직접
+`object.__setattr__(self, literal_name, supported_value)`만 따라가며, 그 밖의 호출·제어
+흐름·동적 값은 실행하거나 라이브 상태를 기대값으로 삼지 않고 닫힌 실패로 처리한다.
+
+slot MRO는 C3 순서로 공통 diamond base를 한 번만 포함하며 실제 순환은 거부한다.
+`__slots__`의 문자열·list·tuple뿐 아니라 mapping 형식의 key도 slot 이름으로 취급하되
+문서화 value는 순회하지 않는다. 상속 slot과 unset slot도 구조에 포함하고
 `__dict__`/`__weakref__`는 slot 목록에서 제외한다. 순환 또는 지원하지 않는 값은 닫힌
-실패로 처리한다. 클래스 객체 수신자는 소스의 lexical `Name`/qualified `Attribute`가
-가리키는 클래스 정체성을 별도 token으로 묶는다. 지원되는 callable container 경로의
-라벨은 wrapper 종류, 기본값, 수신자 클래스와 이 직접 상태를 포함한다.
+실패로 처리한다. 클래스 객체 수신자는 소스의 lexical `Name`/qualified `Attribute` 및
+명시적 import alias가 가리키는 클래스 정체성을 별도 token으로 묶는다. public import가
+private implementation submodule의 클래스를 내보내는 경우 선언 import root, live module,
+qualname을 함께 대조한다.
+
+Descriptor 생성자 provenance는 module/class body statement 순서의 binding으로 결정한다.
+따라서 나중 nested class는 이전 호출을 가리지 않고, 값이 있는 `Assign`/`AnnAssign` alias
+chain은 원 생성자를 보존하며 `del`은 이후 lookup에만 적용된다. 이 소스 로컬 기대가
+library 면제보다 먼저 적용된다. 지원되는 callable container 경로의 라벨은 wrapper 종류,
+기본값, 수신자 클래스와 이 직접 상태를 포함한다.
 
 #### 7.1.3 부분 보장 — 같은 상태의 수신자 객체 정체성
 

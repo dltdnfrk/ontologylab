@@ -3237,6 +3237,406 @@ def test_method_receiver_identity_residual_cannot_drift_into_hostile_boundaries(
     assert "residual-5-receiver-identity" in checker
 
 
+def test_cli_accepts_literal_parameter_and_combined_receiver_state(tmp_path: Path) -> None:
+    """S1: direct dictionary values and constructor-bound values match live encoding."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + r'''
+
+import types as _a15_state_types
+class A15StateDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A15LiteralReceiver:
+    def __init__(self):
+        self.label = "source"
+        self.payload = {"items": [1, True, None], "tags": {"b", "a"}}
+class A15ParameterReceiver:
+    def __init__(self, label="default", *, payload=(1, "x")):
+        self.label = label
+        self.payload = payload
+class A15CombinedBase:
+    __slots__ = {"base": "documented base", "unset": "left unset", "__dict__": "state"}
+    def __init__(self, base): self.base = base
+class A15CombinedReceiver(A15CombinedBase):
+    __slots__ = ("child",)
+    def __init__(self, label, child="slot"):
+        super().__init__("base")
+        self.label = label
+        self.child = child
+def a15_state_callback(self): return getattr(self, "label", None)
+class A15StateOwner:
+    literal = A15StateDescriptor(_a15_state_types.MethodType(a15_state_callback, A15LiteralReceiver()))
+    positional = A15StateDescriptor(_a15_state_types.MethodType(a15_state_callback, A15ParameterReceiver("source")))
+    keyword = A15StateDescriptor(_a15_state_types.MethodType(a15_state_callback, A15ParameterReceiver(label="source", payload={"k": 2})))
+    defaults = A15StateDescriptor(_a15_state_types.MethodType(a15_state_callback, A15ParameterReceiver()))
+    combined = A15StateDescriptor(_a15_state_types.MethodType(a15_state_callback, A15CombinedReceiver("source")))
+assert vars(A15StateOwner)["literal"].callback() == "source"
+assert vars(A15StateOwner)["combined"].callback() == "source"
+''',
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["issues"] == []
+
+
+def test_cli_rejects_changed_ordinary_receiver_dictionary(tmp_path: Path) -> None:
+    """S1 inverse: expected state comes from source, never from the live receiver."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + '''
+
+import types as _a15_dict_types
+class A15DictDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A15DictReceiver:
+    def __init__(self, label): self.label = label
+def a15_dict_callback(self): return self.label
+class A15DictOwner:
+    marker = A15DictDescriptor(_a15_dict_types.MethodType(a15_dict_callback, A15DictReceiver("source")))
+_a15_changed_dict = A15DictReceiver("leftover")
+vars(A15DictOwner)["marker"].callback = _a15_dict_types.MethodType(a15_dict_callback, _a15_changed_dict)
+assert vars(A15DictOwner)["marker"].callback() == "leftover"
+''',
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    assert "A15DictOwner.marker.callback has a method receiver state that differs" in details
+    assert result.returncode == 1
+
+
+def test_cli_handles_diamond_mro_slots_and_rejects_changed_state(tmp_path: Path) -> None:
+    """S2: a shared base is legal and concrete slots follow reverse C3 MRO once."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + '''
+
+import types as _a15_diamond_types
+class A15DiamondDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A15DiamondBase:
+    __slots__ = ("label",)
+    def __init__(self, label="source"): self.label = label
+class A15DiamondLeft(A15DiamondBase): __slots__ = ()
+class A15DiamondRight(A15DiamondBase): __slots__ = ()
+class A15Diamond(A15DiamondLeft, A15DiamondRight): __slots__ = ()
+def a15_diamond_callback(self): return self.label
+class A15DiamondOwner:
+    clean = A15DiamondDescriptor(_a15_diamond_types.MethodType(a15_diamond_callback, A15Diamond()))
+    changed = A15DiamondDescriptor(_a15_diamond_types.MethodType(a15_diamond_callback, A15Diamond()))
+_a15_changed_diamond = A15Diamond("leftover")
+vars(A15DiamondOwner)["changed"].callback = _a15_diamond_types.MethodType(a15_diamond_callback, _a15_changed_diamond)
+assert vars(A15DiamondOwner)["clean"].callback() == "source"
+''',
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    assert "A15DiamondOwner.clean" not in details
+    assert "A15DiamondOwner.changed.callback has a method receiver state that differs" in details
+    assert result.returncode == 1
+
+
+def test_source_receiver_lineage_fails_closed_on_a_real_cycle() -> None:
+    """S2 inverse: active-stack cycle detection permits diamonds, not real cycles."""
+    helpers = _shipped_helpers(
+        "_frame", "_constant_bytes", "_source_default", "_assigned_pairs",
+        "source_descriptor_callables",
+    )
+    tree = ast.parse('''
+class Descriptor:
+    def __init__(self, callback): self.callback = callback
+class A(B): pass
+class B(A): pass
+def callback(self): return None
+class Owner:
+    marker = Descriptor(MethodType(callback, A()))
+''')
+    assert helpers["source_descriptor_callables"](tree, {}, "probe") == {}
+
+
+def test_cli_handles_mapping_form_slots_and_rejects_mutation(tmp_path: Path) -> None:
+    """S3: mapping keys are slot names; documentation values are not state."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + '''
+
+import types as _a15_mapping_types
+class A15MappingDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A15MappingReceiver:
+    __slots__ = {"label": "documentation only"}
+    def __init__(self, label="source"): self.label = label
+def a15_mapping_callback(self): return self.label
+class A15MappingOwner:
+    clean = A15MappingDescriptor(_a15_mapping_types.MethodType(a15_mapping_callback, A15MappingReceiver()))
+    changed = A15MappingDescriptor(_a15_mapping_types.MethodType(a15_mapping_callback, A15MappingReceiver()))
+_a15_mapping_changed = A15MappingReceiver("leftover")
+vars(A15MappingOwner)["changed"].callback = _a15_mapping_types.MethodType(a15_mapping_callback, _a15_mapping_changed)
+''',
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    assert "A15MappingOwner.clean" not in details
+    assert "A15MappingOwner.changed.callback has a method receiver state that differs" in details
+    assert result.returncode == 1
+
+
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_resolves_imported_library_class_receivers(
+    tmp_path: Path, changed: bool
+) -> None:
+    """S4: imported qualified class receiver identity is source-derived and binding."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    mutation = "" if not changed else '''
+vars(A15LibraryClassOwner)["marker"].callback = _a15_lib_types.MethodType(
+    a15_library_class_callback, _a15_pathlib.PurePath
+)
+'''
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + '''
+
+import pathlib as _a15_pathlib
+import types as _a15_lib_types
+class A15LibraryClassDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+def a15_library_class_callback(cls): return cls.__name__
+class A15LibraryClassOwner:
+    marker = A15LibraryClassDescriptor(
+        _a15_lib_types.MethodType(a15_library_class_callback, _a15_pathlib.Path)
+    )
+'''
+        + mutation,
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+    payload = json.loads(result.stdout)
+    if changed:
+        assert result.returncode == 1
+        assert "A15LibraryClassOwner.marker.callback has a method receiver that differs" in " ".join(
+            issue["detail"] for issue in payload["issues"]
+        )
+    else:
+        assert result.returncode == 0, payload["issues"]
+
+
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_resolves_constructor_before_later_nested_shadow(
+    tmp_path: Path, changed: bool
+) -> None:
+    """S5: class body names see only prior local bindings, then module globals."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    mutation = "" if not changed else '''
+vars(A15TemporalOwner)["before"].callback = _a15_temporal_path.Path(".").exists
+'''
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + '''
+
+import pathlib as _a15_temporal_path
+class Descriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+def a15_temporal_callback(self=None): return "source"
+class A15TemporalOwner:
+    before = Descriptor(a15_temporal_callback)
+    class Descriptor:
+        def __init__(self, handler): self.handler = handler
+        def __get__(self, instance, owner): return self.handler
+    after = Descriptor(a15_temporal_callback)
+assert vars(A15TemporalOwner)["after"].handler() == "source"
+'''
+        + mutation,
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+    payload = json.loads(result.stdout)
+    if changed:
+        assert result.returncode == 1
+        assert "A15TemporalOwner.before.callback" in " ".join(
+            issue["detail"] for issue in payload["issues"]
+        )
+    else:
+        assert result.returncode == 0, payload["issues"]
+
+
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_tracks_constructor_alias_chains_through_later_deletion(
+    tmp_path: Path, changed: bool
+) -> None:
+    """S6: assignment aliases retain qualified constructor provenance at call time."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    mutation = "" if not changed else '''
+vars(A15AliasOwner)["marker"].callback = _a15_alias_path.Path(".").exists
+'''
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + '''
+
+import pathlib as _a15_alias_path
+class A15AliasDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+A15AliasOne = A15AliasDescriptor
+A15AliasTwo: object = A15AliasOne
+def a15_alias_callback(self=None): return "source"
+class A15AliasOwner:
+    marker = A15AliasTwo(a15_alias_callback)
+del A15AliasTwo
+del A15AliasOne
+'''
+        + mutation,
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+    payload = json.loads(result.stdout)
+    if changed:
+        assert result.returncode == 1
+        assert "A15AliasOwner.marker.callback" in " ".join(
+            issue["detail"] for issue in payload["issues"]
+        )
+    else:
+        assert result.returncode == 0, payload["issues"]
+
+
+def test_receiver_bytes_never_invokes_custom_getattribute() -> None:
+    """S7 direct owner: concrete descriptors are opened without receiver lookup."""
+    encode = _shipped_helpers("_frame", "_constant_bytes", "_receiver_bytes")[
+        "_receiver_bytes"
+    ]
+
+    class Receiver:
+        __slots__ = ("label",)
+        calls = 0
+
+        def __init__(self):
+            object.__setattr__(self, "label", "source")
+
+        def __getattribute__(self, name):
+            Receiver.calls += 1
+            raise RuntimeError(name)
+
+    token = encode(Receiver())
+    assert token.startswith(b"I")
+    assert Receiver.calls == 0
+
+
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_receiver_state_never_invokes_custom_getattribute(
+    tmp_path: Path, changed: bool
+) -> None:
+    """S7 real surface: clean and changed state use only concrete CPython descriptors."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    mutation = "" if not changed else '''
+_a15_getattr_changed = A15GetattrReceiver("leftover")
+vars(A15GetattrOwner)["marker"].callback = _a15_getattr_types.MethodType(
+    a15_getattr_callback, _a15_getattr_changed
+)
+'''
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + '''
+
+import types as _a15_getattr_types
+class A15GetattrDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A15GetattrReceiver:
+    __slots__ = ("label",)
+    calls = 0
+    def __init__(self, label="source"): object.__setattr__(self, "label", label)
+    def __getattribute__(self, name):
+        type(self).calls += 1
+        raise RuntimeError(name)
+def a15_getattr_callback(self): return object.__getattribute__(self, "label")
+class A15GetattrOwner:
+    marker = A15GetattrDescriptor(
+        _a15_getattr_types.MethodType(a15_getattr_callback, A15GetattrReceiver())
+    )
+'''
+        + mutation,
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+    payload = json.loads(result.stdout) if result.stdout else {"issues": []}
+    if changed:
+        assert result.returncode == 1
+        assert "A15GetattrOwner.marker.callback has a method receiver state that differs" in " ".join(
+            issue["detail"] for issue in payload["issues"]
+        ), result.stderr
+    else:
+        assert result.returncode == 0, result.stderr or payload["issues"]
+
+
+def test_cli_fails_closed_for_unsupported_and_cyclic_receiver_state(tmp_path: Path) -> None:
+    """S1/S7 boundary: dynamic source init and cyclic live state never become expected."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + '''
+
+import types as _a15_unsupported_types
+def a15_dynamic_value(): return "source"
+class A15UnsupportedDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A15UnsupportedReceiver:
+    def __init__(self): self.label = a15_dynamic_value()
+class A15CyclicReceiver:
+    def __init__(self): self.label = "source"
+def a15_unsupported_callback(self): return self.label
+class A15UnsupportedOwner:
+    dynamic = A15UnsupportedDescriptor(_a15_unsupported_types.MethodType(a15_unsupported_callback, A15UnsupportedReceiver()))
+    cyclic = A15UnsupportedDescriptor(_a15_unsupported_types.MethodType(a15_unsupported_callback, A15CyclicReceiver()))
+_a15_cycle = A15CyclicReceiver()
+_a15_cycle.label = _a15_cycle.__dict__
+vars(A15UnsupportedOwner)["cyclic"].callback = _a15_unsupported_types.MethodType(a15_unsupported_callback, _a15_cycle)
+''',
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    assert "A15UnsupportedOwner.dynamic.callback" in details
+    assert "A15UnsupportedOwner.cyclic.callback has unsupported method receiver state" in details
+    assert result.returncode == 1
+
+
 def test_cli_rejects_a_callable_rebound_inside_a_custom_descriptor(
     tmp_path: Path,
 ) -> None:
