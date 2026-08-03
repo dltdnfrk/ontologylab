@@ -2635,7 +2635,7 @@ class A13MethodReceiver:
 vars(A13MethodOwner)["marker"].callback = _a13_types.MethodType(
     vars(A13MethodOwner)["marker"].callback, A13MethodReceiver()
 )
-assert A13MethodOwner().marker() == "leftover"
+assert vars(A13MethodOwner)["marker"].callback() == "leftover"
 """,
         encoding="utf-8",
     )
