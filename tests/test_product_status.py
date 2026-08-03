@@ -1816,7 +1816,7 @@ def test_every_binding_path_is_walked_even_when_two_names_share_one_class() -> N
         if isinstance(value, type):
             value.__module__ = "aliased_demo"
 
-    paths = {path for path, _source_binding, _code in walker(module)}
+    paths = {path for path, _source_binding, _code, _function in walker(module)}
 
     assert paths == {"A.go", "B.go"}, sorted(paths)
 
@@ -1976,6 +1976,483 @@ def test_cli_accepts_genuinely_generated_dataclass_methods(tmp_path: Path) -> No
     assert payload["issues"] == []
     assert "EVIDENCE: 13 canonical pytest nodes passed" in result.stderr
 
+
+
+def test_cli_rejects_moduleless_callbacks_in_all_owned_descriptor_containers(
+    tmp_path: Path,
+) -> None:
+    """Descriptor ownership, not mutable ``__module__``, makes direct callbacks auditable."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+class A12OwnedDescriptor:
+    __slots__ = ("callback", "state", "members")
+    def __init__(self, callback):
+        self.callback = callback
+        self.state = {"callbacks": [callback]}
+        self.members = {callback}
+    def __get__(self, instance, owner):
+        return self.callback.__get__(instance, owner)
+
+class A12DirectOwner:
+    @A12OwnedDescriptor
+    def marker(self): return "direct-source"
+class A12SlotOwner:
+    @A12OwnedDescriptor
+    def marker(self): return "slot-source"
+class A12NestedOwner:
+    @A12OwnedDescriptor
+    def marker(self): return "nested-source"
+class A12SetOwner:
+    @A12OwnedDescriptor
+    def marker(self): return "set-source"
+class A12FrozenOwner:
+    @A12OwnedDescriptor
+    def marker(self): return "frozen-source"
+
+def _a12_callback():
+    namespace = {}
+    exec(compile("def marker(self, label='source'): return 'leftover'", "<string>", "exec"), namespace)
+    callback = namespace["marker"]
+    callback.__defaults__ = ("leftover-default",)
+    assert callback.__module__ is None
+    return callback
+
+vars(A12DirectOwner)["marker"].callback = _a12_callback()
+vars(A12SlotOwner)["marker"].callback = _a12_callback()
+vars(A12NestedOwner)["marker"].state["callbacks"][0] = _a12_callback()
+vars(A12SetOwner)["marker"].members = {_a12_callback()}
+vars(A12FrozenOwner)["marker"].members = frozenset({_a12_callback()})
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    owners = (
+        "A12DirectOwner.marker.callback",
+        "A12SlotOwner.marker.callback",
+        "A12NestedOwner.marker.state[key:",
+        "A12SetOwner.marker.members{member:",
+        "A12FrozenOwner.marker.members{member:",
+    )
+    missing = [owner for owner in owners if owner not in details]
+    assert missing == [], (missing, details)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+
+
+def test_cli_rejects_moduleless_owned_source_callback_default_drift(
+    tmp_path: Path,
+) -> None:
+    """M1 ownership also subjects a source-origin callback's FunctionType state to I1."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+class A12ModulelessDefaultDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback.__get__(instance, owner)
+class A12ModulelessDefaultOwner:
+    @A12ModulelessDefaultDescriptor
+    def marker(self, label="source"): return label
+vars(A12ModulelessDefaultOwner)["marker"].callback.__module__ = None
+vars(A12ModulelessDefaultOwner)["marker"].callback.__defaults__ = ("leftover",)
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    assert (
+        "A12ModulelessDefaultOwner.marker.callback has invocation defaults that differ "
+        "from its source declaration"
+    ) in details
+    assert result.returncode == 1
+
+
+def test_cli_accepts_source_and_library_callbacks_in_descriptor_state(
+    tmp_path: Path,
+) -> None:
+    """Owned source callbacks stay green and genuine stdlib origins retain their boundary."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+import functools as _a12_functools
+class A12CleanDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback.__get__(instance, owner)
+class A12CleanOwner:
+    @A12CleanDescriptor
+    def marker(self, label="source", *, option={"nested": [1]}): return label
+class A12LibraryOwner:
+    marker = A12CleanDescriptor(_a12_functools.update_wrapper)
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["ok"] is True
+
+
+def test_descriptor_owned_synthetic_callback_cannot_hide_behind_module_metadata(
+    tmp_path: Path,
+) -> None:
+    """Changing only a callback's claimed module cannot suppress origin validation."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+class A12MetadataDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback.__get__(instance, owner)
+class A12MetadataOwner:
+    @A12MetadataDescriptor
+    def marker(self): return "source"
+_a12_ns = {"__name__": __name__}
+exec(compile("def marker(self): return 'leftover'", "<string>", "exec"), _a12_ns)
+_a12_ns["marker"].__module__ = "unrelated.claim"
+vars(A12MetadataOwner)["marker"].callback = _a12_ns["marker"]
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    assert "A12MetadataOwner.marker.callback was compiled from <string>" in details
+
+
+def test_cli_accepts_an_annotated_source_declared_descriptor_alias(
+    tmp_path: Path,
+) -> None:
+    """A value-bearing annotated class alias has the same source meaning as Assign."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+class A12AnnotatedDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback.__get__(instance, owner)
+class A12AnnotatedOwner:
+    @A12AnnotatedDescriptor
+    def marker(self): return "source"
+    alias: object = marker
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["ok"] is True
+
+
+def test_cli_rejects_a_rebound_annotated_descriptor_alias(tmp_path: Path) -> None:
+    """Annotated alias resolution preserves the explicit rebound ownership path."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+class A12BadAnnotatedDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback.__get__(instance, owner)
+class A12BadAnnotatedOwner:
+    @A12BadAnnotatedDescriptor
+    def marker(self): return "source"
+    alias: object = marker
+_a12_ns = {"__name__": __name__}
+exec(compile("def marker(self): return 'leftover'", "<string>", "exec"), _a12_ns)
+vars(A12BadAnnotatedOwner)["alias"].callback = _a12_ns["marker"]
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    assert "A12BadAnnotatedOwner.alias.callback was compiled from <string>" in details
+
+
+@pytest.mark.parametrize(
+    ("key_expression", "hash_seed"),
+    (("('callback', 1)", "1"), ("('callback', 1)", "271"),
+     ("frozenset({'callback', 1})", "1"), ("frozenset({'callback', 1})", "271")),
+)
+def test_cli_accepts_exact_container_keys_across_hash_seeds(
+    tmp_path: Path, key_expression: str, hash_seed: str
+) -> None:
+    """Supported exact hashable container keys are canonical and clean."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + f"""
+
+class A12KeyDescriptor:
+    def __init__(self, callback): self.state = {{{key_expression}: callback}}
+    def __get__(self, instance, owner): return next(iter(self.state.values())).__get__(instance, owner)
+class A12KeyOwner:
+    @A12KeyDescriptor
+    def marker(self): return "source"
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(
+        tmp_path, document, environment={**os.environ, "PYTHONHASHSEED": hash_seed}
+    )
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["ok"] is True
+
+
+def test_cli_rejects_rebound_callbacks_under_exact_container_keys(
+    tmp_path: Path,
+) -> None:
+    """Tuple and frozenset keys retain distinct deterministic callback owner paths."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+class A12BadKeyDescriptor:
+    def __init__(self, callback, key): self.state = {key: callback}
+    def __get__(self, instance, owner): return next(iter(self.state.values())).__get__(instance, owner)
+class A12TupleKeyOwner:
+    marker = A12BadKeyDescriptor(lambda self: "source", ("callback", 1))
+class A12FrozenKeyOwner:
+    marker = A12BadKeyDescriptor(lambda self: "source", frozenset({"callback", 1}))
+_a12_ns = {"__name__": __name__}
+exec(compile("def marker(self): return 'leftover'", "<string>", "exec"), _a12_ns)
+vars(A12TupleKeyOwner)["marker"].state[("callback", 1)] = _a12_ns["marker"]
+vars(A12FrozenKeyOwner)["marker"].state[frozenset({"callback", 1})] = _a12_ns["marker"]
+""",
+        encoding="utf-8",
+    )
+
+    details_by_seed = []
+    for hash_seed in ("1", "271"):
+        result = _run_checker(
+            tmp_path, document,
+            environment={**os.environ, "PYTHONHASHSEED": hash_seed},
+        )
+        payload = json.loads(result.stdout)
+        assert result.returncode == 1
+        details = " ".join(issue["detail"] for issue in payload["issues"])
+        for owner in (
+            "A12TupleKeyOwner.marker.state[key:",
+            "A12FrozenKeyOwner.marker.state[key:",
+        ):
+            assert owner in details, (owner, details)
+        details_by_seed.append(details)
+    assert details_by_seed[0] == details_by_seed[1]
+
+
+def test_descriptor_dict_keys_fail_closed_without_opening_objects() -> None:
+    """Unsupported hashable keys fail explicitly; their object graph is never traversed."""
+    walker = _shipped_helpers(
+        "_frame", "_constant_bytes", "_code_bytes", "_descriptor_value_bytes",
+        "_descriptor_members", "live_code_objects", "_code_objects_of"
+    )["live_code_objects"]
+    module = types.ModuleType("unsupported_key_demo")
+    exec(
+        compile(
+            "class Key:\n"
+            "    def __hash__(self): return 1\n"
+            "class Descriptor:\n"
+            "    def __init__(self, callback): self.state = {Key(): callback}\n"
+            "    def __get__(self, instance, owner): raise AssertionError\n"
+            "class Owner:\n"
+            "    @Descriptor\n"
+            "    def marker(self): return 'source'\n",
+            "unsupported_key_demo.py", "exec",
+        ), module.__dict__,
+    )
+
+    with pytest.raises(TypeError, match="unsupported descriptor-state key"):
+        list(walker(module))
+
+
+def test_cli_accepts_a_composed_descriptor_without_transferring_ownership(
+    tmp_path: Path,
+) -> None:
+    """An outer descriptor reference does not open an independently bound descriptor."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+class A12ComposedDescriptor:
+    def __init__(self, callback, inner=None): self.callback, self.inner = callback, inner
+    def __get__(self, instance, owner): return self.callback.__get__(instance, owner)
+class A12ComposedOwner:
+    @A12ComposedDescriptor
+    def inner(self): return "inner-source"
+    @A12ComposedDescriptor
+    def outer(self): return "outer-source"
+    outer.inner = inner
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["ok"] is True
+
+
+def test_cli_audits_the_independent_root_of_a_composed_descriptor(
+    tmp_path: Path,
+) -> None:
+    """Closing descendant objects does not hide the inner descriptor's class binding."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+class A12BadComposedDescriptor:
+    def __init__(self, callback, inner=None): self.callback, self.inner = callback, inner
+    def __get__(self, instance, owner): return self.callback.__get__(instance, owner)
+class A12BadComposedOwner:
+    @A12BadComposedDescriptor
+    def inner(self): return "inner-source"
+    @A12BadComposedDescriptor
+    def outer(self): return "outer-source"
+    outer.inner = inner
+_a12_ns = {"__name__": __name__}
+exec(compile("def inner(self): return 'leftover'", "<string>", "exec"), _a12_ns)
+vars(A12BadComposedOwner)["inner"].callback = _a12_ns["inner"]
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    assert "A12BadComposedOwner.inner.callback was compiled from <string>" in details
+    assert "A12BadComposedOwner.outer.inner.callback" not in details
+
+
+def test_cli_rejects_mutated_positional_keyword_and_nested_defaults(
+    tmp_path: Path,
+) -> None:
+    """Function invocation defaults are source-bound independently of CodeType."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+def a12_positional(label="source"): return label
+def a12_keyword(*, label="source"): return label
+def a12_nested(config={"items": ["source"]}): return config
+
+a12_positional.__defaults__ = ("leftover",)
+a12_keyword.__kwdefaults__["label"] = "leftover"
+a12_nested.__defaults__[0]["items"][0] = "leftover"
+assert a12_positional() == "leftover"
+assert a12_keyword() == "leftover"
+assert a12_nested()["items"] == ["leftover"]
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    owners = ("a12_positional", "a12_keyword", "a12_nested")
+    missing = [
+        owner for owner in owners
+        if f"{owner} has invocation defaults that differ from its source declaration"
+        not in details
+    ]
+    assert missing == [], (missing, details)
+    assert result.returncode == 1
+
+
+def test_cli_fails_closed_on_unsupported_and_cyclic_live_defaults(
+    tmp_path: Path,
+) -> None:
+    """A supported source declaration cannot drift into an unencodable live value."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+def a12_unsupported_default(value="source"): return value
+def a12_cyclic_default(value=[]): return value
+_a12_cycle = a12_cyclic_default.__defaults__[0]
+_a12_cycle.append(_a12_cycle)
+a12_unsupported_default.__defaults__ = (object(),)
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    assert "a12_unsupported_default has unsupported invocation defaults" in details
+    assert "a12_cyclic_default has unsupported invocation defaults" in details
+    assert result.returncode == 1
+
+
+def test_cli_accepts_clean_supported_function_defaults(tmp_path: Path) -> None:
+    """Clean positional, keyword-only, and mutable nested literals remain green."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+def a12_clean_positional(label="source"): return label
+def a12_clean_keyword(*, label="source"): return label
+def a12_clean_nested(config={"items": ["source"]}): return config
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["ok"] is True
 
 
 def test_cli_rejects_a_callable_rebound_inside_a_custom_descriptor(
@@ -2143,7 +2620,7 @@ def test_descriptor_container_paths_are_canonical_and_unambiguous() -> None:
 
     paths = [
         binding
-        for binding, source_binding, _code in walker(module)
+        for binding, source_binding, _code, _function in walker(module)
         if source_binding == "Owner.marker"
     ]
 
@@ -2246,7 +2723,7 @@ def test_descriptor_state_traversal_is_static_nested_and_cycle_safe() -> None:
         and binding.endswith("][0]")
         and source_binding == "Owner.marker"
         and code.co_qualname == "Owner.marker"
-        for binding, source_binding, code in found
+        for binding, source_binding, code, _function in found
     )
 
 

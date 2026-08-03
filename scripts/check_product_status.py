@@ -534,23 +534,30 @@ def literal_assignments(source, filename):
 
 
 def source_member_aliases(tree):
-    # Preserve aliases explicitly declared by a class body (`alias = marker`). This is source
-    # structure, not an identity shortcut: a later module-level `B = A` is absent from this map,
-    # so every exposed class binding remains independently accountable.
+    # Preserve aliases explicitly declared by a class body (`alias = marker` or the
+    # value-bearing `alias: object = marker`). This is source structure, not an identity
+    # shortcut: a later module-level `B = A` is absent from this map, so every exposed class
+    # binding remains independently accountable.
     aliases = {}
 
     def visit_class(node, parent=""):
         owner = f"{parent}.{node.name}" if parent else node.name
         for statement in node.body:
-            if (
-                isinstance(statement, ast.Assign)
-                and isinstance(statement.value, ast.Name)
-            ):
-                target = f"{owner}.{statement.value.id}"
-                for assigned in statement.targets:
+            if isinstance(statement, ast.Assign):
+                value = statement.value
+                assigned_names = statement.targets
+            elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+                value = statement.value
+                assigned_names = (statement.target,)
+            else:
+                value = None
+                assigned_names = ()
+            if isinstance(value, ast.Name):
+                target = f"{owner}.{value.id}"
+                for assigned in assigned_names:
                     if isinstance(assigned, ast.Name):
                         aliases[f"{owner}.{assigned.id}"] = target
-            elif isinstance(statement, ast.ClassDef):
+            if isinstance(statement, ast.ClassDef):
                 visit_class(statement, owner)
 
     for statement in tree.body:
@@ -564,6 +571,46 @@ def source_member_aliases(tree):
             target = aliases[target]
         aliases[alias] = target
     return aliases
+
+
+def source_function_defaults(tree):
+    # Function defaults participate directly in argument binding but do not live on CodeType.
+    # Derive literal defaults from the source AST and canonicalize them with the same typed
+    # encoder as code constants. This deliberately does not execute default expressions: calls
+    # and name lookups can have effects and cannot be reconstructed safely from static source.
+    # Such expressions, and closure cell contents whose values depend on an execution path, are
+    # outside this static identity seam rather than being compared to a re-derivation of live
+    # state. For supported source literals, unsupported or cyclic live values fail closed.
+    found = {}
+
+    def visit(body, parent=""):
+        for node in body:
+            if isinstance(node, ast.ClassDef):
+                owner = f"{parent}.{node.name}" if parent else node.name
+                visit(node.body, owner)
+                continue
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            qualname = f"{parent}.{node.name}" if parent else node.name
+            positional = []
+            keyword = {}
+            try:
+                for default in node.args.defaults:
+                    positional.append(ast.literal_eval(default))
+                for argument, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
+                    if default is not None:
+                        keyword[argument.arg] = ast.literal_eval(default)
+                state = (
+                    tuple(positional) if positional else None,
+                    keyword if keyword else None,
+                )
+                found[qualname] = _constant_bytes(state)
+            except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+                pass
+            visit(node.body, f"{qualname}.<locals>")
+
+    visit(tree.body)
+    return found
 
 
 def live_code_objects(module, source_aliases=None):
@@ -663,8 +710,13 @@ def _code_objects_of(
     descendants = (*ancestry, id(value))
     if isinstance(value, (types.FunctionType, types.MethodType)):
         code = value.__code__
-        if value.__module__ == module_name:
-            yield prefix, source_binding or prefix, code
+        # Mutable function metadata remains a useful narrow filter for top-level imported
+        # library bindings. Once a class-bound descriptor root has established ownership,
+        # provenance comes from the callable's code origin instead: None or a spoofed module
+        # string cannot hide a directly owned callback, while the later library-root check
+        # still accepts genuine external code.
+        if descriptor_owned or value.__module__ == module_name:
+            yield prefix, source_binding or prefix, code, value
         return
     if isinstance(value, type) and getattr(value, "__module__", None) == module_name:
         for attribute, member in sorted(vars(value).items(), key=lambda item: item[0]):
@@ -679,7 +731,10 @@ def _code_objects_of(
                 source_aliases=source_aliases,
             )
         return
-    members = _descriptor_members(value)
+    # Descriptor-member introspection is valid only at the class-bound root. Reaching another
+    # descriptor through that root's state does not transfer ownership into the referenced
+    # object's internals; only exact owned containers and direct callables are opened below.
+    members = _descriptor_members(value) if not descriptor_owned else ()
     if members:
         declared_binding = source_binding or prefix
         for attribute, member in members:
@@ -707,12 +762,17 @@ def _code_objects_of(
     elif descriptor_owned and type(value) is dict:
         entries = []
         for key, member in value.items():
-            if type(key) not in {str, bytes, int, float, bool, type(None)}:
+            # Dictionary keys are labels, never traversal edges. Exact tuple/frozenset keys
+            # are already in the canonical typed domain; unsupported or cyclic values fail
+            # explicitly rather than acquiring a repr/address fallback.
+            try:
+                token = _constant_bytes(key)
+            except (TypeError, ValueError) as error:
                 raise TypeError(
                     "unsupported descriptor-state key: "
                     f"{type(key).__module__}.{type(key).__qualname__}"
-                )
-            entries.append((_constant_bytes(key), member))
+                ) from error
+            entries.append((token, member))
         entries.sort(key=lambda item: item[0])
         for ordinal, (token, member) in enumerate(entries):
             yield from _code_objects_of(
@@ -789,6 +849,7 @@ def product_identity():
             module_tree = ast.parse(source, filename=str(path))
             generated_by_dataclass = dataclass_generated_names(module_tree)
             member_aliases = source_member_aliases(module_tree)
+            function_defaults = source_function_defaults(module_tree)
             class_nodes = {
                 node.name: node
                 for node in ast.walk(module_tree)
@@ -797,6 +858,7 @@ def product_identity():
         except SyntaxError:
             generated_by_dataclass = {}
             member_aliases = {}
+            function_defaults = {}
             class_nodes = {}
         producible = {}
         pending = [compiled]
@@ -821,7 +883,7 @@ def product_identity():
                 substitutions.append(
                     f"{relative}::{attribute} does not hold the value this file assigns"
                 )
-        for binding, qualname, code in live_code_objects(module, member_aliases):
+        for binding, qualname, code, function in live_code_objects(module, member_aliases):
             origin = code.co_filename
             # Compiler-generated methods, narrowly. `@dataclass` compiles exactly these
             # dunders with the filename "<string>", and they genuinely do not exist in the
@@ -856,6 +918,22 @@ def product_identity():
                 substitutions.append(
                     f"{relative}::{binding} is not compiled from this file under that name"
                 )
+            elif qualname in function_defaults:
+                target = getattr(function, "__func__", function)
+                try:
+                    live_defaults = _constant_bytes(
+                        (target.__defaults__, target.__kwdefaults__)
+                    )
+                except (TypeError, ValueError):
+                    substitutions.append(
+                        f"{relative}::{binding} has unsupported invocation defaults"
+                    )
+                else:
+                    if live_defaults != function_defaults[qualname]:
+                        substitutions.append(
+                            f"{relative}::{binding} has invocation defaults that differ "
+                            "from its source declaration"
+                        )
     return digests, sorted(set(substitutions))
 
 
