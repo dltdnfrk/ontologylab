@@ -198,6 +198,9 @@ DATACLASS_DEFAULTS = {
 # becomes a module at all. An audit hook sees the compile itself, and once installed it
 # cannot be removed (there is no public API to drop one), so the record is append-only.
 COMPILED_FILES = set()
+# A source default expression that static analysis cannot safely evaluate. This singleton is
+# structural metadata, never an encoded value, so it cannot collide with any real default.
+UNBOUND_DEFAULT = object()
 
 
 def _record_compile(event, arguments):
@@ -573,14 +576,19 @@ def source_member_aliases(tree):
     return aliases
 
 
+def _source_default(default):
+    try:
+        return _constant_bytes(ast.literal_eval(default))
+    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+        return UNBOUND_DEFAULT
+
+
 def source_function_defaults(tree):
-    # Function defaults participate directly in argument binding but do not live on CodeType.
-    # Derive literal defaults from the source AST and canonicalize them with the same typed
-    # encoder as code constants. This deliberately does not execute default expressions: calls
-    # and name lookups can have effects and cannot be reconstructed safely from static source.
-    # Such expressions, and closure cell contents whose values depend on an execution path, are
-    # outside this static identity seam rather than being compared to a re-derivation of live
-    # state. For supported source literals, unsupported or cyclic live values fail closed.
+    # Argument-binding shape is always source-determined: positional defaults are the exact
+    # trailing tuple and keyword-only defaults retain their exact names. Values are bound one
+    # slot at a time. A call or name lookup leaves only that slot explicitly unbound; it cannot
+    # erase a literal sibling. Closure cells and nonliteral slot values remain outside this
+    # static seam because evaluating source expressions would execute product code.
     found = {}
 
     def visit(body, parent=""):
@@ -592,35 +600,217 @@ def source_function_defaults(tree):
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
             qualname = f"{parent}.{node.name}" if parent else node.name
-            positional = []
-            keyword = {}
-            try:
-                for default in node.args.defaults:
-                    positional.append(ast.literal_eval(default))
-                for argument, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
-                    if default is not None:
-                        keyword[argument.arg] = ast.literal_eval(default)
-                state = (
-                    tuple(positional) if positional else None,
-                    keyword if keyword else None,
-                )
-                found[qualname] = _constant_bytes(state)
-            except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
-                pass
+            positional = tuple(_source_default(default) for default in node.args.defaults)
+            keyword = {
+                argument.arg: _source_default(default)
+                for argument, default in zip(node.args.kwonlyargs, node.args.kw_defaults)
+                if default is not None
+            }
+            found[qualname] = (
+                positional if positional else None,
+                keyword if keyword else None,
+            )
             visit(node.body, f"{qualname}.<locals>")
 
     visit(tree.body)
     return found
 
 
-def live_code_objects(module, source_aliases=None):
-    # Every binding path is walked independently. The second path in each result is the source
-    # binding a descriptor decorates: `Owner.marker.callback` is explicit live ownership, while
-    # `Owner.marker` is the qualified name compiling that declaration must produce.
+def _assigned_pairs(target, value):
+    if isinstance(target, ast.Attribute):
+        return ((target, value),)
+    if (
+        isinstance(target, (ast.Tuple, ast.List))
+        and isinstance(value, (ast.Tuple, ast.List))
+        and len(target.elts) == len(value.elts)
+    ):
+        return tuple(zip(target.elts, value.elts))
+    return ()
+
+
+def source_descriptor_callables(tree, aliases):
+    # Constructor ownership is source proof: an __init__ parameter must be assigned directly
+    # to self.<attribute>. Constructors are never run and argument position alone proves none.
+    constructors = {}
+
+    def index_classes(body):
+        for node in body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+            init = next(
+                (
+                    item
+                    for item in node.body
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and item.name == "__init__"
+                ),
+                None,
+            )
+            if init is not None:
+                positional = [*init.args.posonlyargs, *init.args.args][1:]
+                positions = {
+                    argument.arg: index for index, argument in enumerate(positional)
+                }
+                parameters = set(positions) | {
+                    argument.arg for argument in init.args.kwonlyargs
+                }
+                owned = {}
+                for statement in init.body:
+                    if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
+                        pairs = _assigned_pairs(statement.targets[0], statement.value)
+                    elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+                        pairs = _assigned_pairs(statement.target, statement.value)
+                    else:
+                        pairs = ()
+                    for target, value in pairs:
+                        if (
+                            isinstance(target, ast.Attribute)
+                            and isinstance(target.value, ast.Name)
+                            and target.value.id == "self"
+                            and isinstance(value, ast.Name)
+                            and value.id in parameters
+                        ):
+                            owned[target.attr] = (value.id, positions.get(value.id))
+                if owned:
+                    constructors[node.name] = owned
+            index_classes(node.body)
+
+    index_classes(tree.body)
+    found = {}
+
+    def callable_expression(expression, owner, local_names):
+        if isinstance(expression, ast.Name):
+            name = f"{owner}.{expression.id}" if expression.id in local_names else expression.id
+            return name, "function", None
+        if (
+            isinstance(expression, ast.Call)
+            and getattr(expression.func, "id", getattr(expression.func, "attr", None))
+            == "MethodType"
+            and len(expression.args) == 2
+            and not expression.keywords
+        ):
+            callback = callable_expression(expression.args[0], owner, local_names)
+            receiver = expression.args[1]
+            if callback is None or not (
+                isinstance(receiver, ast.Call)
+                and isinstance(receiver.func, ast.Name)
+                and not receiver.args
+                and not receiver.keywords
+            ):
+                return None
+            receiver_name = (
+                f"{owner}.{receiver.func.id}"
+                if receiver.func.id in local_names
+                else receiver.func.id
+            )
+            return callback[0], "method", receiver_name
+        return None
+
+    def visit(body, parent=""):
+        for node in body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+            owner = f"{parent}.{node.name}" if parent else node.name
+            local_names = {
+                item.name
+                for item in node.body
+                if isinstance(
+                    item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+                )
+            }
+            for statement in node.body:
+                if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    for decorator in statement.decorator_list:
+                        descriptor = getattr(decorator, "id", None)
+                        for attribute, (parameter, position) in constructors.get(
+                            descriptor, {}
+                        ).items():
+                            if position == 0 or parameter == "callback":
+                                found[f"{owner}.{statement.name}.{attribute}"] = (
+                                    f"{owner}.{statement.name}",
+                                    "function",
+                                    None,
+                                )
+                    continue
+                if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
+                    target, value = statement.targets[0], statement.value
+                elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+                    target, value = statement.target, statement.value
+                else:
+                    continue
+                if not (isinstance(target, ast.Name) and isinstance(value, ast.Call)):
+                    continue
+                descriptor = getattr(value.func, "id", None)
+                for attribute, (parameter, position) in constructors.get(descriptor, {}).items():
+                    expression = next(
+                        (
+                            keyword.value
+                            for keyword in value.keywords
+                            if keyword.arg == parameter
+                        ),
+                        value.args[position]
+                        if position is not None and position < len(value.args)
+                        else None,
+                    )
+                    provenance = (
+                        callable_expression(expression, owner, local_names)
+                        if expression is not None
+                        else None
+                    )
+                    if provenance is not None:
+                        found[f"{owner}.{target.id}.{attribute}"] = provenance
+            visit(node.body, owner)
+
+    visit(tree.body)
+    for alias, target in aliases.items():
+        for binding, provenance in tuple(found.items()):
+            if binding.startswith(target + "."):
+                found[alias + binding[len(target):]] = provenance
+    return found
+
+
+def live_code_objects(module, source_aliases=None, source_callables=None):
+    # Every binding path is walked independently. The second path in each result is its
+    # source-proven callable declaration, including constructor-composed callbacks.
     name = getattr(module, "__name__", None)
     aliases = source_aliases or {}
+    callables = source_callables or {}
     for attribute, value in sorted(vars(module).items(), key=lambda item: item[0]):
-        yield from _code_objects_of(attribute, value, name, (), source_aliases=aliases)
+        yield from _code_objects_of(
+            attribute, value, name, (), source_aliases=aliases,
+            source_callables=callables,
+        )
+
+
+def _receiver_bytes(receiver):
+    receiver_type = receiver if isinstance(receiver, type) else type(receiver)
+    identity = _constant_bytes((receiver_type.__module__, receiver_type.__qualname__))
+    if isinstance(receiver, type):
+        return _frame(b"C", identity)
+    state = {}
+    for base in receiver_type.__mro__:
+        descriptor = vars(base).get("__dict__")
+        if isinstance(descriptor, (types.GetSetDescriptorType, types.MemberDescriptorType)):
+            try:
+                candidate = descriptor.__get__(receiver, receiver_type)
+            except AttributeError:
+                candidate = None
+            if type(candidate) is dict:
+                state = candidate
+            break
+    # Only a concrete dictionary in the existing typed literal/container domain is opened.
+    # No receiver getter runs and no referenced arbitrary object graph is serialized.
+    return _frame(b"I", identity + _constant_bytes(state))
+
+
+def _callable_bytes(value):
+    target = getattr(value, "__func__", value)
+    defaults = _constant_bytes((target.__defaults__, target.__kwdefaults__))
+    if isinstance(value, types.MethodType):
+        return _frame(
+            b"M", _code_bytes(target.__code__) + defaults + _receiver_bytes(value.__self__)
+        )
+    return _frame(b"F", _code_bytes(target.__code__) + defaults)
 
 
 def _descriptor_value_bytes(value):
@@ -629,7 +819,7 @@ def _descriptor_value_bytes(value):
     # opaque hashable object we encode only its concrete type: equal-type duplicates then receive
     # deterministic ordinals, while traversal still refuses to open that external object.
     if isinstance(value, (types.FunctionType, types.MethodType)):
-        return _frame(b"F", _code_bytes(value.__code__))
+        return _callable_bytes(value)
     if type(value) in {
         type(None),
         bool,
@@ -701,6 +891,7 @@ def _code_objects_of(
     source_binding=None,
     descriptor_owned=False,
     source_aliases=None,
+    source_callables=None,
 ):
     # Cycle prevention is per binding path, so aliases remain visible while a descriptor state
     # dictionary that points back to itself terminates. Only descriptor-owned built-in
@@ -729,6 +920,7 @@ def _code_objects_of(
                 descendants,
                 declared,
                 source_aliases=source_aliases,
+                source_callables=source_callables,
             )
         return
     # Descriptor-member introspection is valid only at the class-bound root. Reaching another
@@ -738,14 +930,17 @@ def _code_objects_of(
     if members:
         declared_binding = source_binding or prefix
         for attribute, member in members:
+            binding = f"{prefix}.{attribute}"
+            callable_source = (source_callables or {}).get(binding)
             yield from _code_objects_of(
-                f"{prefix}.{attribute}",
+                binding,
                 member,
                 module_name,
                 descendants,
-                declared_binding,
+                callable_source[0] if callable_source else declared_binding,
                 True,
                 source_aliases,
+                source_callables,
             )
         return
     if descriptor_owned and type(value) in {list, tuple}:
@@ -758,6 +953,7 @@ def _code_objects_of(
                 source_binding,
                 True,
                 source_aliases,
+                source_callables,
             )
     elif descriptor_owned and type(value) is dict:
         entries = []
@@ -783,6 +979,7 @@ def _code_objects_of(
                 source_binding,
                 True,
                 source_aliases,
+                source_callables,
             )
     elif descriptor_owned and type(value) in {set, frozenset}:
         members = [(_descriptor_value_bytes(member), member) for member in value]
@@ -796,7 +993,47 @@ def _code_objects_of(
                 source_binding,
                 True,
                 source_aliases,
+                source_callables,
             )
+
+
+def _default_differences(expected, function):
+    target = getattr(function, "__func__", function)
+    positional, keyword = expected
+    live_positional = target.__defaults__
+    live_keyword = target.__kwdefaults__
+    issues = []
+    if (positional is None) != (live_positional is None):
+        issues.append("positional defaults presence")
+    elif positional is not None and len(positional) != len(live_positional):
+        issues.append("positional defaults length")
+    elif positional is not None:
+        for index, (source_value, live_value) in enumerate(zip(positional, live_positional)):
+            if source_value is UNBOUND_DEFAULT:
+                continue
+            try:
+                encoded = _constant_bytes(live_value)
+            except (TypeError, ValueError):
+                issues.append(f"unsupported positional default slot {index}")
+            else:
+                if encoded != source_value:
+                    issues.append(f"positional default slot {index}")
+    if (keyword is None) != (live_keyword is None):
+        issues.append("keyword-only defaults presence")
+    elif keyword is not None and set(keyword) != set(live_keyword):
+        issues.append("keyword-only default keys")
+    elif keyword is not None:
+        for name, source_value in keyword.items():
+            if source_value is UNBOUND_DEFAULT:
+                continue
+            try:
+                encoded = _constant_bytes(live_keyword[name])
+            except (TypeError, ValueError):
+                issues.append(f"unsupported keyword-only default {name!r}")
+            else:
+                if encoded != source_value:
+                    issues.append(f"keyword-only default {name!r}")
+    return issues
 
 
 def product_identity():
@@ -849,6 +1086,7 @@ def product_identity():
             module_tree = ast.parse(source, filename=str(path))
             generated_by_dataclass = dataclass_generated_names(module_tree)
             member_aliases = source_member_aliases(module_tree)
+            descriptor_callables = source_descriptor_callables(module_tree, member_aliases)
             function_defaults = source_function_defaults(module_tree)
             class_nodes = {
                 node.name: node
@@ -858,6 +1096,7 @@ def product_identity():
         except SyntaxError:
             generated_by_dataclass = {}
             member_aliases = {}
+            descriptor_callables = {}
             function_defaults = {}
             class_nodes = {}
         producible = {}
@@ -883,7 +1122,9 @@ def product_identity():
                 substitutions.append(
                     f"{relative}::{attribute} does not hold the value this file assigns"
                 )
-        for binding, qualname, code, function in live_code_objects(module, member_aliases):
+        for binding, qualname, code, function in live_code_objects(
+            module, member_aliases, descriptor_callables
+        ):
             origin = code.co_filename
             # Compiler-generated methods, narrowly. `@dataclass` compiles exactly these
             # dunders with the filename "<string>", and they genuinely do not exist in the
@@ -910,6 +1151,45 @@ def product_identity():
                 if Path(origin).is_absolute()
             ):
                 continue
+            callable_source = descriptor_callables.get(binding)
+            expected_kind = callable_source[1] if callable_source else "function"
+            if expected_kind == "function" and isinstance(function, types.MethodType):
+                substitutions.append(
+                    f"{relative}::{binding} is a bound method where source declares "
+                    "an unbound function"
+                )
+                continue
+            if expected_kind == "method":
+                receiver_name = callable_source[2]
+                if not isinstance(function, types.MethodType):
+                    substitutions.append(
+                        f"{relative}::{binding} is an unbound function where source declares a bound method"
+                    )
+                    continue
+                receiver = function.__self__
+                receiver_type = receiver if isinstance(receiver, type) else type(receiver)
+                if receiver_type.__module__ != module.__name__ or receiver_type.__qualname__ != receiver_name:
+                    substitutions.append(
+                        f"{relative}::{binding} has a method receiver that differs from its source declaration"
+                    )
+                    continue
+                try:
+                    receiver_state = _receiver_bytes(receiver)
+                    empty_state = _frame(
+                        b"I",
+                        _constant_bytes((receiver_type.__module__, receiver_type.__qualname__))
+                        + _constant_bytes({}),
+                    )
+                except (TypeError, ValueError):
+                    substitutions.append(
+                        f"{relative}::{binding} has unsupported method receiver state"
+                    )
+                    continue
+                if not isinstance(receiver, type) and receiver_state != empty_state:
+                    substitutions.append(
+                        f"{relative}::{binding} has source-undetermined method receiver state"
+                    )
+                    continue
             if origin != str(path):
                 substitutions.append(
                     f"{relative}::{binding} claims {origin}"
@@ -919,21 +1199,10 @@ def product_identity():
                     f"{relative}::{binding} is not compiled from this file under that name"
                 )
             elif qualname in function_defaults:
-                target = getattr(function, "__func__", function)
-                try:
-                    live_defaults = _constant_bytes(
-                        (target.__defaults__, target.__kwdefaults__)
-                    )
-                except (TypeError, ValueError):
+                for difference in _default_differences(function_defaults[qualname], function):
                     substitutions.append(
-                        f"{relative}::{binding} has unsupported invocation defaults"
+                        f"{relative}::{binding} has {difference} that differs from its source declaration"
                     )
-                else:
-                    if live_defaults != function_defaults[qualname]:
-                        substitutions.append(
-                            f"{relative}::{binding} has invocation defaults that differ "
-                            "from its source declaration"
-                        )
     return digests, sorted(set(substitutions))
 
 

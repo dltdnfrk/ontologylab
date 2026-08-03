@@ -2074,8 +2074,8 @@ vars(A12ModulelessDefaultOwner)["marker"].callback.__defaults__ = ("leftover",)
     payload = json.loads(result.stdout)
     details = " ".join(issue["detail"] for issue in payload["issues"])
     assert (
-        "A12ModulelessDefaultOwner.marker.callback has invocation defaults that differ "
-        "from its source declaration"
+        "A12ModulelessDefaultOwner.marker.callback has positional default slot 0 "
+        "that differs from its source declaration"
     ) in details
     assert result.returncode == 1
 
@@ -2395,14 +2395,143 @@ assert a12_nested()["items"] == ["leftover"]
 
     payload = json.loads(result.stdout)
     details = " ".join(issue["detail"] for issue in payload["issues"])
-    owners = ("a12_positional", "a12_keyword", "a12_nested")
+    expected = {
+        "a12_positional": "positional default slot 0",
+        "a12_keyword": "keyword-only default 'label'",
+        "a12_nested": "positional default slot 0",
+    }
     missing = [
-        owner for owner in owners
-        if f"{owner} has invocation defaults that differ from its source declaration"
-        not in details
+        owner for owner, slot in expected.items()
+        if f"{owner} has {slot} that differs from its source declaration" not in details
     ]
     assert missing == [], (missing, details)
     assert result.returncode == 1
+
+
+def test_cli_rejects_literal_slots_inside_mixed_source_defaults(
+    tmp_path: Path,
+) -> None:
+    """Nonliteral neighbors cannot erase positional or keyword-only literal slots."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+_A13_OPAQUE = object()
+def a13_literal_first(literal="source", opaque=_A13_OPAQUE): return literal
+
+def a13_literal_last(opaque=_A13_OPAQUE, literal="source"): return literal
+
+def a13_posonly(first="source", opaque=_A13_OPAQUE, /, regular={"items": ["source"]}, *, named="source", required):
+    return first, opaque, regular, named, required
+
+a13_literal_first.__defaults__ = ("leftover", _A13_OPAQUE)
+a13_literal_last.__defaults__ = (_A13_OPAQUE, "leftover")
+a13_posonly.__defaults__ = ("leftover", _A13_OPAQUE, {"items": ["leftover"]})
+a13_posonly.__kwdefaults__["named"] = "leftover"
+assert a13_literal_first() == "leftover"
+assert a13_literal_last() == "leftover"
+assert a13_posonly(required=True)[0:4:2] == ("leftover", {"items": ["leftover"]})
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    expected = (
+        "a13_literal_first has positional default slot 0",
+        "a13_literal_last has positional default slot 1",
+        "a13_posonly has positional default slot 0",
+        "a13_posonly has positional default slot 2",
+        "a13_posonly has keyword-only default 'named'",
+    )
+    assert [owner for owner in expected if owner not in details] == []
+    assert result.returncode == 1
+
+
+def test_cli_accepts_clean_mixed_defaults(tmp_path: Path) -> None:
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+_A13_CLEAN_OPAQUE = object()
+def a13_clean_mixed(first="source", opaque=_A13_CLEAN_OPAQUE, /, last={"items": ["source"]}, *, named="source"):
+    return first, opaque, last, named
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["issues"] == []
+
+
+def test_cli_binds_mixed_default_shape_even_when_values_are_nonliteral(
+    tmp_path: Path,
+) -> None:
+    """None/tuple and keyword-key shape are source facts even for opaque slots."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+_A13_SHAPE = object()
+def a13_shape(value=_A13_SHAPE, *, named=_A13_SHAPE): return value, named
+a13_shape.__defaults__ = None
+a13_shape.__kwdefaults__ = {"other": _A13_SHAPE}
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    assert "a13_shape has positional defaults presence" in details
+    assert "a13_shape has keyword-only default keys" in details
+    assert result.returncode == 1
+
+
+def test_shipped_mixed_default_inventory_binds_every_supported_slot() -> None:
+    """Derive the inventory from shipped ASTs; no count is pinned across revisions."""
+    helpers = _shipped_helpers(
+        "_frame", "_constant_bytes", "_code_bytes", "_source_default",
+        "source_function_defaults",
+    )
+    derive = helpers["source_function_defaults"]
+    sentinel = helpers["source_function_defaults"].__globals__["UNBOUND_DEFAULT"]
+    repository = Path(__file__).resolve().parents[1]
+    expected_supported = observed_supported = mixed_functions = 0
+    for path in sorted((repository / "ontologylab").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for function in ast.walk(tree):
+            if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            defaults = (
+                *function.args.defaults,
+                *(item for item in function.args.kw_defaults if item is not None),
+            )
+            for default in defaults:
+                try:
+                    ast.literal_eval(default)
+                except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+                    continue
+                expected_supported += 1
+        states = derive(tree)
+        for positional, keyword in states.values():
+            slots = [*(positional or ()), *(keyword or {}).values()]
+            observed_supported += sum(value is not sentinel for value in slots)
+            if any(value is sentinel for value in slots) and any(value is not sentinel for value in slots):
+                mixed_functions += 1
+    assert observed_supported == expected_supported
+    assert mixed_functions > 0
 
 
 def test_cli_fails_closed_on_unsupported_and_cyclic_live_defaults(
@@ -2428,8 +2557,8 @@ a12_unsupported_default.__defaults__ = (object(),)
 
     payload = json.loads(result.stdout)
     details = " ".join(issue["detail"] for issue in payload["issues"])
-    assert "a12_unsupported_default has unsupported invocation defaults" in details
-    assert "a12_cyclic_default has unsupported invocation defaults" in details
+    assert "a12_unsupported_default has unsupported positional default slot 0" in details
+    assert "a12_cyclic_default has unsupported positional default slot 0" in details
     assert result.returncode == 1
 
 
@@ -2453,6 +2582,262 @@ def a12_clean_nested(config={"items": ["source"]}): return config
     payload = json.loads(result.stdout)
     assert result.returncode == 0, payload["issues"]
     assert payload["ok"] is True
+
+
+def test_cli_rejects_function_to_methodtype_descriptor_rebinding(
+    tmp_path: Path,
+) -> None:
+    """MethodType kind and __self__ are invocation state, not an alias for __func__."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+import types as _a13_types
+class A13MethodDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback.__get__(instance, owner)
+class A13MethodOwner:
+    label = "source"
+    @A13MethodDescriptor
+    def marker(self): return self.label
+class A13MethodReceiver:
+    label = "leftover"
+vars(A13MethodOwner)["marker"].callback = _a13_types.MethodType(
+    vars(A13MethodOwner)["marker"].callback, A13MethodReceiver()
+)
+assert A13MethodOwner().marker() == "leftover"
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    assert (
+        "A13MethodOwner.marker.callback is a bound method where source declares an unbound function"
+        in details
+    )
+    assert result.returncode == 1
+
+
+def test_cli_accepts_clean_callable_wrappers_and_library_bound_callback(
+    tmp_path: Path,
+) -> None:
+    """Clean functions, static/class methods, and external bound callbacks stay green."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+import pathlib as _a13_pathlib
+import types as _a13_clean_types
+class A13WrapperDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback.__get__(instance, owner)
+class A13CleanFunctionOwner:
+    @A13WrapperDescriptor
+    def marker(self): return "source"
+class A13StaticClassOwner:
+    @staticmethod
+    def static(): return "source"
+    @classmethod
+    def build(cls): return cls()
+class A13BoundLibraryOwner:
+    marker = A13WrapperDescriptor(_a13_pathlib.Path(".").exists)
+class A13StatelessReceiver: pass
+def a13_clean_bound(self): return "source"
+class A13CleanBoundOwner:
+    marker = A13WrapperDescriptor(
+        _a13_clean_types.MethodType(a13_clean_bound, A13StatelessReceiver())
+    )
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["issues"] == []
+
+
+@pytest.mark.parametrize("mutation", ("receiver", "function"))
+def test_cli_rejects_changed_source_declared_methodtype(
+    tmp_path: Path, mutation: str
+) -> None:
+    """The narrow source MethodType domain binds wrapper kind and receiver identity."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+import types as _a13_types2
+class A13BoundDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A13ExpectedReceiver: pass
+class A13OtherReceiver: pass
+def a13_bound_callback(self): return type(self).__name__
+class A13BoundOwner:
+    marker = A13BoundDescriptor(_a13_types2.MethodType(a13_bound_callback, A13ExpectedReceiver()))
+if """
+        + repr(mutation)
+        + """ == "receiver":
+    vars(A13BoundOwner)["marker"].callback = _a13_types2.MethodType(a13_bound_callback, A13OtherReceiver())
+else:
+    vars(A13BoundOwner)["marker"].callback = a13_bound_callback
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    expected = (
+        "has a method receiver that differs"
+        if mutation == "receiver"
+        else "is an unbound function where source declares a bound method"
+    )
+    assert f"A13BoundOwner.marker.callback {expected}" in details
+    assert result.returncode == 1
+
+
+def test_methodtype_container_tokens_include_receiver_state() -> None:
+    helpers = _shipped_helpers(
+        "_frame", "_constant_bytes", "_code_bytes", "_descriptor_value_bytes"
+    )
+    encode = helpers["_descriptor_value_bytes"]
+    namespace: dict[str, object] = {}
+    exec("def callback(self): return self.label", namespace)
+    callback = namespace["callback"]
+    first = types.SimpleNamespace(label="first")
+    second = types.SimpleNamespace(label="second")
+    assert encode(types.MethodType(callback, first)) != encode(types.MethodType(callback, second))
+
+
+def test_methodtype_set_paths_are_stable_across_hash_seeds(tmp_path: Path) -> None:
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+import types as _a13_set_types
+class A13MethodSetDescriptor:
+    def __init__(self, callback): self.callbacks = {callback}
+    def __get__(self, instance, owner): return next(iter(self.callbacks))
+class A13MethodSetOwner:
+    @A13MethodSetDescriptor
+    def marker(self): return type(self).__name__
+class A13SetFirst: pass
+class A13SetSecond: pass
+_a13_method = vars(A13MethodSetOwner)["marker"].callbacks.pop()
+vars(A13MethodSetOwner)["marker"].callbacks = {
+    _a13_set_types.MethodType(_a13_method, A13SetFirst()),
+    _a13_set_types.MethodType(_a13_method, A13SetSecond()),
+}
+""",
+        encoding="utf-8",
+    )
+    details = []
+    for seed in ("1", "271"):
+        result = _run_checker(
+            tmp_path, document, environment={**os.environ, "PYTHONHASHSEED": seed}
+        )
+        assert result.returncode == 1
+        detail = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+        assert detail.count("A13MethodSetOwner.marker.callbacks{member:") == 2
+        details.append(detail)
+    assert details[0] == details[1]
+
+
+@pytest.mark.parametrize("callback_form", ("module", "class"))
+def test_cli_accepts_source_declared_descriptor_constructor_callbacks(
+    tmp_path: Path, callback_form: str
+) -> None:
+    """Constructor assignment proves module/class callback provenance without live identity."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    declaration = (
+        "def a13_module_callback(self): return 'source'\n"
+        "class A13ModuleCallbackOwner:\n"
+        "    marker: object = A13ComposedDescriptor(callback=a13_module_callback)\n"
+        "assert A13ModuleCallbackOwner().marker() == 'source'\n"
+        if callback_form == "module"
+        else "class A13ClassCallbackOwner:\n"
+        "    def callback(self): return 'source'\n"
+        "    marker = A13ComposedDescriptor(callback)\n"
+        "assert A13ClassCallbackOwner().marker() == 'source'\n"
+    )
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+class A13ComposedDescriptor:
+    def __init__(self, callback): self.callback: object = callback
+    def __get__(self, instance, owner): return self.callback.__get__(instance, owner)
+"""
+        + declaration,
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["issues"] == []
+
+
+@pytest.mark.parametrize("replacement", ("sibling", "moduleless", "synthetic"))
+def test_cli_rejects_descriptor_constructor_callback_substitution(
+    tmp_path: Path, replacement: str
+) -> None:
+    """Provenance remains the source argument, never the replacement's live qualname."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    if replacement == "sibling":
+        mutation = 'vars(A13NegativeOwner)["marker"].callback = a13_sibling\n'
+    elif replacement == "moduleless":
+        mutation = (
+            "a13_sibling.__module__ = None\n"
+            'vars(A13NegativeOwner)["marker"].callback = a13_sibling\n'
+        )
+    else:
+        mutation = (
+            '_a13_ns = {"__name__": __name__}\n'
+            'exec(compile("def a13_original(self): return \'leftover\'", '
+            '"<string>", "exec"), _a13_ns)\n'
+            'vars(A13NegativeOwner)["marker"].callback = _a13_ns["a13_original"]\n'
+        )
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+class A13NegativeDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback.__get__(instance, owner)
+def a13_original(self): return "source"
+def a13_sibling(self): return "leftover"
+class A13NegativeOwner:
+    marker = A13NegativeDescriptor(a13_original)
+"""
+        + mutation,
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    assert "A13NegativeOwner.marker.callback" in details
+    if replacement in {"sibling", "moduleless"}:
+        assert "not compiled from this file under that name" in details
+    else:
+        assert "was compiled from <string>" in details
+    assert result.returncode == 1
 
 
 def test_cli_rejects_a_callable_rebound_inside_a_custom_descriptor(
@@ -3439,8 +3824,13 @@ def _shipped_helpers(*names: str) -> dict[str, object]:
         "struct": struct,
         "types": types,
         "CodeType": CodeType,
+        "UNBOUND_DEFAULT": object(),
     }
-    for name in names:
+    requested = list(names)
+    if "_descriptor_value_bytes" in requested:
+        insertion = requested.index("_descriptor_value_bytes")
+        requested[insertion:insertion] = ["_receiver_bytes", "_callable_bytes"]
+    for name in requested:
         definition = next(
             node
             for node in tree.body
