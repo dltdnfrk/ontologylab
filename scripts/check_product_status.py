@@ -631,15 +631,27 @@ def _assigned_pairs(target, value):
 def source_descriptor_callables(tree, aliases, module_name):
     # Source-only binding model, walked in execution order. Aliases, shadows, and deletions
     # retain exactly the constructor identity visible when each descriptor call occurred.
+    # Definition events, rather than qualified names, are the unit of temporal binding.
+    # Reusing a name creates a new event without destroying metadata retained by an earlier call.
     classes = {}
+    classes_by_name = {}
 
     def index(body, parent=''):
         for node in body:
             if isinstance(node, ast.ClassDef):
                 q = f'{parent}.{node.name}' if parent else node.name
-                classes[q] = node
+                event = (q, node.lineno)
+                classes[event] = node
+                classes_by_name.setdefault(q, []).append(event)
                 index(node.body, q)
     index(tree.body)
+
+    def definition_event(qualname, node):
+        first_line = min(
+            (decorator.lineno for decorator in getattr(node, 'decorator_list', ())),
+            default=node.lineno,
+        )
+        return (qualname, first_line)
 
     def dotted(node):
         out = []
@@ -659,19 +671,26 @@ def source_descriptor_callables(tree, aliases, module_name):
         kind, value = binding
         tail = parts[1:]
         if kind == 'class':
-            q = '.'.join((value, *tail))
-            return (kind, q) if q in classes else None
+            if not tail:
+                return binding
+            q = '.'.join((value[0], *tail))
+            events = classes_by_name.get(q)
+            return (kind, events[-1]) if events else None
         if kind == 'import':
-            mod, path = value
+            mod, path, imported_tail = value
+            if imported_tail and tuple(tail[:len(imported_tail)]) == imported_tail:
+                tail = tail[len(imported_tail):]
+            elif imported_tail:
+                mod = mod.split('.', 1)[0]
             return ('external', (mod, (*path, *tail)))
         return binding if not tail else None
     constructors = {}
     inits = {}
-    for q, node in classes.items():
+    for event, node in classes.items():
         init = next((x for x in node.body if isinstance(x, (ast.FunctionDef, ast.AsyncFunctionDef)) and x.name == '__init__'), None)
         if not init:
             continue
-        inits[q] = init
+        inits[event] = init
         pos = [*init.args.posonlyargs, *init.args.args][1:]
         positions = {x.arg: i for i, x in enumerate(pos)}
         params = set(positions) | {x.arg for x in init.args.kwonlyargs}
@@ -682,12 +701,12 @@ def source_descriptor_callables(tree, aliases, module_name):
                 if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and (target.value.id == 'self') and isinstance(value, ast.Name) and (value.id in params):
                     owned[target.attr] = (value.id, positions.get(value.id))
         if owned:
-            constructors[q] = owned
+            constructors[event] = owned
 
-    def slots(q):
+    def slots(event):
         names = []
         declared = False
-        for st in classes[q].body:
+        for st in classes[event].body:
             target, value = (st.targets[0], st.value) if isinstance(st, ast.Assign) and len(st.targets) == 1 else (st.target, st.value) if isinstance(st, ast.AnnAssign) and st.value is not None else (None, None)
             if not isinstance(target, ast.Name) or target.id != '__slots__':
                 continue
@@ -706,16 +725,16 @@ def source_descriptor_callables(tree, aliases, module_name):
         return (tuple(names), declared)
     bases = {}
 
-    def c3(q, active=()):
-        if q in active or bases.get(q) is None:
+    def c3(event, active=()):
+        if event in active or bases.get(event) is None:
             return None
         inherited = []
-        for base in bases[q]:
-            line = c3(base, (*active, q))
+        for base in bases[event]:
+            line = c3(base, (*active, event))
             if line is None:
                 return None
             inherited.append(list(line))
-        seq = [*inherited, list(bases[q])]
+        seq = [*inherited, list(bases[event])]
         merged = []
         while any(seq):
             seq = [x for x in seq if x]
@@ -726,7 +745,7 @@ def source_descriptor_callables(tree, aliases, module_name):
             for x in seq:
                 if x and x[0] == head:
                     x.pop(0)
-        return (q, *merged)
+        return (event, *merged)
 
     def encoded(node, params):
         if isinstance(node, ast.Name) and node.id in params:
@@ -769,8 +788,8 @@ def source_descriptor_callables(tree, aliases, module_name):
                 values[param.arg] = value
         return values
 
-    def receiver_bytes(q, call):
-        mro = c3(q)
+    def receiver_bytes(event, call):
+        mro = c3(event)
         if mro is None:
             return None
         records = {}
@@ -782,7 +801,7 @@ def source_descriptor_callables(tree, aliases, module_name):
                 return None
             names, declared = declaration
             has_dict |= not declared or '__dict__' in names
-            short = owner.rsplit('.', 1)[-1].lstrip('_')
+            short = owner[0].rsplit('.', 1)[-1].lstrip('_')
             for name in names:
                 if name in {'__dict__', '__weakref__'}:
                     continue
@@ -792,7 +811,7 @@ def source_descriptor_callables(tree, aliases, module_name):
         dictionary = {}
 
         def store(name, value, owner):
-            short = owner.rsplit('.', 1)[-1].lstrip('_')
+            short = owner[0].rsplit('.', 1)[-1].lstrip('_')
             storage = f'_{short}{name}' if name.startswith('__') and (not name.endswith('__')) else name
             choices = [record for cls in mro for record in by_source.get(name, ()) if record[0] == cls]
             if choices:
@@ -841,16 +860,19 @@ def source_descriptor_callables(tree, aliases, module_name):
             return True
         if not run(0, call.args, call.keywords):
             return None
-        ident = _constant_bytes((module_name, q))
+        ident = _constant_bytes((module_name, event[0]))
         db = _frame(b'D', b''.join(sorted((_frame(b'P', _constant_bytes(k) + v) for k, v in dictionary.items()))))
-        sb = b''.join((_frame(b'S', _constant_bytes((module_name, o, n, p)) + (v if p else b'')) for (o, n), (p, v) in records.items()))
+        sb = b''.join(
+            _frame(b'S', _constant_bytes((module_name, o[0], n, p)) + (v if p else b''))
+            for (o, n), (p, v) in sorted(records.items())
+        )
         return _frame(b'I', ident + db + _frame(b'L', sb))
     found = {}
 
     def callable_expr(node, local):
         if isinstance(node, ast.Name):
             binding = resolve(node, local)
-            return (binding[1], 'function', None, None) if binding and binding[0] == 'function' else None
+            return (binding[1][0], 'function', None, None, binding[1]) if binding and binding[0] == 'function' else None
         if not (isinstance(node, ast.Call) and dotted(node.func) and (dotted(node.func)[-1] == 'MethodType') and (len(node.args) == 2) and (not node.keywords)):
             return None
         callback = callable_expr(node.args[0], local)
@@ -861,14 +883,14 @@ def source_descriptor_callables(tree, aliases, module_name):
             binding = resolve(recv.func, local)
             if not binding or binding[0] != 'class':
                 return None
-            identity = (module_name, binding[1])
+            identity = (module_name, binding[1][0])
             state = receiver_bytes(binding[1], recv)
         else:
             binding = resolve(recv, local)
             if not binding or binding[0] not in {'class', 'external'}:
                 return None
             if binding[0] == 'class':
-                identity = (module_name, binding[1])
+                identity = (module_name, binding[1][0])
             else:
                 mod, path = binding[1]
                 if not path:
@@ -877,27 +899,30 @@ def source_descriptor_callables(tree, aliases, module_name):
             state = None if binding[0] == 'external' else _frame(b'C', _constant_bytes(identity))
         if isinstance(recv, ast.Call) and state is None:
             return None
-        return (callback[0], 'method', identity, state)
+        return (callback[0], 'method', identity, state, callback[4])
 
     def imports(st):
         out = {}
         if isinstance(st, ast.Import):
             for x in st.names:
-                key = x.asname or x.name.split('.', 1)[0]
-                mod = x.name if x.asname else x.name.split('.', 1)[0]
-                out[key] = ('import', (mod, ()))
+                parts = tuple(x.name.split('.'))
+                key = x.asname or parts[0]
+                imported_tail = () if x.asname else parts[1:]
+                out[key] = ('import', (x.name, (), imported_tail))
         elif isinstance(st, ast.ImportFrom) and st.module and (st.level == 0):
             for x in st.names:
                 if x.name != '*':
-                    out[x.asname or x.name] = ('import', (st.module, tuple(x.name.split('.'))))
+                    out[x.asname or x.name] = ('import', (st.module, tuple(x.name.split('.')), ()))
         return out
 
-    def assignment(st):
-        if isinstance(st, ast.Assign) and len(st.targets) == 1:
-            return (st.targets[0], st.value)
-        if isinstance(st, ast.AnnAssign) and st.value is not None:
-            return (st.target, st.value)
-        return (None, None)
+    def assignments(st):
+        # One RHS is bound to every chained Name target. Attributes and destructuring remain
+        # outside this explicit static alias contract rather than being guessed.
+        if isinstance(st, ast.Assign) and all(isinstance(target, ast.Name) for target in st.targets):
+            return tuple((target, st.value) for target in st.targets)
+        if isinstance(st, ast.AnnAssign) and st.value is not None and isinstance(st.target, ast.Name):
+            return ((st.target, st.value),)
+        return ()
 
     def record(owner, target, value, local):
         if not isinstance(target, ast.Name) or not isinstance(value, ast.Call):
@@ -921,7 +946,7 @@ def source_descriptor_callables(tree, aliases, module_name):
                 resolved.append(binding[1])
             elif dotted(base) != ('object',):
                 bad = True
-        bases[owner] = None if bad else tuple(resolved)
+        bases[(owner, node.lineno)] = None if bad else tuple(resolved)
         for st in node.body:
             if isinstance(st, (ast.Import, ast.ImportFrom)):
                 local.update(imports(st))
@@ -932,17 +957,17 @@ def source_descriptor_callables(tree, aliases, module_name):
                     if descriptor and descriptor[0] == 'class':
                         for attr, (param, pos) in constructors.get(descriptor[1], {}).items():
                             if pos == 0 or param == 'callback':
-                                found[f'{owner}.{st.name}.{attr}'] = (f'{owner}.{st.name}', 'function', None, None)
-                local[st.name] = ('function', f'{owner}.{st.name}')
+                                function_event = definition_event(f'{owner}.{st.name}', st)
+                                found[f'{owner}.{st.name}.{attr}'] = (function_event[0], 'function', None, None, function_event)
+                local[st.name] = ('function', definition_event(f'{owner}.{st.name}', st))
                 continue
             if isinstance(st, ast.ClassDef):
                 nested = f'{owner}.{st.name}'
                 process_class(st, nested, local)
-                local[st.name] = ('class', nested)
+                local[st.name] = ('class', (nested, st.lineno))
                 continue
-            target, value = assignment(st)
-            record(owner, target, value, local)
-            if isinstance(target, ast.Name):
+            for target, value in assignments(st):
+                record(owner, target, value, local)
                 local[target.id] = resolve(value, local)
             if isinstance(st, ast.Delete):
                 for target in st.targets:
@@ -953,14 +978,13 @@ def source_descriptor_callables(tree, aliases, module_name):
             module.update(imports(st))
             continue
         if isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            module[st.name] = ('function', st.name)
+            module[st.name] = ('function', definition_event(st.name, st))
             continue
         if isinstance(st, ast.ClassDef):
             process_class(st, st.name, {})
-            module[st.name] = ('class', st.name)
+            module[st.name] = ('class', (st.name, st.lineno))
             continue
-        target, value = assignment(st)
-        if isinstance(target, ast.Name):
+        for target, value in assignments(st):
             module[target.id] = resolve(value, {})
         if isinstance(st, ast.Delete):
             for target in st.targets:
@@ -1015,7 +1039,7 @@ def _receiver_bytes(receiver):
     slots = []
     for base in reversed(receiver_mro):
         namespace = type.__getattribute__(base, "__dict__")
-        for name, descriptor in sorted(namespace.items()):
+        for name, descriptor in namespace.items():
             if name in {"__dict__", "__weakref__"} or not isinstance(
                 descriptor, types.MemberDescriptorType
             ):
@@ -1028,25 +1052,28 @@ def _receiver_bytes(receiver):
             else:
                 present = True
                 encoded = _constant_bytes(value)
+            identity_record = (
+                type.__getattribute__(base, "__module__"),
+                type.__getattribute__(base, "__qualname__"),
+                name,
+            )
             slots.append(
-                _frame(
-                    b"S",
-                    _constant_bytes(
-                        (
-                            type.__getattribute__(base, "__module__"),
-                            type.__getattribute__(base, "__qualname__"),
-                            name,
-                            present,
-                        )
-                    )
-                    + encoded,
+                (
+                    identity_record,
+                    _frame(
+                        b"S",
+                        _constant_bytes((*identity_record, present)) + encoded,
+                    ),
                 )
             )
     # Only concrete CPython dictionary/slot descriptors are opened. No receiver getter or
     # custom __getattribute__ runs, and unsupported/cyclic slot values fail closed. Distinct
     # same-class instances with the same supported state remain residual-5-receiver-identity.
     return _frame(
-        b"I", identity + _constant_bytes(state) + _frame(b"L", b"".join(slots))
+        b"I",
+        identity
+        + _constant_bytes(state)
+        + _frame(b"L", b"".join(record for _, record in sorted(slots))),
     )
 
 
@@ -1355,10 +1382,13 @@ def product_identity():
             function_defaults = {}
             class_nodes = {}
         producible = {}
+        producible_events = {}
         pending = [compiled]
         while pending:
             code = pending.pop()
-            producible.setdefault(code.co_qualname, set()).add(code_fingerprint(code))
+            fingerprint = code_fingerprint(code)
+            producible.setdefault(code.co_qualname, set()).add(fingerprint)
+            producible_events[code.co_qualname, code.co_firstlineno] = fingerprint
             pending.extend(
                 const for const in code.co_consts if isinstance(const, CodeType)
             )
@@ -1470,7 +1500,12 @@ def product_identity():
                 substitutions.append(
                     f"{relative}::{binding} claims {origin}"
                 )
-            elif code_fingerprint(code) not in producible.get(qualname, frozenset()):
+            elif callable_source and len(callable_source) > 4 and code_fingerprint(code) != producible_events.get(callable_source[4]):
+                substitutions.append(
+                    f"{relative}::{binding} is not compiled from this file under that name "
+                    "(source definition event mismatch)"
+                )
+            elif not callable_source and code_fingerprint(code) not in producible.get(qualname, frozenset()):
                 substitutions.append(
                     f"{relative}::{binding} is not compiled from this file under that name"
                 )

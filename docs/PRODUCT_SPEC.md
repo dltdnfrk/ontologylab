@@ -423,17 +423,24 @@ presence·타입 보존 값을 결정적으로 인코딩한다. 직접 `self.nam
 
 slot MRO는 C3 순서로 공통 diamond base를 한 번만 포함하며 실제 순환은 거부한다.
 `__slots__`의 문자열·list·tuple뿐 아니라 mapping 형식의 key도 slot 이름으로 취급하되
-문서화 value는 순회하지 않는다. 상속 slot과 unset slot도 구조에 포함하고
+문서화 value는 순회하지 않는다. 소스와 라이브 slot 상태는 선언·hash·MRO 순회 순서와
+무관하게 정의 클래스의 module/qualified name과 실제 storage 이름으로 정렬하므로, 상속에서
+같은 slot 이름을 다시 선언해도 서로 합쳐지지 않는다. 상속 slot과 unset slot도 구조에 포함하고
 `__dict__`/`__weakref__`는 slot 목록에서 제외한다. 순환 또는 지원하지 않는 값은 닫힌
 실패로 처리한다. 클래스 객체 수신자는 소스의 lexical `Name`/qualified `Attribute` 및
-명시적 import alias가 가리키는 클래스 정체성을 별도 token으로 묶는다. public import가
-private implementation submodule의 클래스를 내보내는 경우 선언 import root, live module,
-qualname을 함께 대조한다.
+명시적 import alias가 가리키는 클래스 정체성을 별도 token으로 묶는다. 실행 없이 AST import
+기록에서 가장 긴 dotted module prefix를 선택하므로 unaliased/aliased dotted `import`와
+`from ... import ...`가 같은 외부 정체성으로 정규화된다. public import가 private
+implementation submodule의 클래스를 내보내는 경우 선언 import root, live module, qualname을
+함께 대조한다.
 
-Descriptor 생성자 provenance는 module/class body statement 순서의 binding으로 결정한다.
-따라서 나중 nested class는 이전 호출을 가리지 않고, 값이 있는 `Assign`/`AnnAssign` alias
-chain은 원 생성자를 보존하며 `del`은 이후 lookup에만 적용된다. 이 소스 로컬 기대가
-library 면제보다 먼저 적용된다. 지원되는 callable container 경로의 라벨은 wrapper 종류,
+Descriptor 생성자와 source callable provenance는 module/class body statement 순서의 동일한
+정의 event(lexical qualified scope와 source 위치) binding으로 결정한다. 따라서 같은 qualified
+이름의 함수나 생성자 class가 뒤에서 다시 정의되어도 이전 호출이 보유한 event를 가리지 않는다.
+값이 있는 `Assign`/`AnnAssign` alias chain 중 지원되는 것은 `Name` target이며, chained
+`A = B = Constructor`의 모든 `Name` target은 한 번 평가된 같은 RHS event를 보존하고 `del`은
+이후 lookup에만 적용된다. attribute·destructuring target은 정적 alias 계약으로 추측하지 않는다.
+이 소스 로컬 기대가 library 면제보다 먼저 적용된다. 지원되는 callable container 경로의 라벨은 wrapper 종류,
 기본값, 수신자 클래스와 이 직접 상태를 포함한다.
 
 #### 7.1.3 부분 보장 — 같은 상태의 수신자 객체 정체성

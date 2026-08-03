@@ -3530,6 +3530,276 @@ del A15AliasOne
         assert result.returncode == 0, payload["issues"]
 
 
+@pytest.mark.parametrize(
+    ("aliases", "deletion"),
+    (
+        ("A16ChainOne = A16ChainTwo = A16ChainDescriptor", "del A16ChainOne, A16ChainTwo"),
+        ("A16ChainOne = A16ChainTwo = A16ChainDescriptor\nA16ChainThree = A16ChainTwo", "del A16ChainOne, A16ChainTwo, A16ChainThree"),
+    ),
+)
+@pytest.mark.parametrize("replacement", ("", "library", "sibling", "synthetic"))
+def test_cli_tracks_chained_constructor_alias_events(
+    tmp_path: Path, aliases: str, deletion: str, replacement: str
+) -> None:
+    """A1: every Name in a chained assignment retains the one RHS event."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    constructor = "A16ChainThree" if "Three" in aliases else "A16ChainTwo"
+    mutation = {
+        "": "",
+        "library": 'vars(A16ChainOwner)["marker"].callback = _a16_chain_path.Path(".").exists',
+        "sibling": 'vars(A16ChainOwner)["marker"].callback = a16_chain_sibling',
+        "synthetic": 'vars(A16ChainOwner)["marker"].callback = eval(compile("lambda: True", "<string>", "eval"))',
+    }[replacement]
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + f'''\n\nimport pathlib as _a16_chain_path
+class A16ChainDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+{aliases}
+def a16_chain_callback(self=None): return "source"
+def a16_chain_sibling(self=None): return "sibling"
+class A16ChainOwner:
+    marker = {constructor}(a16_chain_callback)
+{deletion}
+{mutation}
+''',
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if replacement:
+        assert result.returncode == 1
+        assert "A16ChainOwner.marker.callback" in details
+    else:
+        assert result.returncode == 0, details
+
+
+@pytest.mark.parametrize("slot_form", ('("zeta", "alpha")', '["zeta", "alpha"]', '{"zeta": "z", "alpha": "a"}'))
+@pytest.mark.parametrize("mutated", (False, True))
+def test_cli_canonicalizes_multislot_receiver_state(
+    tmp_path: Path, slot_form: str, mutated: bool
+) -> None:
+    """A2: source/live slot records have one qualified, order-independent order."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    mutation = "" if not mutated else '''
+_a16_slots_changed = A16SlotChild()
+_a16_slots_changed.alpha = "changed"
+vars(A16SlotOwner)["marker"].callback = _a16_slot_types.MethodType(a16_slot_callback, _a16_slots_changed)
+'''
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + f'''\n\nimport types as _a16_slot_types
+class A16SlotDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A16SlotBase:
+    __slots__ = {slot_form}
+    def __init__(self): self.zeta = "z"; self.alpha = "a"
+class A16SlotLeft(A16SlotBase): __slots__ = ()
+class A16SlotRight(A16SlotBase): __slots__ = ()
+class A16SlotChild(A16SlotLeft, A16SlotRight):
+    __slots__ = ("zeta", "unset")
+    def __init__(self): super().__init__(); self.zeta = "child-z"
+def a16_slot_callback(self): return self.alpha + self.zeta
+class A16SlotOwner:
+    marker = A16SlotDescriptor(_a16_slot_types.MethodType(a16_slot_callback, A16SlotChild()))
+{mutation}
+''',
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if mutated:
+        assert result.returncode == 1
+        assert "A16SlotOwner.marker.callback has a method receiver state that differs" in details
+    else:
+        assert result.returncode == 0, details
+
+
+@pytest.mark.parametrize("scope", ("module", "class"))
+@pytest.mark.parametrize("owner", ("first", "second"))
+@pytest.mark.parametrize("replacement", ("", "other", "library"))
+def test_cli_binds_callbacks_to_exact_duplicate_definition_events(
+    tmp_path: Path, scope: str, owner: str, replacement: str
+) -> None:
+    """B1: retained callbacks bind to the exact visible module/class definition event."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    if scope == "module":
+        declarations = '''
+def a16_duplicate_callback(): return "first"
+class A16DuplicateFirstOwner:
+    marker = A16DuplicateDescriptor(a16_duplicate_callback)
+def a16_duplicate_callback(): return "second"
+class A16DuplicateSecondOwner:
+    marker = A16DuplicateDescriptor(a16_duplicate_callback)
+'''
+        owner_expr = f"A16Duplicate{owner.title()}Owner"
+    else:
+        declarations = '''
+class A16CallbackScope:
+    def callback(): return "first"
+    first = A16DuplicateDescriptor(callback)
+    def callback(): return "second"
+    second = A16DuplicateDescriptor(callback)
+'''
+        owner_expr = "A16CallbackScope"
+    other = "second" if owner == "first" else "first"
+    other_expr = (
+        f'vars(A16Duplicate{other.title()}Owner)["marker"].callback'
+        if scope == "module"
+        else f'vars(A16CallbackScope)["{other}"].callback'
+    )
+    mutation = {
+        "": "",
+        "other": f'vars({owner_expr})["{owner if scope == "class" else "marker"}"].callback = {other_expr}',
+        "library": f'vars({owner_expr})["{owner if scope == "class" else "marker"}"].callback = _a16_duplicate_path.Path(".").exists',
+    }[replacement]
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + '''\n\nimport pathlib as _a16_duplicate_path
+class A16DuplicateDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+'''
+        + declarations
+        + mutation
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    expected = owner_expr + (f".{owner}.callback" if scope == "class" else ".marker.callback")
+    if replacement:
+        assert result.returncode == 1
+        assert expected in details
+    else:
+        assert result.returncode == 0, details
+
+
+def test_cli_allows_identical_duplicate_function_bodies(tmp_path: Path) -> None:
+    """B1 control: swapping semantically identical compiled bodies is indistinguishable."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(source.read_text(encoding="utf-8") + '''
+
+class A16IdenticalDescriptor:
+    def __init__(self, callback): self.callback = callback
+def a16_identical_callback(): return "same"
+class A16IdenticalOwner:
+    marker = A16IdenticalDescriptor(a16_identical_callback)
+def a16_identical_callback(): return "same"
+vars(A16IdenticalOwner)["marker"].callback = a16_identical_callback
+''', encoding="utf-8")
+    result = _run_checker(tmp_path, document)
+    assert result.returncode == 0, json.loads(result.stdout)["issues"]
+
+
+@pytest.mark.parametrize(
+    ("import_line", "receiver"),
+    (
+        ("import collections.abc", "collections.abc.Mapping"),
+        ("import xml.etree.ElementTree", "xml.etree.ElementTree.Element"),
+        ("import collections.abc as cabc", "cabc.Mapping"),
+        ("from collections.abc import Mapping", "Mapping"),
+    ),
+)
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_resolves_canonical_dotted_import_class_identity(
+    tmp_path: Path, import_line: str, receiver: str, changed: bool
+) -> None:
+    """B2: the longest statically imported module prefix is the external identity."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    mutation = "" if not changed else 'vars(A16ImportOwner)["marker"].callback = _a16_import_types.MethodType(a16_import_callback, _a16_import_path.PurePath)'
+    source.write_text(source.read_text(encoding="utf-8") + f'''
+
+import pathlib as _a16_import_path
+import types as _a16_import_types
+{import_line}
+class A16ImportDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+def a16_import_callback(cls): return cls.__name__
+class A16ImportOwner:
+    marker = A16ImportDescriptor(_a16_import_types.MethodType(a16_import_callback, {receiver}))
+{mutation}
+''', encoding="utf-8")
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if changed:
+        assert result.returncode == 1
+        assert "A16ImportOwner.marker.callback has a method receiver that differs" in details
+    else:
+        assert result.returncode == 0, details
+
+
+@pytest.mark.parametrize("placement", ("module", "nested"))
+@pytest.mark.parametrize("replacement", ("", "first-library", "second-library", "first-sibling"))
+def test_cli_tracks_repeated_constructor_definition_events(
+    tmp_path: Path, placement: str, replacement: str
+) -> None:
+    """B3: each construction uses constructor metadata from its visible class event."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    if placement == "nested":
+        declarations = '''
+class A16RepeatedOwner:
+    class Descriptor:
+        def __init__(self, callback): self.callback = callback
+        def __get__(self, instance, owner): return self.callback
+    first = Descriptor(a16_repeated_callback)
+    class Descriptor:
+        def __init__(self, handler): self.handler = handler
+        def __get__(self, instance, owner): return self.handler
+    second = Descriptor(a16_repeated_callback)
+'''
+    else:
+        declarations = '''
+class A16RepeatedDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A16RepeatedOwner:
+    first = A16RepeatedDescriptor(a16_repeated_callback)
+class A16RepeatedDescriptor:
+    def __init__(self, handler): self.handler = handler
+    def __get__(self, instance, owner): return self.handler
+class A16RepeatedSecondOwner:
+    second = A16RepeatedDescriptor(a16_repeated_callback)
+'''
+    second_owner = "A16RepeatedOwner" if placement == "nested" else "A16RepeatedSecondOwner"
+    mutation = {
+        "": "",
+        "first-library": 'vars(A16RepeatedOwner)["first"].callback = _a16_repeated_path.Path(".").exists',
+        "second-library": f'vars({second_owner})["second"].handler = _a16_repeated_path.Path(".").exists',
+        "first-sibling": 'vars(A16RepeatedOwner)["first"].callback = a16_repeated_sibling',
+    }[replacement]
+    source.write_text(source.read_text(encoding="utf-8") + '''
+
+import pathlib as _a16_repeated_path
+def a16_repeated_callback(self=None): return "source"
+def a16_repeated_sibling(self=None): return "sibling"
+''' + declarations + mutation + "\n", encoding="utf-8")
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if replacement:
+        assert result.returncode == 1
+        if replacement.startswith("first"):
+            expected = "A16RepeatedOwner.first.callback"
+        else:
+            prefix = "A16RepeatedOwner" if placement == "nested" else "A16RepeatedSecondOwner"
+            expected = f"{prefix}.second.handler"
+        assert expected in details
+    else:
+        assert result.returncode == 0, details
+
+
 def test_receiver_bytes_never_invokes_custom_getattribute() -> None:
     """S7 direct owner: concrete descriptors are opened without receiver lookup."""
     encode = _shipped_helpers("_frame", "_constant_bytes", "_receiver_bytes")[
