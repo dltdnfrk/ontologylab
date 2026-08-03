@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import ast
+import binascii
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -70,16 +72,38 @@ TEST_EVIDENCE_DIGESTS: Final = {
     "tests/test_mcp_two_tier.py::test_get_entity_full_record": "d88dc1a163345101f58ab9615f923c69e5998b8a899dbaf041bccb327774b7a6",
     "tests/test_mcp_two_tier.py::test_fastmcp_exposes_two_tier_surface": "81899c9a0856c1515df3ef2fd90e16bc61a87c246c6ae069096152e823c94d75",
 }
+_UNSIGNED: Final = -1
 SWEEP_DIGEST: Final = "66eacf5b9d57b4687d7f0b378871ea6885ad79fd68b4e9718e3dc8b06df7045f"
-# The child never calls the object bound at the canonical test name. It selects the
-# definition whose AST digest equals the audited digest, compiles that definition, calls
-# the function that compiling produced, and records the digest it just executed. A name
-# rebound to anything else is therefore not consulted, and the parent's receipt count is
-# read back out of that record rather than out of this module's dict literal.
+# The digests below bind two different things, and the difference is the point.
+#
+# TEST_EVIDENCE_DIGESTS pins the AST of each named evidence function: it answers "is
+# this the body the spec claims". EVIDENCE_MODULE_DIGESTS pins the whole content of
+# every non-product file on the evidence path: it answers "is this the world that body
+# runs in". The second exists because a body's meaning lives in its free names, and
+# those were previously resolved from the evidence module's live `__dict__` — so a
+# module-level `def normalize_proposal(...)` shadowing the product import left all
+# thirteen bodies byte-identical, every AST digest matching, and the receipt printing
+# while normalization was a no-op.
+#
+# `ontologylab/**` is deliberately absent from both maps: it is the product under test,
+# and pinning it would make the gate assert its own input. Everything else the child
+# loads from the audited tree must be declared here, and the child re-checks the list
+# against what actually loaded.
+EVIDENCE_MODULE_DIGESTS: Final = {
+    "tests/factories.py": "b2ee5b19a316920e95b775be055d2e015617cfdc11f2c6effb5b9a4840411d89",
+    "tests/test_agrochem_schema.py": "f1131a56975b6c85f5e809292f074e3aa2a1b015e386ef9db0e6f0de7b9ab7ca",
+    "tests/test_cas_normalization.py": "ce2748cf82aed53f3fe18a8b4d48485d8c84facf408005939546cd6837aa4951",
+    "tests/test_mcp_two_tier.py": "7b188857344630992eccbd9cb6e5f919caa7a53bf021fb26e6203af15b6e727e",
+    "tests/test_normalization.py": "4e246aba9d334f89c2533d3042c45cae8c5c07834c4a512980ad92786bb1056d",
+    "tests/test_registry.py": "ddfb3ef255f72f4717fbf487c1c3af1c3ac6f001cd77666e10f38c387b81c4ba",
+    "tests/test_staleness.py": "4718c614d0f5df94fc20a20ad8cade9e11622978179c0c17a684a94f2a853adf",
+}
 EVIDENCE_EXECUTOR_PROGRAM: Final = """
 import ast
 import hashlib
+import hmac
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -88,7 +112,25 @@ import pytest
 ROOT = Path(sys.argv[1]).resolve()
 PLAN = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
 LEDGER_FILE = Path(sys.argv[3])
-LEDGER = {}
+# Read the parent's per-run secret off an inherited pipe and close it immediately. The
+# ledger and the receipt are both files at paths on this argv, so anything running in this
+# process could write them; what it cannot do is produce this secret, because the pipe is
+# drained and closed here, at import time, before any repository code has run. Everything
+# that arrives later -- fixtures, product imports, `atexit` -- finds a closed descriptor.
+_secret_fd = int(sys.argv[4])
+SECRET = os.read(_secret_fd, 64)
+os.close(_secret_fd)
+if len(SECRET) != 64:
+    raise SystemExit("evidence executor did not receive its run secret")
+NODES = PLAN["nodes"]
+MODULES = PLAN["modules"]
+PRODUCT = ROOT / "ontologylab"
+# Site-packages and the stdlib live under the interpreter prefixes; on a venv inside
+# the audited tree they would otherwise look like repository-local modules.
+LIBRARY_ROOTS = tuple(
+    Path(prefix).resolve() for prefix in (sys.prefix, sys.base_prefix)
+)
+LEDGER = {"executed": {}, "modules": {}, "unaudited": []}
 
 # The audited definitions are compiled here rather than by pytest's assertion
 # rewriter, so plain `assert` enforcement is what carries the evidence.
@@ -96,10 +138,43 @@ if sys.flags.optimize:
     raise SystemExit("canonical evidence cannot run with assertions optimized out")
 
 
+def audited_source(relative):
+    # Read a covered file and hold its whole content to the declared digest.
+    expected = MODULES.get(relative)
+    if expected is None:
+        raise AssertionError(f"{relative}: no declared module digest")
+    data = (ROOT / relative).read_bytes()
+    actual = hashlib.sha256(data).hexdigest()
+    if actual != expected:
+        raise AssertionError(f"{relative}: module digest {actual} != {expected}")
+    LEDGER["modules"][relative] = actual
+    return data.decode("utf-8")
+
+
+VERIFIED_NAMESPACES = {}
+
+
+def verified_namespace(relative):
+    # Globals for the audited bodies, produced by executing the verified source of
+    # their own module. pytest's imported copy of that module is never consulted.
+    namespace = VERIFIED_NAMESPACES.get(relative)
+    if namespace is None:
+        source = audited_source(relative)
+        path = str(ROOT / relative)
+        namespace = {
+            "__name__": f"_audited_{relative.replace('/', '_')[:-3]}",
+            "__file__": path,
+            "__builtins__": __builtins__,
+        }
+        exec(compile(source, path, "exec"), namespace)
+        VERIFIED_NAMESPACES[relative] = namespace
+    return namespace
+
+
 def audited_definition(node_id):
     # Return the definition whose AST digest is the audited one, or fail loudly.
-    entry = PLAN[node_id]
-    source = (ROOT / entry["path"]).read_text(encoding="utf-8")
+    entry = NODES[node_id]
+    source = audited_source(entry["path"])
     tree = ast.parse(source, filename=entry["path"])
     matches = []
     for node in ast.walk(tree):
@@ -131,14 +206,34 @@ def audited_definition(node_id):
     return definition, entry
 
 
+def unaudited_repository_modules():
+    # Every repository-local module that loaded, minus the product under test.
+    found = []
+    for module in list(sys.modules.values()):
+        origin = getattr(module, "__file__", None)
+        if not origin:
+            continue
+        path = Path(origin).resolve()
+        if ROOT not in path.parents:
+            continue
+        if any(library in path.parents for library in LIBRARY_ROOTS):
+            continue
+        if PRODUCT == path.parent or PRODUCT in path.parents:
+            continue
+        relative = path.relative_to(ROOT).as_posix()
+        if MODULES.get(relative) != hashlib.sha256(path.read_bytes()).hexdigest():
+            found.append(relative)
+    return sorted(set(found))
+
+
 class EvidenceExecutor:
-    # Execute the audited source itself, never the object bound at its name.
+    # Execute the audited source itself, in globals built from audited source.
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_call(self, item):
         node_id = f"{item.path.resolve().relative_to(ROOT).as_posix()}::{item.originalname}"
         definition, entry = audited_definition(node_id)
-        namespace = dict(item.module.__dict__)
+        namespace = dict(verified_namespace(entry["path"]))
         module = ast.Module(body=[definition], type_ignores=[])
         exec(compile(module, str(ROOT / entry["path"]), "exec"), namespace)
         audited = namespace[entry["name"]]
@@ -149,15 +244,35 @@ class EvidenceExecutor:
         result = audited(**arguments)
         if result is not None:
             raise AssertionError("canonical test returned a value")
-        LEDGER[node_id] = entry["digest"]
+        LEDGER["executed"][node_id] = entry["digest"]
         item.runtest = lambda: None
+
+    def pytest_sessionfinish(self):
+        # Declared coverage is only worth anything if every declared file was really
+        # checked, so re-read the ones no audited body happened to read directly.
+        for relative in MODULES:
+            if relative not in LEDGER["modules"]:
+                audited_source(relative)
+        LEDGER["unaudited"] = unaudited_repository_modules()
+
+
+def write_report(code):
+    # The exit code travels inside the authenticated payload. `os._exit` can still hand
+    # the parent a zero, but it cannot make the parent believe a zero it did not sign.
+    LEDGER["returncode"] = code
+    payload = json.dumps(LEDGER, sort_keys=True)
+    signature = hmac.new(SECRET, payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    LEDGER_FILE.write_text(
+        json.dumps({"payload": payload, "signature": signature}), encoding="utf-8"
+    )
 
 
 sys.path.insert(0, str(ROOT))
+code = 70
 try:
-    code = pytest.main(sys.argv[4:], plugins=[EvidenceExecutor()])
+    code = pytest.main(sys.argv[5:], plugins=[EvidenceExecutor()])
 finally:
-    LEDGER_FILE.write_text(json.dumps(LEDGER, sort_keys=True), encoding="utf-8")
+    write_report(code)
 raise SystemExit(code)
 """
 DOCUMENT_CONTRACTS: Final = {
@@ -270,6 +385,50 @@ def _inside_root(root: Path, reference: str) -> Path | None:
     if candidate == root or root in candidate.parents:
         return candidate
     return None
+
+
+def _module_digest(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _evidence_path_issues(root: Path) -> list[Issue]:
+    """Hold every non-product file on the evidence path to its declared content.
+
+    The AST digests cover thirteen function bodies. These cover the modules those
+    bodies live in and the helper module they import, because a body's free names —
+    the product symbols it calls and the local helpers that build its inputs — are
+    resolved out of that file's own namespace, not out of the hashed function node.
+    """
+    issues: list[Issue] = []
+    for relative, expected in sorted(EVIDENCE_MODULE_DIGESTS.items()):
+        candidate = _inside_root(root, relative)
+        if candidate is None or not candidate.is_file():
+            issues.append(Issue("evidence_module_missing", "DOCUMENT", relative))
+        elif _module_digest(candidate) != expected:
+            issues.append(Issue("evidence_module_integrity", "DOCUMENT", relative))
+    declared = {node_id.split("::", 1)[0] for node_id in TEST_EVIDENCE_DIGESTS}
+    uncovered = sorted(declared - set(EVIDENCE_MODULE_DIGESTS))
+    if uncovered:
+        issues.append(
+            Issue("evidence_module_missing", "DOCUMENT", f"undeclared: {uncovered}")
+        )
+    contracted = {
+        reference
+        for references in EVIDENCE_CONTRACT.values()
+        for reference in references
+        if "::" in reference
+    }
+    if set(TEST_EVIDENCE_DIGESTS) != contracted:
+        detail = (
+            f"digest set != contract set: "
+            f"missing={sorted(contracted - set(TEST_EVIDENCE_DIGESTS))}; "
+            f"unexpected={sorted(set(TEST_EVIDENCE_DIGESTS) - contracted)}"
+        )
+        issues.append(Issue("evidence_contract", "DOCUMENT", detail))
+    return issues
 
 
 def _test_digest(path: Path, function_name: str) -> str | None:
@@ -406,6 +565,8 @@ def check_status(document: Path, root: Path) -> StatusReport:
         elif count > 1:
             issues.append(Issue("duplicate_id", item_id, f"found {count} rows"))
 
+    issues.extend(_evidence_path_issues(root))
+
     return StatusReport(
         not issues,
         tuple(entries),
@@ -431,11 +592,19 @@ def _validate_pytest_receipt(
     except (ET.ParseError, OSError, ValueError):
         return Issue("evidence_execution", "DOCUMENT", "pytest receipt is missing or malformed")
 
-    if failures or errors:
+    # An import or collection error is not a failing assertion, and saying "failed" sends
+    # the reader looking at the product for a defect that is really a broken module.
+    if errors:
         return Issue(
             "evidence_execution",
             "DOCUMENT",
-            f"pytest failed {failures + errors} canonical nodes",
+            f"pytest could not collect or set up {errors} canonical nodes",
+        )
+    if failures:
+        return Issue(
+            "evidence_execution",
+            "DOCUMENT",
+            f"pytest failed {failures} canonical nodes",
         )
     if skipped:
         return Issue(
@@ -474,6 +643,13 @@ def _execute_test_evidence(root: Path) -> tuple[Issue | None, int]:
     environment.pop("PYTEST_ADDOPTS", None)
     environment.pop("PYTEST_PLUGINS", None)
     environment["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+    # A per-run secret handed to the child over a pipe, never over argv and never through
+    # the filesystem. The child's report has to be signed with it to count.
+    secret = binascii.hexlify(os.urandom(32))
+    read_fd, write_fd = os.pipe()
+    os.write(write_fd, secret)
+    os.close(write_fd)
+    before = _tree_snapshot(root)
     with tempfile.TemporaryDirectory(prefix="ontologylab-evidence-") as temporary:
         temporary_path = Path(temporary)
         receipt = temporary_path / "pytest.xml"
@@ -482,12 +658,15 @@ def _execute_test_evidence(root: Path) -> tuple[Issue | None, int]:
         plan_file.write_text(
             json.dumps(
                 {
-                    node_id: {
-                        "path": node_id.split("::", 1)[0],
-                        "name": node_id.split("::", 1)[1],
-                        "digest": digest,
-                    }
-                    for node_id, digest in TEST_EVIDENCE_DIGESTS.items()
+                    "nodes": {
+                        node_id: {
+                            "path": node_id.split("::", 1)[0],
+                            "name": node_id.split("::", 1)[1],
+                            "digest": digest,
+                        }
+                        for node_id, digest in TEST_EVIDENCE_DIGESTS.items()
+                    },
+                    "modules": dict(EVIDENCE_MODULE_DIGESTS),
                 },
                 sort_keys=True,
             ),
@@ -504,12 +683,17 @@ def _execute_test_evidence(root: Path) -> tuple[Issue | None, int]:
                 str(root),
                 str(plan_file),
                 str(ledger_file),
+                str(read_fd),
                 "-q",
                 "-c",
                 str(controlled_config),
                 "--rootdir",
                 str(root),
                 "--noconftest",
+                # An audit that writes into the tree it audits is not read-only, and the
+                # gate normally runs as `--root .` against the real checkout.
+                "-p",
+                "no:cacheprovider",
                 "-o",
                 "addopts=",
                 "-o",
@@ -523,18 +707,46 @@ def _execute_test_evidence(root: Path) -> tuple[Issue | None, int]:
             check=False,
             capture_output=True,
             text=True,
+            pass_fds=(read_fd,),
         )
-        ledger, ledger_issue = _read_execution_ledger(ledger_file)
+        os.close(read_fd)
+        ledger, ledger_issue, signed_returncode = _read_execution_ledger(
+            ledger_file, secret
+        )
         receipt_issue = _validate_pytest_receipt(
             receipt,
             expected_count=len(node_ids),
             expected_nodes=frozenset(node_ids),
         )
+        refusals = _executor_refusals(result.stdout)
+        writes = _tree_writes(root, before)
+    # A refusal is the gate declining to accept the run at all — an ambiguous digest, an
+    # undeclared module, a signature it will not call. Reporting only the failed-node
+    # count would leave those looking like ordinary assertion failures.
+    if refusals:
+        return (
+            Issue(
+                "evidence_execution",
+                "DOCUMENT",
+                f"executor refused the run: {refusals}",
+            ),
+            len(ledger),
+        )
+    if writes:
+        return (
+            Issue(
+                "evidence_execution",
+                "DOCUMENT",
+                f"the audited run wrote inside the audited tree: {writes[:20]}",
+            ),
+            len(ledger),
+        )
     if receipt_issue is not None:
         return receipt_issue, len(ledger)
     if ledger_issue is not None:
         return ledger_issue, len(ledger)
-    if result.returncode != 0:
+    # The signed exit code, not the process's: `os._exit(0)` can forge the latter.
+    if signed_returncode != 0:
         output = "\n".join(
             part.strip() for part in (result.stdout, result.stderr) if part.strip()
         )
@@ -542,46 +754,176 @@ def _execute_test_evidence(root: Path) -> tuple[Issue | None, int]:
             Issue(
                 "evidence_execution",
                 "DOCUMENT",
-                f"pytest exit {result.returncode}: {output[-4000:]}",
+                f"pytest exit {signed_returncode}: {output[-4000:]}",
             ),
             len(ledger),
         )
     return None, len(ledger)
 
 
-def _read_execution_ledger(ledger_file: Path) -> tuple[dict[str, str], Issue | None]:
-    """Read what the child actually compiled and ran, and hold it to the digests."""
+def _tree_writes(root: Path, before: dict[str, int]) -> list[str]:
+    """Paths the audited run created or changed inside the tree it was auditing.
+
+    `-p no:cacheprovider` stops the one writer that existed. This checks the property
+    instead of trusting the flag, because the gate normally runs against the real checkout,
+    and `--noconftest` means the suite's own "never touch the developer's settings" guard is
+    not loaded to catch a future canonical node that writes where it should not.
+    """
+    return sorted(
+        path
+        for path, stamp in _tree_snapshot(root).items()
+        if before.get(path) != stamp
+    )
+
+
+def _tree_snapshot(root: Path) -> dict[str, int]:
+    snapshot: dict[str, int] = {}
+    for path in root.rglob("*"):
+        if any(part in {".git", ".venv", "__pycache__"} for part in path.parts):
+            continue
+        try:
+            snapshot[str(path)] = path.stat().st_mtime_ns if path.is_file() else 0
+        except OSError:
+            continue
+    return snapshot
+
+
+def _executor_refusals(output: str) -> list[str]:
+    """Pull the child's own structural refusals out of its report."""
+    markers = (
+        "definitions carry the audited digest",
+        "no declared module digest",
+        "module digest",
+        "audited definition is decorated",
+        "audited definition is async",
+        "audited signature is not plain fixtures",
+    )
+    return sorted(
+        {
+            line.strip().removeprefix("E   ").strip()
+            for line in output.splitlines()
+            if line.lstrip().startswith("E ")
+            and any(marker in line for marker in markers)
+        }
+    )
+
+
+def _read_execution_ledger(
+    ledger_file: Path, secret: bytes
+) -> tuple[dict[str, str], Issue | None, int]:
+    """Read what the child compiled, ran, and loaded, and hold it to the digests.
+
+    The report must carry an HMAC over its own payload keyed by the run secret. The child
+    drains that secret from a pipe and closes it before any repository code runs, so a
+    later writer -- an `atexit` hook, a product import, anything that reaches the paths on
+    the child's argv -- can rewrite these files but cannot sign them.
+    """
+    malformed = Issue(
+        "evidence_execution", "DOCUMENT", "execution ledger is missing or malformed"
+    )
     try:
-        ledger = json.loads(ledger_file.read_text(encoding="utf-8"))
+        envelope = json.loads(ledger_file.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
-        return {}, Issue(
-            "evidence_execution",
-            "DOCUMENT",
-            "execution ledger is missing or malformed",
-        )
-    if not isinstance(ledger, dict) or not all(
-        isinstance(key, str) and isinstance(value, str) for key, value in ledger.items()
+        return {}, malformed, _UNSIGNED
+    if (
+        not isinstance(envelope, dict)
+        or set(envelope) != {"payload", "signature"}
+        or not isinstance(envelope["payload"], str)
+        or not isinstance(envelope["signature"], str)
     ):
-        return {}, Issue(
-            "evidence_execution",
-            "DOCUMENT",
-            "execution ledger is missing or malformed",
+        return (
+            {},
+            Issue(
+                "evidence_execution",
+                "DOCUMENT",
+                "execution report is not signed by this run",
+            ),
+            _UNSIGNED,
         )
-    if ledger != dict(TEST_EVIDENCE_DIGESTS):
-        missing = sorted(set(TEST_EVIDENCE_DIGESTS) - set(ledger))
-        unexpected = sorted(set(ledger) - set(TEST_EVIDENCE_DIGESTS))
+    expected = hmac.new(
+        secret, envelope["payload"].encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(expected, envelope["signature"]):
+        return (
+            {},
+            Issue(
+                "evidence_execution",
+                "DOCUMENT",
+                "execution report is not signed by this run",
+            ),
+            _UNSIGNED,
+        )
+    try:
+        ledger = json.loads(envelope["payload"])
+    except json.JSONDecodeError:
+        return {}, malformed, _UNSIGNED
+    if not isinstance(ledger, dict) or set(ledger) != {
+        "executed",
+        "modules",
+        "unaudited",
+        "returncode",
+    }:
+        return {}, malformed, _UNSIGNED
+    executed, modules, unaudited = (
+        ledger["executed"],
+        ledger["modules"],
+        ledger["unaudited"],
+    )
+    if not isinstance(ledger["returncode"], int):
+        return {}, malformed, _UNSIGNED
+    signed_returncode = ledger["returncode"]
+    if (
+        not isinstance(executed, dict)
+        or not isinstance(modules, dict)
+        or not isinstance(unaudited, list)
+        or not all(
+            isinstance(key, str) and isinstance(value, str)
+            for mapping in (executed, modules)
+            for key, value in mapping.items()
+        )
+    ):
+        return {}, malformed
+
+    if executed != dict(TEST_EVIDENCE_DIGESTS):
+        missing = sorted(set(TEST_EVIDENCE_DIGESTS) - set(executed))
+        unexpected = sorted(set(executed) - set(TEST_EVIDENCE_DIGESTS))
         divergent = sorted(
             node_id
-            for node_id, digest in ledger.items()
+            for node_id, digest in executed.items()
             if TEST_EVIDENCE_DIGESTS.get(node_id) not in (None, digest)
         )
-        return ledger, Issue(
-            "evidence_execution",
-            "DOCUMENT",
-            "executed source mismatch: "
-            f"missing={missing}; unexpected={unexpected}; divergent={divergent}",
+        return (
+            executed,
+            Issue(
+                "evidence_execution",
+                "DOCUMENT",
+                "executed source mismatch: "
+                f"missing={missing}; unexpected={unexpected}; divergent={divergent}",
+            ),
+            signed_returncode,
         )
-    return ledger, None
+    if modules != dict(EVIDENCE_MODULE_DIGESTS):
+        divergent = sorted(set(EVIDENCE_MODULE_DIGESTS).symmetric_difference(modules))
+        return (
+            executed,
+            Issue(
+                "evidence_execution",
+                "DOCUMENT",
+                f"evidence module digests were not all verified in-run: {divergent}",
+            ),
+            signed_returncode,
+        )
+    if unaudited:
+        return (
+            executed,
+            Issue(
+                "evidence_execution",
+                "DOCUMENT",
+                f"unaudited repository modules on the evidence path: {sorted(unaudited)}",
+            ),
+            signed_returncode,
+        )
+    return executed, None, signed_returncode
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -622,5 +964,27 @@ def main(argv: list[str] | None = None) -> int:
     return 0 if report.ok else 1
 
 
+def _reexec_isolated() -> None:
+    """Re-run this checker under `-I` before it does anything else.
+
+    `-I` used to protect only the child, which left the process that *prints the receipt*
+    open: `site` imports `sitecustomize` from an inherited `PYTHONPATH`, so arbitrary code
+    ran inside the parent, and from there it could replace `subprocess.run` and hand every
+    parent gate data it had written itself. Isolation has to cover the author of the claim,
+    not just the thing the claim is about. `-I` implies `-E -s -P`, so `PYTHONPATH`,
+    `PYTHONHOME`, user site-packages and the script directory are all out.
+    """
+    if sys.flags.isolated:
+        return
+    if os.environ.get("ONTOLOGYLAB_STATUS_REEXEC") == "1":
+        raise SystemExit("checker re-exec did not take effect; refusing to continue")
+    os.environ["ONTOLOGYLAB_STATUS_REEXEC"] = "1"
+    # `execv`, not `subprocess`: injected code already inside this process can filter
+    # `subprocess.run`, and did in the shape this closes. Replacing the process image
+    # leaves nothing of the compromised interpreter behind to intercept anything.
+    os.execv(sys.executable, [sys.executable, "-I", str(Path(__file__).resolve()), *sys.argv[1:]])
+
+
 if __name__ == "__main__":
+    _reexec_isolated()
     raise SystemExit(main())
