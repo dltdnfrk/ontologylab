@@ -19,7 +19,7 @@ test = ["pytest>=7", "httpx"]
 # Optional local dashboard. The stdlib pipeline core never imports these.
 server = ["fastapi", "uvicorn[standard]"]
 # Optional MCP stdio server (FastMCP from the official python SDK).
-mcp = ["mcp>=1.2"]
+mcp = ["mcp>=1.2,<2"]
 # Optional tier-2 semantic embeddings (real model; one-time download).
 embed = ["sentence-transformers>=3"]
 # Optional Leiden community detection (Traag et al. 2019); falls back to
