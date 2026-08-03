@@ -43,7 +43,9 @@ jobs:
           PYTHONPATH: ""
           PYTEST_ADDOPTS: ""
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
-        run: python scripts/check_product_status.py --root . --document docs/PRODUCT_SPEC.md
+        # `-P` per docs/PRODUCT_SPEC.md §7.1: without it `sys.path[0]` is `scripts/`,
+        # so a `scripts/<stdlib-name>.py` is imported before the checker re-execs itself.
+        run: python -P scripts/check_product_status.py --root . --document docs/PRODUCT_SPEC.md
 
       - name: Dashboard JS syntax check
         run: node --check web/app.js

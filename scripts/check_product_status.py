@@ -117,6 +117,11 @@ for _entry in os.environ.get("ONTOLOGYLAB_STATUS_SITEDIRS", "").split(os.pathsep
 ROOT = Path(sys.argv[1]).resolve()
 PLAN = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
 LEDGER_FILE = Path(sys.argv[3])
+# DECLARED BOUNDARY (docs/PRODUCT_SPEC.md §7.1, case 1): this key is reachable as a global
+# of this program's `__main__`, so product code committed specifically against this checker
+# can read it and sign a forged report. That is out of scope by decision, not by oversight:
+# anyone able to commit such a file can edit the acceptance table instead.
+#
 # Read the parent's per-run secret off an inherited pipe and close it immediately. The
 # ledger and the receipt are both files at paths on this argv, so anything running in this
 # process could write them; what it cannot do is produce this secret, because the pipe is
@@ -135,6 +140,10 @@ import pytest
 NODES = PLAN["nodes"]
 MODULES = PLAN["modules"]
 PRODUCT = ROOT / "ontologylab"
+# DECLARED BOUNDARY (docs/PRODUCT_SPEC.md §7.1, case 3): what is on this list is exempt from
+# content verification, so a tampered installed dependency (pytest, pluggy) is not detected
+# here. Out of scope by decision; see the spec for why the boundary sits there.
+#
 # The library boundary is stated explicitly rather than derived from `sys.prefix`, which
 # collapses to the base interpreter under `-S` and previously exempted an in-tree
 # virtualenv by accident. These are the directories the parent resolved and handed over,
@@ -269,6 +278,58 @@ def module_origin(module):
     return None, True
 
 
+def literal_assignments(source, filename):
+    # Module-level `NAME = <literal>` bindings, as the file declares them.
+    try:
+        tree = ast.parse(source, filename=filename)
+    except SyntaxError:
+        return {}
+    found = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = [t for t in node.targets if isinstance(t, ast.Name)]
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            targets = [node.target] if node.value is not None else []
+            value = node.value
+        else:
+            continue
+        if not targets:
+            continue
+        # `frozenset({...})` and `set([...])` are Calls, not literals, and they are how this
+        # product spells most of its lookup tables; evaluate those too, from the literal
+        # argument only.
+        node_value = value
+        wrapper = None
+        if (
+            isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Name)
+            and value.func.id in {"frozenset", "set", "tuple", "list", "dict"}
+            and not value.keywords
+            and len(value.args) <= 1
+        ):
+            wrapper = {
+                "frozenset": frozenset,
+                "set": set,
+                "tuple": tuple,
+                "list": list,
+                "dict": dict,
+            }[value.func.id]
+            node_value = value.args[0] if value.args else ast.Constant(value=())
+        try:
+            evaluated = ast.literal_eval(node_value)
+        except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+            continue
+        if wrapper is not None:
+            try:
+                evaluated = wrapper(evaluated)
+            except (TypeError, ValueError):
+                continue
+        for target in targets:
+            found[target.id] = evaluated
+    return found
+
+
 def live_code_objects(module, seen=None):
     # Every code object the module exposes as its own, including methods, so that a rebound
     # or duplicated *class* is as visible as a rebound function. The previous rule looked
@@ -361,6 +422,20 @@ def product_identity():
             pending.extend(
                 const for const in code.co_consts if isinstance(const, CodeType)
             )
+        # Module-level data. A rebound constant or a swapped lookup table is the same
+        # accident as a rebound function, and the code-object rule cannot see it. Every
+        # module-level name whose assignment in the file is a literal is compared against
+        # that literal. Names assigned from a call or an attribute lookup are not statically
+        # knowable and are left unbound -- declared in docs/PRODUCT_SPEC.md §7.1 rather than
+        # silently skipped.
+        for attribute, expected in literal_assignments(source, str(path)).items():
+            if attribute not in vars(module):
+                continue
+            live = vars(module)[attribute]
+            if type(live) is not type(expected) or live != expected:
+                substitutions.append(
+                    f"{relative}::{attribute} does not hold the value this file assigns"
+                )
         for qualname, code in live_code_objects(module):
             origin = code.co_filename
             # Code the interpreter or a library generated for this module: `@dataclass`
@@ -1257,6 +1332,11 @@ def main(argv: list[str] | None = None) -> int:
 
 def _reexec_isolated() -> None:
     """Re-run this checker with no site processing before it does anything else.
+
+    DECLARED BOUNDARY (docs/PRODUCT_SPEC.md §7.1, case 2): this runs *after* `site`, so
+    startup code and stdlib shadowing in the first parent are outside what this can close.
+    The operational answer stated in the spec is to invoke the checker with `-P`, or to move
+    it out of `scripts/`; neither is achievable from inside this function.
 
     Two rounds of this. First `-I`, because `site` imported `sitecustomize` from an
     inherited `PYTHONPATH` straight into the process that *prints the receipt*, where it

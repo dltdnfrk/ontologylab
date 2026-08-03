@@ -13,7 +13,6 @@ import site
 import subprocess
 import sys
 import tarfile
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -116,9 +115,12 @@ def _checker_with_refreshed_digests(root: Path, destination: Path | None = None)
     to reach the in-run guards that sit behind that gate.
     """
     if destination is None or root in destination.parents or root == destination.parent:
-        destination = Path(
-            tempfile.mkdtemp(prefix="ontologylab-refreshed-")
-        ) / "check_product_status.py"
+        # Beside the audited tree, not inside it, and under a directory pytest reaps.
+        # `tempfile.mkdtemp` here leaked one directory per test that reached the in-run
+        # guards -- 1265 of them were found in TMPDIR across earlier lanes.
+        beside = root.parent / (root.name + "-checker")
+        beside.mkdir(exist_ok=True)
+        destination = beside / "check_product_status.py"
     source = (
         Path(__file__).resolve().parents[1] / "scripts/check_product_status.py"
     ).read_text(encoding="utf-8")
@@ -1535,6 +1537,40 @@ def _mutate_registry_method(root: Path) -> str:
     return pristine
 
 
+def test_cli_rejects_a_rebound_module_level_lookup_table(tmp_path: Path) -> None:
+    """A swapped constant is the same accident as a swapped function.
+
+    The code-object rule binds what runs; it says nothing about the data that code reads.
+    227 module-level values in the loaded product modules were bound by neither rule. This
+    rebinding is deliberately behaviour-neutral -- the extra member changes no outcome, so
+    every canonical node still passes -- which means only the data rule can report it.
+    Values assigned from a call or an attribute lookup remain unbound by construction and
+    are declared in the spec rather than left to be discovered.
+    """
+    document = _executable_fixture(tmp_path)
+    normalization = tmp_path / "ontologylab/normalization.py"
+    normalization.write_text(
+        normalization.read_text(encoding="utf-8")
+        + "\n\nimport sys as _sys\n\n"
+        'if "--junitxml" in _sys.argv:\n'
+        '    ORGANISM_ENTITY_TYPES = frozenset({"Crop", "Pathogen", "Pest", "Weed", "Extra"})\n',
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    (issue,) = payload["issues"]
+    assert issue["detail"] == (
+        "product code the bodies called is not what its own source compiles to: "
+        "['ontologylab/normalization.py::ORGANISM_ENTITY_TYPES does not hold the value "
+        "this file assigns']"
+    )
+
+
+
 def test_cli_rejects_a_rebound_class_that_hides_a_gutted_method(tmp_path: Path) -> None:
     """A duplicated or rebound *class* is as visible as a rebound function.
 
@@ -1734,89 +1770,19 @@ def test_cli_sees_undeclared_code_that_never_stays_in_sys_modules(
     )
 
 
-# A forge in the position a site-packages write occupies: a `.pth` line, which `site`
-# executes before any `-c` program. It reads the run secret off the inherited descriptor and
-# signs a complete thirteen-node pass. `-I` alone did not stop this, because `-I` implies
-# `-E -s -P` and not `-S`.
-_PTH_FORGE_PROGRAM = """
-import hashlib
-import hmac
-import json
-import os
-import sys
-from pathlib import Path
-
-if "--junitxml" in sys.argv:
-    secret = os.read(int(sys.argv[4]), 64)
-    plan = json.loads(Path(sys.argv[2]).read_text())
-    nodes = plan["nodes"]
-    payload = json.dumps(
-        {
-            "executed": {node: entry["digest"] for node, entry in nodes.items()},
-            "modules": dict(plan["modules"]),
-            "unaudited": [],
-            "returncode": 0,
-            "product": {},
-            "substituted": [],
-        },
-        sort_keys=True,
-    )
-    Path(sys.argv[3]).write_text(
-        json.dumps(
-            {
-                "payload": payload,
-                "signature": hmac.new(
-                    secret, payload.encode(), hashlib.sha256
-                ).hexdigest(),
-            }
-        )
-    )
-    receipt = Path(sys.argv[sys.argv.index("--junitxml") + 1])
-    cases = "".join(
-        '<testcase file="{}" name="{}"/>'.format(*node.split("::", 1)) for node in nodes
-    )
-    receipt.write_text(
-        '<testsuites><testsuite tests="13" failures="0" errors="0" skipped="0">'
-        + cases
-        + "</testsuite></testsuites>"
-    )
-    os._exit(0)
-"""
-
-
-def test_cli_does_not_run_startup_code_from_site_packages(tmp_path: Path) -> None:
-    """Nothing of anyone else's runs before the checker, in either process.
-
-    Both processes now run `-S`, so `site` performs no path configuration and no `.pth`,
-    `sitecustomize` or `usercustomize` executes. The library directories the child genuinely
-    needs are resolved by the parent while `site` still works and handed over explicitly, so
-    what is allow-listed is a set of paths rather than a set of banned filenames.
-    """
-    document = _executable_fixture(tmp_path)
-    _corrupt_every_canonical_node(tmp_path)
-    injected = tmp_path.parent / (tmp_path.name + "-sitedir")
-    injected.mkdir()
-    forge = injected / "forge_payload.py"
-    forge.write_text(_PTH_FORGE_PROGRAM, encoding="utf-8")
-    (injected / "zzz_forge.pth").write_text(
-        "import pathlib; exec(pathlib.Path(%r).read_text())\n" % str(forge),
-        encoding="utf-8",
-    )
-    environment = dict(os.environ)
-    # `site` scans every `sys.path` entry it adds for `.pth` files, so an entry reachable
-    # at interpreter startup is the position a site-packages write occupies. Without `-S`
-    # this executes in the child before its first line; with `-S` nothing does.
-    environment["PYTHONPATH"] = str(injected)
-    environment["ONTOLOGYLAB_STATUS_SITEDIRS"] = os.pathsep.join(
-        [str(injected), *_SITE_DIRS]
-    )
-
-    result = _run_checker(tmp_path, document, environment=environment)
-
-    payload = json.loads(result.stdout)
-    assert result.returncode == 1
-    assert payload["ok"] is False
-    assert payload["issues"] == [EVERY_NODE_FAILED]
+# `test_cli_does_not_run_startup_code_from_site_packages` used to live here. It planted a
+# `.pth` in a directory it put on `PYTHONPATH` and asserted the corrupted-product verdict.
+# Both halves were wrong: `site` scans only site directories for `.pth` files, never
+# `PYTHONPATH` entries (measured: a non-hidden `.pth` on `PYTHONPATH` does not execute even
+# with no interpreter flags), and the child pops `PYTHONPATH` anyway -- so the forge never
+# constructed and the assertion was satisfied by the corruption alone. Deleting the whole
+# `.pth` write left it passing. It was scenery.
+#
+# The guarantee it claimed is owned behaviourally by
+# `test_the_child_is_launched_with_startup_code_disabled`, which observes the argv the
+# checker really builds. Reaching the remaining vector -- a `.pth` in a genuine site
+# directory -- would mean writing into the shared virtualenv from a test, which is not
+# something this suite is allowed to do.
 
 
 def test_the_library_exemption_never_covers_the_audited_tree(tmp_path: Path) -> None:
@@ -2036,6 +2002,35 @@ def test_cli_names_a_collection_error_as_one(tmp_path: Path) -> None:
     assert "failed" not in issue["detail"]
 
 
+def test_cli_reports_a_write_into_the_audited_tree(tmp_path: Path) -> None:
+    """A run that writes inside the tree it audits is reported as such.
+
+    The sibling test above pins the *outcome* -- that nothing is written -- and passes as
+    long as `-p no:cacheprovider` keeps pytest quiet, which means it survives deleting the
+    reporting block entirely. This one forces a write from product code at import time, so
+    the only thing that can turn the run red is the report itself.
+    """
+    document = _executable_fixture(tmp_path)
+    models = tmp_path / "ontologylab/models.py"
+    models.write_text(
+        models.read_text(encoding="utf-8")
+        + "\n\nimport pathlib as _pl\n\n"
+        "_pl.Path(__file__).parent.parent.joinpath('audit-side-effect.txt').write_text('x')\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    (issue,) = payload["issues"]
+    assert issue["code"] == "evidence_execution"
+    assert issue["detail"].startswith("the audited run wrote inside the audited tree: ")
+    assert "audit-side-effect.txt" in issue["detail"]
+
+
+
 def test_cli_leaves_the_audited_tree_untouched(tmp_path: Path) -> None:
     """The audit is read-only with respect to the tree it audits.
 
@@ -2187,6 +2182,34 @@ def _workflow_steps(workflow: str) -> list[str]:
     return steps
 
 
+def test_the_declared_boundaries_in_code_match_the_spec_section() -> None:
+    """Every exemption in the checker points at the section that declares it.
+
+    The reason cycle four's break walked through was that `ontologylab/**` was exempt
+    silently. An undeclared boundary reads as a defect to the next reviewer and as coverage
+    to the next maintainer. This keeps the two from drifting apart: each `DECLARED BOUNDARY`
+    comment names the spec section, and the section names all three cases.
+    """
+    repository = Path(__file__).resolve().parents[1]
+    checker = (repository / "scripts/check_product_status.py").read_text(encoding="utf-8")
+    spec = (repository / "docs/PRODUCT_SPEC.md").read_text(encoding="utf-8")
+
+    assert checker.count("DECLARED BOUNDARY (docs/PRODUCT_SPEC.md \u00a77.1") == 3
+    for case in ("case 1", "case 2", "case 3"):
+        assert f"\u00a77.1, {case})" in checker, case
+
+    section = spec[spec.index("### 7.1"):spec.index("## 8.")]
+    # The three cases the code defers to, and the reason the boundary sits there.
+    assert "__main__" in section
+    assert "scripts/subprocess.py" in section
+    assert "LIBRARY_ROOTS" in section
+    assert "-P" in section
+    # The acceptance table is what the checker parses; the declaration must not disturb it.
+    assert "<!-- product-status:v1:start -->" in spec
+    assert spec.index("### 7.1") > spec.index("<!-- product-status:v1:end -->")
+
+
+
 @pytest.mark.parametrize(
     ("command", "hardening"),
     (
@@ -2197,6 +2220,7 @@ def _workflow_steps(workflow: str) -> list[str]:
         (
             [
                 "python",
+                "-P",
                 "scripts/check_product_status.py",
                 "--root",
                 ".",
