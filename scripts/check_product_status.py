@@ -628,33 +628,143 @@ def _assigned_pairs(target, value):
     return ()
 
 
-def source_descriptor_callables(tree, aliases):
-    # Constructor ownership is source proof: an __init__ parameter must be assigned directly
-    # to self.<attribute>. Constructors are never run and argument position alone proves none.
-    constructors = {}
+def source_descriptor_callables(tree, aliases, module_name):
+    # Constructor ownership is source proof: declarations stay keyed by their full lexical
+    # owner, and Name/Attribute calls are resolved in the class body that contains the call.
+    # Constructors are never run and argument position alone proves none.
+    classes = {}
 
-    def index_classes(body):
+    def index_classes(body, parent=""):
         for node in body:
             if not isinstance(node, ast.ClassDef):
                 continue
+            qualname = f"{parent}.{node.name}" if parent else node.name
+            classes[qualname] = node
+            index_classes(node.body, qualname)
+
+    index_classes(tree.body)
+
+    def dotted(expression):
+        parts = []
+        while isinstance(expression, ast.Attribute):
+            parts.append(expression.attr)
+            expression = expression.value
+        if not isinstance(expression, ast.Name):
+            return None
+        return ".".join((expression.id, *reversed(parts)))
+
+    def resolve_class(expression, owner):
+        name = dotted(expression)
+        if name is None:
+            return None
+        first, _, rest = name.partition(".")
+        local = f"{owner}.{first}"
+        candidate = local + (f".{rest}" if rest else "")
+        if candidate in classes:
+            return candidate
+        return name if name in classes else None
+
+    constructors = {}
+    for qualname, node in classes.items():
+        init = next(
+            (
+                item
+                for item in node.body
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and item.name == "__init__"
+            ),
+            None,
+        )
+        if init is None:
+            continue
+        positional = [*init.args.posonlyargs, *init.args.args][1:]
+        positions = {argument.arg: index for index, argument in enumerate(positional)}
+        parameters = set(positions) | {argument.arg for argument in init.args.kwonlyargs}
+        owned = {}
+        for statement in init.body:
+            if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
+                pairs = _assigned_pairs(statement.targets[0], statement.value)
+            elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+                pairs = _assigned_pairs(statement.target, statement.value)
+            else:
+                pairs = ()
+            for target, value in pairs:
+                if (
+                    isinstance(target, ast.Attribute)
+                    and isinstance(target.value, ast.Name)
+                    and target.value.id == "self"
+                    and isinstance(value, ast.Name)
+                    and value.id in parameters
+                ):
+                    owned[target.attr] = (value.id, positions.get(value.id))
+        if owned:
+            constructors[qualname] = owned
+
+    def declared_slots(qualname):
+        node = classes[qualname]
+        names = []
+        for statement in node.body:
+            if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
+                target, value = statement.targets[0], statement.value
+            elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+                target, value = statement.target, statement.value
+            else:
+                continue
+            if not (isinstance(target, ast.Name) and target.id == "__slots__"):
+                continue
+            try:
+                declared = ast.literal_eval(value)
+            except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+                return None
+            if isinstance(declared, str):
+                declared = (declared,)
+            if not isinstance(declared, (tuple, list)) or not all(
+                isinstance(name, str) for name in declared
+            ):
+                return None
+            names.extend(declared)
+        return tuple(name for name in names if name not in {"__dict__", "__weakref__"})
+
+    def class_lineage(qualname, seen=None):
+        seen = set() if seen is None else seen
+        if qualname in seen:
+            return None
+        seen.add(qualname)
+        lineage = []
+        for base in classes[qualname].bases:
+            base_name = resolve_class(base, qualname.rpartition(".")[0])
+            if base_name is None:
+                continue
+            inherited = class_lineage(base_name, seen)
+            if inherited is None:
+                return None
+            lineage.extend(inherited)
+        lineage.append(qualname)
+        return lineage
+
+    def source_receiver_bytes(qualname, is_class):
+        identity = _constant_bytes((module_name, qualname))
+        if is_class:
+            return _frame(b"C", identity)
+        lineage = class_lineage(qualname)
+        if lineage is None:
+            return None
+        entries = []
+        for declaring in lineage:
+            slots = declared_slots(declaring)
+            if slots is None:
+                return None
             init = next(
                 (
                     item
-                    for item in node.body
+                    for item in classes[declaring].body
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
                     and item.name == "__init__"
                 ),
                 None,
             )
+            assigned = {}
             if init is not None:
-                positional = [*init.args.posonlyargs, *init.args.args][1:]
-                positions = {
-                    argument.arg: index for index, argument in enumerate(positional)
-                }
-                parameters = set(positions) | {
-                    argument.arg for argument in init.args.kwonlyargs
-                }
-                owned = {}
                 for statement in init.body:
                     if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
                         pairs = _assigned_pairs(statement.targets[0], statement.value)
@@ -667,43 +777,66 @@ def source_descriptor_callables(tree, aliases):
                             isinstance(target, ast.Attribute)
                             and isinstance(target.value, ast.Name)
                             and target.value.id == "self"
-                            and isinstance(value, ast.Name)
-                            and value.id in parameters
                         ):
-                            owned[target.attr] = (value.id, positions.get(value.id))
-                if owned:
-                    constructors[node.name] = owned
-            index_classes(node.body)
+                            assigned[target.attr] = _source_default(value)
+            short_name = declaring.rsplit(".", 1)[-1].lstrip("_")
+            for source_name in sorted(slots):
+                storage_name = (
+                    f"_{short_name}{source_name}"
+                    if source_name.startswith("__") and not source_name.endswith("__")
+                    else source_name
+                )
+                value = assigned.get(source_name, UNBOUND_DEFAULT)
+                if value is UNBOUND_DEFAULT and source_name in assigned:
+                    return None
+                if source_name in assigned:
+                    entries.append((module_name, declaring, storage_name, True, value))
+                else:
+                    entries.append((module_name, declaring, storage_name, False, None))
+        # Values are already canonical bytes, so frame the structural slot record directly.
+        slot_bytes = b"".join(
+            _frame(
+                b"S",
+                _constant_bytes((owner_module, owner, name, present))
+                + (value if present else b""),
+            )
+            for owner_module, owner, name, present, value in entries
+        )
+        return _frame(b"I", identity + _constant_bytes({}) + _frame(b"L", slot_bytes))
 
-    index_classes(tree.body)
     found = {}
 
     def callable_expression(expression, owner, local_names):
         if isinstance(expression, ast.Name):
             name = f"{owner}.{expression.id}" if expression.id in local_names else expression.id
-            return name, "function", None
+            return name, "function", None, None
         if (
             isinstance(expression, ast.Call)
-            and getattr(expression.func, "id", getattr(expression.func, "attr", None))
-            == "MethodType"
+            and dotted(expression.func) is not None
+            and dotted(expression.func).rsplit(".", 1)[-1] == "MethodType"
             and len(expression.args) == 2
             and not expression.keywords
         ):
             callback = callable_expression(expression.args[0], owner, local_names)
             receiver = expression.args[1]
-            if callback is None or not (
+            if callback is None:
+                return None
+            if (
                 isinstance(receiver, ast.Call)
-                and isinstance(receiver.func, ast.Name)
                 and not receiver.args
                 and not receiver.keywords
             ):
+                receiver_name = resolve_class(receiver.func, owner)
+                is_class = False
+            else:
+                receiver_name = resolve_class(receiver, owner)
+                is_class = True
+            if receiver_name is None:
                 return None
-            receiver_name = (
-                f"{owner}.{receiver.func.id}"
-                if receiver.func.id in local_names
-                else receiver.func.id
-            )
-            return callback[0], "method", receiver_name
+            receiver_state = source_receiver_bytes(receiver_name, is_class)
+            if receiver_state is None:
+                return None
+            return callback[0], "method", receiver_name, receiver_state
         return None
 
     def visit(body, parent=""):
@@ -714,22 +847,18 @@ def source_descriptor_callables(tree, aliases):
             local_names = {
                 item.name
                 for item in node.body
-                if isinstance(
-                    item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-                )
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
             }
             for statement in node.body:
                 if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     for decorator in statement.decorator_list:
-                        descriptor = getattr(decorator, "id", None)
+                        descriptor = resolve_class(decorator, owner)
                         for attribute, (parameter, position) in constructors.get(
                             descriptor, {}
                         ).items():
                             if position == 0 or parameter == "callback":
                                 found[f"{owner}.{statement.name}.{attribute}"] = (
-                                    f"{owner}.{statement.name}",
-                                    "function",
-                                    None,
+                                    f"{owner}.{statement.name}", "function", None, None
                                 )
                     continue
                 if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
@@ -740,14 +869,10 @@ def source_descriptor_callables(tree, aliases):
                     continue
                 if not (isinstance(target, ast.Name) and isinstance(value, ast.Call)):
                     continue
-                descriptor = getattr(value.func, "id", None)
+                descriptor = resolve_class(value.func, owner)
                 for attribute, (parameter, position) in constructors.get(descriptor, {}).items():
                     expression = next(
-                        (
-                            keyword.value
-                            for keyword in value.keywords
-                            if keyword.arg == parameter
-                        ),
+                        (keyword.value for keyword in value.keywords if keyword.arg == parameter),
                         value.args[position]
                         if position is not None and position < len(value.args)
                         else None,
@@ -798,9 +923,34 @@ def _receiver_bytes(receiver):
             if type(candidate) is dict:
                 state = candidate
             break
-    # Only a concrete dictionary in the existing typed literal/container domain is opened.
-    # No receiver getter runs and no referenced arbitrary object graph is serialized.
-    return _frame(b"I", identity + _constant_bytes(state))
+    slots = []
+    for base in reversed(receiver_type.__mro__):
+        for name, descriptor in sorted(vars(base).items()):
+            if name in {"__dict__", "__weakref__"} or not isinstance(
+                descriptor, types.MemberDescriptorType
+            ):
+                continue
+            try:
+                value = descriptor.__get__(receiver, receiver_type)
+            except AttributeError:
+                present = False
+                encoded = b""
+            else:
+                present = True
+                encoded = _constant_bytes(value)
+            slots.append(
+                _frame(
+                    b"S",
+                    _constant_bytes((base.__module__, base.__qualname__, name, present))
+                    + encoded,
+                )
+            )
+    # Only concrete CPython dictionary/slot descriptors are opened. No receiver getter or
+    # custom __getattribute__ runs, and unsupported/cyclic slot values fail closed. Distinct
+    # same-class instances with the same supported state remain residual-5-receiver-identity.
+    return _frame(
+        b"I", identity + _constant_bytes(state) + _frame(b"L", b"".join(slots))
+    )
 
 
 def _callable_bytes(value):
@@ -1086,7 +1236,9 @@ def product_identity():
             module_tree = ast.parse(source, filename=str(path))
             generated_by_dataclass = dataclass_generated_names(module_tree)
             member_aliases = source_member_aliases(module_tree)
-            descriptor_callables = source_descriptor_callables(module_tree, member_aliases)
+            descriptor_callables = source_descriptor_callables(
+                module_tree, member_aliases, module.__name__
+            )
             function_defaults = source_function_defaults(module_tree)
             class_nodes = {
                 node.name: node
@@ -1145,13 +1297,14 @@ def product_identity():
                     f"{relative}::{binding} was compiled from {origin}"
                 )
                 continue
-            if any(
+            is_library_callable = any(
                 library in Path(origin).resolve().parents
                 for library in LIBRARY_ROOTS
                 if Path(origin).is_absolute()
-            ):
-                continue
+            )
             callable_source = descriptor_callables.get(binding)
+            if is_library_callable and callable_source is None:
+                continue
             expected_kind = callable_source[1] if callable_source else "function"
             if expected_kind == "function" and isinstance(function, types.MethodType):
                 substitutions.append(
@@ -1175,21 +1328,23 @@ def product_identity():
                     continue
                 try:
                     receiver_state = _receiver_bytes(receiver)
-                    empty_state = _frame(
-                        b"I",
-                        _constant_bytes((receiver_type.__module__, receiver_type.__qualname__))
-                        + _constant_bytes({}),
-                    )
                 except (TypeError, ValueError):
                     substitutions.append(
                         f"{relative}::{binding} has unsupported method receiver state"
                     )
                     continue
-                if not isinstance(receiver, type) and receiver_state != empty_state:
+                if receiver_state != callable_source[3]:
                     substitutions.append(
-                        f"{relative}::{binding} has source-undetermined method receiver state"
+                        f"{relative}::{binding} has a method receiver state that differs from its source declaration"
                     )
                     continue
+            # Source-local proof has precedence over option A's external-library boundary.
+            # Only a source declaration for which no local callable was derived may use it.
+            if is_library_callable:
+                substitutions.append(
+                    f"{relative}::{binding} differs from its source-local callable declaration"
+                )
+                continue
             if origin != str(path):
                 substitutions.append(
                     f"{relative}::{binding} claims {origin}"

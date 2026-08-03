@@ -2840,6 +2840,403 @@ class A13NegativeOwner:
     assert result.returncode == 1
 
 
+def test_cli_rejects_changed_slotted_method_receiver_state(tmp_path: Path) -> None:
+    """Concrete slots are invocation state even when the instance has no __dict__."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+import types as _a14_slot_types
+class A14SlotDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A14SlotReceiver:
+    __slots__ = ("label",)
+    def __init__(self): self.label = "source"
+def a14_slot_callback(self): return self.label
+class A14SlotOwner:
+    marker = A14SlotDescriptor(
+        _a14_slot_types.MethodType(a14_slot_callback, A14SlotReceiver())
+    )
+_a14_slot_leftover = A14SlotReceiver()
+_a14_slot_leftover.label = "leftover"
+vars(A14SlotOwner)["marker"].callback = _a14_slot_types.MethodType(
+    a14_slot_callback, _a14_slot_leftover
+)
+assert vars(A14SlotOwner)["marker"].callback() == "leftover"
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    assert "A14SlotOwner.marker.callback has a method receiver state that differs" in details
+    assert result.returncode == 1
+
+
+def test_cli_accepts_clean_inherited_and_unset_slotted_receivers(tmp_path: Path) -> None:
+    """Inherited and unset concrete slots have deterministic source/live presence state."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+import types as _a14_clean_slot_types
+class A14CleanSlotDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A14SlotBase:
+    __slots__ = ("base", "unset")
+    def __init__(self): self.base = {"label": "source"}
+class A14SlotChild(A14SlotBase):
+    __slots__ = ("child", "__weakref__")
+    def __init__(self):
+        super().__init__()
+        self.child = ("source",)
+def a14_clean_slot_callback(self): return self.base, self.child
+class A14CleanSlotOwner:
+    marker = A14CleanSlotDescriptor(
+        _a14_clean_slot_types.MethodType(a14_clean_slot_callback, A14SlotChild())
+    )
+assert vars(A14CleanSlotOwner)["marker"].callback() == ({"label": "source"}, ("source",))
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["issues"] == []
+
+
+def test_slotted_method_receiver_tokens_bind_presence_values_and_cycles() -> None:
+    helpers = _shipped_helpers(
+        "_frame", "_constant_bytes", "_code_bytes", "_descriptor_value_bytes"
+    )
+    encode = helpers["_descriptor_value_bytes"]
+
+    class Base:
+        __slots__ = ("base", "unset")
+
+    class Child(Base):
+        __slots__ = ("child",)
+
+    def callback(self):
+        return None
+
+    first = Child()
+    first.base = "source"
+    first.child = 1
+    second = Child()
+    second.base = "source"
+    second.child = 2
+    assert encode(types.MethodType(callback, first)) != encode(
+        types.MethodType(callback, second)
+    )
+    del second.child
+    assert encode(types.MethodType(callback, first)) != encode(
+        types.MethodType(callback, second)
+    )
+    second.child = second
+    with pytest.raises(TypeError):
+        encode(types.MethodType(callback, second))
+
+
+@pytest.mark.parametrize("source_kind", ("function", "method"))
+def test_cli_rejects_source_local_callback_replaced_by_library_method(
+    tmp_path: Path, source_kind: str
+) -> None:
+    """Source-local callable proof precedes the genuine-library exemption."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    callback = (
+        "a14_local_callback"
+        if source_kind == "function"
+        else "_a14_library_types.MethodType(a14_local_callback, A14LibraryReceiver())"
+    )
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+import pathlib as _a14_pathlib
+import types as _a14_library_types
+class A14LibraryDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A14LibraryReceiver: pass
+def a14_local_callback(self=None): return "source"
+class A14LocalToLibraryOwner:
+    marker = A14LibraryDescriptor("""
+        + callback
+        + """)
+vars(A14LocalToLibraryOwner)["marker"].callback = _a14_pathlib.Path(".").exists
+assert isinstance(vars(A14LocalToLibraryOwner)["marker"].callback(), bool)
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    assert "A14LocalToLibraryOwner.marker.callback" in details
+    assert result.returncode == 1
+
+
+def test_cli_accepts_source_declared_library_callbacks(tmp_path: Path) -> None:
+    """Option A still exempts external callbacks when source declares the external value."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+import pathlib as _a14_clean_pathlib
+class A14ExternalDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A14ExternalOwner:
+    positional = A14ExternalDescriptor(_a14_clean_pathlib.Path(".").exists)
+    keyword = A14ExternalDescriptor(callback=_a14_clean_pathlib.Path(".").is_dir)
+assert isinstance(vars(A14ExternalOwner)["positional"].callback(), bool)
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["issues"] == []
+
+
+def test_cli_resolves_lexically_colliding_descriptor_constructors(tmp_path: Path) -> None:
+    """Bare and qualified constructor calls retain their fully lexical declarations."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+class A14CollisionDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback.__get__(instance, owner)
+class A14CollisionContainer:
+    class A14CollisionDescriptor:
+        def __init__(self, handler): self.handler = handler
+        def __get__(self, instance, owner): return self.handler.__get__(instance, owner)
+    def nested_callback(self): return "nested"
+    positional = A14CollisionDescriptor(nested_callback)
+    keyword = A14CollisionDescriptor(handler=nested_callback)
+def a14_collision_callback(self): return "module"
+class A14CollisionOwner:
+    positional = A14CollisionDescriptor(a14_collision_callback)
+    keyword = A14CollisionDescriptor(callback=a14_collision_callback)
+    annotated: object = A14CollisionDescriptor(a14_collision_callback)
+    nested = A14CollisionContainer.A14CollisionDescriptor(a14_collision_callback)
+assert A14CollisionOwner().positional() == "module"
+assert A14CollisionContainer().positional() == "nested"
+assert A14CollisionOwner().nested() == "module"
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["issues"] == []
+
+
+@pytest.mark.parametrize("scope", ("module", "nested"))
+@pytest.mark.parametrize("replacement", ("sibling", "synthetic"))
+def test_cli_rejects_colliding_constructor_callback_substitutions(
+    tmp_path: Path, scope: str, replacement: str
+) -> None:
+    """Each lexical constructor scope keeps its own callback binding load-bearing."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    owner = "A14LexicalOwner" if scope == "module" else "A14LexicalContainer"
+    attribute = "callback" if scope == "module" else "handler"
+    if replacement == "sibling":
+        mutation = f'vars({owner})["marker"].{attribute} = a14_lexical_sibling\n'
+    else:
+        mutation = (
+            '_a14_lexical_ns = {"__name__": __name__}\n'
+            'exec(compile("def a14_lexical_original(self): return \'synthetic\'", '
+            '"<string>", "exec"), _a14_lexical_ns)\n'
+            f'vars({owner})["marker"].{attribute} = _a14_lexical_ns["a14_lexical_original"]\n'
+        )
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+def a14_lexical_original(self): return "source"
+def a14_lexical_sibling(self): return "leftover"
+class A14LexicalDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback.__get__(instance, owner)
+class A14LexicalContainer:
+    class A14LexicalDescriptor:
+        def __init__(self, handler): self.handler = handler
+        def __get__(self, instance, owner): return self.handler.__get__(instance, owner)
+    marker = A14LexicalDescriptor(a14_lexical_original)
+class A14LexicalOwner:
+    marker = A14LexicalDescriptor(a14_lexical_original)
+"""
+        + mutation,
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    assert f"{owner}.marker.{attribute}" in details
+    assert result.returncode == 1
+
+
+def test_cli_accepts_local_and_qualified_class_method_receivers(tmp_path: Path) -> None:
+    """Name and qualified Attribute class objects are source-bound class receivers."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+import types as _a14_class_types
+class A14ClassReceiverDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A14ClassReceiver: pass
+class A14ClassReceiverContainer:
+    class Receiver: pass
+def a14_class_receiver_callback(cls): return cls.__name__
+class A14ClassReceiverOwner:
+    local = A14ClassReceiverDescriptor(
+        _a14_class_types.MethodType(a14_class_receiver_callback, A14ClassReceiver)
+    )
+    qualified = A14ClassReceiverDescriptor(
+        _a14_class_types.MethodType(
+            a14_class_receiver_callback, A14ClassReceiverContainer.Receiver
+        )
+    )
+assert vars(A14ClassReceiverOwner)["local"].callback() == "A14ClassReceiver"
+assert vars(A14ClassReceiverOwner)["qualified"].callback() == "Receiver"
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["issues"] == []
+
+
+def test_class_method_receiver_tokens_are_canonical_in_frozensets() -> None:
+    helpers = _shipped_helpers(
+        "_frame", "_constant_bytes", "_code_bytes", "_descriptor_value_bytes"
+    )
+    encode = helpers["_descriptor_value_bytes"]
+
+    class First: pass
+    class Second: pass
+
+    def callback(cls):
+        return cls
+
+    first = types.MethodType(callback, First)
+    second = types.MethodType(callback, Second)
+    assert encode(first) != encode(second)
+    assert encode(frozenset((first, second))) == encode(frozenset((second, first)))
+
+
+def test_cli_rejects_changed_class_method_receiver(tmp_path: Path) -> None:
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+import types as _a14_changed_class_types
+class A14ChangedClassDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A14ExpectedClassReceiver: pass
+class A14OtherClassReceiver: pass
+def a14_changed_class_callback(cls): return cls.__name__
+class A14ChangedClassOwner:
+    marker = A14ChangedClassDescriptor(
+        _a14_changed_class_types.MethodType(a14_changed_class_callback, A14ExpectedClassReceiver)
+    )
+vars(A14ChangedClassOwner)["marker"].callback = _a14_changed_class_types.MethodType(
+    a14_changed_class_callback, A14OtherClassReceiver
+)
+assert vars(A14ChangedClassOwner)["marker"].callback() == "A14OtherClassReceiver"
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    assert "A14ChangedClassOwner.marker.callback has a method receiver that differs" in details
+    assert result.returncode == 1
+
+
+def test_same_class_empty_receiver_identity_is_a_declared_residual(tmp_path: Path) -> None:
+    """The isolated checker knowingly cannot source-rederive instance object identity."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + """
+
+import types as _a14_identity_types
+class A14IdentityDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A14IdentityReceiver: pass
+def a14_identity_callback(self): return self is _a14_expected_receiver
+_a14_expected_receiver = A14IdentityReceiver()
+class A14IdentityOwner:
+    marker = A14IdentityDescriptor(
+        _a14_identity_types.MethodType(a14_identity_callback, A14IdentityReceiver())
+    )
+_a14_expected_receiver = vars(A14IdentityOwner)["marker"].callback.__self__
+assert vars(A14IdentityOwner)["marker"].callback() is True
+vars(A14IdentityOwner)["marker"].callback = _a14_identity_types.MethodType(
+    a14_identity_callback, A14IdentityReceiver()
+)
+assert vars(A14IdentityOwner)["marker"].callback() is False
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["issues"] == []
+
+
+def test_method_receiver_identity_residual_cannot_drift_into_hostile_boundaries() -> None:
+    residual = _spec_section("#### 7.1.3", "## 8. 비목표")
+    assert "`residual-5-receiver-identity`" in residual
+    assert "same-class" in residual
+    assert "object identity" in residual
+    hostile = _spec_section("**막지 않는 것", "#### 7.1.1")
+    assert "residual-5" not in hostile
+    checker = (
+        Path(__file__).resolve().parents[1] / "scripts/check_product_status.py"
+    ).read_text(encoding="utf-8")
+    assert "residual-5-receiver-identity" in checker
+
+
 def test_cli_rejects_a_callable_rebound_inside_a_custom_descriptor(
     tmp_path: Path,
 ) -> None:

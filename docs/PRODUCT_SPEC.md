@@ -408,10 +408,28 @@ process-global leakage 없이 지키게 한다.
 계속 묶이며, 소스가 지원하는 리터럴 위치를 지원하지 않는 라이브 값으로 바꾸면 실패한다.
 
 디스크 소스가 무바인드 함수를 descriptor 생성자에 전달했다고 증명되는 경로는 라이브
-`MethodType`으로 바뀌면 거부한다. 소스가 명시적으로 만드는 `MethodType`은 수신자 클래스
-정체성을 묶고, getter를 호출하거나 임의 객체 그래프를 직렬화하지 않기 위해 상태 없는
-수신자만 지원한다. 지원되는 callable container 경로의 라벨은 wrapper 종류, 기본값,
-수신자 클래스와 타입 지원 가능한 직접 instance dictionary 상태를 포함한다.
+`MethodType`으로 바뀌면 거부한다. 이 소스 로컬 증명은 라이브 callable의 라이브러리
+출처 면제보다 우선한다. 라이브러리 callable은 소스 자체가 외부 callable을 선언하여
+로컬 함수/메서드 기대가 없을 때만 `LIBRARY_ROOTS` 경계를 적용한다.
+
+소스가 명시적으로 만드는 `MethodType`은 수신자 클래스 정체성과 지원되는 직접 상태를
+묶는다. 일반 instance dictionary와 함께 수신자 MRO의 구체적인 CPython slot member
+descriptor를 getter나 custom `__getattribute__` 없이 읽으며, 선언 클래스·slot 이름·
+presence·타입 보존 값을 결정적으로 인코딩한다. 상속 slot과 unset slot도 구조에 포함하고
+`__dict__`/`__weakref__`는 slot 목록에서 제외한다. 순환 또는 지원하지 않는 값은 닫힌
+실패로 처리한다. 클래스 객체 수신자는 소스의 lexical `Name`/qualified `Attribute`가
+가리키는 클래스 정체성을 별도 token으로 묶는다. 지원되는 callable container 경로의
+라벨은 wrapper 종류, 기본값, 수신자 클래스와 이 직접 상태를 포함한다.
+
+#### 7.1.3 부분 보장 — 같은 상태의 수신자 객체 정체성
+
+**분류: `residual-5-receiver-identity`.** 격리 실행에서 소스가 `Receiver()`로 만든
+instance의 Python **object identity** 자체는 소스만으로 다시 만들 수 없다. 따라서 서로
+다른 **same-class** instance가 같은 지원 상태(instance dictionary와 concrete slot 상태)를
+가지더라도 `self is expected_receiver`처럼 객체 정체성에 의존하는 callback의 의미가
+달라질 수 있으며, 이 정확한 치환은 게이트가 탐지하지 못한다. 상태가 없다는 사실을 행동
+동등성으로 주장하지 않는다. 이 잔여는 `hostile-1/2/3`이나 다른 잔여와 합치지 않는 평범한
+소스 재유도 한계이며, 클래스 객체 수신자 정체성 token과도 별개다.
 
 
 ## 8. 비목표
