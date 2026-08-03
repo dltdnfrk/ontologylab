@@ -107,7 +107,11 @@ import os
 import sys
 from pathlib import Path
 
-import pytest
+# Under `-S` the interpreter has no site-packages on its path, so put back exactly the
+# directories the parent resolved while `site` still worked -- and nothing else.
+for _entry in os.environ.get("ONTOLOGYLAB_STATUS_SITEDIRS", "").split(os.pathsep):
+    if _entry and Path(_entry).is_absolute() and _entry not in sys.path:
+        sys.path.append(_entry)
 
 ROOT = Path(sys.argv[1]).resolve()
 PLAN = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
@@ -119,18 +123,59 @@ LEDGER_FILE = Path(sys.argv[3])
 # that arrives later -- fixtures, product imports, `atexit` -- finds a closed descriptor.
 _secret_fd = int(sys.argv[4])
 SECRET = os.read(_secret_fd, 64)
+# Closing is hygiene, not the barrier: the parent already closed the write end and this
+# read consumed the whole secret, so a later reader gets b"" either way. The barrier is
+# that no code runs before this point -- see `-I -S` on the command line.
 os.close(_secret_fd)
 if len(SECRET) != 64:
     raise SystemExit("evidence executor did not receive its run secret")
+import pytest
+
 NODES = PLAN["nodes"]
 MODULES = PLAN["modules"]
 PRODUCT = ROOT / "ontologylab"
-# Site-packages and the stdlib live under the interpreter prefixes; on a venv inside
-# the audited tree they would otherwise look like repository-local modules.
+# The library boundary is stated explicitly rather than derived from `sys.prefix`, which
+# collapses to the base interpreter under `-S` and previously exempted an in-tree
+# virtualenv by accident. These are the directories the parent resolved and handed over,
+# plus the interpreter's own; everything else under the audited root is repository code.
 LIBRARY_ROOTS = tuple(
-    Path(prefix).resolve() for prefix in (sys.prefix, sys.base_prefix)
+    dict.fromkeys(
+        Path(entry).resolve()
+        for entry in (
+            *os.environ.get("ONTOLOGYLAB_STATUS_SITEDIRS", "").split(os.pathsep),
+            sys.base_prefix,
+            sys.prefix,
+        )
+        # Absolute directories only, checked here as well as where the value is produced:
+        # "" and "." mean the working directory, which is the audited root, and accepting
+        # either would exempt the whole repository from the audit that follows.
+        if entry and Path(entry).is_absolute() and Path(entry).is_dir()
+    )
 )
-LEDGER = {"executed": {}, "modules": {}, "unaudited": []}
+# And whatever it is spelled as, the audited tree is not a library. Redundant in practice --
+# the static content gate rejects a tampered evidence file before the child runs, so no test
+# fails when this line is removed -- but the library list is otherwise an outside-controlled
+# way to narrow the audit, and that is worth refusing on principle rather than on coverage.
+LIBRARY_ROOTS = tuple(root for root in LIBRARY_ROOTS if root != ROOT)
+LEDGER = {"executed": {}, "modules": {}, "unaudited": [], "product": {}, "substituted": []}
+# Every source file this interpreter compiles, recorded by an audit hook installed before
+# anything else runs. Walking `sys.modules` was evadable two ways that both keep working
+# code off the list -- `del sys.modules[name]` after import, and `exec` of a file that never
+# becomes a module at all. An audit hook sees the compile itself, and once installed it
+# cannot be removed (there is no public API to drop one), so the record is append-only.
+COMPILED_FILES = set()
+
+
+def _record_compile(event, arguments):
+    if event == "compile" and len(arguments) > 1 and arguments[1]:
+        COMPILED_FILES.add(str(arguments[1]))
+    elif event == "exec" and arguments:
+        origin = getattr(arguments[0], "co_filename", None)
+        if origin:
+            COMPILED_FILES.add(str(origin))
+
+
+sys.addaudithook(_record_compile)
 
 # The audited definitions are compiled here rather than by pytest's assertion
 # rewriter, so plain `assert` enforcement is what carries the evidence.
@@ -206,12 +251,113 @@ def audited_definition(node_id):
     return definition, entry
 
 
+def module_origin(module):
+    # A module's origin, from `__file__` or from the spec it was loaded with. A loader that
+    # supplies neither is not thereby exempt: it is reported, because an evidence path made
+    # of modules that decline to say where they came from is not auditable.
+    origin = getattr(module, "__file__", None)
+    if origin:
+        return origin, True
+    spec = getattr(module, "__spec__", None)
+    origin = getattr(spec, "origin", None) if spec is not None else None
+    if origin and origin not in {"built-in", "frozen"}:
+        return origin, True
+    name = getattr(module, "__name__", "") or ""
+    if name == "ontologylab" or name.startswith("ontologylab."):
+        return None, False
+    return None, True
+
+
+def product_identity():
+    # What product did the bodies actually call?
+    #
+    # `ontologylab/**` is exempt from content pinning on purpose: it is the thing under
+    # test, and pinning it would make the gate assert its own input. But the exemption was
+    # doing more work than that. `verified_namespace` re-executes the evidence module's
+    # source, so its `from ontologylab.x import y` reads a LIVE module attribute -- which
+    # product code is free to rebind. A product module that detected the audit and re-execed
+    # its own pre-mutation source put the good implementation in front of the audited bodies
+    # while shipping the broken one.
+    #
+    # So this reports identity, not correctness: for every function a product module
+    # exposes as its own, the code object must be one that compiling that module's current
+    # source can produce. That is falsifiable without asserting anything about behaviour, it
+    # is recorded inside the signed payload where in-child code cannot author it, and it is
+    # not circular -- the product still gets to be as broken as it likes, it just cannot be
+    # one thing on disk and another at call time.
+    digests = {}
+    substitutions = []
+    for module in list(sys.modules.values()):
+        origin, accountable = module_origin(module)
+        if origin is None:
+            if not accountable:
+                substitutions.append(
+                    f"{getattr(module, '__name__', '?')}: loaded with no declared origin"
+                )
+            continue
+        path = Path(origin).resolve()
+        if not (PRODUCT == path.parent or PRODUCT in path.parents):
+            continue
+        relative = path.relative_to(ROOT).as_posix()
+        try:
+            source = path.read_bytes()
+        except OSError:
+            substitutions.append(f"{relative}: unreadable")
+            continue
+        digests[relative] = hashlib.sha256(source).hexdigest()
+        try:
+            compiled = compile(source, str(path), "exec")
+        except SyntaxError:
+            substitutions.append(f"{relative}: will not compile")
+            continue
+        producible = set()
+        pending = [compiled]
+        while pending:
+            code = pending.pop()
+            producible.add(code.co_code)
+            pending.extend(
+                const for const in code.co_consts if isinstance(const, type(compiled))
+            )
+        for attribute, value in list(vars(module).items()):
+            code = getattr(value, "__code__", None)
+            if code is None or getattr(value, "__module__", None) != module.__name__:
+                continue
+            if code.co_filename != str(path):
+                substitutions.append(
+                    f"{relative}::{attribute} claims {code.co_filename}"
+                )
+            elif code.co_code not in producible:
+                substitutions.append(
+                    f"{relative}::{attribute} is not compiled from this file"
+                )
+    return digests, sorted(set(substitutions))
+
+
 def unaudited_repository_modules():
     # Every repository-local module that loaded, minus the product under test.
     found = []
+    for origin in sorted(COMPILED_FILES):
+        try:
+            # Relative filenames are resolved against the audited root, which is this
+            # process's cwd: `compile(source, "helper.py", ...)` names a real file there.
+            candidate = Path(origin)
+            path = (candidate if candidate.is_absolute() else ROOT / candidate).resolve()
+        except (OSError, ValueError):
+            continue
+        if ROOT not in path.parents or not path.is_file():
+            continue
+        if any(library in path.parents for library in LIBRARY_ROOTS):
+            continue
+        if PRODUCT == path.parent or PRODUCT in path.parents:
+            continue
+        relative = path.relative_to(ROOT).as_posix()
+        if MODULES.get(relative) != hashlib.sha256(path.read_bytes()).hexdigest():
+            found.append(relative)
     for module in list(sys.modules.values()):
-        origin = getattr(module, "__file__", None)
-        if not origin:
+        origin, accountable = module_origin(module)
+        if origin is None:
+            if not accountable:
+                found.append(f"{getattr(module, '__name__', '?')}: no declared origin")
             continue
         path = Path(origin).resolve()
         if ROOT not in path.parents:
@@ -254,6 +400,7 @@ class EvidenceExecutor:
             if relative not in LEDGER["modules"]:
                 audited_source(relative)
         LEDGER["unaudited"] = unaudited_repository_modules()
+        LEDGER["product"], LEDGER["substituted"] = product_identity()
 
 
 def write_report(code):
@@ -678,6 +825,11 @@ def _execute_test_evidence(root: Path) -> tuple[Issue | None, int]:
             [
                 sys.executable,
                 "-I",
+                # `-S` as well as `-I`: `.pth` files in site-packages execute before any
+                # `-c` program, which is early enough to read the run secret off the
+                # inherited descriptor and sign a forged pass. The child rebuilds the path
+                # it needs from ONTOLOGYLAB_STATUS_SITEDIRS instead.
+                "-S",
                 "-c",
                 EVIDENCE_EXECUTOR_PROGRAM,
                 str(root),
@@ -711,7 +863,7 @@ def _execute_test_evidence(root: Path) -> tuple[Issue | None, int]:
         )
         os.close(read_fd)
         ledger, ledger_issue, signed_returncode = _read_execution_ledger(
-            ledger_file, secret
+            ledger_file, secret, root
         )
         receipt_issue = _validate_pytest_receipt(
             receipt,
@@ -809,7 +961,7 @@ def _executor_refusals(output: str) -> list[str]:
 
 
 def _read_execution_ledger(
-    ledger_file: Path, secret: bytes
+    ledger_file: Path, secret: bytes, root: Path
 ) -> tuple[dict[str, str], Issue | None, int]:
     """Read what the child compiled, ran, and loaded, and hold it to the digests.
 
@@ -862,6 +1014,8 @@ def _read_execution_ledger(
         "modules",
         "unaudited",
         "returncode",
+        "product",
+        "substituted",
     }:
         return {}, malformed, _UNSIGNED
     executed, modules, unaudited = (
@@ -869,7 +1023,12 @@ def _read_execution_ledger(
         ledger["modules"],
         ledger["unaudited"],
     )
-    if not isinstance(ledger["returncode"], int):
+    product, substituted = ledger["product"], ledger["substituted"]
+    if (
+        not isinstance(ledger["returncode"], int)
+        or not isinstance(product, dict)
+        or not isinstance(substituted, list)
+    ):
         return {}, malformed, _UNSIGNED
     signed_returncode = ledger["returncode"]
     if (
@@ -882,7 +1041,7 @@ def _read_execution_ledger(
             for key, value in mapping.items()
         )
     ):
-        return {}, malformed
+        return {}, malformed, _UNSIGNED
 
     if executed != dict(TEST_EVIDENCE_DIGESTS):
         missing = sorted(set(TEST_EVIDENCE_DIGESTS) - set(executed))
@@ -923,7 +1082,63 @@ def _read_execution_ledger(
             ),
             signed_returncode,
         )
+    if substituted:
+        return (
+            executed,
+            Issue(
+                "evidence_execution",
+                "DOCUMENT",
+                "product code the bodies called is not what its own source compiles to: "
+                f"{sorted(substituted)[:20]}",
+            ),
+            signed_returncode,
+        )
+    if not product:
+        return (
+            executed,
+            Issue(
+                "evidence_execution",
+                "DOCUMENT",
+                "no product module identity was recorded for this run",
+            ),
+            signed_returncode,
+        )
+    # Only the product modules the run actually loaded: the parent is confirming that what
+    # the bodies ran against is still what is on disk, not taking inventory of the tree.
+    on_disk = _product_digests(root)
+    if any(product.get(relative) != on_disk.get(relative) for relative in product):
+        divergent = sorted(
+            relative
+            for relative in product
+            if product.get(relative) != on_disk.get(relative)
+        )
+        return (
+            executed,
+            Issue(
+                "evidence_execution",
+                "DOCUMENT",
+                f"product changed between the audited run and this check: {divergent[:20]}",
+            ),
+            signed_returncode,
+        )
     return executed, None, signed_returncode
+
+
+def _product_digests(root: Path) -> dict[str, str]:
+    """Hash the product files the audited run reported loading.
+
+    Identity reporting, not a content pin: there is no expected value here, only the
+    requirement that the product the bodies ran against is the product still on disk.
+    """
+    product = root / "ontologylab"
+    digests: dict[str, str] = {}
+    for path in sorted(product.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        digest = _module_digest(path)
+        if digest is not None:
+            digests[path.relative_to(root).as_posix()] = digest
+    return digests
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -965,24 +1180,48 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _reexec_isolated() -> None:
-    """Re-run this checker under `-I` before it does anything else.
+    """Re-run this checker with no site processing before it does anything else.
 
-    `-I` used to protect only the child, which left the process that *prints the receipt*
-    open: `site` imports `sitecustomize` from an inherited `PYTHONPATH`, so arbitrary code
-    ran inside the parent, and from there it could replace `subprocess.run` and hand every
-    parent gate data it had written itself. Isolation has to cover the author of the claim,
-    not just the thing the claim is about. `-I` implies `-E -s -P`, so `PYTHONPATH`,
-    `PYTHONHOME`, user site-packages and the script directory are all out.
+    Two rounds of this. First `-I`, because `site` imported `sitecustomize` from an
+    inherited `PYTHONPATH` straight into the process that *prints the receipt*, where it
+    replaced `subprocess.run` and handed every parent gate data it had written itself.
+
+    `-I` was not enough: it implies `-E -s -P` but **not** `-S`, so `.pth` files in the
+    invoking interpreter's site-packages still executed, in both this process and the
+    child, before either had run a line of checker code. A `.pth` that read the run secret
+    off the inherited descriptor could sign a complete thirteen-node pass with nothing
+    executed. The answer is not to inspect `.pth` files but to stop running other people's
+    startup code at all: `-S` disables path configuration wholesale, and the site directory
+    the child needs is resolved here, while `site` still works, and handed over explicitly.
     """
-    if sys.flags.isolated:
+    if sys.flags.isolated and sys.flags.no_site:
         return
     if os.environ.get("ONTOLOGYLAB_STATUS_REEXEC") == "1":
         raise SystemExit("checker re-exec did not take effect; refusing to continue")
-    os.environ["ONTOLOGYLAB_STATUS_REEXEC"] = "1"
+    import site
+
+    environment = os.environ.copy()
+    environment["ONTOLOGYLAB_STATUS_REEXEC"] = "1"
+    # Captured before `-S` hides the virtual environment: under `-S` both `sys.prefix` and
+    # `site.getsitepackages()` collapse to the base interpreter.
+    # Only real library directories. `sys.path` also carries "" (the working directory,
+    # i.e. the audited root) and relative entries; handing those over would have exempted
+    # the entire repository from the reach audit.
+    environment["ONTOLOGYLAB_STATUS_SITEDIRS"] = os.pathsep.join(
+        dict.fromkeys(
+            entry
+            for entry in (*site.getsitepackages(), *sys.path)
+            if entry and Path(entry).is_absolute() and Path(entry).is_dir()
+        )
+    )
+    os.environ.update(environment)
     # `execv`, not `subprocess`: injected code already inside this process can filter
     # `subprocess.run`, and did in the shape this closes. Replacing the process image
     # leaves nothing of the compromised interpreter behind to intercept anything.
-    os.execv(sys.executable, [sys.executable, "-I", str(Path(__file__).resolve()), *sys.argv[1:]])
+    os.execv(
+        sys.executable,
+        [sys.executable, "-I", "-S", str(Path(__file__).resolve()), *sys.argv[1:]],
+    )
 
 
 if __name__ == "__main__":

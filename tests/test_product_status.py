@@ -8,9 +8,11 @@ import json
 import os
 import re
 import shlex
+import site
 import subprocess
 import sys
 import tarfile
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -20,6 +22,7 @@ from scripts.check_product_status import (
     EVIDENCE_MODULE_DIGESTS,
     TEST_EVIDENCE_DIGESTS,
     Issue,
+    _product_digests,
     _read_execution_ledger,
     _test_digest,
     _validate_pytest_receipt,
@@ -104,13 +107,17 @@ def _executable_fixture(root: Path) -> Path:
     return root / "docs/PRODUCT_SPEC.md"
 
 
-def _checker_with_refreshed_digests(root: Path, destination: Path) -> Path:
+def _checker_with_refreshed_digests(root: Path, destination: Path | None = None) -> Path:
     """A checker whose declared digests are regenerated from `root` as it stands.
 
     This is the maintainer who refreshes the constants after an edit — the one path by
     which a tampered evidence file can get past the static content gate. Tests use it
     to reach the in-run guards that sit behind that gate.
     """
+    if destination is None or root in destination.parents or root == destination.parent:
+        destination = Path(
+            tempfile.mkdtemp(prefix="ontologylab-refreshed-")
+        ) / "check_product_status.py"
     source = (
         Path(__file__).resolve().parents[1] / "scripts/check_product_status.py"
     ).read_text(encoding="utf-8")
@@ -523,6 +530,10 @@ def test_execution_receipt_rejects_zero_skipped_deselected_and_failed_evidence(
 
 
 LEDGER_SECRET = b"k" * 64
+REPOSITORY = Path(__file__).resolve().parents[1]
+_SITE_DIRS = [
+    entry for entry in site.getsitepackages() if Path(entry).is_dir()
+]
 
 
 def _ledger(*, signature: str | None = None, **overrides: object) -> str:
@@ -532,6 +543,8 @@ def _ledger(*, signature: str | None = None, **overrides: object) -> str:
         "modules": dict(EVIDENCE_MODULE_DIGESTS),
         "unaudited": [],
         "returncode": 0,
+        "product": _product_digests(Path(__file__).resolve().parents[1]),
+        "substituted": [],
     }
     body.update(overrides)
     payload = json.dumps(body, sort_keys=True)
@@ -546,7 +559,7 @@ def test_execution_ledger_accepts_only_the_audited_digests(tmp_path: Path) -> No
     ledger = tmp_path / "ledger.json"
     ledger.write_text(_ledger(), encoding="utf-8")
 
-    executed, issue, returncode = _read_execution_ledger(ledger, LEDGER_SECRET)
+    executed, issue, returncode = _read_execution_ledger(ledger, LEDGER_SECRET, REPOSITORY)
 
     assert issue is None
     assert len(executed) == 13
@@ -615,9 +628,67 @@ def test_execution_ledger_rejects_anything_else(
     ledger = tmp_path / "ledger.json"
     ledger.write_text(payload, encoding="utf-8")
 
-    _executed, issue, _returncode = _read_execution_ledger(ledger, LEDGER_SECRET)
+    _executed, issue, _returncode = _read_execution_ledger(ledger, LEDGER_SECRET, REPOSITORY)
 
     assert issue == Issue("evidence_execution", "DOCUMENT", detail)
+
+
+def test_every_ledger_rejection_returns_the_full_result(tmp_path: Path) -> None:
+    """No rejection path returns the wrong number of values.
+
+    One branch returned a 2-tuple from a 3-tuple function, so a signed report with a
+    mistyped section raised `ValueError` inside the checker instead of being reported. It
+    failed loud rather than open, but it was uncovered; every malformed shape now goes
+    through the same three-value contract.
+    """
+    ledger = tmp_path / "ledger.json"
+    shapes = (
+        "{ not json",
+        json.dumps({"payload": 1, "signature": "x"}),
+        _ledger(executed="not-a-mapping"),
+        _ledger(modules="not-a-mapping"),
+        _ledger(unaudited="not-a-list"),
+        _ledger(returncode="not-an-int"),
+        _ledger(product="not-a-mapping"),
+        _ledger(substituted="not-a-list"),
+    )
+    for payload in shapes:
+        ledger.write_text(payload, encoding="utf-8")
+
+        executed, issue, returncode = _read_execution_ledger(
+            ledger, LEDGER_SECRET, REPOSITORY
+        )
+
+        assert executed == {}, payload[:40]
+        assert issue is not None, payload[:40]
+        assert isinstance(returncode, int), payload[:40]
+
+
+def test_execution_ledger_rejects_a_product_that_changed_under_the_run(
+    tmp_path: Path,
+) -> None:
+    """The product the bodies loaded must still be the product on disk.
+
+    Defence in depth, disclosed as such: a product that rewrites itself mid-run is caught
+    first by the read-only tree check, so this comparison is redundant end to end. It is
+    kept because it is the half that states the property positively -- the signed payload
+    says which product ran -- and it is owned here rather than left untested.
+    """
+    ledger = tmp_path / "ledger.json"
+    drifted = dict(_product_digests(REPOSITORY))
+    assert drifted, "the product tree should not be empty"
+    first = sorted(drifted)[0]
+    drifted[first] = "0" * 64
+    ledger.write_text(_ledger(product=drifted), encoding="utf-8")
+
+    _executed, issue, _returncode = _read_execution_ledger(
+        ledger, LEDGER_SECRET, REPOSITORY
+    )
+
+    assert issue is not None
+    assert issue.detail == (
+        f"product changed between the audited run and this check: ['{first}']"
+    )
 
 
 def test_execution_ledger_carries_the_childs_own_exit_code(tmp_path: Path) -> None:
@@ -629,7 +700,7 @@ def test_execution_ledger_carries_the_childs_own_exit_code(tmp_path: Path) -> No
     ledger = tmp_path / "ledger.json"
     ledger.write_text(_ledger(returncode=4), encoding="utf-8")
 
-    _executed, issue, returncode = _read_execution_ledger(ledger, LEDGER_SECRET)
+    _executed, issue, returncode = _read_execution_ledger(ledger, LEDGER_SECRET, REPOSITORY)
 
     assert issue is None
     assert returncode == 4
@@ -642,7 +713,7 @@ def test_execution_ledger_names_a_node_that_ran_other_source(tmp_path: Path) -> 
     ledger = tmp_path / "ledger.json"
     ledger.write_text(_ledger(executed=divergent), encoding="utf-8")
 
-    _executed, issue, _returncode = _read_execution_ledger(ledger, LEDGER_SECRET)
+    _executed, issue, _returncode = _read_execution_ledger(ledger, LEDGER_SECRET, REPOSITORY)
 
     assert issue == Issue(
         "evidence_execution",
@@ -653,7 +724,7 @@ def test_execution_ledger_names_a_node_that_ran_other_source(tmp_path: Path) -> 
 
 def test_missing_ledger_is_not_a_silent_pass(tmp_path: Path) -> None:
     _executed, issue, _returncode = _read_execution_ledger(
-        tmp_path / "absent.json", LEDGER_SECRET
+        tmp_path / "absent.json", LEDGER_SECRET, REPOSITORY
     )
 
     assert issue == Issue(
@@ -1344,6 +1415,363 @@ def test_cli_refuses_an_undeclared_module_on_the_evidence_path(tmp_path: Path) -
         "unaudited repository modules on the evidence path: "
         "['undeclared_helper.py']"
     )
+
+
+# A product module that behaves one way on disk and another way while being audited. The
+# mutation is the suite's own NORMALIZATION_MUTANT; the second half detects the evidence
+# child and puts the pre-mutation implementation back in front of the audited bodies. Only
+# one tracked file is touched, no environment is controlled, and no digest is refreshed.
+_DEFEAT_BY_REEXEC_BODY = """
+
+import sys as _sys
+
+if "--junitxml" in _sys.argv:
+    _ns = dict(globals())
+    exec(compile({pristine!r}, __file__, "exec"), _ns)
+    normalize_proposal = _ns["normalize_proposal"]
+"""
+_DEFEAT_BY_METAPATH_BODY = """
+
+import sys as _sys
+
+if "--junitxml" in _sys.argv:
+    import importlib.abc as _abc
+    import importlib.machinery as _mach
+
+    class _Loader(_abc.Loader):
+        def create_module(self, spec):
+            return None
+
+        def exec_module(self, module):
+            exec(compile({pristine!r}, {origin!r}, "exec"), module.__dict__)
+
+    class _Finder:
+        def find_spec(self, name, path=None, target=None):
+            if name == "ontologylab.normalization":
+                return _mach.ModuleSpec(name, _Loader(), origin={origin!r})
+            return None
+
+    _sys.meta_path.insert(0, _Finder())
+"""
+
+
+@pytest.mark.parametrize(
+    ("carrier", "template"),
+    (
+        pytest.param(
+            "ontologylab/normalization.py", _DEFEAT_BY_REEXEC_BODY, id="reexec-own-source"
+        ),
+        pytest.param(
+            "ontologylab/models.py", _DEFEAT_BY_METAPATH_BODY, id="meta-path-substitution"
+        ),
+    ),
+)
+def test_cli_rejects_product_that_behaves_differently_while_audited(
+    tmp_path: Path, carrier: str, template: str
+) -> None:
+    """The product may be broken; it may not be two different things at once.
+
+    `ontologylab/**` is exempt from content pinning because pinning the thing under test
+    would make the gate assert its own input. That exemption used to hand the product the
+    power to decide what the audited bodies actually called: the evidence module's
+    `from ontologylab.x import y` reads a live attribute, so a module that noticed the audit
+    could serve its pre-mutation self. The child now reports, inside the signed payload,
+    that every function a product module exposes as its own has a code object that
+    compiling that module's current source can produce. That is identity, not correctness.
+    """
+    document = _executable_fixture(tmp_path)
+    normalization = tmp_path / "ontologylab/normalization.py"
+    pristine = normalization.read_text(encoding="utf-8")
+    _mutate_normalization(tmp_path)
+    addition = template.format(pristine=pristine, origin=str(normalization))
+    hook = tmp_path / carrier
+    hook.write_text(hook.read_text(encoding="utf-8") + addition, encoding="utf-8")
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    (issue,) = payload["issues"]
+    assert issue["code"] == "evidence_execution"
+    assert issue["detail"] == (
+        "product code the bodies called is not what its own source compiles to: "
+        "['ontologylab/normalization.py::normalize_proposal is not compiled from this file']"
+    )
+
+
+def test_cli_rejects_a_module_that_declines_to_say_where_it_came_from(
+    tmp_path: Path,
+) -> None:
+    """A loader that supplies no origin is not thereby exempt.
+
+    The identity check keys on a module's `__file__` or its spec origin. A substituting
+    loader that sets neither would previously fall out of every audit silently, so an
+    unlocatable product module is now reported rather than skipped.
+    """
+    document = _executable_fixture(tmp_path)
+    models = tmp_path / "ontologylab/models.py"
+    models.write_text(
+        models.read_text(encoding="utf-8")
+        + "\n\nimport sys as _sys\n\n"
+        "if '--junitxml' in _sys.argv:\n"
+        "    import types as _t\n"
+        "    _ghost = _t.ModuleType('ontologylab.ghost_helper')\n"
+        "    _ghost.__spec__ = None\n"
+        "    def _stub():\n"
+        "        return None\n"
+        "    _stub.__module__ = 'ontologylab.ghost_helper'\n"
+        "    _ghost.helper = _stub\n"
+        "    _sys.modules['ontologylab.ghost_helper'] = _ghost\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    (issue,) = payload["issues"]
+    assert "no declared origin" in issue["detail"]
+
+
+
+@pytest.mark.parametrize(
+    "evasion",
+    (
+        pytest.param(
+            "import sys as _s\nimport sneaky_helper as _sh\ndel _s.modules['sneaky_helper']\n",
+            id="deleted-from-sys-modules-after-import",
+        ),
+        pytest.param(
+            "import pathlib as _p\n_ns = {}\n"
+            "exec(compile(_p.Path('sneaky_helper.py').read_text(), 'sneaky_helper.py', 'exec'), _ns)\n",
+            id="executed-without-ever-becoming-a-module",
+        ),
+    ),
+)
+def test_cli_sees_undeclared_code_that_never_stays_in_sys_modules(
+    tmp_path: Path, evasion: str
+) -> None:
+    """Reach is measured at compile time, not by taking inventory of `sys.modules`.
+
+    Both shapes run undeclared repository code and leave nothing behind for a
+    `sys.modules` walk to find: one deletes its own entry after importing, the other never
+    creates one. An audit hook installed before anything else records the compile itself,
+    and audit hooks cannot be removed once installed, so the record is append-only.
+    """
+    document = _executable_fixture(tmp_path)
+    (tmp_path / "sneaky_helper.py").write_text("def stub():\n    return None\n", encoding="utf-8")
+    evidence = tmp_path / "tests/test_registry.py"
+    marker = "from __future__ import annotations\n"
+    source = evidence.read_text(encoding="utf-8")
+    evidence.write_text(source.replace(marker, marker + "\n" + evasion, 1), encoding="utf-8")
+    checker = _checker_with_refreshed_digests(tmp_path)
+
+    result = _run_checker(tmp_path, document, checker=str(checker))
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    (issue,) = payload["issues"]
+    assert issue["code"] == "evidence_execution"
+    assert issue["detail"] == (
+        "unaudited repository modules on the evidence path: ['sneaky_helper.py']"
+    )
+
+
+# A forge in the position a site-packages write occupies: a `.pth` line, which `site`
+# executes before any `-c` program. It reads the run secret off the inherited descriptor and
+# signs a complete thirteen-node pass. `-I` alone did not stop this, because `-I` implies
+# `-E -s -P` and not `-S`.
+_PTH_FORGE_PROGRAM = """
+import hashlib
+import hmac
+import json
+import os
+import sys
+from pathlib import Path
+
+if "--junitxml" in sys.argv:
+    secret = os.read(int(sys.argv[4]), 64)
+    plan = json.loads(Path(sys.argv[2]).read_text())
+    nodes = plan["nodes"]
+    payload = json.dumps(
+        {
+            "executed": {node: entry["digest"] for node, entry in nodes.items()},
+            "modules": dict(plan["modules"]),
+            "unaudited": [],
+            "returncode": 0,
+            "product": {},
+            "substituted": [],
+        },
+        sort_keys=True,
+    )
+    Path(sys.argv[3]).write_text(
+        json.dumps(
+            {
+                "payload": payload,
+                "signature": hmac.new(
+                    secret, payload.encode(), hashlib.sha256
+                ).hexdigest(),
+            }
+        )
+    )
+    receipt = Path(sys.argv[sys.argv.index("--junitxml") + 1])
+    cases = "".join(
+        '<testcase file="{}" name="{}"/>'.format(*node.split("::", 1)) for node in nodes
+    )
+    receipt.write_text(
+        '<testsuites><testsuite tests="13" failures="0" errors="0" skipped="0">'
+        + cases
+        + "</testsuite></testsuites>"
+    )
+    os._exit(0)
+"""
+
+
+def test_cli_does_not_run_startup_code_from_site_packages(tmp_path: Path) -> None:
+    """Nothing of anyone else's runs before the checker, in either process.
+
+    Both processes now run `-S`, so `site` performs no path configuration and no `.pth`,
+    `sitecustomize` or `usercustomize` executes. The library directories the child genuinely
+    needs are resolved by the parent while `site` still works and handed over explicitly, so
+    what is allow-listed is a set of paths rather than a set of banned filenames.
+    """
+    document = _executable_fixture(tmp_path)
+    _corrupt_every_canonical_node(tmp_path)
+    injected = tmp_path.parent / (tmp_path.name + "-sitedir")
+    injected.mkdir()
+    forge = injected / "forge_payload.py"
+    forge.write_text(_PTH_FORGE_PROGRAM, encoding="utf-8")
+    (injected / "zzz_forge.pth").write_text(
+        "import pathlib; exec(pathlib.Path(%r).read_text())\n" % str(forge),
+        encoding="utf-8",
+    )
+    environment = dict(os.environ)
+    # `site` scans every `sys.path` entry it adds for `.pth` files, so an entry reachable
+    # at interpreter startup is the position a site-packages write occupies. Without `-S`
+    # this executes in the child before its first line; with `-S` nothing does.
+    environment["PYTHONPATH"] = str(injected)
+    environment["ONTOLOGYLAB_STATUS_SITEDIRS"] = os.pathsep.join(
+        [str(injected), *_SITE_DIRS]
+    )
+
+    result = _run_checker(tmp_path, document, environment=environment)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    assert payload["issues"] == [EVERY_NODE_FAILED]
+
+
+def test_the_library_exemption_never_covers_the_audited_tree(tmp_path: Path) -> None:
+    """Undeclared repository code is still found when the library list names the root.
+
+    The reach audit exempts library code, and that boundary used to be derived from
+    `sys.prefix`, which silently exempted an in-tree virtualenv. Stating it explicitly
+    introduced a sharper version of the same bug: `sys.path` carries `""`, meaning the
+    working directory, so handing `sys.path` over wholesale would have exempted the whole
+    repository. Only absolute, existing directories are passed now, and the audited root is
+    dropped from the list however it is spelled.
+
+    Honest scope: this passes with either guard removed, because the static content gate
+    rejects the tampered evidence file first. It pins the end-to-end outcome, not those two
+    lines; both are labelled redundant in the checker.
+    """
+    document = _executable_fixture(tmp_path)
+    # Nested, because `library in path.parents` only ever hides files below the exempted
+    # directory: a top-level file stays visible either way, and every evidence module is
+    # nested, so this is the shape the exemption would really have covered.
+    (tmp_path / "tests/sneaky_helper.py").write_text("VALUE = 1\n", encoding="utf-8")
+    evidence = tmp_path / "tests/test_registry.py"
+    marker = "from __future__ import annotations\n"
+    evidence.write_text(
+        evidence.read_text(encoding="utf-8").replace(
+            marker, marker + "\nimport sys as _s\n_s.path.insert(0, str(__import__('pathlib').Path(__file__).parent))\nimport sneaky_helper as _sh\n", 1
+        ),
+        encoding="utf-8",
+    )
+    checker = _checker_with_refreshed_digests(tmp_path)
+    environment = dict(os.environ)
+    # The audited root spelled as an entry in its own right. `sys.path` carries "" and the
+    # child runs with cwd == root, so passing `sys.path` through verbatim put exactly this
+    # value on the library list and exempted the whole repository.
+    environment["ONTOLOGYLAB_STATUS_SITEDIRS"] = os.pathsep.join(
+        [str(tmp_path), *_SITE_DIRS]
+    )
+
+    result = _run_checker(
+        tmp_path, document, environment=environment, checker=str(checker)
+    )
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    (issue,) = payload["issues"]
+    assert issue["detail"] == (
+        "unaudited repository modules on the evidence path: ['tests/sneaky_helper.py']"
+    )
+
+
+def test_both_checker_processes_disable_site_processing() -> None:
+    """Both interpreters run with `-S`, and that is what suppresses `.pth` execution.
+
+    The vector this closes is a `.pth` in a genuine site directory, which for the child
+    means the real site-packages, since `PYTHONPATH` is popped from its environment. A test
+    cannot write there without mutating the shared virtualenv, so the guarantee is owned in
+    two halves: this pins that both command lines carry `-S`, and the assertion below pins
+    the interpreter behaviour the flag is being relied on for.
+    """
+    source = (
+        Path(__file__).resolve().parents[1] / "scripts/check_product_status.py"
+    ).read_text(encoding="utf-8")
+
+    assert '[sys.executable, "-I", "-S", str(Path(__file__).resolve()), *sys.argv[1:]]' in source
+    assert source.count('                "-S",\n') == 1
+    assert "if sys.flags.isolated and sys.flags.no_site:" in source
+
+    probe = subprocess.run(
+        [sys.executable, "-I", "-S", "-c", "import sys; print(sys.flags.no_site)"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert probe.stdout.strip() == "1"
+
+
+def test_the_run_secret_is_not_recoverable_after_the_executor_drains_it(
+    tmp_path: Path,
+) -> None:
+    """Code that runs later cannot obtain the key the report is signed with.
+
+    Disclosure rather than a claim of a barrier: `os.close` on the secret descriptor is
+    hygiene. The property that actually holds is that the parent closed the write end and
+    the executor consumed the whole secret before any repository code ran, so a later read
+    yields nothing whether or not the descriptor was closed. This pins that, by having
+    product code report what it can recover.
+    """
+    document = _executable_fixture(tmp_path)
+    _corrupt_every_canonical_node(tmp_path)
+    recovered = tmp_path.parent / (tmp_path.name + "-recovered.txt")
+    models = tmp_path / "ontologylab/models.py"
+    models.write_text(
+        models.read_text(encoding="utf-8")
+        + "\n\nimport os as _os, sys as _sys\n\n"
+        "if '--junitxml' in _sys.argv:\n"
+        "    try:\n"
+        "        _got = _os.read(int(_sys.argv[4]), 64)\n"
+        "    except OSError as _exc:\n"
+        "        _got = b'closed:' + type(_exc).__name__.encode()\n"
+        "    open(%r, 'wb').write(_got)\n" % str(recovered),
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    assert result.returncode == 1
+    assert json.loads(result.stdout)["issues"] == [EVERY_NODE_FAILED]
+    assert recovered.read_bytes() in (b"", b"closed:OSError")
 
 
 def test_cli_names_a_collection_error_as_one(tmp_path: Path) -> None:
