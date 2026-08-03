@@ -71,6 +71,95 @@ TEST_EVIDENCE_DIGESTS: Final = {
     "tests/test_mcp_two_tier.py::test_fastmcp_exposes_two_tier_surface": "81899c9a0856c1515df3ef2fd90e16bc61a87c246c6ae069096152e823c94d75",
 }
 SWEEP_DIGEST: Final = "66eacf5b9d57b4687d7f0b378871ea6885ad79fd68b4e9718e3dc8b06df7045f"
+# The child never calls the object bound at the canonical test name. It selects the
+# definition whose AST digest equals the audited digest, compiles that definition, calls
+# the function that compiling produced, and records the digest it just executed. A name
+# rebound to anything else is therefore not consulted, and the parent's receipt count is
+# read back out of that record rather than out of this module's dict literal.
+EVIDENCE_EXECUTOR_PROGRAM: Final = """
+import ast
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(sys.argv[1]).resolve()
+PLAN = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+LEDGER_FILE = Path(sys.argv[3])
+LEDGER = {}
+
+# The audited definitions are compiled here rather than by pytest's assertion
+# rewriter, so plain `assert` enforcement is what carries the evidence.
+if sys.flags.optimize:
+    raise SystemExit("canonical evidence cannot run with assertions optimized out")
+
+
+def audited_definition(node_id):
+    # Return the definition whose AST digest is the audited one, or fail loudly.
+    entry = PLAN[node_id]
+    source = (ROOT / entry["path"]).read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=entry["path"])
+    matches = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if node.name != entry["name"]:
+            continue
+        dumped = ast.dump(node, annotate_fields=True, include_attributes=False)
+        if hashlib.sha256(dumped.encode("utf-8")).hexdigest() == entry["digest"]:
+            matches.append(node)
+    if len(matches) != 1:
+        raise AssertionError(
+            f"{node_id}: {len(matches)} definitions carry the audited digest"
+        )
+    definition = matches[0]
+    if definition.decorator_list:
+        raise AssertionError(f"{node_id}: audited definition is decorated")
+    if isinstance(definition, ast.AsyncFunctionDef):
+        raise AssertionError(f"{node_id}: audited definition is async")
+    signature = definition.args
+    if (
+        signature.posonlyargs
+        or signature.kwonlyargs
+        or signature.vararg
+        or signature.kwarg
+        or signature.defaults
+    ):
+        raise AssertionError(f"{node_id}: audited signature is not plain fixtures")
+    return definition, entry
+
+
+class EvidenceExecutor:
+    # Execute the audited source itself, never the object bound at its name.
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_runtest_call(self, item):
+        node_id = f"{item.path.resolve().relative_to(ROOT).as_posix()}::{item.originalname}"
+        definition, entry = audited_definition(node_id)
+        namespace = dict(item.module.__dict__)
+        module = ast.Module(body=[definition], type_ignores=[])
+        exec(compile(module, str(ROOT / entry["path"]), "exec"), namespace)
+        audited = namespace[entry["name"]]
+        arguments = {
+            argument.arg: item._request.getfixturevalue(argument.arg)
+            for argument in definition.args.args
+        }
+        result = audited(**arguments)
+        if result is not None:
+            raise AssertionError("canonical test returned a value")
+        LEDGER[node_id] = entry["digest"]
+        item.runtest = lambda: None
+
+
+sys.path.insert(0, str(ROOT))
+try:
+    code = pytest.main(sys.argv[4:], plugins=[EvidenceExecutor()])
+finally:
+    LEDGER_FILE.write_text(json.dumps(LEDGER, sort_keys=True), encoding="utf-8")
+raise SystemExit(code)
+"""
 DOCUMENT_CONTRACTS: Final = {
     "docs/FIRST-PACK-EVIDENCE.md": {
         "claims": [
@@ -377,7 +466,7 @@ def _validate_pytest_receipt(
     return None
 
 
-def _execute_test_evidence(root: Path) -> Issue | None:
+def _execute_test_evidence(root: Path) -> tuple[Issue | None, int]:
     node_ids = sorted(TEST_EVIDENCE_DIGESTS)
     environment = os.environ.copy()
     environment.pop("PYTHONPATH", None)
@@ -388,6 +477,22 @@ def _execute_test_evidence(root: Path) -> Issue | None:
     with tempfile.TemporaryDirectory(prefix="ontologylab-evidence-") as temporary:
         temporary_path = Path(temporary)
         receipt = temporary_path / "pytest.xml"
+        plan_file = temporary_path / "plan.json"
+        ledger_file = temporary_path / "ledger.json"
+        plan_file.write_text(
+            json.dumps(
+                {
+                    node_id: {
+                        "path": node_id.split("::", 1)[0],
+                        "name": node_id.split("::", 1)[1],
+                        "digest": digest,
+                    }
+                    for node_id, digest in TEST_EVIDENCE_DIGESTS.items()
+                },
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
         controlled_config = temporary_path / "pytest.ini"
         controlled_config.write_text("[pytest]\naddopts =\n", encoding="utf-8")
         result = subprocess.run(
@@ -395,25 +500,10 @@ def _execute_test_evidence(root: Path) -> Issue | None:
                 sys.executable,
                 "-I",
                 "-c",
-                (
-                    "import sys, pytest\n"
-                    "class EvidenceExecutor:\n"
-                    "    @pytest.hookimpl(tryfirst=True)\n"
-                    "    def pytest_runtest_call(self, item):\n"
-                    "        testargs = {\n"
-                    "            name: item.funcargs[name]\n"
-                    "            for name in item._fixtureinfo.argnames\n"
-                    "        }\n"
-                    "        result = item.obj(**testargs)\n"
-                    "        if result is not None:\n"
-                    "            raise AssertionError('canonical test returned a value')\n"
-                    "        item.runtest = lambda: None\n"
-                    "executor = EvidenceExecutor()\n"
-                    "root = sys.argv[1]\n"
-                    "sys.path.insert(0, root)\n"
-                    "raise SystemExit(pytest.main(sys.argv[2:], plugins=[executor]))\n"
-                ),
+                EVIDENCE_EXECUTOR_PROGRAM,
                 str(root),
+                str(plan_file),
+                str(ledger_file),
                 "-q",
                 "-c",
                 str(controlled_config),
@@ -434,21 +524,64 @@ def _execute_test_evidence(root: Path) -> Issue | None:
             capture_output=True,
             text=True,
         )
+        ledger, ledger_issue = _read_execution_ledger(ledger_file)
         receipt_issue = _validate_pytest_receipt(
             receipt,
             expected_count=len(node_ids),
             expected_nodes=frozenset(node_ids),
         )
     if receipt_issue is not None:
-        return receipt_issue
-    if result.returncode == 0:
-        return None
-    output = "\n".join(part.strip() for part in (result.stdout, result.stderr) if part.strip())
-    return Issue(
-        "evidence_execution",
-        "DOCUMENT",
-        f"pytest exit {result.returncode}: {output[-4000:]}",
-    )
+        return receipt_issue, len(ledger)
+    if ledger_issue is not None:
+        return ledger_issue, len(ledger)
+    if result.returncode != 0:
+        output = "\n".join(
+            part.strip() for part in (result.stdout, result.stderr) if part.strip()
+        )
+        return (
+            Issue(
+                "evidence_execution",
+                "DOCUMENT",
+                f"pytest exit {result.returncode}: {output[-4000:]}",
+            ),
+            len(ledger),
+        )
+    return None, len(ledger)
+
+
+def _read_execution_ledger(ledger_file: Path) -> tuple[dict[str, str], Issue | None]:
+    """Read what the child actually compiled and ran, and hold it to the digests."""
+    try:
+        ledger = json.loads(ledger_file.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return {}, Issue(
+            "evidence_execution",
+            "DOCUMENT",
+            "execution ledger is missing or malformed",
+        )
+    if not isinstance(ledger, dict) or not all(
+        isinstance(key, str) and isinstance(value, str) for key, value in ledger.items()
+    ):
+        return {}, Issue(
+            "evidence_execution",
+            "DOCUMENT",
+            "execution ledger is missing or malformed",
+        )
+    if ledger != dict(TEST_EVIDENCE_DIGESTS):
+        missing = sorted(set(TEST_EVIDENCE_DIGESTS) - set(ledger))
+        unexpected = sorted(set(ledger) - set(TEST_EVIDENCE_DIGESTS))
+        divergent = sorted(
+            node_id
+            for node_id, digest in ledger.items()
+            if TEST_EVIDENCE_DIGESTS.get(node_id) not in (None, digest)
+        )
+        return ledger, Issue(
+            "evidence_execution",
+            "DOCUMENT",
+            "executed source mismatch: "
+            f"missing={missing}; unexpected={unexpected}; divergent={divergent}",
+        )
+    return ledger, None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -464,8 +597,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     report = check_status(args.document, args.root)
+    executed = 0
     if report.ok:
-        execution_issue = _execute_test_evidence(args.root.resolve())
+        execution_issue, executed = _execute_test_evidence(args.root.resolve())
         if execution_issue is not None:
             report = StatusReport(
                 False,
@@ -475,7 +609,7 @@ def main(argv: list[str] | None = None) -> int:
             )
     if report.ok:
         print(
-            f"EVIDENCE: {len(TEST_EVIDENCE_DIGESTS)} canonical pytest nodes passed",
+            f"EVIDENCE: {executed} canonical pytest nodes passed",
             file=sys.stderr,
         )
     if args.json:

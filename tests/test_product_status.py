@@ -13,7 +13,14 @@ from pathlib import Path
 
 import pytest
 
-from scripts.check_product_status import Issue, _validate_pytest_receipt, check_status
+from scripts import check_product_status
+from scripts.check_product_status import (
+    TEST_EVIDENCE_DIGESTS,
+    Issue,
+    _read_execution_ledger,
+    _validate_pytest_receipt,
+    check_status,
+)
 
 
 ROWS = """\
@@ -90,6 +97,129 @@ def _executable_fixture(root: Path) -> Path:
         destination = root / relative
         destination.write_bytes((repository / relative).read_bytes())
     return root / "docs/PRODUCT_SPEC.md"
+
+
+# One deliberate product defect per canonical node, measured so that the union
+# fails all thirteen. A test that asserts "13 failed" therefore notices any single
+# node that was skipped, deselected, or answered by something other than its own
+# audited body — the narrower `eppo_code` corruption used before sensitized only
+# two nodes, leaving eleven free to be faked without changing the verdict.
+CANONICAL_CORRUPTIONS: tuple[tuple[str, str, str], ...] = (
+    (
+        "ontologylab/schemas.py",
+        '"eppo_code": {"type": "string", "required": False}',
+        '"forged_code": {"type": "string", "required": False}',
+    ),
+    (
+        "ontologylab/registry.py",
+        'return " ".join(unicodedata.normalize("NFKC", value).casefold().split())',
+        'return " ".join(unicodedata.normalize("NFKC", value).split())',
+    ),
+    (
+        "ontologylab/registry.py",
+        "        if self.path.is_file() or self._absence_reported:\n"
+        "            return None\n"
+        "        self._absence_reported = True\n"
+        '        return "EPPO cache absent"',
+        "        if self.path.is_file():\n"
+        "            return None\n"
+        '        return "EPPO cache absent"',
+    ),
+    (
+        "ontologylab/normalization.py",
+        "    if model_code is not _MISSING:\n"
+        '        properties["eppo_code_dropped"] = model_code',
+        "    if False:\n" '        properties["eppo_code_dropped"] = model_code',
+    ),
+    (
+        "ontologylab/normalization.py",
+        '    properties.pop("moa_scheme", None)\n'
+        '    properties.pop("moa_code", None)',
+        '    properties.pop("moa_scheme", None)\n'
+        '    properties.pop("moa_code", None)\n'
+        "    return proposal",
+    ),
+    (
+        "ontologylab/packbuilder.py",
+        '    "pending_verified_count_threshold": 0,',
+        '    "pending_verified_count_threshold": 7,',
+    ),
+    (
+        "ontologylab/semantic_staleness.py",
+        "            details[kind] = [\n"
+        '                {"id": item_id, "label": source[item_id]["label"]}\n'
+        "                for item_id in sorted(ids)\n"
+        "            ]",
+        "            details[kind] = []",
+    ),
+    (
+        "ontologylab/mcp_server.py",
+        "                pending_verified_count=max(0, store_count - pack_count),",
+        "                pending_verified_count=0,",
+    ),
+    (
+        "ontologylab/mcp_server.py",
+        '    entity["edges"] = edges\n    return entity',
+        '    entity["edges"] = edges\n'
+        '    entity.pop("properties", None)\n'
+        "    return entity",
+    ),
+    (
+        "ontologylab/mcp_server.py",
+        "    @mcp.tool()\n    def get_communities(",
+        "    def get_communities(",
+    ),
+)
+EVERY_NODE_FAILED = {
+    "code": "evidence_execution",
+    "id": "DOCUMENT",
+    "detail": "pytest failed 13 canonical nodes",
+}
+
+
+def _corrupt_every_canonical_node(root: Path) -> None:
+    """Break the product behind every canonical node, so skipping one shows up."""
+    for relative, old, new in CANONICAL_CORRUPTIONS:
+        path = root / relative
+        source = path.read_text(encoding="utf-8")
+        assert old in source, f"corruption anchor vanished from {relative}"
+        path.write_text(source.replace(old, new), encoding="utf-8")
+
+
+def _run_checker(
+    root: Path,
+    document: Path,
+    *,
+    environment: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            "scripts/check_product_status.py",
+            "--root",
+            str(root),
+            "--document",
+            str(document),
+            "--json",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _canonical_parameters(source: str, function_name: str) -> tuple[str, ...]:
+    """The fixture parameters of the first definition with that name."""
+    tree = ast.parse(source)
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == function_name
+    )
+    return tuple(argument.arg for argument in function.args.args)
 
 
 def _replace_test_body(path: Path, function_name: str, body: str) -> None:
@@ -200,9 +330,16 @@ def test_missing_delimiters_and_invalid_status_fail(tmp_path: Path) -> None:
         "# assertion intentionally removed\n    pass",
     ),
 )
-def test_tautological_or_comment_only_test_evidence_fails(
+def test_in_place_body_replacement_fails_the_digest(
     tmp_path: Path, body: str
 ) -> None:
+    """Editing the audited definition in place breaks its digest.
+
+    This is the whole of what the static digest promises: it identifies one
+    definition's source. It says nothing about which callable the module's name is
+    bound to at run time, which is why the execution guarantee is tested
+    separately against real product corruption.
+    """
     document = _fixture(tmp_path)
     path = tmp_path / "tests/test_staleness.py"
     _replace_test_body(
@@ -302,11 +439,74 @@ def test_execution_receipt_rejects_zero_skipped_deselected_and_failed_evidence(
     assert issue == Issue("evidence_execution", "DOCUMENT", detail)
 
 
-def test_cli_ignores_collection_only_environment_and_executes_assertions() -> None:
-    root = Path(__file__).resolve().parents[1]
-    environment = dict(os.environ)
-    environment["PYTEST_ADDOPTS"] = "--collect-only"
+def test_execution_ledger_accepts_only_the_audited_digests(tmp_path: Path) -> None:
+    ledger = tmp_path / "ledger.json"
+    ledger.write_text(json.dumps(dict(TEST_EVIDENCE_DIGESTS)), encoding="utf-8")
 
+    executed, issue = _read_execution_ledger(ledger)
+
+    assert issue is None
+    assert len(executed) == 13
+
+
+@pytest.mark.parametrize(
+    ("payload", "detail"),
+    (
+        pytest.param(
+            "{ not json",
+            "execution ledger is missing or malformed",
+            id="unparseable",
+        ),
+        pytest.param(
+            '["tests/test_registry.py::test_absent_cache_is_off_not_an_error_and_warns_once"]',
+            "execution ledger is missing or malformed",
+            id="wrong-shape",
+        ),
+        pytest.param(
+            "{}",
+            "executed source mismatch: missing="
+            f"{sorted(TEST_EVIDENCE_DIGESTS)}; unexpected=[]; divergent=[]",
+            id="nothing-executed",
+        ),
+    ),
+)
+def test_execution_ledger_rejects_anything_else(
+    tmp_path: Path, payload: str, detail: str
+) -> None:
+    ledger = tmp_path / "ledger.json"
+    ledger.write_text(payload, encoding="utf-8")
+
+    _executed, issue = _read_execution_ledger(ledger)
+
+    assert issue == Issue("evidence_execution", "DOCUMENT", detail)
+
+
+def test_execution_ledger_names_a_node_that_ran_other_source(tmp_path: Path) -> None:
+    node_id = "tests/test_registry.py::test_absent_cache_is_off_not_an_error_and_warns_once"
+    divergent = dict(TEST_EVIDENCE_DIGESTS)
+    divergent[node_id] = "0" * 64
+    ledger = tmp_path / "ledger.json"
+    ledger.write_text(json.dumps(divergent), encoding="utf-8")
+
+    _executed, issue = _read_execution_ledger(ledger)
+
+    assert issue == Issue(
+        "evidence_execution",
+        "DOCUMENT",
+        f"executed source mismatch: missing=[]; unexpected=[]; divergent=['{node_id}']",
+    )
+
+
+def test_missing_ledger_is_not_a_silent_pass(tmp_path: Path) -> None:
+    _executed, issue = _read_execution_ledger(tmp_path / "absent.json")
+
+    assert issue == Issue(
+        "evidence_execution", "DOCUMENT", "execution ledger is missing or malformed"
+    )
+
+
+def test_cli_reports_the_canonical_receipt_for_the_pristine_repository() -> None:
+    """The gate still passes honestly, and the count comes from what ran."""
     result = subprocess.run(
         [
             sys.executable,
@@ -317,8 +517,7 @@ def test_cli_ignores_collection_only_environment_and_executes_assertions() -> No
             "docs/PRODUCT_SPEC.md",
             "--json",
         ],
-        cwd=root,
-        env=environment,
+        cwd=Path(__file__).resolve().parents[1],
         check=False,
         capture_output=True,
         text=True,
@@ -329,31 +528,61 @@ def test_cli_ignores_collection_only_environment_and_executes_assertions() -> No
     assert "EVIDENCE: 13 canonical pytest nodes passed" in result.stderr
 
 
-def test_cli_overrides_tracked_collection_only_addopts(tmp_path: Path) -> None:
+def test_cli_detects_a_defect_behind_every_single_canonical_node(
+    tmp_path: Path,
+) -> None:
+    """Each of the thirteen nodes carries its own signal.
+
+    The union corruption breaks the product behind all thirteen, so the count in
+    the diagnostic is thirteen only if all thirteen audited bodies really ran. A
+    node that were skipped, deselected, or answered by a stand-in would lower it.
+    """
     document = _executable_fixture(tmp_path)
+    _corrupt_every_canonical_node(tmp_path)
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["issues"] == [EVERY_NODE_FAILED]
+
+
+def test_cli_ignores_collection_only_environment_and_executes_assertions(
+    tmp_path: Path,
+) -> None:
+    """`--collect-only` in the parent environment neither reaches nor excuses the child.
+
+    A leaked `--collect-only` produces no call phases at all, which reads as
+    "executed 0 of 13"; skipping execution reads as a pass. Only genuine
+    execution of every audited body under the corruption reads as thirteen
+    failures.
+    """
+    document = _executable_fixture(tmp_path)
+    _corrupt_every_canonical_node(tmp_path)
+    environment = dict(os.environ)
+    environment["PYTEST_ADDOPTS"] = "--collect-only"
+
+    result = _run_checker(tmp_path, document, environment=environment)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["issues"] == [EVERY_NODE_FAILED]
+
+
+def test_cli_overrides_tracked_collection_only_addopts(tmp_path: Path) -> None:
+    """A tracked `addopts = --collect-only` is overridden, not merely tolerated."""
+    document = _executable_fixture(tmp_path)
+    _corrupt_every_canonical_node(tmp_path)
     (tmp_path / "pyproject.toml").write_text(
         '[tool.pytest.ini_options]\naddopts = "--collect-only"\n',
         encoding="utf-8",
     )
 
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/check_product_status.py",
-            "--root",
-            str(tmp_path),
-            "--document",
-            str(document),
-            "--json",
-        ],
-        cwd=Path(__file__).resolve().parents[1],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    result = _run_checker(tmp_path, document)
 
-    assert result.returncode == 0
-    assert json.loads(result.stdout)["ok"] is True
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["issues"] == [EVERY_NODE_FAILED]
 
 
 @pytest.mark.parametrize(
@@ -505,67 +734,84 @@ def test_cli_neutralizes_pythonpath_pytest_module_injection(tmp_path: Path) -> N
     assert not marker.exists()
 
 
-@pytest.mark.parametrize(
-    ("conftest_path", "hook"),
-    (
-        (
-            "conftest.py",
-            "def pytest_collection_modifyitems(items):\n"
-            "    for item in items:\n"
-            "        item.runtest = lambda: None\n",
-        ),
-        (
-            "tests/conftest.py",
-            "def pytest_collection_modifyitems(items):\n"
-            "    for item in items:\n"
-            "        item.runtest = lambda: None\n",
-        ),
-        (
-            "tests/conftest.py",
-            "from _pytest.python import Function\n"
-            "Function.runtest = lambda self: None\n",
-        ),
-    ),
-)
-def test_cli_runs_genuine_assertions_despite_noop_conftest(
-    tmp_path: Path, conftest_path: str, hook: str
-) -> None:
+def test_cli_runs_genuine_assertions_despite_noop_conftest(tmp_path: Path) -> None:
+    """A repository conftest that neuters pytest dispatch changes no verdict.
+
+    This used to carry three parameters (two `collection_modifyitems` hooks and a
+    class-level `Function.runtest` assignment). `--noconftest` means none of them is
+    ever imported, so the three were indistinguishable from each other; the
+    surviving single case states the one property that is actually checked. The
+    `Function.runtest` shapes still have real coverage below, where an *imported*
+    helper — which `--noconftest` cannot stop — performs them.
+    """
     document = _executable_fixture(tmp_path)
-    schemas = tmp_path / "ontologylab/schemas.py"
-    schemas.write_text(
-        schemas.read_text(encoding="utf-8").replace('"eppo_code"', '"forged_code"'),
+    _corrupt_every_canonical_node(tmp_path)
+    (tmp_path / "conftest.py").write_text(
+        "def pytest_collection_modifyitems(items):\n"
+        "    for item in items:\n"
+        "        item.runtest = lambda: None\n",
         encoding="utf-8",
     )
-    conftest = tmp_path / conftest_path
-    original = conftest.read_text(encoding="utf-8") if conftest.exists() else ""
-    conftest.write_text(original + "\n" + hook, encoding="utf-8")
 
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/check_product_status.py",
-            "--root",
-            str(tmp_path),
-            "--document",
-            str(document),
-            "--json",
-        ],
-        cwd=Path(__file__).resolve().parents[1],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    result = _run_checker(tmp_path, document)
 
     payload = json.loads(result.stdout)
     assert result.returncode == 1
     assert payload["ok"] is False
-    assert payload["issues"] == [
-        {
-            "code": "evidence_execution",
-            "id": "DOCUMENT",
-            "detail": "pytest failed 2 canonical nodes",
-        }
-    ]
+    assert payload["issues"] == [EVERY_NODE_FAILED]
+
+
+@pytest.mark.parametrize(
+    "divergence",
+    (
+        pytest.param(
+            "\n\ndef {name}({parameters}) -> None:\n    return None\n",
+            id="trailing-duplicate-def",
+        ),
+        pytest.param(
+            "\n\n{name} = lambda {parameters}: None\n",
+            id="module-level-rebinding",
+        ),
+        pytest.param(
+            "\n\ndef _stand_in({parameters}) -> None:\n    return None\n"
+            "{name} = _stand_in\n",
+            id="module-level-alias",
+        ),
+        pytest.param(
+            "\n\n{name} = lambda **unused: None\n",
+            id="module-level-rebinding-without-fixtures",
+        ),
+    ),
+)
+def test_cli_executes_the_audited_source_not_the_name_it_is_bound_to(
+    tmp_path: Path, divergence: str
+) -> None:
+    """The audited definition runs even when the name resolves to something else.
+
+    The digest gate hashes the first top-level definition with the canonical name,
+    so any later binding of that same name leaves the digest intact while pytest
+    would collect and call the replacement. Each shape here keeps the audited
+    definition untouched, rebinds the name to a passing stand-in, and breaks the
+    product behind every canonical node: the checker must still fail all thirteen.
+    The last shape declares no fixtures at all, so pytest's setup phase resolves
+    none of the ones the audited bodies need; they are requested on demand instead.
+    """
+    document = _executable_fixture(tmp_path)
+    _corrupt_every_canonical_node(tmp_path)
+    for relative, names in TEST_FUNCTIONS.items():
+        path = tmp_path / relative
+        source = path.read_text(encoding="utf-8")
+        for name in names:
+            parameters = ", ".join(_canonical_parameters(source, name))
+            source += divergence.format(name=name, parameters=parameters)
+        path.write_text(source, encoding="utf-8")
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    assert payload["issues"] == [EVERY_NODE_FAILED]
 
 
 def _run_imported_runtest_attack(
@@ -585,122 +831,191 @@ def _run_imported_runtest_attack(
             transitive_attack,
             encoding="utf-8",
         )
-    schemas = tmp_path / "ontologylab/schemas.py"
-    schemas.write_text(
-        schemas.read_text(encoding="utf-8").replace('"eppo_code"', '"forged_code"'),
-        encoding="utf-8",
-    )
-    return subprocess.run(
-        [
-            sys.executable,
-            "scripts/check_product_status.py",
-            "--root",
-            str(tmp_path),
-            "--document",
-            str(document),
-            "--json",
-        ],
-        cwd=Path(__file__).resolve().parents[1],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    _corrupt_every_canonical_node(tmp_path)
+    return _run_checker(tmp_path, document)
 
 
 def _assert_corrupted_product_fails(result: subprocess.CompletedProcess[str]) -> None:
     payload = json.loads(result.stdout)
     assert result.returncode == 1
     assert payload["ok"] is False
-    assert payload["issues"] == [
-        {
-            "code": "evidence_execution",
-            "id": "DOCUMENT",
-            "detail": "pytest failed 2 canonical nodes",
-        }
+    assert payload["issues"] == [EVERY_NODE_FAILED]
+
+
+@pytest.mark.parametrize(
+    ("factory_attack", "transitive_attack"),
+    (
+        pytest.param(
+            "from _pytest.python import Function\n"
+            "Function.runtest = lambda self: None\n",
+            None,
+            id="runtest-reassignment",
+        ),
+        pytest.param(
+            "from _pytest.python import Function\n"
+            "Function.runtest.__code__ = (lambda self: None).__code__\n",
+            None,
+            id="runtest-code-mutation",
+        ),
+        pytest.param(
+            "from tests import hostile_transitive\n",
+            "from _pytest.python import Function\n"
+            "Function.runtest.__code__ = (lambda self: None).__code__\n",
+            id="transitive-runtest-code-mutation",
+        ),
+        pytest.param(
+            "from _pytest.python import Function\n"
+            "original_runtest = Function.runtest\n"
+            "class MaskedRuntest:\n"
+            "    def __get__(self, instance, owner):\n"
+            "        if instance is None:\n"
+            "            return original_runtest\n"
+            "        return lambda: None\n"
+            "Function.runtest = MaskedRuntest()\n",
+            None,
+            id="bound-runtest-masking",
+        ),
+        pytest.param(
+            "import tests.test_registry as _module\n"
+            "_module.test_absent_cache_is_off_not_an_error_and_warns_once = (\n"
+            "    lambda tmp_path: None\n"
+            ")\n",
+            None,
+            id="imported-helper-rebinds-canonical-name",
+        ),
+    ),
+)
+def test_cli_executes_assertions_despite_imported_helper_attacks(
+    tmp_path: Path, factory_attack: str, transitive_attack: str | None
+) -> None:
+    """`--noconftest` cannot stop an imported helper; the audited source still runs.
+
+    `tests/factories.py` is imported by canonical modules, so it executes inside the
+    trusted child. Each shape attacks a different part of pytest's dispatch — the
+    `runtest` attribute, its code object, a descriptor that masks it, and the module
+    namespace that `item.obj` reads.
+    """
+    result = _run_imported_runtest_attack(
+        tmp_path, factory_attack, transitive_attack=transitive_attack
+    )
+
+    _assert_corrupted_product_fails(result)
+
+
+def test_cli_rejects_a_forged_receipt_written_by_an_imported_helper(
+    tmp_path: Path,
+) -> None:
+    """A perfect receipt does not substitute for a record of what ran.
+
+    An imported helper replaces pytest's JUnit writer with a forger that reports
+    thirteen passes whatever happened, so every arithmetic gate on the receipt is
+    satisfied. What it cannot forge is the checker's own record of the audited
+    definitions it compiled and called, which is why the mismatch is named.
+    """
+    result = _run_imported_runtest_attack(
+        tmp_path,
+        "import atexit, sys\n"
+        f"_NODES = {tuple(node.split('::') for node in sorted(TEST_EVIDENCE_DIGESTS))!r}\n"
+        "def _forge():\n"
+        "    receipt = sys.argv[sys.argv.index('--junitxml') + 1]\n"
+        "    cases = ''.join(\n"
+        '        f\'<testcase file="{node[0]}" name="{node[1]}"/>\'\n'
+        "        for node in _NODES\n"
+        "    )\n"
+        "    with open(receipt, 'w', encoding='utf-8') as handle:\n"
+        "        handle.write(\n"
+        '            \'<testsuites><testsuite tests="13" failures="0" \'\n'
+        '            \'errors="0" skipped="0">\' + cases + \'</testsuite></testsuites>\'\n'
+        "        )\n"
+        "atexit.register(_forge)\n",
+    )
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    (issue,) = payload["issues"]
+    assert issue["code"] == "evidence_execution"
+    assert issue["detail"].startswith("executed source mismatch: missing=[")
+
+
+def test_receipt_count_is_the_number_of_audited_bodies_that_ran(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The printed number is execution-derived, not the dict literal's length.
+
+    Reporting `len(TEST_EVIDENCE_DIGESTS)` cannot disagree with the gate that uses
+    the same length, so the sentence carried no information about what ran.
+    """
+    monkeypatch.setattr(
+        check_product_status, "_execute_test_evidence", lambda root: (None, 7)
+    )
+
+    exit_code = check_product_status.main(
+        ["--root", str(Path(__file__).resolve().parents[1])]
+    )
+
+    assert exit_code == 0
+    assert "EVIDENCE: 7 canonical pytest nodes passed" in capsys.readouterr().err
+
+
+def _workflow_steps(workflow: str) -> list[str]:
+    """Split a workflow into its `- name:` step blocks, comments excluded."""
+    steps: list[str] = []
+    for line in workflow.splitlines():
+        if line.strip().startswith("#"):
+            continue
+        if re.match(r"\s*- name:", line):
+            steps.append(line)
+        elif steps:
+            steps[-1] += "\n" + line
+    return steps
+
+
+@pytest.mark.parametrize(
+    ("command", "hardening"),
+    (
+        (
+            ["python", "-m", "pytest", "-q", "-c", "/dev/null", "--rootdir", "."],
+            ('PYTHONPATH: ""', 'PYTEST_ADDOPTS: ""', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"'),
+        ),
+        (
+            [
+                "python",
+                "scripts/check_product_status.py",
+                "--root",
+                ".",
+                "--document",
+                "docs/PRODUCT_SPEC.md",
+            ],
+            ('PYTHONPATH: ""', 'PYTEST_ADDOPTS: ""', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"'),
+        ),
+    ),
+)
+def test_ci_hardens_the_step_that_runs_each_canonical_command(
+    command: list[str], hardening: tuple[str, ...]
+) -> None:
+    """Each command's own step carries the hardening.
+
+    Counting occurrences across the whole file could not tell which step had them,
+    so the checker step was free to lose `PYTEST_ADDOPTS` while the assertion stayed
+    green on the pytest step alone.
+    """
+    workflow = (
+        Path(__file__).resolve().parents[1] / ".github/workflows/ci.yml"
+    ).read_text(encoding="utf-8")
+
+    owning_steps = [
+        step
+        for step in _workflow_steps(workflow)
+        if any(
+            shlex.split(run) == command
+            for run in re.findall(r"^\s*run:\s*(.+)$", step, flags=re.MULTILINE)
+        )
     ]
 
-
-def test_cli_rejects_imported_helper_replacing_pytest_runtest(tmp_path: Path) -> None:
-    result = _run_imported_runtest_attack(
-        tmp_path,
-        "from _pytest.python import Function\n"
-        "Function.runtest = lambda self: None\n",
-    )
-
-    _assert_corrupted_product_fails(result)
-
-
-def test_cli_executes_assertions_after_imported_runtest_code_mutation(
-    tmp_path: Path,
-) -> None:
-    result = _run_imported_runtest_attack(
-        tmp_path,
-        "from _pytest.python import Function\n"
-        "Function.runtest.__code__ = (lambda self: None).__code__\n",
-    )
-
-    _assert_corrupted_product_fails(result)
-
-
-def test_cli_executes_assertions_after_transitive_runtest_mutation(
-    tmp_path: Path,
-) -> None:
-    result = _run_imported_runtest_attack(
-        tmp_path,
-        "from tests import hostile_transitive\n",
-        transitive_attack=(
-            "from _pytest.python import Function\n"
-            "Function.runtest.__code__ = (lambda self: None).__code__\n"
-        ),
-    )
-
-    _assert_corrupted_product_fails(result)
-
-
-def test_cli_executes_assertions_after_bound_runtest_masking(tmp_path: Path) -> None:
-    result = _run_imported_runtest_attack(
-        tmp_path,
-        "from _pytest.python import Function\n"
-        "original_runtest = Function.runtest\n"
-        "class MaskedRuntest:\n"
-        "    def __get__(self, instance, owner):\n"
-        "        if instance is None:\n"
-        "            return original_runtest\n"
-        "        return lambda: None\n"
-        "Function.runtest = MaskedRuntest()\n",
-    )
-
-    _assert_corrupted_product_fails(result)
-
-
-def test_ci_runs_canonical_checker_against_repository_document() -> None:
-    workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/ci.yml").read_text(
-        encoding="utf-8"
-    )
-
-    run_commands = re.findall(r"^\s*run:\s*(.+)$", workflow, flags=re.MULTILINE)
-    commands = [shlex.split(command) for command in run_commands]
-    assert [
-        "python",
-        "-m",
-        "pytest",
-        "-q",
-        "-c",
-        "/dev/null",
-        "--rootdir",
-        ".",
-    ] in commands
-    assert re.search(r'PYTEST_ADDOPTS:\s*["\']{2}', workflow)
-    assert workflow.count('PYTHONPATH: ""') == 2
-    assert workflow.count('PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"') == 2
-    assert [
-        "python",
-        "scripts/check_product_status.py",
-        "--root",
-        ".",
-        "--document",
-        "docs/PRODUCT_SPEC.md",
-    ] in commands
+    assert len(owning_steps) == 1, shlex.join(command)
+    for setting in hardening:
+        assert setting in owning_steps[0], (shlex.join(command), setting)
 
 
 def test_cli_stale_fixture_exits_nonzero_with_json_reason(tmp_path: Path) -> None:

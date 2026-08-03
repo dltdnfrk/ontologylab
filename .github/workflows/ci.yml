@@ -41,6 +41,7 @@ jobs:
       - name: Canonical product status
         env:
           PYTHONPATH: ""
+          PYTEST_ADDOPTS: ""
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
         run: python scripts/check_product_status.py --root . --document docs/PRODUCT_SPEC.md
 
