@@ -18,7 +18,10 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12"]
     steps:
+      # Product-status fixtures archive immutable historical commit 0baab72.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
