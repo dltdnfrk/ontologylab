@@ -568,22 +568,29 @@ def test_cli_runs_genuine_assertions_despite_noop_conftest(
     ]
 
 
-def test_cli_rejects_imported_helper_replacing_pytest_runtest(tmp_path: Path) -> None:
+def _run_imported_runtest_attack(
+    tmp_path: Path,
+    factory_attack: str,
+    *,
+    transitive_attack: str | None = None,
+) -> subprocess.CompletedProcess[str]:
     document = _executable_fixture(tmp_path)
     factories = tmp_path / "tests/factories.py"
     factories.write_text(
-        factories.read_text(encoding="utf-8")
-        + "\nfrom _pytest.python import Function\n"
-        "Function.runtest = lambda self: None\n",
+        factories.read_text(encoding="utf-8") + "\n" + factory_attack,
         encoding="utf-8",
     )
+    if transitive_attack is not None:
+        (tmp_path / "tests/hostile_transitive.py").write_text(
+            transitive_attack,
+            encoding="utf-8",
+        )
     schemas = tmp_path / "ontologylab/schemas.py"
     schemas.write_text(
         schemas.read_text(encoding="utf-8").replace('"eppo_code"', '"forged_code"'),
         encoding="utf-8",
     )
-
-    result = subprocess.run(
+    return subprocess.run(
         [
             sys.executable,
             "scripts/check_product_status.py",
@@ -599,6 +606,8 @@ def test_cli_rejects_imported_helper_replacing_pytest_runtest(tmp_path: Path) ->
         text=True,
     )
 
+
+def _assert_corrupted_product_fails(result: subprocess.CompletedProcess[str]) -> None:
     payload = json.loads(result.stdout)
     assert result.returncode == 1
     assert payload["ok"] is False
@@ -606,9 +615,62 @@ def test_cli_rejects_imported_helper_replacing_pytest_runtest(tmp_path: Path) ->
         {
             "code": "evidence_execution",
             "id": "DOCUMENT",
-            "detail": "pytest failed 13 canonical nodes",
+            "detail": "pytest failed 2 canonical nodes",
         }
     ]
+
+
+def test_cli_rejects_imported_helper_replacing_pytest_runtest(tmp_path: Path) -> None:
+    result = _run_imported_runtest_attack(
+        tmp_path,
+        "from _pytest.python import Function\n"
+        "Function.runtest = lambda self: None\n",
+    )
+
+    _assert_corrupted_product_fails(result)
+
+
+def test_cli_executes_assertions_after_imported_runtest_code_mutation(
+    tmp_path: Path,
+) -> None:
+    result = _run_imported_runtest_attack(
+        tmp_path,
+        "from _pytest.python import Function\n"
+        "Function.runtest.__code__ = (lambda self: None).__code__\n",
+    )
+
+    _assert_corrupted_product_fails(result)
+
+
+def test_cli_executes_assertions_after_transitive_runtest_mutation(
+    tmp_path: Path,
+) -> None:
+    result = _run_imported_runtest_attack(
+        tmp_path,
+        "from tests import hostile_transitive\n",
+        transitive_attack=(
+            "from _pytest.python import Function\n"
+            "Function.runtest.__code__ = (lambda self: None).__code__\n"
+        ),
+    )
+
+    _assert_corrupted_product_fails(result)
+
+
+def test_cli_executes_assertions_after_bound_runtest_masking(tmp_path: Path) -> None:
+    result = _run_imported_runtest_attack(
+        tmp_path,
+        "from _pytest.python import Function\n"
+        "original_runtest = Function.runtest\n"
+        "class MaskedRuntest:\n"
+        "    def __get__(self, instance, owner):\n"
+        "        if instance is None:\n"
+        "            return original_runtest\n"
+        "        return lambda: None\n"
+        "Function.runtest = MaskedRuntest()\n",
+    )
+
+    _assert_corrupted_product_fails(result)
 
 
 def test_ci_runs_canonical_checker_against_repository_document() -> None:

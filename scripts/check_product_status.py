@@ -397,19 +397,21 @@ def _execute_test_evidence(root: Path) -> Issue | None:
                 "-c",
                 (
                     "import sys, pytest\n"
-                    "class ExecutionGuard:\n"
-                    "    def __init__(self):\n"
-                    "        self.runtest = pytest.Function.runtest\n"
+                    "class EvidenceExecutor:\n"
                     "    @pytest.hookimpl(tryfirst=True)\n"
                     "    def pytest_runtest_call(self, item):\n"
-                    "        if pytest.Function.runtest is not self.runtest:\n"
-                    "            raise RuntimeError(\n"
-                    "                'pytest.Function.runtest replaced by repository code'\n"
-                    "            )\n"
-                    "guard = ExecutionGuard()\n"
+                    "        testargs = {\n"
+                    "            name: item.funcargs[name]\n"
+                    "            for name in item._fixtureinfo.argnames\n"
+                    "        }\n"
+                    "        result = item.obj(**testargs)\n"
+                    "        if result is not None:\n"
+                    "            raise AssertionError('canonical test returned a value')\n"
+                    "        item.runtest = lambda: None\n"
+                    "executor = EvidenceExecutor()\n"
                     "root = sys.argv[1]\n"
                     "sys.path.insert(0, root)\n"
-                    "raise SystemExit(pytest.main(sys.argv[2:], plugins=[guard]))\n"
+                    "raise SystemExit(pytest.main(sys.argv[2:], plugins=[executor]))\n"
                 ),
                 str(root),
                 "-q",
