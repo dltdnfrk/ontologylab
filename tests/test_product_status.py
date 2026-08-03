@@ -1600,12 +1600,11 @@ def test_cli_rejects_a_timestamp_valid_stale_pyc(tmp_path: Path) -> None:
 def test_semantic_constant_encoding_is_typed_canonical_and_exact() -> None:
     """The fingerprint input is injective over the constant domain it accepts."""
     encode = _shipped_helpers("_frame", "_constant_bytes")["_constant_bytes"]
-    positive_nan = compile(
-        "def probe():\n    return 1e1000 - 1e1000\n", "probe.py", "exec"
-    ).co_consts[0].co_consts[1]
-    negative_nan = compile(
-        "def probe():\n    return -(1e1000 - 1e1000)\n", "probe.py", "exec"
-    ).co_consts[0].co_consts[1]
+    # Constant-folding the expression ``inf - inf`` chooses a NaN sign that
+    # differs between arm64 and x86_64. Build the two exact IEEE values this
+    # encoding contract means to distinguish instead of testing the compiler.
+    positive_nan = struct.unpack(">d", bytes.fromhex("7ff8000000000000"))[0]
+    negative_nan = struct.unpack(">d", bytes.fromhex("fff8000000000000"))[0]
     scalars = (
         None,
         Ellipsis,
