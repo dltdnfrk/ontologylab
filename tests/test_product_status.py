@@ -6,6 +6,7 @@ import hmac
 import io
 import json
 import os
+import py_compile
 import re
 import shlex
 import site
@@ -531,6 +532,20 @@ def test_execution_receipt_rejects_zero_skipped_deselected_and_failed_evidence(
 
 LEDGER_SECRET = b"k" * 64
 REPOSITORY = Path(__file__).resolve().parents[1]
+
+
+class _StopBeforeExec(Exception):
+    """Raised by the fakes below so the observed call never actually happens."""
+
+
+class _Flags:
+    """Just enough of `sys.flags` for the re-exec guard to read."""
+
+    def __init__(self, *, isolated: bool, no_site: bool, safe_path: bool) -> None:
+        self.isolated = isolated
+        self.no_site = no_site
+        self.safe_path = safe_path
+        self.optimize = 0
 _SITE_DIRS = [
     entry for entry in site.getsitepackages() if Path(entry).is_dir()
 ]
@@ -1496,8 +1511,147 @@ def test_cli_rejects_product_that_behaves_differently_while_audited(
     assert issue["code"] == "evidence_execution"
     assert issue["detail"] == (
         "product code the bodies called is not what its own source compiles to: "
-        "['ontologylab/normalization.py::normalize_proposal is not compiled from this file']"
+        "['ontologylab/normalization.py::normalize_proposal is not compiled from this "
+        "file under that name']"
     )
+
+
+CLASS_MUTANT = (
+    "ontologylab/registry.py",
+    '    def resolve_with_status(self, name: str) -> tuple[str | None, str]:\n'
+    '        """Distinguish a lookup miss from the optional cache being switched off."""\n',
+    "        return None, 'unresolved'\n",
+)
+CLASS_MUTANT_NODES = 2
+
+
+def _mutate_registry_method(root: Path) -> str:
+    """Gut a method on a class the canonical nodes exercise, returning the pristine source."""
+    relative, anchor, insertion = CLASS_MUTANT
+    path = root / relative
+    pristine = path.read_text(encoding="utf-8")
+    assert anchor in pristine, f"corruption anchor vanished from {relative}"
+    path.write_text(pristine.replace(anchor, anchor + insertion, 1), encoding="utf-8")
+    return pristine
+
+
+def test_cli_rejects_a_rebound_class_that_hides_a_gutted_method(tmp_path: Path) -> None:
+    """A duplicated or rebound *class* is as visible as a rebound function.
+
+    Identity used to be enumerated from module-level attributes carrying `__code__`, so every
+    method of every class sat outside the audit -- 726 of them in this product, measured. A
+    bad merge that leaves a second copy of a class, or a debugging leftover that rebinds one,
+    is an ordinary accident, and it was sufficient: with `RegistryCache.resolve_with_status`
+    gutted and the class rebound to a pre-mutation copy while audited, ground truth was six
+    failing tests and the gate printed its receipt. Identity is now bound per qualified name
+    over every code object a module exposes, methods included.
+    """
+    document = _executable_fixture(tmp_path)
+    pristine = _mutate_registry_method(tmp_path)
+    registry = tmp_path / "ontologylab/registry.py"
+    registry.write_text(
+        registry.read_text(encoding="utf-8")
+        + "\n\nimport sys as _sys\n\n"
+        'if "--junitxml" in _sys.argv:\n'
+        "    _ns = dict(globals())\n"
+        "    exec(compile(%r, __file__, \"exec\"), _ns)\n"
+        '    RegistryCache = _ns["RegistryCache"]\n' % pristine,
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    (issue,) = payload["issues"]
+    assert issue["code"] == "evidence_execution"
+    assert issue["detail"] == (
+        "product code the bodies called is not what its own source compiles to: "
+        "['ontologylab/registry.py::RegistryCache.resolve_with_status is not compiled "
+        "from this file under that name']"
+    )
+
+
+def test_cli_rejects_a_function_rebound_to_a_sibling_in_the_same_file(
+    tmp_path: Path,
+) -> None:
+    """Identity is bound per name, not by "appears somewhere in the file".
+
+    The check used to ask whether the executed bytecode was among the code objects the file
+    could produce, anywhere. A function rebound to a *different* function defined in the same
+    file therefore satisfied it. Nothing here is behaviourally broken on its own -- the decoy
+    is a pass-through -- so the report has to come from the identity rule.
+    """
+    document = _executable_fixture(tmp_path)
+    normalization = tmp_path / "ontologylab/normalization.py"
+    normalization.write_text(
+        normalization.read_text(encoding="utf-8")
+        + "\n\ndef _decoy(proposal, cache, moa_cache=None):\n"
+        "    return proposal\n\n\n"
+        "import sys as _sys\n\n"
+        'if "--junitxml" in _sys.argv:\n'
+        "    normalize_proposal = _decoy\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    details = {issue["detail"] for issue in payload["issues"]}
+    assert any(
+        "ontologylab/normalization.py::normalize_proposal is not compiled from this file "
+        "under that name" in detail
+        for detail in details
+    ), details
+
+
+def test_cli_rejects_code_executed_under_a_filename_that_does_not_exist(
+    tmp_path: Path,
+) -> None:
+    """A `.pyc` with no adjacent source is undeclared code, and is named as such.
+
+    Two inferences behind the reach audit did not hold. Loading a `.pyc` fires no `compile`
+    event, and `module_from_spec` never registers in `sys.modules`, so neither the hook's
+    compile record nor a module walk saw it. Executing it does fire `exec`, and the filename
+    that code object claims does not exist on disk -- which is the reportable fact.
+    """
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "orphan_helper.py"
+    source.write_text("def stub():\n    return None\n", encoding="utf-8")
+    py_compile.compile(
+        str(source), cfile=str(tmp_path / "orphan_helper.pyc"), doraise=True
+    )
+    source.unlink()
+    evidence = tmp_path / "tests/test_registry.py"
+    marker = "from __future__ import annotations\n"
+    evidence.write_text(
+        evidence.read_text(encoding="utf-8").replace(
+            marker,
+            marker
+            + "\nimport importlib.util as _u\nimport pathlib as _pl\n"
+            "_spec = _u.spec_from_file_location(\n"
+            "    'orphan_helper', str(_pl.Path(__file__).parents[1] / 'orphan_helper.pyc')\n"
+            ")\n_mod = _u.module_from_spec(_spec)\n_spec.loader.exec_module(_mod)\n",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    checker = _checker_with_refreshed_digests(tmp_path)
+
+    result = _run_checker(tmp_path, document, checker=str(checker))
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    (issue,) = payload["issues"]
+    assert issue["detail"] == (
+        "unaudited repository modules on the evidence path: "
+        "['orphan_helper.py: claimed source is absent']"
+    )
+
 
 
 def test_cli_rejects_a_module_that_declines_to_say_where_it_came_from(
@@ -1714,30 +1868,114 @@ def test_the_library_exemption_never_covers_the_audited_tree(tmp_path: Path) -> 
     )
 
 
-def test_both_checker_processes_disable_site_processing() -> None:
-    """Both interpreters run with `-S`, and that is what suppresses `.pth` execution.
+def test_the_child_is_launched_with_startup_code_disabled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The command the checker really builds for its child carries `-I -S`.
 
-    The vector this closes is a `.pth` in a genuine site directory, which for the child
-    means the real site-packages, since `PYTHONPATH` is popped from its environment. A test
-    cannot write there without mutating the shared virtualenv, so the guarantee is owned in
-    two halves: this pins that both command lines carry `-S`, and the assertion below pins
-    the interpreter behaviour the flag is being relied on for.
+    Owned by observing the invocation, not by grepping the file that contains it: a check
+    compared against a re-derivation of itself proves nothing. `subprocess.run` is replaced,
+    `_execute_test_evidence` is called for real, and the argv it constructed is inspected.
+    Deleting `-S` from the command line fails this; so does deleting `-I`.
     """
-    source = (
-        Path(__file__).resolve().parents[1] / "scripts/check_product_status.py"
-    ).read_text(encoding="utf-8")
+    captured: dict[str, object] = {}
 
-    assert '[sys.executable, "-I", "-S", str(Path(__file__).resolve()), *sys.argv[1:]]' in source
-    assert source.count('                "-S",\n') == 1
-    assert "if sys.flags.isolated and sys.flags.no_site:" in source
+    def fake_run(command, **kwargs):
+        captured["command"] = list(command)
+        captured["fds"] = kwargs.get("pass_fds")
+        raise _StopBeforeExec
 
-    probe = subprocess.run(
-        [sys.executable, "-I", "-S", "-c", "import sys; print(sys.flags.no_site)"],
-        check=True,
-        capture_output=True,
-        text=True,
+    monkeypatch.setattr(check_product_status.subprocess, "run", fake_run)
+    with pytest.raises(_StopBeforeExec):
+        check_product_status._execute_test_evidence(REPOSITORY)
+
+    command = captured["command"]
+    assert command[0] == sys.executable
+    interpreter_flags = command[1 : command.index("-c")]
+    assert "-I" in interpreter_flags, interpreter_flags
+    assert "-S" in interpreter_flags, interpreter_flags
+    # The run secret travels on an inherited descriptor, not on the command line.
+    assert captured["fds"], "the child must inherit the secret pipe"
+
+
+def test_the_parent_reexecs_itself_with_startup_code_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The re-exec the checker really performs carries `-I -S -P`.
+
+    Same standard: `os.execv` is replaced and the argv is inspected. `-P` matters on its own
+    -- without it `sys.path[0]` is `scripts/`, so a `scripts/pytest.py` would be imported in
+    preference to the real package, before the secret is drained, out of a directory the
+    audit never looks at.
+    """
+    captured: dict[str, object] = {}
+
+    def fake_execve(executable, argv, environment):
+        captured["executable"] = executable
+        captured["argv"] = list(argv)
+        captured["environment"] = dict(environment)
+        raise _StopBeforeExec
+
+    monkeypatch.setattr(check_product_status.os, "execve", fake_execve)
+    monkeypatch.setattr(check_product_status.sys, "argv", ["check_product_status.py"])
+    monkeypatch.delenv("ONTOLOGYLAB_STATUS_REEXEC", raising=False)
+    monkeypatch.setattr(
+        check_product_status.sys,
+        "flags",
+        _Flags(isolated=False, no_site=False, safe_path=False),
     )
-    assert probe.stdout.strip() == "1"
+
+    with pytest.raises(_StopBeforeExec):
+        check_product_status._reexec_isolated()
+
+    argv = captured["argv"]
+    assert argv[0] == captured["executable"]
+    flags = argv[1 : argv.index(str(REPOSITORY / "scripts/check_product_status.py"))]
+    assert flags == ["-I", "-S", "-P"], flags
+    # The sentinel travels in the replacement environment, not in this process: a re-exec
+    # that does not happen must leave the caller's environment untouched.
+    assert captured["environment"]["ONTOLOGYLAB_STATUS_REEXEC"] == "1"
+    assert "ONTOLOGYLAB_STATUS_REEXEC" not in os.environ
+
+
+def test_the_child_library_list_never_names_the_audited_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The library allow-list the parent computes contains no path that means "here".
+
+    `sys.path` carries "" -- the working directory, i.e. the audited root -- and handing it
+    over verbatim exempted the entire repository from the reach audit for one iteration.
+    This inspects the value actually placed in the environment for the child.
+    """
+    captured: dict[str, object] = {}
+
+    def fake_execve(executable, argv, environment):
+        captured["sitedirs"] = environment["ONTOLOGYLAB_STATUS_SITEDIRS"]
+        captured["environment"] = dict(environment)
+        raise _StopBeforeExec
+
+    monkeypatch.setattr(check_product_status.os, "execve", fake_execve)
+    monkeypatch.setattr(check_product_status.sys, "argv", ["check_product_status.py"])
+    monkeypatch.delenv("ONTOLOGYLAB_STATUS_REEXEC", raising=False)
+    monkeypatch.setattr(
+        check_product_status.sys,
+        "flags",
+        _Flags(isolated=False, no_site=False, safe_path=False),
+    )
+    monkeypatch.chdir(REPOSITORY)
+
+    with pytest.raises(_StopBeforeExec):
+        check_product_status._reexec_isolated()
+
+    entries = [
+        entry for entry in str(captured["sitedirs"]).split(os.pathsep) if entry
+    ]
+    assert entries, "the child still needs its library directories"
+    for entry in entries:
+        assert Path(entry).is_absolute(), entry
+        assert Path(entry).is_dir(), entry
+        assert Path(entry).resolve() != REPOSITORY, entry
+
 
 
 def test_the_run_secret_is_not_recoverable_after_the_executor_drains_it(

@@ -106,6 +106,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from types import CodeType
 
 # Under `-S` the interpreter has no site-packages on its path, so put back exactly the
 # directories the parent resolved while `site` still worked -- and nothing else.
@@ -268,6 +269,44 @@ def module_origin(module):
     return None, True
 
 
+def live_code_objects(module, seen=None):
+    # Every code object the module exposes as its own, including methods, so that a rebound
+    # or duplicated *class* is as visible as a rebound function. The previous rule looked
+    # only at module-level attributes carrying `__code__`, which left every method in every
+    # class outside the audit -- the same divergence shape one attribute type over.
+    if seen is None:
+        seen = set()
+    name = getattr(module, "__name__", None)
+    for attribute, value in sorted(vars(module).items(), key=lambda item: item[0]):
+        yield from _code_objects_of(attribute, value, name, seen)
+
+
+def _code_objects_of(prefix, value, module_name, seen):
+    if id(value) in seen:
+        return
+    for unwrap in ("__func__", "fget", "fset", "fdel", "func"):
+        inner = getattr(value, unwrap, None)
+        if inner is not None and getattr(inner, "__code__", None) is not None:
+            yield from _code_objects_of(prefix, inner, module_name, seen)
+            return
+    code = getattr(value, "__code__", None)
+    if code is not None:
+        if getattr(value, "__module__", None) == module_name:
+            # Keyed by where it is bound, not by what it calls itself. A function rebound to
+            # a sibling in the same file reports its own honest `__qualname__`, so trusting
+            # that would let any same-file swap through.
+            yield prefix, code
+        return
+    if isinstance(value, type) and getattr(value, "__module__", None) == module_name:
+        seen.add(id(value))
+        for attribute, member in sorted(
+            vars(value).items(), key=lambda item: item[0]
+        ):
+            yield from _code_objects_of(
+                f"{prefix}.{attribute}", member, module_name, seen
+            )
+
+
 def product_identity():
     # What product did the bodies actually call?
     #
@@ -310,25 +349,41 @@ def product_identity():
         except SyntaxError:
             substitutions.append(f"{relative}: will not compile")
             continue
-        producible = set()
+        # Index every code object the file can produce, keyed by qualified name. Keying by
+        # name is what makes this a binding rather than a lookup: a function rebound to a
+        # different function *from the same file* used to pass, because the old check asked
+        # only whether the bytecode appeared anywhere in the file.
+        producible = {}
         pending = [compiled]
         while pending:
             code = pending.pop()
-            producible.add(code.co_code)
+            producible.setdefault(code.co_qualname, set()).add(code.co_code)
             pending.extend(
-                const for const in code.co_consts if isinstance(const, type(compiled))
+                const for const in code.co_consts if isinstance(const, CodeType)
             )
-        for attribute, value in list(vars(module).items()):
-            code = getattr(value, "__code__", None)
-            if code is None or getattr(value, "__module__", None) != module.__name__:
+        for qualname, code in live_code_objects(module):
+            origin = code.co_filename
+            # Code the interpreter or a library generated for this module: `@dataclass`
+            # compiles `__init__`/`__eq__` with the filename "<string>", and `reprlib`
+            # supplies the `__repr__` wrapper from its own file. Neither exists in this
+            # source, so neither can be re-derived from it. They are library output, and the
+            # library boundary is where they belong -- not silently dropped, but not charged
+            # to a file that never contained them either.
+            if origin.startswith("<") and origin.endswith(">"):
                 continue
-            if code.co_filename != str(path):
+            if any(
+                library in Path(origin).resolve().parents
+                for library in LIBRARY_ROOTS
+                if Path(origin).is_absolute()
+            ):
+                continue
+            if origin != str(path):
                 substitutions.append(
-                    f"{relative}::{attribute} claims {code.co_filename}"
+                    f"{relative}::{qualname} claims {origin}"
                 )
-            elif code.co_code not in producible:
+            elif code.co_code not in producible.get(qualname, frozenset()):
                 substitutions.append(
-                    f"{relative}::{attribute} is not compiled from this file"
+                    f"{relative}::{qualname} is not compiled from this file under that name"
                 )
     return digests, sorted(set(substitutions))
 
@@ -337,6 +392,10 @@ def unaudited_repository_modules():
     # Every repository-local module that loaded, minus the product under test.
     found = []
     for origin in sorted(COMPILED_FILES):
+        # Synthetic names, not paths: `<string>`, `<attrs generated ...>`, and the like.
+        # These carry no filesystem claim to check, and libraries produce them constantly.
+        if origin.startswith("<") and origin.endswith(">"):
+            continue
         try:
             # Relative filenames are resolved against the audited root, which is this
             # process's cwd: `compile(source, "helper.py", ...)` names a real file there.
@@ -344,7 +403,14 @@ def unaudited_repository_modules():
             path = (candidate if candidate.is_absolute() else ROOT / candidate).resolve()
         except (OSError, ValueError):
             continue
-        if ROOT not in path.parents or not path.is_file():
+        if ROOT not in path.parents:
+            continue
+        if not path.is_file():
+            # Code executed under a filename that does not exist: a `.pyc` with no adjacent
+            # source fires no `compile` event and registers no module, but executing it does
+            # fire `exec`, and the name it claims is unverifiable. Report rather than skip.
+            if not any(library in path.parents for library in LIBRARY_ROOTS):
+                found.append(f"{path.relative_to(ROOT).as_posix()}: claimed source is absent")
             continue
         if any(library in path.parents for library in LIBRARY_ROOTS):
             continue
@@ -893,6 +959,16 @@ def _execute_test_evidence(root: Path) -> tuple[Issue | None, int]:
             ),
             len(ledger),
         )
+    # Substitution outranks damage. "N nodes failed" describes a product that is broken; a
+    # substitution finding says the run does not describe the product on disk at all, which
+    # is the stronger statement and the one an operator needs first -- reporting the count
+    # first buried substitution behind whatever damage the substitution happened to leave.
+    # A short ledger, by contrast, is the *expected* consequence of nodes failing, so it
+    # stays behind the count that explains it.
+    if ledger_issue is not None and ledger_issue.detail.startswith(
+        ("product code the bodies called", "product changed between")
+    ):
+        return ledger_issue, len(ledger)
     if receipt_issue is not None:
         return receipt_issue, len(ledger)
     if ledger_issue is not None:
@@ -1043,6 +1119,17 @@ def _read_execution_ledger(
     ):
         return {}, malformed, _UNSIGNED
 
+    if substituted:
+        return (
+            executed,
+            Issue(
+                "evidence_execution",
+                "DOCUMENT",
+                "product code the bodies called is not what its own source compiles to: "
+                f"{sorted(substituted)[:20]}",
+            ),
+            signed_returncode,
+        )
     if executed != dict(TEST_EVIDENCE_DIGESTS):
         missing = sorted(set(TEST_EVIDENCE_DIGESTS) - set(executed))
         unexpected = sorted(set(executed) - set(TEST_EVIDENCE_DIGESTS))
@@ -1079,17 +1166,6 @@ def _read_execution_ledger(
                 "evidence_execution",
                 "DOCUMENT",
                 f"unaudited repository modules on the evidence path: {sorted(unaudited)}",
-            ),
-            signed_returncode,
-        )
-    if substituted:
-        return (
-            executed,
-            Issue(
-                "evidence_execution",
-                "DOCUMENT",
-                "product code the bodies called is not what its own source compiles to: "
-                f"{sorted(substituted)[:20]}",
             ),
             signed_returncode,
         )
@@ -1194,33 +1270,56 @@ def _reexec_isolated() -> None:
     startup code at all: `-S` disables path configuration wholesale, and the site directory
     the child needs is resolved here, while `site` still works, and handed over explicitly.
     """
-    if sys.flags.isolated and sys.flags.no_site:
+    if sys.flags.isolated and sys.flags.no_site and sys.flags.safe_path:
         return
     if os.environ.get("ONTOLOGYLAB_STATUS_REEXEC") == "1":
         raise SystemExit("checker re-exec did not take effect; refusing to continue")
     import site
 
+    # The audited root, as this invocation spells it, so it can never be mistaken for a
+    # library directory below.
+    args_root = Path.cwd()
+    for index, argument in enumerate(sys.argv[1:]):
+        if argument == "--root" and index + 2 <= len(sys.argv[1:]):
+            args_root = Path(sys.argv[index + 2])
+            break
+        if argument.startswith("--root="):
+            args_root = Path(argument.split("=", 1)[1])
+            break
     environment = os.environ.copy()
     environment["ONTOLOGYLAB_STATUS_REEXEC"] = "1"
     # Captured before `-S` hides the virtual environment: under `-S` both `sys.prefix` and
     # `site.getsitepackages()` collapse to the base interpreter.
-    # Only real library directories. `sys.path` also carries "" (the working directory,
-    # i.e. the audited root) and relative entries; handing those over would have exempted
-    # the entire repository from the reach audit.
+    # Only real library directories. `sys.path` also carries "" (the working directory) and,
+    # under pytest, the repository root itself; either would exempt the whole tree from the
+    # reach audit. Site directories are what the child needs, so that is what it gets.
+    audited = Path(getattr(args_root, "resolve", lambda: args_root)()).resolve()
     environment["ONTOLOGYLAB_STATUS_SITEDIRS"] = os.pathsep.join(
         dict.fromkeys(
             entry
-            for entry in (*site.getsitepackages(), *sys.path)
-            if entry and Path(entry).is_absolute() and Path(entry).is_dir()
+            for entry in site.getsitepackages()
+            if entry
+            and Path(entry).is_absolute()
+            and Path(entry).is_dir()
+            # Belt, and unreachable while the source above is `site.getsitepackages()`,
+            # which never yields the audited tree. Kept because the previous iteration fed
+            # `sys.path` in here, which does carry "" and the repository root, and that
+            # exempted the whole tree from the reach audit. No test fails without this line.
+            and Path(entry).resolve() != audited
         )
     )
-    os.environ.update(environment)
-    # `execv`, not `subprocess`: injected code already inside this process can filter
-    # `subprocess.run`, and did in the shape this closes. Replacing the process image
-    # leaves nothing of the compromised interpreter behind to intercept anything.
-    os.execv(
+    # `execve`, not `execv`: the replacement environment is passed to the call rather than
+    # written into this process first, so a re-exec that does not happen leaves no trace in
+    # the caller. `exec*`, not `subprocess`, because injected code already inside this
+    # process can filter `subprocess.run` -- and did, in the shape this closes. Replacing the
+    # process image leaves nothing of the compromised interpreter behind to intercept.
+    os.execve(
         sys.executable,
-        [sys.executable, "-I", "-S", str(Path(__file__).resolve()), *sys.argv[1:]],
+        # `-P` as well: without it `sys.path[0]` is `scripts/`, so a `scripts/pytest.py`
+        # would be imported in preference to the real package, pre-drain, from a directory
+        # the audit never looks at.
+        [sys.executable, "-I", "-S", "-P", str(Path(__file__).resolve()), *sys.argv[1:]],
+        environment,
     )
 
 
