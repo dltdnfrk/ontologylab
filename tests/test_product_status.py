@@ -86,6 +86,9 @@ def _executable_fixture(root: Path) -> Path:
     ).stdout
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as tar:
         tar.extractall(root, filter="data")
+    for relative in (*TEST_FUNCTIONS, "tests/factories.py"):
+        destination = root / relative
+        destination.write_bytes((repository / relative).read_bytes())
     return root / "docs/PRODUCT_SPEC.md"
 
 
@@ -354,40 +357,25 @@ def test_cli_overrides_tracked_collection_only_addopts(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("hook", "detail"),
+    "hook",
     (
-        (
-            "def pytest_configure(config): config.option.collectonly = True\n",
-            "pytest executed 0 of 13 canonical nodes",
-        ),
-        (
-            "def pytest_collection_modifyitems(config, items):\n"
-            "    config.hook.pytest_deselected(items=items)\n"
-            "    items[:] = []\n",
-            "pytest executed 0 of 13 canonical nodes",
-        ),
-        (
-            "def pytest_collection_modifyitems(config, items):\n"
-            "    removed = items.pop()\n"
-            "    config.hook.pytest_deselected(items=[removed])\n",
-            "pytest executed 12 of 13 canonical nodes",
-        ),
-        (
-            "import pytest\n"
-            "def pytest_collection_modifyitems(items):\n"
-            "    for item in items:\n"
-            "        item.add_marker(pytest.mark.skip(reason='hostile skip'))\n",
-            "pytest skipped 13 canonical nodes",
-        ),
-        (
-            "def pytest_runtest_call(item):\n"
-            "    raise AssertionError('hostile assertion')\n",
-            "pytest failed 13 canonical nodes",
-        ),
+        "def pytest_configure(config): config.option.collectonly = True\n",
+        "def pytest_collection_modifyitems(config, items):\n"
+        "    config.hook.pytest_deselected(items=items)\n"
+        "    items[:] = []\n",
+        "def pytest_collection_modifyitems(config, items):\n"
+        "    removed = items.pop()\n"
+        "    config.hook.pytest_deselected(items=[removed])\n",
+        "import pytest\n"
+        "def pytest_collection_modifyitems(items):\n"
+        "    for item in items:\n"
+        "        item.add_marker(pytest.mark.skip(reason='hostile skip'))\n",
+        "def pytest_runtest_call(item):\n"
+        "    raise AssertionError('hostile assertion')\n",
     ),
 )
-def test_cli_rejects_nonexecuted_or_failing_canonical_nodes(
-    tmp_path: Path, hook: str, detail: str
+def test_cli_neutralizes_repository_collection_and_runtest_hooks(
+    tmp_path: Path, hook: str
 ) -> None:
     document = _executable_fixture(tmp_path)
     (tmp_path / "conftest.py").write_text(hook, encoding="utf-8")
@@ -409,10 +397,174 @@ def test_cli_rejects_nonexecuted_or_failing_canonical_nodes(
     )
 
     payload = json.loads(result.stdout)
+    assert result.returncode == 0
+    assert payload["ok"] is True
+    assert payload["issues"] == []
+    assert "EVIDENCE: 13 canonical pytest nodes passed" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("conftest_path", "hook"),
+    (
+        (
+            "conftest.py",
+            "def pytest_collection_modifyitems(items):\n"
+            "    for item in items:\n"
+            "        item.runtest = lambda: None\n",
+        ),
+        (
+            "tests/conftest.py",
+            "import pytest\n"
+            "@pytest.hookimpl(tryfirst=True)\n"
+            "def pytest_runtest_call(item):\n"
+            "    item.runtest = lambda: None\n",
+        ),
+    ),
+)
+def test_cli_neutralizes_repository_conftest_execution_replacement(
+    tmp_path: Path, conftest_path: str, hook: str
+) -> None:
+    document = _executable_fixture(tmp_path)
+    marker = tmp_path / "hostile-conftest-loaded"
+    conftest = tmp_path / conftest_path
+    original = conftest.read_text(encoding="utf-8") if conftest.exists() else ""
+    conftest.write_text(
+        original
+        + "\nimport os\n"
+        "from pathlib import Path\n"
+        "Path(os.environ['G009_HOOK_MARKER']).write_text('loaded')\n"
+        + hook,
+        encoding="utf-8",
+    )
+    environment = dict(os.environ)
+    environment["G009_HOOK_MARKER"] = str(marker)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/check_product_status.py",
+            "--root",
+            str(tmp_path),
+            "--document",
+            str(document),
+            "--json",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["ok"] is True
+    assert "EVIDENCE: 13 canonical pytest nodes passed" in result.stderr
+    assert not marker.exists()
+
+
+def test_cli_neutralizes_pythonpath_pytest_module_injection(tmp_path: Path) -> None:
+    document = _executable_fixture(tmp_path)
+    injection = tmp_path / "injection"
+    injection.mkdir()
+    marker = tmp_path / "hostile-pytest-loaded"
+    (injection / "pytest.py").write_text(
+        "import os, sys\n"
+        "from pathlib import Path\n"
+        "Path(os.environ['G009_HOOK_MARKER']).write_text('loaded')\n"
+        "args = sys.argv[1:]\n"
+        "receipt = Path(args[args.index('--junitxml') + 1])\n"
+        "nodes = [arg for arg in args if '::' in arg]\n"
+        "cases = ''.join(f'<testcase file=\\\"{node.split(\"::\", 1)[0]}\\\" name=\\\"{node.split(\"::\", 1)[1]}\\\"/>' for node in nodes)\n"
+        "receipt.write_text(f'<testsuites><testsuite tests=\\\"{len(nodes)}\\\" failures=\\\"0\\\" errors=\\\"0\\\" skipped=\\\"0\\\">{cases}</testsuite></testsuites>')\n",
+        encoding="utf-8",
+    )
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = str(injection)
+    environment["G009_HOOK_MARKER"] = str(marker)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/check_product_status.py",
+            "--root",
+            str(tmp_path),
+            "--document",
+            str(document),
+            "--json",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["ok"] is True
+    assert "EVIDENCE: 13 canonical pytest nodes passed" in result.stderr
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize(
+    ("conftest_path", "hook"),
+    (
+        (
+            "conftest.py",
+            "def pytest_collection_modifyitems(items):\n"
+            "    for item in items:\n"
+            "        item.runtest = lambda: None\n",
+        ),
+        (
+            "tests/conftest.py",
+            "def pytest_collection_modifyitems(items):\n"
+            "    for item in items:\n"
+            "        item.runtest = lambda: None\n",
+        ),
+        (
+            "tests/conftest.py",
+            "from _pytest.python import Function\n"
+            "Function.runtest = lambda self: None\n",
+        ),
+    ),
+)
+def test_cli_runs_genuine_assertions_despite_noop_conftest(
+    tmp_path: Path, conftest_path: str, hook: str
+) -> None:
+    document = _executable_fixture(tmp_path)
+    schemas = tmp_path / "ontologylab/schemas.py"
+    schemas.write_text(
+        schemas.read_text(encoding="utf-8").replace('"eppo_code"', '"forged_code"'),
+        encoding="utf-8",
+    )
+    conftest = tmp_path / conftest_path
+    original = conftest.read_text(encoding="utf-8") if conftest.exists() else ""
+    conftest.write_text(original + "\n" + hook, encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/check_product_status.py",
+            "--root",
+            str(tmp_path),
+            "--document",
+            str(document),
+            "--json",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    payload = json.loads(result.stdout)
     assert result.returncode == 1
     assert payload["ok"] is False
     assert payload["issues"] == [
-        {"code": "evidence_execution", "id": "DOCUMENT", "detail": detail}
+        {
+            "code": "evidence_execution",
+            "id": "DOCUMENT",
+            "detail": "pytest failed 2 canonical nodes",
+        }
     ]
 
 
@@ -434,6 +586,8 @@ def test_ci_runs_canonical_checker_against_repository_document() -> None:
         ".",
     ] in commands
     assert re.search(r'PYTEST_ADDOPTS:\s*["\']{2}', workflow)
+    assert workflow.count('PYTHONPATH: ""') == 2
+    assert workflow.count('PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"') == 2
     assert [
         "python",
         "scripts/check_product_status.py",

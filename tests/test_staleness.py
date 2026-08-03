@@ -18,7 +18,7 @@ from ontologylab.kgstore import KGStore
 from ontologylab.mcp_server import PackSession
 from ontologylab.packbuilder import build_pack as _build_pack
 from ontologylab.semantic_staleness import semantic_deltas as _semantic_deltas
-from tests.conftest import make_entity, make_relation
+from tests.factories import make_entity, make_relation
 
 
 def build_pack(*args, **kwargs):

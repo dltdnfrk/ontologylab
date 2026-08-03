@@ -380,6 +380,8 @@ def _validate_pytest_receipt(
 def _execute_test_evidence(root: Path) -> Issue | None:
     node_ids = sorted(TEST_EVIDENCE_DIGESTS)
     environment = os.environ.copy()
+    environment.pop("PYTHONPATH", None)
+    environment.pop("PYTHONHOME", None)
     environment.pop("PYTEST_ADDOPTS", None)
     environment.pop("PYTEST_PLUGINS", None)
     environment["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
@@ -391,13 +393,21 @@ def _execute_test_evidence(root: Path) -> Issue | None:
         result = subprocess.run(
             [
                 sys.executable,
-                "-m",
-                "pytest",
+                "-I",
+                "-c",
+                (
+                    "import sys, pytest; "
+                    "root = sys.argv[1]; "
+                    "sys.path.insert(0, root); "
+                    "raise SystemExit(pytest.main(sys.argv[2:]))"
+                ),
+                str(root),
                 "-q",
                 "-c",
                 str(controlled_config),
                 "--rootdir",
                 str(root),
+                "--noconftest",
                 "-o",
                 "addopts=",
                 "-o",

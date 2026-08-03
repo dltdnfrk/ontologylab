@@ -18,7 +18,7 @@ from __future__ import annotations
 import pytest
 
 from ontologylab.schemas import PRESETS, preset
-from tests.conftest import make_entity, make_relation
+from tests.factories import make_entity, make_relation
 
 _AXES = {
     "control": ("Crop", "Pathogen", "Pest", "Weed", "ActiveIngredient", "Product"),
