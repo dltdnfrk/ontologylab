@@ -484,22 +484,36 @@ def code_fingerprint(code):
     return hashlib.sha256(_code_bytes(code)).hexdigest()
 
 
-def _class_semantic_bytes(methods, literals):
-    method_bytes = b"".join(
-        _frame(b"M", _constant_bytes((name, wrapper)) + _code_bytes(code))
-        for name, wrapper, code in sorted(methods, key=lambda item: item[0])
+def _class_semantic_bytes(namespace, bases):
+    # Source and live class identity share this one canonical final-namespace format.
+    # Values already carry an explicit kind tag; names and declared bases are framed in a
+    # deterministic order, independent of dictionary and hash iteration order.
+    members = b"".join(
+        _frame(b"N", _constant_bytes(name) + encoded)
+        for name, encoded in sorted(namespace.items())
     )
-    literal_bytes = b"".join(
-        _frame(b"V", _constant_bytes(name) + encoded)
-        for name, encoded in sorted(literals.items())
-    )
-    return _frame(b"K", _frame(b"F", method_bytes) + _frame(b"D", literal_bytes))
+    lineage = b"".join(_frame(b"B", encoded) for encoded in bases)
+    return _frame(b"K", _frame(b"L", lineage) + _frame(b"D", members))
+
+
+def _method_semantic_bytes(wrapper, code):
+    return _frame(b"F", _constant_bytes(wrapper) + _code_bytes(code))
+
+
+def _literal_semantic_bytes(value):
+    return _frame(b"V", _constant_bytes(value))
 
 
 def _source_class_semantics(tree):
-    # Semantic class-definition tokens keyed by exact temporal AST event.
+    # Interpret supported binding events in execution order. Each class event keeps its own
+    # final namespace and exact base-event bindings; aliases copy represented values, deletes
+    # remove names, and later events overwrite earlier ones just as class creation does.
     compiled = compile(tree, "<class-semantics>", "exec")
     found = {}
+    class_namespaces = {}
+    class_nodes = {}
+    class_codes = {}
+    base_bindings = {}
 
     def first_line(node):
         return min(
@@ -507,13 +521,13 @@ def _source_class_semantics(tree):
             default=node.lineno,
         )
 
-    def visit(body, parent_code, parent=""):
+    def index(body, parent_code, parent=""):
         for node in body:
             if not isinstance(node, ast.ClassDef):
                 continue
             qualname = f"{parent}.{node.name}" if parent else node.name
             line = first_line(node)
-            class_code = next(
+            code = next(
                 (
                     value
                     for value in parent_code.co_consts
@@ -523,57 +537,242 @@ def _source_class_semantics(tree):
                 ),
                 None,
             )
-            if class_code is None:
+            if code is None:
                 continue
-            methods = []
-            literals = {}
-            for statement in node.body:
-                if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    code = next(
-                        (
-                            value
-                            for value in class_code.co_consts
-                            if isinstance(value, CodeType)
-                            and value.co_name == statement.name
-                            and value.co_firstlineno == first_line(statement)
-                        ),
-                        None,
-                    )
-                    if code is not None:
-                        decorators = {
-                            getattr(decorator, "id", None)
-                            for decorator in statement.decorator_list
-                        }
-                        wrapper = next(
-                            (name for name in ("classmethod", "staticmethod", "property") if name in decorators),
-                            "function",
-                        )
-                        methods.append((statement.name, wrapper, code))
-                    continue
-                if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
-                    target, value = statement.targets[0], statement.value
-                elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
-                    target, value = statement.target, statement.value
-                else:
-                    continue
-                if not isinstance(target, ast.Name):
-                    continue
-                try:
-                    literals[target.id] = _constant_bytes(ast.literal_eval(value))
-                except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
-                    continue
-            found[(qualname, node.lineno)] = _class_semantic_bytes(methods, literals)
-            visit(node.body, class_code, qualname)
+            event = (qualname, node.lineno)
+            class_nodes[event] = node
+            class_codes[event] = code
+            index(node.body, code, qualname)
 
-    visit(tree.body, compiled)
+    index(tree.body, compiled)
+
+    def dotted(node):
+        tail = []
+        while isinstance(node, ast.Attribute):
+            tail.append(node.attr)
+            node = node.value
+        return (node.id, *reversed(tail)) if isinstance(node, ast.Name) else None
+
+    def resolve(node, local, module):
+        parts = dotted(node)
+        if not parts:
+            return None
+        binding = local.get(parts[0], module.get(parts[0]))
+        if binding is None:
+            return ("external", "builtins", (parts[0],)) if parts == ("object",) else None
+        if binding[0] == "imports":
+            tail = parts[1:]
+            candidates = [
+                (imported, (*path, *tail[len(consumed):]))
+                for imported, consumed, path in binding[1]
+                if tuple(tail[:len(consumed)]) == consumed
+            ]
+            if not candidates:
+                return None
+            longest = max(len(imported.split(".")) for imported, _ in candidates)
+            imported, path = next(
+                candidate for candidate in candidates if len(candidate[0].split(".")) == longest
+            )
+            return ("external", imported, path)
+        for attribute in parts[1:]:
+            if binding[0] == "class":
+                binding = class_namespaces.get(binding[1], {}).get(attribute)
+            elif binding[0] == "external":
+                binding = ("external", binding[1], (*binding[2], attribute))
+            else:
+                return None
+            if binding is None:
+                return None
+        return binding
+
+    def imports(statement):
+        records = []
+        if isinstance(statement, ast.Import):
+            for alias in statement.names:
+                parts = tuple(alias.name.split("."))
+                key = alias.asname or parts[0]
+                consumed = () if alias.asname else parts[1:]
+                preserve = not alias.asname or (
+                    len(parts) == 1 and alias.asname == parts[0]
+                )
+                records.append(
+                    (key, ("imports", ((alias.name, consumed, ()),)), preserve)
+                )
+        elif isinstance(statement, ast.ImportFrom) and statement.module and statement.level == 0:
+            for alias in statement.names:
+                if alias.name != "*":
+                    records.append(
+                        (
+                            alias.asname or alias.name,
+                            (
+                                "imports",
+                                ((statement.module, (), tuple(alias.name.split("."))),),
+                            ),
+                            False,
+                        )
+                    )
+        return records
+
+    def apply_imports(environment, statement):
+        for name, binding, preserve in imports(statement):
+            prior = environment.get(name)
+            if preserve and prior and prior[0] == "imports":
+                binding = (
+                    "imports",
+                    tuple(dict.fromkeys((*prior[1], *binding[1]))),
+                )
+            environment[name] = binding
+
+    def assignments(statement):
+        if isinstance(statement, ast.Assign):
+            return tuple(target for target in statement.targets if isinstance(target, ast.Name))
+        if isinstance(statement, ast.AnnAssign) and statement.value is not None and isinstance(statement.target, ast.Name):
+            return (statement.target,)
+        return ()
+
+    def process_class(node, event, enclosing, module):
+        local = {}
+        resolved_bases = [] if node.bases else [("external", "builtins", ("object",))]
+        for base in node.bases:
+            binding = resolve(base, enclosing, module)
+            if binding is None or binding[0] not in {"class", "external"}:
+                base_bindings[event] = None
+                break
+            resolved_bases.append(binding)
+        else:
+            base_bindings[event] = tuple(resolved_bases)
+        code = class_codes[event]
+        owner = event[0]
+        for statement in node.body:
+            if isinstance(statement, (ast.Import, ast.ImportFrom)):
+                apply_imports(local, statement)
+                continue
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                function_code = next(
+                    (
+                        value
+                        for value in code.co_consts
+                        if isinstance(value, CodeType)
+                        and value.co_name == statement.name
+                        and value.co_firstlineno == first_line(statement)
+                    ),
+                    None,
+                )
+                if function_code is None:
+                    local.pop(statement.name, None)
+                    continue
+                decorators = {
+                    decorator.id
+                    for decorator in statement.decorator_list
+                    if isinstance(decorator, ast.Name)
+                }
+                wrapper = next(
+                    (kind for kind in ("classmethod", "staticmethod", "property") if kind in decorators),
+                    "function",
+                )
+                local[statement.name] = (
+                    "value",
+                    _method_semantic_bytes(wrapper, function_code),
+                )
+                continue
+            if isinstance(statement, ast.ClassDef):
+                nested = (f"{owner}.{statement.name}", statement.lineno)
+                process_class(statement, nested, local, module)
+                local[statement.name] = ("class", nested)
+                continue
+            targets = assignments(statement)
+            if targets:
+                value_node = statement.value
+                binding = resolve(value_node, local, module)
+                if binding is None:
+                    try:
+                        binding = ("value", _literal_semantic_bytes(ast.literal_eval(value_node)))
+                    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+                        binding = None
+                for target in targets:
+                    if binding is None:
+                        local.pop(target.id, None)
+                    else:
+                        local[target.id] = binding
+            if isinstance(statement, ast.Delete):
+                for target in statement.targets:
+                    if isinstance(target, ast.Name):
+                        local.pop(target.id, None)
+        class_namespaces[event] = dict(local)
+
+    module = {}
+    for statement in tree.body:
+        if isinstance(statement, (ast.Import, ast.ImportFrom)):
+            apply_imports(module, statement)
+            continue
+        if isinstance(statement, ast.ClassDef):
+            event = (statement.name, statement.lineno)
+            process_class(statement, event, {}, module)
+            module[statement.name] = ("class", event)
+            continue
+        targets = assignments(statement)
+        if targets:
+            binding = resolve(statement.value, {}, module)
+            for target in targets:
+                if binding is None:
+                    module.pop(target.id, None)
+                else:
+                    module[target.id] = binding
+        if isinstance(statement, ast.Delete):
+            for target in statement.targets:
+                if isinstance(target, ast.Name):
+                    module.pop(target.id, None)
+
+    active = set()
+
+    def encode(event):
+        if event in found:
+            return found[event]
+        if event in active or base_bindings.get(event) is None:
+            found[event] = _frame(b"X", b"unsupported-lineage")
+            return found[event]
+        active.add(event)
+        namespace = {}
+        for name, binding in class_namespaces[event].items():
+            if binding[0] == "value":
+                namespace[name] = binding[1]
+            elif binding[0] == "class":
+                namespace[name] = _frame(b"C", encode(binding[1]))
+        lineage = []
+        for binding in base_bindings[event]:
+            if binding[0] == "class":
+                lineage.append(_frame(b"C", encode(binding[1])))
+            else:
+                lineage.append(_frame(b"E", _constant_bytes((binding[1], ".".join(binding[2])))))
+        active.remove(event)
+        found[event] = _class_semantic_bytes(namespace, lineage)
+        return found[event]
+
+    for event in class_nodes:
+        encode(event)
     return found
 
 
-def _class_definition_bytes(value):
-    # Encode a live class's static namespace without invoking metaclass getters.
+def _class_definition_bytes(value, active=()):
+    # Encode a live class using only safe static type operations. Product-local bases recurse;
+    # external bases stop at canonical module/qualname identity, avoiding external graph walks.
+    if any(value is candidate for candidate in active):
+        return _frame(b"X", b"cyclic-lineage")
     namespace = type.__getattribute__(value, "__dict__")
-    methods = []
-    literals = {}
+    members = {}
+    module = type.__getattribute__(value, "__module__")
+    module_object = sys.modules.get(module)
+    source_file = (
+        vars(module_object).get("__file__")
+        if type(module_object) is types.ModuleType
+        else None
+    )
+    generated = {
+        "__init__", "__repr__", "__eq__", "__lt__", "__le__", "__gt__",
+        "__ge__", "__setattr__", "__delattr__", "__hash__", "__match_args__",
+        "__replace__",
+    }
+    is_dataclass = "__dataclass_fields__" in namespace
     for name, member in namespace.items():
         wrapper = "function"
         target = member
@@ -584,15 +783,43 @@ def _class_definition_bytes(value):
         elif type(member) is property:
             wrapper, target = "property", member.fget
         if type(target) is types.FunctionType:
-            methods.append((name, wrapper, target.__code__))
+            if is_dataclass and name in generated and target.__code__.co_filename != source_file:
+                # Dataclass-generated methods are not direct class-body definitions. A method
+                # explicitly written in the product file remains represented under the same
+                # name, so this cannot become a name-only exemption.
+                continue
+            members[name] = _method_semantic_bytes(wrapper, target.__code__)
+            continue
+        member_type = type(member)
+        if (
+            type in type.__getattribute__(member_type, "__mro__")
+            and type.__getattribute__(member, "__module__") == module
+        ):
+            members[name] = _frame(
+                b"C", _class_definition_bytes(member, (*active, value))
+            )
             continue
         if name.startswith("__") and name != "__slots__":
             continue
         try:
-            literals[name] = _constant_bytes(member)
+            members[name] = _literal_semantic_bytes(member)
         except (TypeError, ValueError):
             continue
-    return _class_semantic_bytes(methods, literals)
+    lineage = []
+    for base in type.__getattribute__(value, "__bases__"):
+        base_module = type.__getattribute__(base, "__module__")
+        if base_module == module:
+            lineage.append(_frame(b"C", _class_definition_bytes(base, (*active, value))))
+        else:
+            lineage.append(
+                _frame(
+                    b"E",
+                    _constant_bytes(
+                        (base_module, type.__getattribute__(base, "__qualname__"))
+                    ),
+                )
+            )
+    return _class_semantic_bytes(members, lineage)
 
 
 def literal_assignments(source, filename):
@@ -1031,7 +1258,8 @@ def source_descriptor_callables(tree, aliases, module_name):
                 parts = tuple(x.name.split('.'))
                 key = x.asname or parts[0]
                 consumed = () if x.asname else parts[1:]
-                out.append((key, ('import', ((x.name, consumed, (), False),)), not x.asname))
+                preserve = not x.asname or (len(parts) == 1 and x.asname == parts[0])
+                out.append((key, ('import', ((x.name, consumed, (), False),)), preserve))
         elif isinstance(st, ast.ImportFrom) and st.module and (st.level == 0):
             for x in st.names:
                 if x.name != '*':

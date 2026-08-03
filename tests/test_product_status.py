@@ -4006,6 +4006,345 @@ class A17ImportOwner:
         assert result.returncode == 0, details
 
 
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    (
+        ("def event(self): return 'old'\n    def event(self): return 'current'", "current"),
+        ("value = 'gone'\n    del value", "current"),
+        ("def event(self): return 'current'\n    event_alias = event", "current"),
+        ("def event(self): return 'gone'\n    del event", "current"),
+        ("value = 'current'\n    value_alias = value", "current"),
+        ("def event(self): return 'old'\n    alias = event\n    del alias\n    def event(self): return 'current'", "current"),
+        ("value = 'old'\n    alias = value\n    alias = 'current'\n    del value", "current"),
+        ("@staticmethod\n    def event(): return 'current'\n    event_alias = event", "current"),
+        ("@classmethod\n    def event(cls): return 'current'\n    event_alias = event", "current"),
+        ("@property\n    def event(self): return 'current'\n    event_alias = event", "current"),
+        ("value = alias = 'current'", "current"),
+        ("class Event:\n        token = 'old'\n    class Event:\n        token = 'current'", "current"),
+    ),
+)
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_models_final_static_class_namespace(
+    tmp_path: Path, body: str, expected: str, changed: bool
+) -> None:
+    """C1: source and live class tokens serialize one final binding map."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    mutation = "" if not changed else '''
+vars(A18NamespaceOwner)["marker"].callback = _a18_namespace_types.MethodType(
+    a18_namespace_callback, A18NamespaceChanged
+)
+assert vars(A18NamespaceOwner)["marker"].callback() == "changed"
+'''
+    source.write_text(source.read_text(encoding="utf-8") + f'''
+
+import types as _a18_namespace_types
+class A18NamespaceDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A18NamespaceReceiver:
+    {body}
+class A18NamespaceChanged:
+    def event(self): return "changed"
+def a18_namespace_callback(self):
+    event = vars(self).get("event")
+    if isinstance(event, staticmethod): return event.__func__()
+    if isinstance(event, classmethod): return event.__func__(self)
+    if isinstance(event, property): return event.fget(self)
+    if event is not None: return event(self)
+    alias = vars(self).get("event_alias")
+    if isinstance(alias, staticmethod): return alias.__func__()
+    if isinstance(alias, classmethod): return alias.__func__(self)
+    if isinstance(alias, property): return alias.fget(self)
+    if alias is not None and callable(alias): return alias(self)
+    nested = vars(self).get("Event")
+    if nested is not None: return nested.token
+    return vars(self).get("value_alias", vars(self).get("alias", vars(self).get("value", "current")))
+class A18NamespaceOwner:
+    marker = A18NamespaceDescriptor(
+        _a18_namespace_types.MethodType(a18_namespace_callback, A18NamespaceReceiver)
+    )
+assert vars(A18NamespaceOwner)["marker"].callback() == "{expected}"
+{mutation}
+''', encoding="utf-8")
+
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if changed:
+        assert result.returncode == 1
+        assert "A18NamespaceOwner.marker.callback" in details
+    else:
+        assert result.returncode == 0, details
+
+
+@pytest.mark.parametrize("receiver_kind", ("class", "instance"))
+@pytest.mark.parametrize("owner_event", ("earlier", "later"))
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_binds_class_identity_to_temporal_base_lineage(
+    tmp_path: Path, receiver_kind: str, owner_event: str, changed: bool
+) -> None:
+    """C2: equal child bodies retain the exact recursively represented base event."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    earlier = "A18EarlierChild"
+    later = "A18Child"
+    selected = earlier if owner_event == "earlier" else later
+    replacement = later if owner_event == "earlier" else earlier
+    receiver = selected if receiver_kind == "class" else f"{selected}()"
+    changed_receiver = replacement if receiver_kind == "class" else f"{replacement}()"
+    first = "first" if owner_event == "earlier" else "second"
+    second = "second" if owner_event == "earlier" else "first"
+    callback = "return self.event(self)" if receiver_kind == "class" else "return self.event()"
+    mutation = "" if not changed else f'''
+vars(A18BaseOwner)["marker"].callback = _a18_base_types.MethodType(
+    a18_base_callback, {changed_receiver}
+)
+assert vars(A18BaseOwner)["marker"].callback() == "{second}"
+'''
+    source.write_text(source.read_text(encoding="utf-8") + f'''
+
+import types as _a18_base_types
+class A18BaseDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A18Base:
+    def event(self): return "first"
+A18EarlierBase = A18Base
+class A18Child(A18EarlierBase):
+    pass
+A18EarlierChild = A18Child
+del A18EarlierBase
+class A18Base:
+    def event(self): return "second"
+A18BaseAlias = A18Base
+class A18Child(A18BaseAlias):
+    pass
+del A18BaseAlias
+def a18_base_callback(self): {callback}
+class A18BaseOwner:
+    marker = A18BaseDescriptor(
+        _a18_base_types.MethodType(a18_base_callback, {receiver})
+    )
+assert vars(A18BaseOwner)["marker"].callback() == "{first}"
+{mutation}
+del A18EarlierChild
+''', encoding="utf-8")
+
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if changed:
+        assert result.returncode == 1
+        assert "A18BaseOwner.marker.callback" in details
+    else:
+        assert result.returncode == 0, details
+
+
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_preserves_diamond_base_order_in_class_identity(
+    tmp_path: Path, changed: bool
+) -> None:
+    """C2: declared C3 diamond order and aliases are deterministic and load-bearing."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    mutation = "" if not changed else '''
+vars(A18DiamondOwner)["marker"].callback = _a18_diamond_types.MethodType(
+    a18_diamond_callback, A18DiamondChild
+)
+assert vars(A18DiamondOwner)["marker"].callback() == "right"
+'''
+    source.write_text(source.read_text(encoding="utf-8") + '''
+
+import types as _a18_diamond_types
+class A18DiamondDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A18DiamondRoot: pass
+class A18DiamondLeft(A18DiamondRoot):
+    def event(self): return "left"
+class A18DiamondRight(A18DiamondRoot):
+    def event(self): return "right"
+A18DiamondAlias = A18DiamondLeft
+class A18DiamondChild(A18DiamondAlias, A18DiamondRight): pass
+A18EarlierDiamondChild = A18DiamondChild
+del A18DiamondAlias
+class A18DiamondChild(A18DiamondRight, A18DiamondLeft): pass
+def a18_diamond_callback(self): return self.event(self)
+class A18DiamondOwner:
+    marker = A18DiamondDescriptor(
+        _a18_diamond_types.MethodType(a18_diamond_callback, A18EarlierDiamondChild)
+    )
+assert vars(A18DiamondOwner)["marker"].callback() == "left"
+''' + mutation + '''
+del A18EarlierDiamondChild
+''', encoding="utf-8")
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if changed:
+        assert result.returncode == 1
+        assert "A18DiamondOwner.marker.callback" in details
+    else:
+        assert result.returncode == 0, details
+
+
+@pytest.mark.parametrize("root_import", ("import collections", "import collections as collections"))
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_preserves_prefixes_for_redundant_root_import_alias(
+    tmp_path: Path, root_import: str, changed: bool
+) -> None:
+    """I1: `import root as root` preserves known dotted prefixes like root import."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    mutation = "" if not changed else '''
+vars(A18RootOwner)["marker"].callback = _a18_root_types.MethodType(
+    a18_root_callback, _a18_root_path.PurePath
+)
+'''
+    source.write_text(source.read_text(encoding="utf-8") + f'''
+
+import pathlib as _a18_root_path
+import types as _a18_root_types
+import collections.abc
+{root_import}
+class A18RootDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+def a18_root_callback(cls): return cls.__name__
+class A18RootOwner:
+    marker = A18RootDescriptor(
+        _a18_root_types.MethodType(a18_root_callback, collections.abc.Mapping)
+    )
+{mutation}
+''', encoding="utf-8")
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if changed:
+        assert result.returncode == 1
+        assert "A18RootOwner.marker.callback" in details
+    else:
+        assert result.returncode == 0, details
+
+
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_ignores_decorator_generated_class_methods(
+    tmp_path: Path, changed: bool
+) -> None:
+    """C1 boundary: generated methods stay outside direct source namespace semantics."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    mutation = "" if not changed else '''
+vars(A18GeneratedOwner)["marker"].callback = _a18_generated_types.MethodType(
+    a18_generated_callback, A18GeneratedChanged
+)
+'''
+    source.write_text(source.read_text(encoding="utf-8") + '''
+
+import dataclasses as _a18_generated_dataclasses
+import types as _a18_generated_types
+class A18GeneratedDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+@_a18_generated_dataclasses.dataclass
+class A18GeneratedReceiver:
+    value: str = "current"
+class A18GeneratedChanged:
+    value = "changed"
+def a18_generated_callback(cls): return cls.value
+class A18GeneratedOwner:
+    marker = A18GeneratedDescriptor(
+        _a18_generated_types.MethodType(a18_generated_callback, A18GeneratedReceiver)
+    )
+''' + mutation, encoding="utf-8")
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if changed:
+        assert result.returncode == 1
+        assert "A18GeneratedOwner.marker.callback" in details
+    else:
+        assert result.returncode == 0, details
+
+
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_canonicalizes_external_base_identity(
+    tmp_path: Path, changed: bool
+) -> None:
+    """C2 boundary: external bases stop at canonical module/qualname identity."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    mutation = "" if not changed else '''
+vars(A18ExternalBaseOwner)["marker"].callback = _a18_external_types.MethodType(
+    a18_external_callback, A18ExternalBaseChanged
+)
+'''
+    source.write_text(source.read_text(encoding="utf-8") + '''
+
+import collections.abc
+import types as _a18_external_types
+class A18ExternalBaseDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+class A18ExternalBaseReceiver(collections.abc.Mapping): pass
+class A18ExternalBaseChanged(collections.abc.Sequence): pass
+def a18_external_callback(cls): return cls.__name__
+class A18ExternalBaseOwner:
+    marker = A18ExternalBaseDescriptor(
+        _a18_external_types.MethodType(a18_external_callback, A18ExternalBaseReceiver)
+    )
+''' + mutation, encoding="utf-8")
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if changed:
+        assert result.returncode == 1
+        assert "A18ExternalBaseOwner.marker.callback" in details
+    else:
+        assert result.returncode == 0, details
+
+
+def test_cli_allows_distinct_alias_after_dotted_root_import(tmp_path: Path) -> None:
+    """I1 control: a distinct alias does not disturb the existing root binding."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(source.read_text(encoding="utf-8") + '''
+
+import types as _a18_distinct_types
+import collections.abc
+import collections as c
+class A18DistinctDescriptor:
+    def __init__(self, callback): self.callback = callback
+def a18_distinct_callback(cls): return cls.__name__
+class A18DistinctOwner:
+    marker = A18DistinctDescriptor(
+        _a18_distinct_types.MethodType(a18_distinct_callback, collections.abc.Mapping)
+    )
+assert c is collections
+''', encoding="utf-8")
+    result = _run_checker(tmp_path, document)
+    assert result.returncode == 0, json.loads(result.stdout)["issues"]
+
+
+def test_class_lineage_never_invokes_custom_metaclass_getters() -> None:
+    """C2 safety: static namespace and base traversal bypass metaclass lookup."""
+    encode = _shipped_helpers("_frame", "_constant_bytes", "_class_definition_bytes")[
+        "_class_definition_bytes"
+    ]
+
+    class Meta(type):
+        calls = 0
+
+        def __getattribute__(self, name):
+            Meta.calls += 1
+            raise RuntimeError(name)
+
+    class Base(metaclass=Meta):
+        token = "base"
+
+    class Receiver(Base, metaclass=Meta):
+        token = "receiver"
+
+    Meta.calls = 0
+    assert encode(Receiver).startswith(b"K")
+    assert Meta.calls == 0
+
+
 def test_receiver_bytes_never_invokes_custom_getattribute() -> None:
     """S7 direct owner: concrete descriptors are opened without receiver lookup."""
     encode = _shipped_helpers("_frame", "_constant_bytes", "_receiver_bytes")[
@@ -5095,6 +5434,7 @@ def _shipped_helpers(*names: str) -> dict[str, object]:
         "ast": ast,
         "hashlib": hashlib,
         "struct": struct,
+        "sys": sys,
         "types": types,
         "CodeType": CodeType,
         "UNBOUND_DEFAULT": object(),
@@ -5103,18 +5443,27 @@ def _shipped_helpers(*names: str) -> dict[str, object]:
     if "source_descriptor_callables" in requested:
         insertion = requested.index("source_descriptor_callables")
         requested[insertion:insertion] = [
-            "_code_bytes", "_class_semantic_bytes", "_source_class_semantics"
+            "_code_bytes", "_class_semantic_bytes", "_method_semantic_bytes",
+            "_literal_semantic_bytes", "_source_class_semantics"
+        ]
+    if "_class_definition_bytes" in requested:
+        insertion = requested.index("_class_definition_bytes")
+        requested[insertion:insertion] = [
+            "_code_bytes", "_class_semantic_bytes", "_method_semantic_bytes",
+            "_literal_semantic_bytes"
         ]
     if "_receiver_bytes" in requested:
         insertion = requested.index("_receiver_bytes")
         requested[insertion:insertion] = [
-            "_code_bytes", "_class_semantic_bytes", "_class_definition_bytes"
+            "_code_bytes", "_class_semantic_bytes", "_method_semantic_bytes",
+            "_literal_semantic_bytes", "_class_definition_bytes"
         ]
     if "_descriptor_value_bytes" in requested:
         insertion = requested.index("_descriptor_value_bytes")
         requested[insertion:insertion] = [
-            "_code_bytes", "_class_semantic_bytes", "_class_definition_bytes",
-            "_receiver_bytes", "_callable_bytes"
+            "_code_bytes", "_class_semantic_bytes", "_method_semantic_bytes",
+            "_literal_semantic_bytes", "_class_definition_bytes", "_receiver_bytes",
+            "_callable_bytes"
         ]
     for name in requested:
         definition = next(
