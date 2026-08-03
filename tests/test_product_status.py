@@ -3800,6 +3800,212 @@ def a16_repeated_sibling(self=None): return "sibling"
         assert result.returncode == 0, details
 
 
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_resolves_qualified_class_relative_to_retained_outer_event(
+    tmp_path: Path, changed: bool
+) -> None:
+    """Q1: a qualified lookup stays attached to its bound outer class event."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    mutation = "" if not changed else '''
+vars(A17RetainedOwner)["marker"].callback = _a17_retained_path.Path(".").exists
+assert isinstance(vars(A17RetainedOwner)["marker"].callback(), bool)
+'''
+    source.write_text(source.read_text(encoding="utf-8") + '''
+
+import pathlib as _a17_retained_path
+def a17_retained_callback(self=None): return "source"
+class A17Outer:
+    class Descriptor:
+        def __init__(self, callback): self.callback = callback
+        def __get__(self, instance, owner): return self.callback
+A17Retained = A17Outer
+class A17RetainedOwner:
+    marker = A17Retained.Descriptor(a17_retained_callback)
+del A17Retained
+class A17Outer:
+    class Descriptor:
+        def __init__(self, handler): self.handler = handler
+        def __get__(self, instance, owner): return self.handler
+class A17LaterOwner:
+    marker = A17Outer.Descriptor(a17_retained_callback)
+assert vars(A17RetainedOwner)["marker"].callback() == "source"
+assert vars(A17LaterOwner)["marker"].handler() == "source"
+''' + mutation, encoding="utf-8")
+
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if changed:
+        assert result.returncode == 1
+        assert "A17RetainedOwner.marker.callback" in details
+    else:
+        assert result.returncode == 0, details
+
+
+@pytest.mark.parametrize("scope", ("module", "nested"))
+@pytest.mark.parametrize("receiver_kind", ("class", "instance"))
+@pytest.mark.parametrize("owner_event", ("earlier", "later"))
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_binds_method_receivers_to_duplicate_class_definition_events(
+    tmp_path: Path, scope: str, receiver_kind: str, owner_event: str, changed: bool
+) -> None:
+    """Q2: class and instance receivers carry their semantic class event."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    if scope == "module":
+        declarations = '''
+class A17Receiver:
+    __slots__ = ("label",)
+    token = "first"
+    def __init__(self): self.label = "same"
+    def event(self): return "first"
+A17EarlierReceiver = A17Receiver
+class A17Receiver:
+    __slots__ = ("label",)
+    token = "second"
+    def __init__(self): self.label = "same"
+    def event(self): return "second"
+'''
+        earlier = "A17EarlierReceiver"
+        later = "A17Receiver"
+    else:
+        declarations = '''
+class A17Scope:
+    class Receiver:
+        __slots__ = ("label",)
+        token = "first"
+        def __init__(self): self.label = "same"
+        def event(self): return "first"
+A17EarlierScope = A17Scope
+class A17Scope:
+    class Receiver:
+        __slots__ = ("label",)
+        token = "second"
+        def __init__(self): self.label = "same"
+        def event(self): return "second"
+'''
+        earlier = "A17EarlierScope.Receiver"
+        later = "A17Scope.Receiver"
+    source_class = earlier if owner_event == "earlier" else later
+    replacement_class = later if owner_event == "earlier" else earlier
+    receiver = source_class if receiver_kind == "class" else f"{source_class}()"
+    replacement = replacement_class if receiver_kind == "class" else f"{replacement_class}()"
+    source_result = "first" if owner_event == "earlier" else "second"
+    changed_result = "second" if owner_event == "earlier" else "first"
+    callback_body = "return self.token" if receiver_kind == "class" else "return self.event()"
+    mutation = "" if not changed else f'''
+vars(A17ReceiverOwner)["marker"].callback = _a17_receiver_types.MethodType(
+    a17_receiver_callback, {replacement}
+)
+assert vars(A17ReceiverOwner)["marker"].callback() == "{changed_result}"
+'''
+    source.write_text(source.read_text(encoding="utf-8") + f'''
+
+import types as _a17_receiver_types
+class A17ReceiverDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+{declarations}
+def a17_receiver_callback(self): {callback_body}
+class A17ReceiverOwner:
+    marker = A17ReceiverDescriptor(
+        _a17_receiver_types.MethodType(a17_receiver_callback, {receiver})
+    )
+assert vars(A17ReceiverOwner)["marker"].callback() == "{source_result}"
+{mutation}
+del {"A17EarlierReceiver" if scope == "module" else "A17EarlierScope"}
+''', encoding="utf-8")
+
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if changed:
+        assert result.returncode == 1
+        assert "A17ReceiverOwner.marker.callback" in details
+        assert "method receiver" in details
+    else:
+        assert result.returncode == 0, details
+
+
+def test_cli_allows_semantically_identical_duplicate_class_events(tmp_path: Path) -> None:
+    """Q2 equivalence: identical represented class bodies have one semantic token."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(source.read_text(encoding="utf-8") + '''
+
+import types as _a17_identical_types
+class A17IdenticalDescriptor:
+    def __init__(self, callback): self.callback = callback
+class A17IdenticalReceiver:
+    token = "same"
+    def event(self): return "same"
+A17IdenticalEarlier = A17IdenticalReceiver
+class A17IdenticalReceiver:
+    token = "same"
+    def event(self): return "same"
+def a17_identical_receiver_callback(cls): return cls.event(cls)
+class A17IdenticalOwner:
+    marker = A17IdenticalDescriptor(
+        _a17_identical_types.MethodType(a17_identical_receiver_callback, A17IdenticalEarlier)
+    )
+vars(A17IdenticalOwner)["marker"].callback = _a17_identical_types.MethodType(
+    a17_identical_receiver_callback, A17IdenticalReceiver
+)
+del A17IdenticalEarlier
+assert vars(A17IdenticalOwner)["marker"].callback() == "same"
+''', encoding="utf-8")
+
+    result = _run_checker(tmp_path, document)
+    assert result.returncode == 0, json.loads(result.stdout)["issues"]
+
+
+@pytest.mark.parametrize(
+    ("imports", "receiver"),
+    (
+        ("from collections import abc", "abc.Mapping"),
+        ("from collections import abc as imported_abc", "imported_abc.Mapping"),
+        ("from xml.etree import ElementTree", "ElementTree.Element"),
+        ("from xml.etree import ElementTree as ET", "ET.Element"),
+        ("import collections.abc\nimport collections", "collections.abc.Mapping"),
+        ("from pathlib import Path", "Path"),
+    ),
+)
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_resolves_temporal_imported_submodule_prefixes(
+    tmp_path: Path, imports: str, receiver: str, changed: bool
+) -> None:
+    """Q3: imported submodules and loaded dotted prefixes canonicalize temporally."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    mutation = "" if not changed else '''
+vars(A17ImportOwner)["marker"].callback = _a17_import_types.MethodType(
+    a17_import_callback, _a17_import_path.PurePath
+)
+'''
+    source.write_text(source.read_text(encoding="utf-8") + f'''
+
+import pathlib as _a17_import_path
+import types as _a17_import_types
+{imports}
+class A17ImportDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+def a17_import_callback(cls): return cls.__name__
+class A17ImportOwner:
+    marker = A17ImportDescriptor(
+        _a17_import_types.MethodType(a17_import_callback, {receiver})
+    )
+{mutation}
+''', encoding="utf-8")
+
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if changed:
+        assert result.returncode == 1
+        assert "A17ImportOwner.marker.callback has a method receiver that differs" in details
+    else:
+        assert result.returncode == 0, details
+
+
 def test_receiver_bytes_never_invokes_custom_getattribute() -> None:
     """S7 direct owner: concrete descriptors are opened without receiver lookup."""
     encode = _shipped_helpers("_frame", "_constant_bytes", "_receiver_bytes")[
@@ -4894,9 +5100,22 @@ def _shipped_helpers(*names: str) -> dict[str, object]:
         "UNBOUND_DEFAULT": object(),
     }
     requested = list(names)
+    if "source_descriptor_callables" in requested:
+        insertion = requested.index("source_descriptor_callables")
+        requested[insertion:insertion] = [
+            "_code_bytes", "_class_semantic_bytes", "_source_class_semantics"
+        ]
+    if "_receiver_bytes" in requested:
+        insertion = requested.index("_receiver_bytes")
+        requested[insertion:insertion] = [
+            "_code_bytes", "_class_semantic_bytes", "_class_definition_bytes"
+        ]
     if "_descriptor_value_bytes" in requested:
         insertion = requested.index("_descriptor_value_bytes")
-        requested[insertion:insertion] = ["_receiver_bytes", "_callable_bytes"]
+        requested[insertion:insertion] = [
+            "_code_bytes", "_class_semantic_bytes", "_class_definition_bytes",
+            "_receiver_bytes", "_callable_bytes"
+        ]
     for name in requested:
         definition = next(
             node

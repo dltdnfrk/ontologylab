@@ -427,16 +427,27 @@ slot MRO는 C3 순서로 공통 diamond base를 한 번만 포함하며 실제 �
 무관하게 정의 클래스의 module/qualified name과 실제 storage 이름으로 정렬하므로, 상속에서
 같은 slot 이름을 다시 선언해도 서로 합쳐지지 않는다. 상속 slot과 unset slot도 구조에 포함하고
 `__dict__`/`__weakref__`는 slot 목록에서 제외한다. 순환 또는 지원하지 않는 값은 닫힌
-실패로 처리한다. 클래스 객체 수신자는 소스의 lexical `Name`/qualified `Attribute` 및
-명시적 import alias가 가리키는 클래스 정체성을 별도 token으로 묶는다. 실행 없이 AST import
-기록에서 가장 긴 dotted module prefix를 선택하므로 unaliased/aliased dotted `import`와
-`from ... import ...`가 같은 외부 정체성으로 정규화된다. public import가 private
+실패로 처리한다. 클래스 객체와 instance 수신자는 module/qualified name뿐 아니라 정확한 class 정의 event의
+정적 namespace 리터럴과 직접 선언 method code에서 만든 결정적 semantic token을 상태보다
+먼저 묶는다. 따라서 같은 module/qualified name과 같은 dict/slot 상태를 가진 서로 다른 class
+event도 method나 정적 상태가 다르면 구별한다. class body가 이 표현 범위에서 의미상 동일한
+중복 정의는 의도적으로 구별할 수 없는 동등 event로 취급한다.
+
+소스의 lexical `Name`/qualified `Attribute` 및 명시적 import alias가 가리키는 클래스
+정체성도 이 token에 포함한다. 실행 없이 AST import binding event와 해당 시점까지 명시적으로
+로드된 dotted module prefix를 모두 보존하고 가장 긴 유효 prefix를 선택한다. 따라서
+unaliased/aliased dotted `import`, `from package import submodule`, `from module import Class`가
+같은 외부 정체성으로 정규화되며, 뒤의 root `import`가 앞서 로드된 submodule prefix를
+지우지 않는다. `ImportFrom`의 module/symbol 모호성은 AST가 허용하는 두 canonical 후보와
+getter를 부르지 않는 live class module/qualname metadata로 해소한다. public import가 private
 implementation submodule의 클래스를 내보내는 경우 선언 import root, live module, qualname을
 함께 대조한다.
 
 Descriptor 생성자와 source callable provenance는 module/class body statement 순서의 동일한
 정의 event(lexical qualified scope와 source 위치) binding으로 결정한다. 따라서 같은 qualified
-이름의 함수나 생성자 class가 뒤에서 다시 정의되어도 이전 호출이 보유한 event를 가리지 않는다.
+이름의 함수나 생성자 class가 뒤에서 다시 정의되어도 이전 호출이 보유한 event를 가리지 않는다. 바깥 class
+alias를 통한 qualified lookup도 그 alias가 보유한 정확한 바깥 event의 정적 namespace에서
+nested event를 찾으며, 같은 qualified 이름의 전역 마지막 event로 되돌아가지 않는다.
 값이 있는 `Assign`/`AnnAssign` alias chain 중 지원되는 것은 `Name` target이며, chained
 `A = B = Constructor`의 모든 `Name` target은 한 번 평가된 같은 RHS event를 보존하고 `del`은
 이후 lookup에만 적용된다. attribute·destructuring target은 정적 alias 계약으로 추측하지 않는다.

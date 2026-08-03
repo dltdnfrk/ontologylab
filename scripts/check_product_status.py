@@ -484,6 +484,117 @@ def code_fingerprint(code):
     return hashlib.sha256(_code_bytes(code)).hexdigest()
 
 
+def _class_semantic_bytes(methods, literals):
+    method_bytes = b"".join(
+        _frame(b"M", _constant_bytes((name, wrapper)) + _code_bytes(code))
+        for name, wrapper, code in sorted(methods, key=lambda item: item[0])
+    )
+    literal_bytes = b"".join(
+        _frame(b"V", _constant_bytes(name) + encoded)
+        for name, encoded in sorted(literals.items())
+    )
+    return _frame(b"K", _frame(b"F", method_bytes) + _frame(b"D", literal_bytes))
+
+
+def _source_class_semantics(tree):
+    # Semantic class-definition tokens keyed by exact temporal AST event.
+    compiled = compile(tree, "<class-semantics>", "exec")
+    found = {}
+
+    def first_line(node):
+        return min(
+            (decorator.lineno for decorator in getattr(node, "decorator_list", ())),
+            default=node.lineno,
+        )
+
+    def visit(body, parent_code, parent=""):
+        for node in body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+            qualname = f"{parent}.{node.name}" if parent else node.name
+            line = first_line(node)
+            class_code = next(
+                (
+                    value
+                    for value in parent_code.co_consts
+                    if isinstance(value, CodeType)
+                    and value.co_name == node.name
+                    and value.co_firstlineno == line
+                ),
+                None,
+            )
+            if class_code is None:
+                continue
+            methods = []
+            literals = {}
+            for statement in node.body:
+                if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    code = next(
+                        (
+                            value
+                            for value in class_code.co_consts
+                            if isinstance(value, CodeType)
+                            and value.co_name == statement.name
+                            and value.co_firstlineno == first_line(statement)
+                        ),
+                        None,
+                    )
+                    if code is not None:
+                        decorators = {
+                            getattr(decorator, "id", None)
+                            for decorator in statement.decorator_list
+                        }
+                        wrapper = next(
+                            (name for name in ("classmethod", "staticmethod", "property") if name in decorators),
+                            "function",
+                        )
+                        methods.append((statement.name, wrapper, code))
+                    continue
+                if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
+                    target, value = statement.targets[0], statement.value
+                elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+                    target, value = statement.target, statement.value
+                else:
+                    continue
+                if not isinstance(target, ast.Name):
+                    continue
+                try:
+                    literals[target.id] = _constant_bytes(ast.literal_eval(value))
+                except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+                    continue
+            found[(qualname, node.lineno)] = _class_semantic_bytes(methods, literals)
+            visit(node.body, class_code, qualname)
+
+    visit(tree.body, compiled)
+    return found
+
+
+def _class_definition_bytes(value):
+    # Encode a live class's static namespace without invoking metaclass getters.
+    namespace = type.__getattribute__(value, "__dict__")
+    methods = []
+    literals = {}
+    for name, member in namespace.items():
+        wrapper = "function"
+        target = member
+        if type(member) is classmethod:
+            wrapper, target = "classmethod", member.__func__
+        elif type(member) is staticmethod:
+            wrapper, target = "staticmethod", member.__func__
+        elif type(member) is property:
+            wrapper, target = "property", member.fget
+        if type(target) is types.FunctionType:
+            methods.append((name, wrapper, target.__code__))
+            continue
+        if name.startswith("__") and name != "__slots__":
+            continue
+        try:
+            literals[name] = _constant_bytes(member)
+        except (TypeError, ValueError):
+            continue
+    return _class_semantic_bytes(methods, literals)
+
+
 def literal_assignments(source, filename):
     # Module-level `NAME = <literal>` bindings, as the file declares them.
     try:
@@ -634,7 +745,8 @@ def source_descriptor_callables(tree, aliases, module_name):
     # Definition events, rather than qualified names, are the unit of temporal binding.
     # Reusing a name creates a new event without destroying metadata retained by an earlier call.
     classes = {}
-    classes_by_name = {}
+    class_semantics = _source_class_semantics(tree)
+    class_environments = {}
 
     def index(body, parent=''):
         for node in body:
@@ -642,7 +754,6 @@ def source_descriptor_callables(tree, aliases, module_name):
                 q = f'{parent}.{node.name}' if parent else node.name
                 event = (q, node.lineno)
                 classes[event] = node
-                classes_by_name.setdefault(q, []).append(event)
                 index(node.body, q)
     index(tree.body)
 
@@ -671,18 +782,24 @@ def source_descriptor_callables(tree, aliases, module_name):
         kind, value = binding
         tail = parts[1:]
         if kind == 'class':
-            if not tail:
-                return binding
-            q = '.'.join((value[0], *tail))
-            events = classes_by_name.get(q)
-            return (kind, events[-1]) if events else None
+            current = binding
+            for attribute in tail:
+                environment = class_environments.get(current[1])
+                current = environment.get(attribute) if environment is not None else None
+                if not current or current[0] not in {'class', 'external'}:
+                    return None
+            return current
         if kind == 'import':
-            mod, path, imported_tail = value
-            if imported_tail and tuple(tail[:len(imported_tail)]) == imported_tail:
-                tail = tail[len(imported_tail):]
-            elif imported_tail:
-                mod = mod.split('.', 1)[0]
-            return ('external', (mod, (*path, *tail)))
+            candidates = []
+            for mod, consumed, path, ambiguous in value:
+                if tuple(tail[:len(consumed)]) != consumed:
+                    continue
+                candidates.append((mod, (*path, *tail[len(consumed):]), ambiguous))
+            certain = [candidate for candidate in candidates if not candidate[2]]
+            if certain:
+                longest = max(len(candidate[0].split('.')) for candidate in certain)
+                candidates = [candidate for candidate in certain if len(candidate[0].split('.')) == longest]
+            return ('external', tuple((mod, path) for mod, path, _ in candidates)) if candidates else None
         return binding if not tail else None
     constructors = {}
     inits = {}
@@ -860,10 +977,15 @@ def source_descriptor_callables(tree, aliases, module_name):
             return True
         if not run(0, call.args, call.keywords):
             return None
-        ident = _constant_bytes((module_name, event[0]))
+        semantic = class_semantics[event]
+        ident = _constant_bytes((module_name, event[0], semantic))
         db = _frame(b'D', b''.join(sorted((_frame(b'P', _constant_bytes(k) + v) for k, v in dictionary.items()))))
         sb = b''.join(
-            _frame(b'S', _constant_bytes((module_name, o[0], n, p)) + (v if p else b''))
+            _frame(
+                b'S',
+                _constant_bytes((module_name, o[0], class_semantics[o], n, p))
+                + (v if p else b''),
+            )
             for (o, n), (p, v) in sorted(records.items())
         )
         return _frame(b'I', ident + db + _frame(b'L', sb))
@@ -883,37 +1005,50 @@ def source_descriptor_callables(tree, aliases, module_name):
             binding = resolve(recv.func, local)
             if not binding or binding[0] != 'class':
                 return None
-            identity = (module_name, binding[1][0])
+            identity = (module_name, binding[1][0], class_semantics[binding[1]])
             state = receiver_bytes(binding[1], recv)
         else:
             binding = resolve(recv, local)
             if not binding or binding[0] not in {'class', 'external'}:
                 return None
             if binding[0] == 'class':
-                identity = (module_name, binding[1][0])
+                identity = (module_name, binding[1][0], class_semantics[binding[1]])
             else:
-                mod, path = binding[1]
-                if not path:
+                identity = tuple(
+                    (mod, '.'.join(path)) for mod, path in binding[1] if path
+                )
+                if not identity:
                     return None
-                identity = (mod, '.'.join(path))
             state = None if binding[0] == 'external' else _frame(b'C', _constant_bytes(identity))
         if isinstance(recv, ast.Call) and state is None:
             return None
         return (callback[0], 'method', identity, state, callback[4])
 
     def imports(st):
-        out = {}
+        out = []
         if isinstance(st, ast.Import):
             for x in st.names:
                 parts = tuple(x.name.split('.'))
                 key = x.asname or parts[0]
-                imported_tail = () if x.asname else parts[1:]
-                out[key] = ('import', (x.name, (), imported_tail))
+                consumed = () if x.asname else parts[1:]
+                out.append((key, ('import', ((x.name, consumed, (), False),)), not x.asname))
         elif isinstance(st, ast.ImportFrom) and st.module and (st.level == 0):
             for x in st.names:
                 if x.name != '*':
-                    out[x.asname or x.name] = ('import', (st.module, tuple(x.name.split('.')), ()))
+                    imported = tuple(x.name.split('.'))
+                    candidates = (
+                        ('.'.join((st.module, *imported)), (), (), True),
+                        (st.module, (), imported, True),
+                    )
+                    out.append((x.asname or x.name, ('import', candidates), False))
         return out
+
+    def apply_imports(environment, st):
+        for key, binding, preserve in imports(st):
+            prior = environment.get(key)
+            if preserve and prior and prior[0] == 'import':
+                binding = ('import', tuple(dict.fromkeys((*prior[1], *binding[1]))))
+            environment[key] = binding
 
     def assignments(st):
         # One RHS is bound to every chained Name target. Attributes and destructuring remain
@@ -937,6 +1072,7 @@ def source_descriptor_callables(tree, aliases, module_name):
                 found[f'{owner}.{target.id}.{attr}'] = provenance
 
     def process_class(node, owner, enclosing):
+        event = (owner, node.lineno)
         local = {}
         resolved = []
         bad = False
@@ -949,7 +1085,7 @@ def source_descriptor_callables(tree, aliases, module_name):
         bases[(owner, node.lineno)] = None if bad else tuple(resolved)
         for st in node.body:
             if isinstance(st, (ast.Import, ast.ImportFrom)):
-                local.update(imports(st))
+                apply_imports(local, st)
                 continue
             if isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 for decorator in st.decorator_list:
@@ -973,9 +1109,10 @@ def source_descriptor_callables(tree, aliases, module_name):
                 for target in st.targets:
                     if isinstance(target, ast.Name):
                         local.pop(target.id, None)
+        class_environments[event] = dict(local)
     for st in tree.body:
         if isinstance(st, (ast.Import, ast.ImportFrom)):
-            module.update(imports(st))
+            apply_imports(module, st)
             continue
         if isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef)):
             module[st.name] = ('function', definition_event(st.name, st))
@@ -1021,6 +1158,7 @@ def _receiver_bytes(receiver):
         (
             type.__getattribute__(receiver_type, "__module__"),
             type.__getattribute__(receiver_type, "__qualname__"),
+            _class_definition_bytes(receiver_type),
         )
     )
     if is_class:
@@ -1055,6 +1193,7 @@ def _receiver_bytes(receiver):
             identity_record = (
                 type.__getattribute__(base, "__module__"),
                 type.__getattribute__(base, "__qualname__"),
+                _class_definition_bytes(base),
                 name,
             )
             slots.append(
@@ -1460,18 +1599,21 @@ def product_identity():
                     type.__getattribute__(receiver_type, "__module__"),
                     type.__getattribute__(receiver_type, "__qualname__"),
                 )
-                expected_module, expected_qualname = receiver_name
-                same_receiver = (
-                    live_receiver_identity == receiver_name
-                    or (
-                        expected_module != module.__name__
-                        and live_receiver_identity[1] == expected_qualname
+                if receiver_name and isinstance(receiver_name[0], tuple):
+                    same_receiver = any(
+                        live_receiver_identity[1] == expected_qualname
                         and (
                             live_receiver_identity[0] == expected_module
                             or live_receiver_identity[0].startswith(expected_module + ".")
                         )
+                        for expected_module, expected_qualname in receiver_name
                     )
-                )
+                else:
+                    expected_module, expected_qualname, expected_semantic = receiver_name
+                    same_receiver = (
+                        live_receiver_identity == (expected_module, expected_qualname)
+                        and _class_definition_bytes(receiver_type) == expected_semantic
+                    )
                 if not same_receiver:
                     substitutions.append(
                         f"{relative}::{binding} has a method receiver that differs from its source declaration"
