@@ -253,6 +253,34 @@ def verified_namespace(relative):
     return namespace
 
 
+def stable_ast_dump(node):
+    # Python 3.13 changed ast.dump() to omit empty optional fields by default.
+    # Reproduce that representation explicitly so one declared source digest
+    # identifies the same syntax tree on every supported interpreter.
+    def format_value(value):
+        if isinstance(value, ast.AST):
+            cls = type(value)
+            fields = []
+            for name in value._fields:
+                try:
+                    child = getattr(value, name)
+                except AttributeError:
+                    continue
+                if child == [] or (
+                    child is None and getattr(cls, name, ...) is None
+                ):
+                    continue
+                fields.append(f"{name}={format_value(child)}")
+            return f"{value.__class__.__name__}({', '.join(fields)})"
+        if isinstance(value, list):
+            return f"[{', '.join(format_value(item) for item in value)}]"
+        return repr(value)
+
+    if not isinstance(node, ast.AST):
+        raise TypeError(f"expected AST, got {node.__class__.__name__!r}")
+    return format_value(node)
+
+
 def audited_definition(node_id):
     # Return the definition whose AST digest is the audited one, or fail loudly.
     entry = NODES[node_id]
@@ -264,7 +292,7 @@ def audited_definition(node_id):
             continue
         if node.name != entry["name"]:
             continue
-        dumped = ast.dump(node, annotate_fields=True, include_attributes=False)
+        dumped = stable_ast_dump(node)
         if hashlib.sha256(dumped.encode("utf-8")).hexdigest() == entry["digest"]:
             matches.append(node)
     if len(matches) != 1:
@@ -2143,6 +2171,37 @@ def _evidence_path_issues(root: Path) -> list[Issue]:
     return issues
 
 
+def _stable_ast_dump(node: ast.AST) -> str:
+    """Python-3.13-style AST identity on every supported Python version.
+
+    Python 3.13 made ``ast.dump`` omit empty optional fields by default. Those
+    fields describe parser schema, not source meaning, so including them on
+    3.11/3.12 made every evidence digest interpreter-dependent.
+    """
+    def format_value(value: object) -> str:
+        if isinstance(value, ast.AST):
+            cls = type(value)
+            fields = []
+            for name in value._fields:
+                try:
+                    child = getattr(value, name)
+                except AttributeError:
+                    continue
+                if child == [] or (
+                    child is None and getattr(cls, name, ...) is None
+                ):
+                    continue
+                fields.append(f"{name}={format_value(child)}")
+            return f"{value.__class__.__name__}({', '.join(fields)})"
+        if isinstance(value, list):
+            return f"[{', '.join(format_value(item) for item in value)}]"
+        return repr(value)
+
+    if not isinstance(node, ast.AST):
+        raise TypeError(f"expected AST, got {node.__class__.__name__!r}")
+    return format_value(node)
+
+
 def _test_digest(path: Path, function_name: str) -> str | None:
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -2159,7 +2218,7 @@ def _test_digest(path: Path, function_name: str) -> str | None:
     )
     if function is None:
         return None
-    normalized = ast.dump(function, annotate_fields=True, include_attributes=False)
+    normalized = _stable_ast_dump(function)
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 

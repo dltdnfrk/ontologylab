@@ -449,6 +449,34 @@ def test_in_place_body_replacement_fails_the_digest(
     assert any(issue.code == "evidence_integrity" for issue in report.issues)
 
 
+def test_evidence_digest_ignores_version_specific_empty_ast_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Legacy ``ast.dump`` formatting cannot change source identity."""
+    original_dump = ast.dump
+
+    def legacy_dump(node, annotate_fields=True, include_attributes=False):
+        try:
+            return original_dump(
+                node,
+                annotate_fields=annotate_fields,
+                include_attributes=include_attributes,
+                show_empty=True,
+            )
+        except TypeError:  # Python 3.11/3.12 always include empty fields
+            return original_dump(
+                node,
+                annotate_fields=annotate_fields,
+                include_attributes=include_attributes,
+            )
+
+    monkeypatch.setattr(check_product_status.ast, "dump", legacy_dump)
+    node_id = next(iter(TEST_EVIDENCE_DIGESTS))
+    path, function_name = node_id.split("::", 1)
+
+    assert _test_digest(Path(path), function_name) == TEST_EVIDENCE_DIGESTS[node_id]
+
+
 def test_empty_documentary_evidence_fails(tmp_path: Path) -> None:
     document = _fixture(tmp_path)
     (tmp_path / "docs/FIRST-PACK-EVIDENCE.md").write_text("", encoding="utf-8")
