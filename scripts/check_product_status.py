@@ -396,10 +396,20 @@ def _execute_test_evidence(root: Path) -> Issue | None:
                 "-I",
                 "-c",
                 (
-                    "import sys, pytest; "
-                    "root = sys.argv[1]; "
-                    "sys.path.insert(0, root); "
-                    "raise SystemExit(pytest.main(sys.argv[2:]))"
+                    "import sys, pytest\n"
+                    "class ExecutionGuard:\n"
+                    "    def __init__(self):\n"
+                    "        self.runtest = pytest.Function.runtest\n"
+                    "    @pytest.hookimpl(tryfirst=True)\n"
+                    "    def pytest_runtest_call(self, item):\n"
+                    "        if pytest.Function.runtest is not self.runtest:\n"
+                    "            raise RuntimeError(\n"
+                    "                'pytest.Function.runtest replaced by repository code'\n"
+                    "            )\n"
+                    "guard = ExecutionGuard()\n"
+                    "root = sys.argv[1]\n"
+                    "sys.path.insert(0, root)\n"
+                    "raise SystemExit(pytest.main(sys.argv[2:], plugins=[guard]))\n"
                 ),
                 str(root),
                 "-q",
