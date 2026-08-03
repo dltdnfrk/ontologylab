@@ -20,8 +20,8 @@ thousand nodes. Pairs are now generated two ways and unioned:
   it lands in at least one common block. Grams shared by too many nodes are
   skipped as blocking keys (they'd rebuild the cross product); a genuinely
   similar pair shares many grams, so it survives losing its hottest ones.
-- **embedding nearest neighbours** (when numpy is importable): top-k
-  cosine neighbours per node among same-model embeddings, so semantically
+- **embedding nearest neighbours**: top-k cosine neighbours per node among
+  same-model embeddings (NumPy accelerates this, with a stdlib fallback), so semantically
   close but lexically unrelated duplicates ("AMI" / "heart attack") are
   still found — the one recall case gram blocking cannot cover.
 
@@ -143,16 +143,15 @@ def _blocked_pairs(group: list[dict[str, Any]]) -> set[tuple[int, int]]:
 def _vector_pairs(group: list[dict[str, Any]]) -> set[tuple[int, int]]:
     """Top-k cosine neighbours per node, per embedding model.
 
-    numpy arrives with sentence-transformers; when neither is installed the
-    embeddings were made by the hash embedder and this quietly contributes
-    nothing — the lexical blocks still stand, which matches the hash
-    embedder's nature (character-driven, so its high-cosine pairs are
-    lexically close and already blocked).
+    NumPy accelerates the all-neighbours ranking when sentence-transformers
+    brings it along. The stdlib path preserves the same recall contract for
+    core installs and hash/custom embeddings; optional acceleration must not
+    decide whether an embedding-only duplicate is considered at all.
     """
     try:
         import numpy
-    except ImportError:  # pragma: no cover — environment-dependent
-        return set()
+    except ImportError:  # core install: preserve behaviour without acceleration
+        numpy = None
 
     by_model: dict[str, list[int]] = {}
     for index, node in enumerate(group):
@@ -162,6 +161,17 @@ def _vector_pairs(group: list[dict[str, Any]]) -> set[tuple[int, int]]:
     pairs: set[tuple[int, int]] = set()
     for indices in by_model.values():
         if len(indices) < 2:
+            continue
+        if numpy is None:
+            for a in indices:
+                neighbours = sorted(
+                    (b for b in indices if b != a),
+                    key=lambda b: (
+                        -cosine(group[a]["embedding"], group[b]["embedding"]), b
+                    ),
+                )[:VECTOR_NEIGHBOURS]
+                for b in neighbours:
+                    pairs.add((min(a, b), max(a, b)))
             continue
         matrix = numpy.array(
             [group[i]["embedding"] for i in indices], dtype=numpy.float32

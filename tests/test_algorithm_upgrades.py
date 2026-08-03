@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import random
+import sys
 
 import pytest
 
@@ -214,8 +215,9 @@ def test_unknown_algorithm_is_refused() -> None:
 # --------------------------------------------------------------------------
 
 
-def test_blocking_keeps_every_signal_s_pairs(store, doc) -> None:
-    """The recall contract: each of the four signals still finds its pair."""
+def test_blocking_keeps_every_signal_s_pairs(store, doc, monkeypatch) -> None:
+    """The four-signal recall contract holds in a stdlib-only core install."""
+    monkeypatch.setitem(sys.modules, "numpy", None)
     similar_a, similar_b = make_entity("RateLimiter"), make_entity("RateLimiters")
     contain_a, contain_b = make_entity("Gateway"), make_entity("PaymentGateway")
     alias_a = make_entity("Rate Limiting Service", aliases=["throttler"])
