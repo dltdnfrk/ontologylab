@@ -38,9 +38,16 @@ fi
 
 PY="$REPO/.venv/bin/python"
 if [ ! -x "$PY" ]; then
-  echo "error: venv python not found at $PY" >&2
-  echo "create it first:  cd $REPO && python3.11 -m venv .venv && .venv/bin/pip install -e '.[server,mcp]'" >&2
-  exit 1
+  # No repo-local .venv (CI builds the bundle to pin its contents): fall back
+  # to a python on PATH for the icon generation step. The baked launcher only
+  # matters on a real macOS install, where .venv is the norm — the fallback
+  # never fires there.
+  PY="$(command -v python3 || true)"
+  if [ -z "$PY" ]; then
+    echo "error: venv python not found at $REPO/.venv/bin/python" >&2
+    echo "create it first:  cd $REPO && python3.11 -m venv .venv && .venv/bin/pip install -e '.[server,mcp]'" >&2
+    exit 1
+  fi
 fi
 
 APP="$OUT/$APP_NAME.app"
