@@ -1933,13 +1933,42 @@ class KGStore:
     # first — the triage default recommended by the HITL literature.
     # "critic" surfaces the items the critic model scored lowest (unscored
     # items last), for W8 triage.
+    # Every ordering ends with a pr.id tiebreak so the sort is total and a
+    # keyset cursor can be advanced unambiguously — without it, rows with
+    # equal sort keys come back in an arbitrary order and pagination would
+    # skip or duplicate them.
     _REVIEW_ORDERINGS = {
-        "created": "pr.created_ts ASC",
-        "confidence": "pr.confidence IS NULL, pr.confidence ASC, pr.created_ts ASC",
-        "confidence_desc": (
-            "pr.confidence IS NULL, pr.confidence DESC, pr.created_ts ASC"
+        "created": "pr.created_ts ASC, pr.id ASC",
+        "confidence": (
+            "pr.confidence IS NULL, pr.confidence ASC, "
+            "pr.created_ts ASC, pr.id ASC"
         ),
-        "critic": "cr.score IS NULL, cr.score ASC, pr.created_ts ASC",
+        "confidence_desc": (
+            "pr.confidence IS NULL, pr.confidence DESC, "
+            "pr.created_ts ASC, pr.id ASC"
+        ),
+        "critic": "cr.score IS NULL, cr.score ASC, pr.created_ts ASC, pr.id ASC",
+    }
+
+    # Keyset key per ordering, as a SQL row-value expression that is
+    # strictly ASC under `>` even where the visible ordering mixes
+    # directions: NULLs are folded into a leading 0/1 flag (never NULL in
+    # a row value) and DESC columns are negated. The extractor below must
+    # produce exactly these values from the last row of a page.
+    _REVIEW_KEYSET = {
+        "created": "(pr.created_ts, pr.id)",
+        "confidence": (
+            "(pr.confidence IS NULL, COALESCE(pr.confidence, -1), "
+            "pr.created_ts, pr.id)"
+        ),
+        "confidence_desc": (
+            "(pr.confidence IS NULL, COALESCE(-pr.confidence, 0), "
+            "pr.created_ts, pr.id)"
+        ),
+        "critic": (
+            "(cr.score IS NULL, COALESCE(cr.score, -1), "
+            "pr.created_ts, pr.id)"
+        ),
     }
 
     # An extractor-vs-critic gap at/above this flags the row as a
@@ -1954,6 +1983,7 @@ class KGStore:
         source_doc_id: str | None = None,
         order: str = "created",
         limit: int = 100,
+        cursor: list[Any] | None = None,
     ) -> list[dict[str, Any]]:
         try:
             order_sql = self._REVIEW_ORDERINGS[order]
@@ -1973,6 +2003,16 @@ class KGStore:
         if source_doc_id:
             where.append("pr.source_doc_id = ?")
             args.append(source_doc_id)
+        if cursor is not None:
+            key_sql = self._REVIEW_KEYSET[order]
+            if len(cursor) != self._review_keyset_arity(order):
+                raise KGStoreError(
+                    f"cursor for order {order!r} must have "
+                    f"{self._review_keyset_arity(order)} values"
+                )
+            placeholders = ",".join("?" * len(cursor))
+            where.append(f"({key_sql}) > ({placeholders})")
+            args.extend(cursor)
         args.append(limit)
         # Latest critic review per item (advisory columns only — approval
         # paths never read this join). Read-only stores built before W8 have
@@ -2012,6 +2052,44 @@ class KGStore:
         self._attach_properties(out)
         self._attach_evidence(out)
         return out
+
+    @staticmethod
+    def _review_keyset_arity(order: str) -> int:
+        return {"created": 2, "confidence": 4, "confidence_desc": 4, "critic": 4}[order]
+
+    def review_cursor_values(self, order: str, row: dict[str, Any]) -> list[Any]:
+        """Keyset cursor values for one row, in sort-key order.
+
+        Must mirror ``_REVIEW_KEYSET`` exactly: the list is what the next
+        ``pending_review(cursor=...)`` call compares against, so a mismatch
+        would silently skip or duplicate rows across pages.
+        """
+        if order == "created":
+            return [row["created_ts"], row["id"]]
+        conf = row.get("confidence")
+        if order == "confidence":
+            return [
+                0 if conf is not None else 1,
+                conf if conf is not None else -1,
+                row["created_ts"],
+                row["id"],
+            ]
+        if order == "confidence_desc":
+            return [
+                0 if conf is not None else 1,
+                -conf if conf is not None else 0,
+                row["created_ts"],
+                row["id"],
+            ]
+        if order == "critic":
+            score = row.get("critic_score")
+            return [
+                0 if score is not None else 1,
+                score if score is not None else -1,
+                row["created_ts"],
+                row["id"],
+            ]
+        raise KGStoreError(f"unknown review order {order!r}")
 
     def _attach_properties(self, rows: list[dict[str, Any]]) -> None:
         """Expose stored proposal properties on the review-queue surface."""

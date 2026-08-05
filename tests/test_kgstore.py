@@ -270,8 +270,9 @@ def test_unknown_item_errors(store):
 def test_queries_hide_proposed_by_default(store, doc):
     a, b = make_entity("ApiGateway"), make_entity("RateLimiter")
     insert(store, doc, [a, b])
-    node_id = store.pending_review()[0]["id"]
-    store.approve(node_id)
+    # 승인 대상을 이름으로 특정한다 — pending_review()[0]는 같은 created_ts
+    # 끼리의 순서에 기대지 않아야 한다(배치 삽입은 created_ts를 공유한다).
+    store.approve(a.id)
 
     assert len(store.entity_lookup(name="ApiGateway")) == 1
     assert store.entity_lookup(name="RateLimiter") == []

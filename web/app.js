@@ -7,7 +7,27 @@
     return document.querySelector(sel);
   }
 
+  function ontologyLabelKo(value) {
+    var localizer = window.ontologylabLocalizer;
+    return localizer ? localizer.ontologyLabelKo(value) : value;
+  }
+
+  var uiUtils = window.ontologylabUiUtils;
+
+  function plainDocumentTitle(value, fallback) {
+    return uiUtils.plainText(value) || fallback || "(제목 없음)";
+  }
+
+  var chatSession = window.ontologylabCreateChatSession(window);
+  var initialChatHtml = $("#chat-log").innerHTML;
+
   function showTab(name) {
+    if (chatSession.startsNewOnEntry(
+      document.body.dataset.activeTab || null,
+      name
+    )) {
+      startNewChatSession();
+    }
     document.querySelectorAll(".tab-btn").forEach(function (btn) {
       var on = btn.dataset.tab === name;
       btn.classList.toggle("active", on);
@@ -317,7 +337,7 @@
     var html =
       "<div class='ev-head'>" +
       "<span class='badge st-proposed'>" + kindKo(item.kind) + "</span>" +
-      "<code>" + escapeHtml(item.type_name || "") + "</code>" +
+      "<code>" + escapeHtml(ontologyLabelKo(item.type_name || "")) + "</code>" +
       "</div>" +
       "<h3 class='ev-label'>" + itemLabelHtml(item) + "</h3>";
 
@@ -338,7 +358,7 @@
         "</blockquote>" +
         "<p class='ev-source muted'><small>" +
         evidenceBadge(item) + " " +
-        escapeHtml(item.doc_title || item.source_doc_id || "") +
+        escapeHtml(plainDocumentTitle(item.doc_title, item.source_doc_id || "")) +
         "</small></p>";
     } else if (!item.source_span) {
       // 스팬이 없는 개체가 생기는 길은 하나뿐이다: 모델이 관계의 끝점으로만
@@ -407,7 +427,7 @@
     rows.push(["추출 엔진", ex.model ? ex.engine + " · " + ex.model : ex.engine]);
     rows.push(["프롬프트", ex.prompt_version || "—"]);
     rows.push(["추출 시각", fmtTs(ex.created_ts)]);
-    rows.push(["출처 문서", doc.title || doc.id || "—"]);
+    rows.push(["출처 문서", plainDocumentTitle(doc.title, doc.id || "—")]);
     rows.push(["문서 URI", doc.source_uri || "—"]);
     if (record.source_span) {
       rows.push(["문서 내 위치",
@@ -585,7 +605,7 @@
         return {
           kind: row.status === "verified" ? "승인됨" : "제안",
           label: row.name,
-          meta: row.entity_type || "",
+          meta: ontologyLabelKo(row.entity_type || ""),
           run: function () {
             showTab("review");
             maybeLoadTab("review");
@@ -645,7 +665,11 @@
     // 승인해 큐가 0이 된 순간이 바로 가장 되돌리고 싶은 때다.
     if (ev.key === "u") { undoLastDecision(); ev.preventDefault(); return; }
     if (!reviewRows.length) return;
-    if (ev.key === "j") focusRow(reviewCursor + 1);
+    if (ev.key === "j") {
+      // 바닥에 닿기 전에 다음 장을 미리 당겨 연속 이동이 끊기지 않게 한다.
+      if (reviewCursor >= reviewRows.length - 3) reviewMaybeLoadMore();
+      focusRow(reviewCursor + 1);
+    }
     else if (ev.key === "k") focusRow(reviewCursor - 1);
     else if (ev.key === "a" && reviewCursor >= 0)
       act("approve", reviewRows[reviewCursor].id);
@@ -670,8 +694,10 @@
     showTableLoading(tbody, 5);   // 선택/종류/이름/확신도/작업
     reviewRows = [];
     reviewCursor = -1;
+    reviewNextCursor = null;
+    reviewHasMore = false;
     try {
-      var data = await api("/api/proposals?limit=200&order=" + reviewOrder);
+      var data = await api("/api/proposals?limit=" + reviewPageSize + "&order=" + reviewOrder);
       renderCounts(data.counts);
       tbody.innerHTML = "";
       var items = data.items || [];
@@ -680,85 +706,9 @@
         return;
       }
       empty.classList.add("hidden");
-      items.forEach(function (item) {
-        var tr = document.createElement("tr");
-        var conf =
-          item.confidence == null ? "—" : Number(item.confidence).toFixed(2);
-        /* 크리틱 점수·근거는 근거 패널(renderEvidence)에서 보여준다. 표에
-           같이 두면 좁은 칸에 80자로 잘린 이유가 들어가 읽히지도 않고,
-           결정 직전에 점수부터 눈에 들어와 앵커링을 만든다. */
-        // 이름은 행마다 달라야 한다. 열세 행의 승인 버튼이 모두 "승인"이면
-        // 조작하는 쪽은 위치로 고를 수밖에 없는데, 이 목록은 확신도 순이라
-        // 한 건을 처리할 때마다 재정렬된다 — 위치로 고른 클릭은 방금 읽은
-        // 그 항목이 아닐 수 있다. 이 앱의 약속이 "직접 승인한 것만
-        // 지식이 된다"이므로, 무엇을 승인하는지 모르는 승인은 그 약속을
-        // 조용히 깬다. Aside의 AI가 이 화면을 몰면 특히 그렇다.
-        var label = itemLabel(item);
-        var what = kindKo(item.kind) + " " + label;
-        tr.innerHTML =
-          "<td><input type='checkbox' class='row-check' data-id='" +
-          escapeHtml(item.id || "") +
-          "' aria-label='" + escapeHtml("선택: " + what) + "'></td>" +
-          "<td>" +
-          kindKo(item.kind) +
-          "</td>" +
-          "<td title='" + escapeHtml(item.id || "") + "'>" +
-          itemLabelHtml(item) +
-          "</td>" +
-          "<td class='conf-cell' style='--v:" +
-          (item.confidence == null ? 0 : Number(item.confidence)) +
-          "'>" +
-          conf +
-          "</td>" +
-          "<td class='actions'></td>";
-        // 행을 클릭하면 근거 패널이 그 항목으로 옮겨간다 (결정은 버튼/키로만)
-        tr.addEventListener("click", function (ev) {
-          if (ev.target.closest("button, input")) return;
-          var at = reviewRows.findIndex(function (r) { return r.id === item.id; });
-          if (at >= 0) focusRow(at);
-        });
-        var actions = tr.querySelector(".actions");
-        var approveBtn = document.createElement("button");
-        approveBtn.className = "btn btn-primary";
-        approveBtn.textContent = "승인";
-        // 보이는 글자는 짧게, 이름은 대상을 못 박아서. 승인은 되돌릴 수는
-        // 있어도 되돌려야 하는 일이므로, 무엇에 대한 승인인지가 클릭하는
-        // 쪽에 반드시 보여야 한다.
-        approveBtn.setAttribute("aria-label", "승인: " + what);
-        approveBtn.addEventListener("click", function () {
-          act("approve", item.id);
-        });
-        var rejectBtn = document.createElement("button");
-        rejectBtn.className = "btn btn-danger";
-        rejectBtn.textContent = "거부";
-        rejectBtn.setAttribute("aria-label", "거부: " + what);
-        rejectBtn.addEventListener("click", function () {
-          act("reject", item.id);
-        });
-        actions.appendChild(approveBtn);
-        actions.appendChild(document.createTextNode(" "));
-        actions.appendChild(rejectBtn);
-        if (item.kind === "node") {
-          var focusBtn = document.createElement("button");
-          focusBtn.className = "btn";
-          focusBtn.textContent = "자세히";
-          focusBtn.title = "이 개념의 모든 출처와 관계를 함께 보기";
-          // title이 있으면 리더가 그것을 이름으로 삼아 "이 개념의 모든
-          // 출처와…"라는 문장이 버튼 이름이 됐다 — 열세 개가 전부 같은
-          // 문장이라 대상 구분도 안 됐다.
-          focusBtn.setAttribute("aria-label", "자세히: " + what);
-          focusBtn.addEventListener("click", function () {
-            loadEntityPanel(item.id);
-          });
-          actions.appendChild(document.createTextNode(" "));
-          actions.appendChild(focusBtn);
-        }
-        tbody.appendChild(tr);
-        // item 전체를 들고 있어야 근거 패널이 추가 요청 없이 즉시 그려진다
-        reviewRows.push({
-          id: item.id, kind: item.kind, tr: tr, label: itemLabel(item), item: item,
-        });
-      });
+      reviewHasMore = !!data.has_more;
+      reviewNextCursor = data.next_cursor || null;
+      items.forEach(appendReviewRow);
       var idx = typeof keepIndex === "number" ? keepIndex : 0;
       if (reviewRows.length) focusRow(Math.min(idx, reviewRows.length - 1));
       else renderEvidence(null);
@@ -770,8 +720,141 @@
       var checkAll = $("#review-check-all");
       if (checkAll) checkAll.checked = false;
       updateBulkButtons();
+      // 첫 화면을 채우지 못하는 짧은 페이지는 바로 다음 장을 당긴다.
+      reviewMaybeLoadMore();
     }
   }
+
+  /* 검토 큐는 페이지 단위로 돔에 붙인다. 첫 페이지는 50행으로 시작해
+     스크롤 또는 키보드가 바닥에 닿을 때만 다음 장을 붙이므로, 대기 300건이
+     있어도 한 번에 수천 개 노드가 생기지 않는다. */
+  var reviewPageSize = 50;
+  var reviewNextCursor = null;
+  var reviewHasMore = false;
+  var reviewLoadingMore = false;
+
+  function appendReviewRow(item) {
+    var tbody = $("#proposals-body");
+    var tr = document.createElement("tr");
+    var conf =
+      item.confidence == null ? "—" : Number(item.confidence).toFixed(2);
+    /* 크리틱 점수·근거는 근거 패널(renderEvidence)에서 보여준다. 표에
+       같이 두면 좁은 칸에 80자로 잘린 이유가 들어가 읽히지도 않고,
+       결정 직전에 점수부터 눈에 들어와 앵커링을 만든다. */
+    // 이름은 행마다 달라야 한다. 열세 행의 승인 버튼이 모두 "승인"이면
+    // 조작하는 쪽은 위치로 고를 수밖에 없는데, 이 목록은 확신도 순이라
+    // 한 건을 처리할 때마다 재정렬된다 — 위치로 고른 클릭은 방금 읽은
+    // 그 항목이 아닐 수 있다. 이 앱의 약속이 "직접 승인한 것만
+    // 지식이 된다"이므로, 무엇을 승인하는지 모르는 승인은 그 약속을
+    // 조용히 깬다. Aside의 AI가 이 화면을 몰면 특히 그렇다.
+    var label = itemLabel(item);
+    var what = kindKo(item.kind) + " " + label;
+    tr.innerHTML =
+      "<td><input type='checkbox' class='row-check' data-id='" +
+      escapeHtml(item.id || "") +
+      "' aria-label='" + escapeHtml("선택: " + what) + "'></td>" +
+      "<td>" +
+      kindKo(item.kind) +
+      "</td>" +
+      "<td title='" + escapeHtml(item.id || "") + "'>" +
+      itemLabelHtml(item) +
+      "</td>" +
+      "<td class='conf-cell' style='--v:" +
+      (item.confidence == null ? 0 : Number(item.confidence)) +
+      "'>" +
+      conf +
+      "</td>" +
+      "<td class='actions'></td>";
+    // 행을 클릭하면 근거 패널이 그 항목으로 옮겨간다 (결정은 버튼/키로만)
+    tr.addEventListener("click", function (ev) {
+      if (ev.target.closest("button, input")) return;
+      var at = reviewRows.findIndex(function (r) { return r.id === item.id; });
+      if (at >= 0) focusRow(at);
+    });
+    var actions = tr.querySelector(".actions");
+    var approveBtn = document.createElement("button");
+    approveBtn.className = "btn btn-primary";
+    approveBtn.textContent = "승인";
+    // 보이는 글자는 짧게, 이름은 대상을 못 박아서. 승인은 되돌릴 수는
+    // 있어도 되돌려야 하는 일이므로, 무엇에 대한 승인인지가 클릭하는
+    // 쪽에 반드시 보여야 한다.
+    approveBtn.setAttribute("aria-label", "승인: " + what);
+    approveBtn.addEventListener("click", function () {
+      act("approve", item.id);
+    });
+    var rejectBtn = document.createElement("button");
+    rejectBtn.className = "btn btn-danger";
+    rejectBtn.textContent = "거부";
+    rejectBtn.setAttribute("aria-label", "거부: " + what);
+    rejectBtn.addEventListener("click", function () {
+      act("reject", item.id);
+    });
+    actions.appendChild(approveBtn);
+    actions.appendChild(document.createTextNode(" "));
+    actions.appendChild(rejectBtn);
+    if (item.kind === "node") {
+      var focusBtn = document.createElement("button");
+      focusBtn.className = "btn";
+      focusBtn.textContent = "자세히";
+      focusBtn.title = "이 개념의 모든 출처와 관계를 함께 보기";
+      // title이 있으면 리더가 그것을 이름으로 삼아 "이 개념의 모든
+      // 출처와…"라는 문장이 버튼 이름이 됐다 — 열세 개가 전부 같은
+      // 문장이라 대상 구분도 안 됐다.
+      focusBtn.setAttribute("aria-label", "자세히: " + what);
+      focusBtn.addEventListener("click", function () {
+        loadEntityPanel(item.id);
+      });
+      actions.appendChild(document.createTextNode(" "));
+      actions.appendChild(focusBtn);
+    }
+    tbody.appendChild(tr);
+    // item 전체를 들고 있어야 근거 패널이 추가 요청 없이 즉시 그려진다
+    reviewRows.push({
+      id: item.id, kind: item.kind, tr: tr, label: itemLabel(item), item: item,
+    });
+  }
+
+  async function reviewLoadMore() {
+    if (reviewLoadingMore || !reviewHasMore || !reviewNextCursor) return;
+    reviewLoadingMore = true;
+    var tbody = $("#proposals-body");
+    var loadingRow = document.createElement("tr");
+    loadingRow.id = "review-loading-row";
+    loadingRow.innerHTML =
+      "<td colspan='5' class='muted'>더 불러오는 중…</td>";
+    tbody.appendChild(loadingRow);
+    try {
+      var data = await api(
+        "/api/proposals?limit=" + reviewPageSize + "&order=" + reviewOrder +
+        "&cursor=" + encodeURIComponent(reviewNextCursor)
+      );
+      renderCounts(data.counts);
+      reviewHasMore = !!data.has_more;
+      reviewNextCursor = data.next_cursor || null;
+      (data.items || []).forEach(appendReviewRow);
+    } catch (_) {
+      // 다음 스크롤·키 입력에서 재시도한다. 첫 페이지 오류만 크게 보여준다.
+      reviewHasMore = false;
+    } finally {
+      var lr = $("#review-loading-row");
+      if (lr) lr.remove();
+      reviewLoadingMore = false;
+      reviewMaybeLoadMore();
+    }
+  }
+
+  /* 표 바닥이 화면 하단에 닿았을 때만 다음 장을 당긴다. 검토 탭 표는
+     자기 컨테이너가 아니라 페이지 전체가 스크롤되므로 window 기준으로
+     본다. */
+  function reviewMaybeLoadMore() {
+    if (!reviewHasMore || reviewLoadingMore) return;
+    var tbody = $("#proposals-body");
+    if (!tbody || !tbody.children.length) return;
+    var rect = tbody.getBoundingClientRect();
+    if (rect.bottom <= window.innerHeight + 600) reviewLoadMore();
+  }
+
+  window.addEventListener("scroll", reviewMaybeLoadMore, { passive: true });
 
   /* -- 외부 레코드(주석) 큐 --------------------------------------------
      제안 큐와 나란히 두되 묻는 것이 다르다. 여기서 사람이 판정하는 건
@@ -1188,7 +1271,7 @@
       (active.relation_types || []).length + "종 " +
       "<span class='muted'><small>" +
       escapeHtml((active.entity_types || []).map(function (e) {
-        return e.name;
+         return ontologyLabelKo(e.name);
       }).join(" · ")) + "</small></span>";
 
     $("#schema-presets").innerHTML = (d.presets || []).map(function (p) {
@@ -1412,14 +1495,17 @@
           // URI는 열이 아니라 제목 아래 한 줄이다. 열로 두면 표 폭이 URI
           // 길이에 끌려가고, 정작 훑는 대상인 제목이 잘린다.
           var uri = doc.source_uri || "";
+          var title = plainDocumentTitle(doc.title, "제목 없음");
           return (
             "<li class='doc-row' data-doc='" + escapeHtml(doc.id || "") + "'" +
+            " data-sync-title-aria" +
             " role='button' tabindex='0' aria-label='" +
-            escapeHtml((doc.title || "제목 없음") + " 원문 열기") + "'>" +
-            "<span class='doc-src'>" + escapeHtml(doc.source_kind || "?") + "</span>" +
+            escapeHtml(title + " 원문 열기") + "'>" +
+            "<span class='doc-src'>" +
+            escapeHtml(ontologyLabelKo(doc.source_kind || "?")) + "</span>" +
             "<span class='doc-main'>" +
             "<span class='doc-title'>" +
-            escapeHtml(doc.title || "(제목 없음)") + "</span>" +
+            escapeHtml(title) + "</span>" +
             (uri ? "<span class='doc-uri'>" + escapeHtml(uri) + "</span>" : "") +
             "</span>" +
             "<span class='doc-ts'>" + escapeHtml(fmtTs(doc.fetched_ts)) + "</span>" +
@@ -2594,7 +2680,7 @@
       members.forEach(function (m) {
         html +=
           "<tr><td>" + escapeHtml(m.name || "") + "</td>" +
-          "<td>" + escapeHtml(m.entity_type || "") + "</td>" +
+          "<td>" + escapeHtml(ontologyLabelKo(m.entity_type || "")) + "</td>" +
           "<td>" + statusBadge(m.status) + "</td></tr>";
       });
       html += "</tbody></table></div>";
@@ -2688,7 +2774,12 @@
     (ctx.mentions || []).forEach(function (m) {
       html +=
         "<div class='status-box'><small class='muted'>" +
-        escapeHtml(m.doc_title || (m.source_doc_id || "").slice(0, 10)) +
+          escapeHtml(
+            plainDocumentTitle(
+              m.doc_title,
+              (m.source_doc_id || "").slice(0, 10)
+            )
+          ) +
         "</small><br><small>…" +
         escapeHtml(m.excerpt || "(스팬 없음)") + "…</small></div>";
     });
@@ -3072,9 +3163,12 @@
       circle.setAttribute("fill", typeColor(n.entity_type));
       var label = document.createElementNS(SVG_NS, "text");
       label.setAttribute("dy", graphNodeRadius(n) + 11);
-      label.textContent = n.name.length > 18 ? n.name.slice(0, 17) + "…" : n.name;
+      label.setAttribute("class", "g-label");
+      label.textContent = ontologyLabelKo(n.name);
       var title = document.createElementNS(SVG_NS, "title");
-      title.textContent = n.name + " · " + n.entity_type + " · " + statusKo(n.status);
+      title.textContent =
+        ontologyLabelKo(n.name) + " · " + ontologyLabelKo(n.entity_type) +
+        " · " + statusKo(n.status);
       g.appendChild(title);
       g.appendChild(circle);
       g.appendChild(label);
@@ -3104,6 +3198,35 @@
       if (!n) return;
       g.setAttribute("transform", "translate(" + n.x + "," + n.y + ")");
       g.classList.toggle("g-selected", gSelected === n.id);
+      var label = g.querySelector(".g-label");
+      if (label) {
+        label.style.fontSize =
+          uiUtils.graphLabelFontSize(gView.k) + "px";
+        label.setAttribute(
+          "dy",
+          graphNodeRadius(n) + 12 / Math.max(0.05, gView.k)
+        );
+      }
+    });
+    var visibleLabels = new Set(uiUtils.visibleGraphLabelIds(
+      gNodes.map(function (n) {
+        return {
+          id: n.id,
+          name: n.name,
+          x: n.x,
+          y: n.y,
+          degree: gDegree[n.id] || 0,
+        };
+      }),
+      gView,
+      graphSize(),
+      gSelected
+    ));
+    root.querySelectorAll("g.g-node").forEach(function (g) {
+      var label = g.querySelector(".g-label");
+      if (label) {
+        label.classList.toggle("hidden", !visibleLabels.has(g.dataset.id));
+      }
     });
   }
 
@@ -3169,7 +3292,7 @@
     Object.keys(gTypeColor).forEach(function (type) {
       html +=
         "<span class='g-chip'><i style='background:" + gTypeColor[type] +
-        "'></i>" + escapeHtml(type) + "</span>";
+        "'></i>" + escapeHtml(ontologyLabelKo(type)) + "</span>";
     });
     // 링 색은 앱 전체의 상태 언어와 같다(호박=제안, 초록=검증됨). 범례가
     // 그 둘을 다 보여줘야 그래프만 보고도 무엇이 아직 승인 전인지 안다.
@@ -3191,9 +3314,9 @@
     var info = $("#graph-info");
     if (!id) { info.classList.add("hidden"); positionGraph(); return; }
     var n = gIndex[id];
-    $("#graph-info-name").textContent = n.name;
+    $("#graph-info-name").textContent = ontologyLabelKo(n.name);
     $("#graph-info-meta").textContent =
-      n.entity_type + " · " + statusKo(n.status) +
+      ontologyLabelKo(n.entity_type) + " · " + statusKo(n.status) +
       (n.confidence == null ? "" : " · 확신도 " + Number(n.confidence).toFixed(2)) +
       " · 연결 " + (gDegree[id] || 0) + "개";
     info.classList.remove("hidden");
@@ -3633,7 +3756,7 @@
     }
     var uri = d.source_uri || "";
     return "<div class='doc-meta'>" +
-      "<h2>" + escapeHtml(d.title || "(제목 없음)") + "</h2>" +
+        "<h2>" + escapeHtml(plainDocumentTitle(d.title)) + "</h2>" +
       "<p class='muted'><small>" + escapeHtml(d.source_kind || "") +
       (uri ? " · " + escapeHtml(uri) : "") +
       " · " + escapeHtml(fmtTs(d.fetched_ts)) + "</small></p>" +
@@ -3668,7 +3791,8 @@
       var on = t.id === docActive;
       return "<button type='button' class='doc-tab" + (on ? " active" : "") +
         "' role='tab' aria-selected='" + on + "' data-doc-tab='" +
-        escapeHtml(t.id) + "'>" + escapeHtml(t.title) + "</button>";
+          escapeHtml(t.id) + "'>" +
+          escapeHtml(plainDocumentTitle(t.title)) + "</button>";
     }).join("");
     var cur = docTabs.filter(function (t) { return t.id === docActive; })[0];
     $("#doc-body").innerHTML = !cur ? ""
@@ -3704,7 +3828,11 @@
       var d = await api("/api/document/" + encodeURIComponent(docId) + "/review");
       // 탭이 무한정 늘어나지 않게 앞에서 밀어낸다. 탭 열두 개짜리 패널은
       // 문서를 읽는 자리가 아니라 탭을 고르는 자리가 된다.
-      docTabs.push({ id: docId, title: d.title || docId.slice(0, 8), data: d });
+      docTabs.push({
+        id: docId,
+        title: plainDocumentTitle(d.title, docId.slice(0, 8)),
+        data: d,
+      });
       if (docTabs.length > 4) docTabs.shift();
       docActive = docId;
       renderDocPanel();
@@ -3983,7 +4111,10 @@
     try {
       // engine은 값이 있을 때만 싣는다. 빈 문자열을 보내면 pydantic의
       // 기본값이 적용되지 않고 ""가 그대로 get_engine에 도달한다.
-      var payload = { message: message, confirmed: false };
+      var payload = chatSession.attach({
+        message: message,
+        confirmed: false,
+      });
       var eng = currentEngine();
       if (eng) payload.engine = eng;
       var res = await apiSend("/api/chat", payload);
@@ -4012,7 +4143,10 @@
     try {
       // 확인 실행은 제안했던 것과 같은 엔진으로 돌아야 한다. 여기서도
       // 빈 값을 실으면 서버 기본값이 적용되지 않는다.
-      var payload = { message: message, confirmed: true };
+      var payload = chatSession.attach({
+        message: message,
+        confirmed: true,
+      });
       var eng = currentEngine();
       if (eng) payload.engine = eng;
       var res = await apiSend("/api/chat", payload);
@@ -4040,7 +4174,7 @@
     if (!log) return;
     var turns;
     try {
-      turns = ((await api("/api/chat/history")) || {}).turns || [];
+      turns = ((await api(chatSession.historyPath())) || {}).turns || [];
     } catch (_) {
       return;   // 기록을 못 읽는다고 새 대화를 막을 이유는 없다.
     }
@@ -4087,6 +4221,20 @@
         "</button></small></p>";
       delete chatJobBubbles[id];
     });
+  }
+
+  function startNewChatSession() {
+    chatSession.startNew();
+    chatJobBubbles = {};
+    var log = $("#chat-log");
+    if (log) log.innerHTML = initialChatHtml;
+    var bar = $("#chat-bar");
+    if (bar) bar.classList.add("hidden");
+    var input = $("#chat-input");
+    if (input) {
+      input.value = "";
+      input.style.height = "auto";
+    }
   }
 
   /* ── 사이드바 폭 조절 ───────────────────────────────────────────
@@ -4206,27 +4354,9 @@
       if (confirmBtn) confirmChat(confirmBtn.closest(".chat-msg"));
     });
 
-    var clear = $("#chat-clear");
-    if (clear) {
-      clear.addEventListener("click", async function () {
-        // 되돌릴 수 없으니 한 번 묻는다. 그래프는 건드리지 않는다는 사실을
-        // 같이 말해야, "지우면 뭐까지 없어지나"를 눌러 보고 알아내지 않아도
-        // 된다.
-        if (!window.confirm(
-          "대화 기록을 지울까요?\n\n" +
-          "모은 문서와 제안, 팩은 그대로 있어요 — 지워지는 건 " +
-          "무엇을 물었는지의 기록뿐이에요."
-        )) return;
-        try {
-          await apiSend("/api/chat/history", null, "DELETE");
-        } catch (e) {
-          chatBubble("bot", "<span class='err-msg'>" +
-            escapeHtml(friendlyError(e)) + "</span>");
-          return;
-        }
-        chatJobBubbles = {};
-        window.location.reload();
-      });
+    var newSession = $("#chat-new-session");
+    if (newSession) {
+      newSession.addEventListener("click", startNewChatSession);
     }
   })();
 
