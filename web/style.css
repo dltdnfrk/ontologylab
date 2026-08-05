@@ -2648,3 +2648,14 @@ body.rail-resizing {
 @media (max-width: 860px) {
   .rail-resizer { display: none; }
 }
+
+/* 아티팩트 화면 — 릴리스 카드 목록. status-box 재사용에 간격만 보강한다. */
+.artifact-releases {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.artifact-pack-card code {
+  display: block;
+  margin-top: 4px;
+}

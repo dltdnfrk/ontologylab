@@ -37,6 +37,7 @@
     <button class="tab-btn" data-tab="sources" aria-label="리서치" title="리서치 — 주제로 논문 소스에 질의하고 개념을 추출" role="tab" aria-selected="false"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg><span class="nav-label">리서치</span> <span class="nav-stat" id="stat-sources"></span></button>
     <button class="tab-btn" data-tab="review" aria-label="검토" title="검토 — AI 제안을 승인하거나 거부" role="tab" aria-selected="false"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8.5 12.5l2.5 2.5 5-5.5"/></svg><span class="nav-label">검토</span> <span id="review-badge" class="tab-badge hidden">0</span></button>
     <button class="tab-btn" data-tab="packs" aria-label="팩" title="팩 — 승인한 지식을 팩으로 빌드" role="tab" aria-selected="false"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v9"/></svg><span class="nav-label">팩</span> <span class="nav-stat" id="stat-packs"></span></button>
+    <button class="tab-btn" data-tab="artifacts" aria-label="아티팩트" title="아티팩트 — 수집한 문서와 빌드한 팩 열람" role="tab" aria-selected="false"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v4H4z"/><path d="M4 8h16v12H4z"/><path d="M9 12h6"/></svg><span class="nav-label">아티팩트</span></button>
     <button class="tab-btn" data-tab="mcp" aria-label="연결" title="연결 — 팩을 Claude에 연결" role="tab" aria-selected="false"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7V2"/><path d="M15 7V2"/><path d="M6 7h12v4a6 6 0 0 1-12 0z"/><path d="M12 17v5"/></svg><span class="nav-label">연결</span> <span class="nav-stat" id="stat-mcp"></span></button>
     <div class="nav-group-label" aria-hidden="true">도구</div>
     <button class="tab-btn tab-btn-aux" data-tab="merge" aria-label="병합" title="병합 — 중복 개념 합치기" role="tab" aria-selected="false"><svg class="nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5V12a6 6 0 0 0 6 6h3.5"/></svg><span class="nav-label">병합</span></button>
@@ -431,6 +432,35 @@
       <div id="pack-diff-result" class="status-box result-box hidden"></div>
       <p class="muted"><small>다음 단계: 팩을 만들었다면
         <button type="button" class="btn btn-link" data-goto="mcp">④ 연결로 이동 →</button></small></p>
+    </section>
+
+    <!-- ================= 아티팩트 (문서·릴리스 열람) ================= -->
+    <section id="tab-artifacts" class="tab-panel" data-tab-panel="artifacts">
+      <div class="screen-head">
+        <h2>아티팩트</h2>
+        <span class="panel-note">수집한 문서와 빌드한 팩 — 산출물을 여기서 열람합니다</span>
+      </div>
+      <div class="form-actions">
+        <button type="button" id="artifacts-refresh-btn" class="btn"
+          aria-label="아티팩트 목록 새로고침">새로고침</button>
+      </div>
+
+      <h3>문서</h3>
+      <div class="table-wrap table-scroll">
+        <table id="artifacts-docs-table">
+          <thead>
+            <tr><th>제목</th><th>출처</th><th>작업</th></tr>
+          </thead>
+          <tbody id="artifacts-docs"></tbody>
+        </table>
+      </div>
+
+      <h3>릴리스 (팩)</h3>
+      <div id="artifacts-releases" class="artifact-releases"></div>
+
+      <p id="artifacts-empty" class="muted hidden empty-state-card">아직 아티팩트가 없어요 —
+        ① 리서치로 문서를 모으고 ③ 팩을 빌드하면 여기에 나타나요.</p>
+      <p id="artifacts-error" class="err-msg hidden"></p>
     </section>
 
     <!-- ================= ④ 연결 (MCP) ================= -->

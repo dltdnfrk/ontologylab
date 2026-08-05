@@ -56,7 +56,8 @@
      AI가 읽는 이름과 사람이 보는 이름이 다르면 둘의 대화가 어긋난다. */
   var SCREEN_KO = {
     home: "홈", sources: "리서치", review: "검토", packs: "팩",
-    mcp: "연결", merge: "병합", communities: "커뮤니티", graph: "그래프",
+    artifacts: "아티팩트", mcp: "연결", merge: "병합",
+    communities: "커뮤니티", graph: "그래프",
     engines: "엔진", settings: "설정",
   };
 
@@ -2380,6 +2381,59 @@
     }
   }
 
+  /* -- Artifacts (문서·릴리스 열람): 산출물을 목록으로 -- */
+
+  async function loadArtifacts() {
+    var docsBody = $("#artifacts-docs");
+    var releasesBox = $("#artifacts-releases");
+    var empty = $("#artifacts-empty");
+    var err = $("#artifacts-error");
+    if (!docsBody) return;
+    err.classList.add("hidden");
+    empty.classList.add("hidden");
+    try {
+      var data = await api("/api/artifacts");
+      var packs = ((await api("/api/packs")) || {}).packs || [];
+      var byPack = {};
+      packs.forEach(function (p) { byPack[p.pack_id] = p; });
+      var artifacts = data.artifacts || [];
+      var docs = artifacts.filter(function (a) { return a.kind === "source_doc"; });
+      var releases = artifacts.filter(function (a) { return a.kind === "pack_release"; });
+      docsBody.innerHTML = docs.map(function (a) {
+        var title = plainDocumentTitle(
+          a.title, a.source_uri || a.filename || (a.id || "").slice(0, 12)
+        );
+        return (
+          "<tr>" +
+          "<td>" + escapeHtml(title) + "</td>" +
+          "<td class='muted'><small>" + escapeHtml(a.source_uri || "—") + "</small></td>" +
+          "<td><button type='button' class='btn-link' data-open-doc='" +
+          escapeHtml(a.source_doc_id || "") + "'>원문 열기</button></td>" +
+          "</tr>"
+        );
+      }).join("");
+      releasesBox.innerHTML = releases.map(function (a) {
+        var pack = byPack[a.filename] || {};
+        var counts = pack.counts || {};
+        var hash = String(pack.content_hash || "");
+        return (
+          "<div class='artifact-pack-card status-box'>" +
+          "<strong>" + escapeHtml(a.filename || (a.id || "").slice(0, 12)) + "</strong>" +
+          "<div class='muted'><small>문서 " + (counts.documents || 0) +
+          " · 개념 " + (counts.nodes_verified || 0) +
+          " · 관계 " + (counts.edges_verified || 0) + "</small></div>" +
+          "<code title='" + escapeHtml(hash) + "'>" +
+          escapeHtml(hash.slice(0, 12) || "—") + "</code>" +
+          "</div>"
+        );
+      }).join("");
+      empty.classList.toggle("hidden", docs.length + releases.length > 0);
+    } catch (e) {
+      err.textContent = friendlyError(e);
+      err.classList.remove("hidden");
+    }
+  }
+
   /* -- Pack diff (W14): compare two built packs -- */
 
   function populateDiffSelects(packs) {
@@ -3502,6 +3556,7 @@
     // 충돌하지 않는다.
     settings: loadSources,
     packs: loadPacks,
+    artifacts: loadArtifacts,
     mcp: loadMcp,
     communities: loadCommunities,
     graph: function () {
@@ -3654,6 +3709,7 @@
   $("#sources-refresh-btn").addEventListener("click", loadDocuments);
   $("#jobs-refresh-btn").addEventListener("click", loadJobs);
   $("#packs-refresh-btn").addEventListener("click", loadPacks);
+  $("#artifacts-refresh-btn").addEventListener("click", loadArtifacts);
   $("#mcp-refresh-btn").addEventListener("click", loadMcp);
   $("#communities-refresh-btn").addEventListener("click", loadCommunities);
 

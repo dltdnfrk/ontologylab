@@ -38,6 +38,7 @@ SCREENS = {
     "sources": "리서치",
     "review": "검토",
     "packs": "팩",
+    "artifacts": "아티팩트",
     "mcp": "연결",
     "merge": "병합",
     "communities": "커뮤니티",
