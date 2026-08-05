@@ -190,6 +190,48 @@ def test_effective_provider_default_is_run_identity_and_provenance(
     assert '"model": "provider-default-v3"' in second_provenance
 
 
+def test_owner_finishing_run_with_failed_chunk_persists_failed_status(
+    tmp_path,
+) -> None:
+    store = KGStore.open(tmp_path / "failed-finalization.sqlite")
+    doc, _ = store.insert_document(
+        source_kind="upload", source_uri="file:///failed.txt", title="failed",
+        raw_text="The PaymentGateway uses the DatabaseService.",
+        content_hash="sha256:failed-finalization",
+    )
+    chunks = chunk_document(store.document_raw_text(doc.id))
+    assert len(chunks) == 1
+    state = ExtractionState(store.conn)
+    try:
+        plan = state.plan(
+            doc.id, chunks, schema_version_id=1, engine="mock", model=None,
+            prompt_version="extract-v1", decode_params=None,
+        )
+        assert state.claim(plan.run_id, chunks[0].index)
+
+        state.failed(plan.run_id, chunks[0].index, "engine_error")
+
+        assert state.finish(plan.run_id) == "failed"
+        run = store.conn.execute(
+            "SELECT status, finished_ts, owner_token FROM extraction_runs "
+            "WHERE id = ?", (plan.run_id,),
+        ).fetchone()
+        chunk = store.conn.execute(
+            "SELECT status, attempts, error_kind, finished_ts, owner_token "
+            "FROM extraction_chunks WHERE run_id = ? AND chunk_index = ?",
+            (plan.run_id, chunks[0].index),
+        ).fetchone()
+        assert tuple(run) == ("failed", run["finished_ts"], None)
+        assert run["finished_ts"] is not None
+        assert tuple(chunk) == (
+            "failed", 1, "engine_error", chunk["finished_ts"], None,
+        )
+        assert chunk["finished_ts"] is not None
+    finally:
+        state.close()
+        store.close()
+
+
 def test_competing_lifecycle_cannot_steal_or_finish_live_run(tmp_path) -> None:
     store = KGStore.open(tmp_path / "ownership.sqlite")
     text = "The PaymentGateway uses the DatabaseService. " * 900

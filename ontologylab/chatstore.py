@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS turns (
     -- What the person typed, verbatim. Never a model rewrite of it: the
     -- point of showing it back is that they can see what was actually sent.
     message      TEXT NOT NULL,
+    -- A browser session boundary. Starting a new conversation changes this
+    -- value; it never deletes the turns from older conversations.
+    session_id   TEXT NOT NULL DEFAULT 'legacy',
     -- How it was read. `action` is a name from `intent.ACTIONS`; `reading`
     -- is the model's one-line restatement, shown back so a misread is
     -- visible.
@@ -60,6 +63,11 @@ CREATE TABLE IF NOT EXISTS turns (
 );
 CREATE INDEX IF NOT EXISTS idx_turns_created ON turns (created_ts);
 CREATE INDEX IF NOT EXISTS idx_turns_job ON turns (job_id);
+"""
+
+_SESSION_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_turns_session_created
+ON turns (session_id, created_ts);
 """
 
 
@@ -81,6 +89,16 @@ class ChatStore:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.executescript(_SCHEMA)
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(turns)").fetchall()
+        }
+        if "session_id" not in columns:
+            conn.execute(
+                "ALTER TABLE turns ADD COLUMN session_id TEXT "
+                "NOT NULL DEFAULT 'legacy'"
+            )
+        conn.executescript(_SESSION_INDEX)
         conn.commit()
         return cls(conn, db_path)
 
@@ -103,6 +121,7 @@ class ChatStore:
         reading: str,
         result: dict[str, Any],
         steps: list[dict[str, Any]],
+        session_id: str = "legacy",
         job_id: Optional[str] = None,
         created_ts: Optional[float] = None,
     ) -> str:
@@ -115,12 +134,14 @@ class ChatStore:
         """
         turn_id = uuid.uuid4().hex
         self.conn.execute(
-            "INSERT INTO turns (id, created_ts, message, action, reading, "
-            "result_json, steps_json, job_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO turns (id, created_ts, message, session_id, action, "
+            "reading, result_json, steps_json, job_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 turn_id,
                 float(created_ts if created_ts is not None else time.time()),
                 message,
+                session_id,
                 action,
                 reading,
                 json.dumps(result, ensure_ascii=False),
@@ -153,11 +174,20 @@ class ChatStore:
         )
         self.conn.commit()
 
-    def history(self, limit: int = MAX_TURNS) -> list[dict[str, Any]]:
+    def history(
+        self, limit: int = MAX_TURNS, session_id: Optional[str] = None
+    ) -> list[dict[str, Any]]:
         """Oldest first — the order a conversation is read in."""
-        rows = self.conn.execute(
-            "SELECT * FROM turns ORDER BY created_ts DESC LIMIT ?", (limit,)
-        ).fetchall()
+        if session_id is None:
+            rows = self.conn.execute(
+                "SELECT * FROM turns ORDER BY created_ts DESC LIMIT ?", (limit,)
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT * FROM turns WHERE session_id = ? "
+                "ORDER BY created_ts DESC LIMIT ?",
+                (session_id, limit),
+            ).fetchall()
         return [self._row(row) for row in reversed(rows)]
 
     def turn_for_job(self, job_id: str) -> Optional[dict[str, Any]]:
@@ -199,6 +229,7 @@ class ChatStore:
             "id": row["id"],
             "created_ts": row["created_ts"],
             "message": row["message"],
+            "session_id": row["session_id"],
             "action": row["action"],
             "reading": row["reading"],
             "result": _loads(row["result_json"], {}),

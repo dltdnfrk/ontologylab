@@ -45,6 +45,7 @@ fi
 
 APP="$OUT/$APP_NAME.app"
 CONTENTS="$APP/Contents"
+rm -rf "$APP"
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources"
 
 # --- Info.plist ------------------------------------------------------------
@@ -74,6 +75,8 @@ cat > "$CONTENTS/MacOS/launch" <<LAUNCH
 REPO="$REPO"
 PY="$PY"
 PREF_PORT="$PORT"
+export PATH="\$HOME/.npm-global/bin:\$HOME/.local/bin:\$HOME/.bun/bin:\$HOME/.volta/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+ASIDE_BUNDLE_ID="at.studio.AsideBrowser"
 PORTFILE="\$REPO/.launcher.port"
 LOG="\$REPO/.launcher.log"
 AGENT_PLIST_EARLY="\$HOME/Library/LaunchAgents/at.ontologylab.server.plist"
@@ -97,7 +100,7 @@ port_free() {
 if [ -f "\$PORTFILE" ]; then
   P="\$(cat "\$PORTFILE" 2>/dev/null)"
   if [ -n "\$P" ] && is_ours "\$P"; then
-    /usr/bin/open "http://127.0.0.1:\$P/"; exit 0
+    /usr/bin/open -b "\$ASIDE_BUNDLE_ID" "http://127.0.0.1:\$P/"; exit 0
   fi
 fi
 
@@ -119,13 +122,13 @@ if [ -f "\$AGENT_PLIST_EARLY" ]; then
     echo "\$PORT" > "\$PORTFILE"
     if ! is_ours "\$PORT"; then
       if /bin/launchctl print "gui/\$(id -u)/at.ontologylab.server" >/dev/null 2>&1; then
-        /bin/launchctl kickstart "gui/\$(id -u)/at.ontologylab.server" >/dev/null 2>&1
+        /bin/launchctl kickstart -k "gui/\$(id -u)/at.ontologylab.server" >/dev/null 2>&1
       else
         /bin/launchctl bootstrap "gui/\$(id -u)" "\$AGENT_PLIST_EARLY" >/dev/null 2>&1
       fi
       for _ in \$(seq 1 60); do is_ours "\$PORT" && break; sleep 0.25; done
     fi
-    /usr/bin/open "\$URL"
+    /usr/bin/open -b "\$ASIDE_BUNDLE_ID" "\$URL"
     exit 0
   fi
 fi
@@ -146,7 +149,7 @@ URL="http://127.0.0.1:\$PORT/"
 # 3) Already ours on the chosen port? just open it.
 if is_ours "\$PORT"; then
   echo "\$PORT" > "\$PORTFILE"
-  /usr/bin/open "\$URL"; exit 0
+  /usr/bin/open -b "\$ASIDE_BUNDLE_ID" "\$URL"; exit 0
 fi
 
 # 4) Start it. If the autostart agent is installed, go through launchd rather
@@ -159,7 +162,7 @@ AGENT_PLIST="\$HOME/Library/LaunchAgents/\$AGENT.plist"
 STARTED_VIA_LAUNCHD=0
 if [ -f "\$AGENT_PLIST" ]; then
   if /bin/launchctl print "gui/\$(id -u)/\$AGENT" >/dev/null 2>&1; then
-    /bin/launchctl kickstart "gui/\$(id -u)/\$AGENT" >/dev/null 2>&1 && STARTED_VIA_LAUNCHD=1
+    /bin/launchctl kickstart -k "gui/\$(id -u)/\$AGENT" >/dev/null 2>&1 && STARTED_VIA_LAUNCHD=1
   else
     /bin/launchctl bootstrap "gui/\$(id -u)" "\$AGENT_PLIST" >/dev/null 2>&1 && STARTED_VIA_LAUNCHD=1
   fi
@@ -172,11 +175,11 @@ if [ "\$STARTED_VIA_LAUNCHD" = "0" ]; then
 fi
 echo "\$PORT" > "\$PORTFILE"
 for _ in \$(seq 1 60); do
-  is_ours "\$PORT" && { /usr/bin/open "\$URL"; exit 0; }
+  is_ours "\$PORT" && { /usr/bin/open -b "\$ASIDE_BUNDLE_ID" "\$URL"; exit 0; }
   sleep 0.25
 done
 # startup slow/failed — open anyway so the user sees the state, and surface log
-/usr/bin/open "\$URL"
+/usr/bin/open -b "\$ASIDE_BUNDLE_ID" "\$URL"
 exit 0
 LAUNCH
 chmod +x "$CONTENTS/MacOS/launch"

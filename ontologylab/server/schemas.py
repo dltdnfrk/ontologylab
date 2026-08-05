@@ -217,6 +217,25 @@ class CriticRunRequest(BaseModel):
     batch_size: int = Field(20, ge=1, le=100)
 
 
+class TranslationRequest(BaseModel):
+    """Translate visible prose for the Korean browser UI."""
+
+    texts: list[str] = Field(min_length=1, max_length=50)
+    engine: str = "auto"
+    model: Optional[str] = None
+
+    @field_validator("texts")
+    @classmethod
+    def validate_texts(cls, texts: list[str]) -> list[str]:
+        if any(not text.strip() for text in texts):
+            raise ValueError("translation text must not be blank")
+        if any(len(text) > 4_000 for text in texts):
+            raise ValueError("translation text must not exceed 4000 characters")
+        if sum(len(text) for text in texts) > 30_000:
+            raise ValueError("translation batch must not exceed 30000 characters")
+        return texts
+
+
 class MergeScanRequest(BaseModel):
     """Run the fuzzy duplicate scan (proposals only, never merges)."""
 
@@ -281,6 +300,12 @@ class ChatMessage(BaseModel):
     """
 
     message: str = Field(..., min_length=1, max_length=2000)
+    session_id: str = Field(
+        default="legacy",
+        min_length=1,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
     engine: str = DEFAULT_ENGINE
     model: str | None = None
     confirmed: bool = False

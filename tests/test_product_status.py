@@ -4348,6 +4348,384 @@ assert c is collections
     assert result.returncode == 0, json.loads(result.stdout)["issues"]
 
 
+@pytest.mark.parametrize("scope", ("module", "nested"))
+@pytest.mark.parametrize("receiver_kind", ("class", "instance"))
+@pytest.mark.parametrize("owner_event", ("earlier", "later"))
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_binds_class_identity_to_temporal_metaclass_lineage(
+    tmp_path: Path,
+    scope: str,
+    receiver_kind: str,
+    owner_event: str,
+    changed: bool,
+) -> None:
+    """M1: equal class bodies retain the exact effective local metaclass event."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    if scope == "module":
+        declarations = '''
+class A19Meta(type):
+    def event(cls): return "first"
+class A19Receiver(metaclass=A19Meta): pass
+A19EarlierReceiver = A19Receiver
+class A19Meta(type):
+    def event(cls): return "second"
+class A19Receiver(metaclass=A19Meta): pass
+'''
+        earlier = "A19EarlierReceiver"
+        later = "A19Receiver"
+    else:
+        declarations = '''
+class A19Scope:
+    class Meta(type):
+        def event(cls): return "first"
+    class Receiver(metaclass=Meta): pass
+A19EarlierScope = A19Scope
+class A19Scope:
+    class Meta(type):
+        def event(cls): return "second"
+    class Receiver(metaclass=Meta): pass
+'''
+        earlier = "A19EarlierScope.Receiver"
+        later = "A19Scope.Receiver"
+    selected = earlier if owner_event == "earlier" else later
+    replacement = later if owner_event == "earlier" else earlier
+    receiver = selected if receiver_kind == "class" else f"{selected}()"
+    changed_receiver = replacement if receiver_kind == "class" else f"{replacement}()"
+    first = "first" if owner_event == "earlier" else "second"
+    second = "second" if owner_event == "earlier" else "first"
+    callback = "return self.event()" if receiver_kind == "class" else "return type(self).event()"
+    mutation = "" if not changed else f'''
+vars(A19MetaOwner)["marker"].callback = _a19_meta_types.MethodType(
+    a19_meta_callback, {changed_receiver}
+)
+assert vars(A19MetaOwner)["marker"].callback() == "{second}"
+'''
+    source.write_text(source.read_text(encoding="utf-8") + f'''
+
+import types as _a19_meta_types
+class A19MetaDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+{declarations}
+def a19_meta_callback(self): {callback}
+class A19MetaOwner:
+    marker = A19MetaDescriptor(
+        _a19_meta_types.MethodType(a19_meta_callback, {receiver})
+    )
+assert vars(A19MetaOwner)["marker"].callback() == "{first}"
+{mutation}
+del {"A19EarlierReceiver" if scope == "module" else "A19EarlierScope"}
+''', encoding="utf-8")
+
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if changed:
+        assert result.returncode == 1
+        assert "A19MetaOwner.marker.callback" in details
+        assert "method receiver" in details
+    else:
+        assert result.returncode == 0, details
+
+
+@pytest.mark.parametrize("declaration", ("explicit", "inherited"))
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_canonicalizes_external_effective_metaclasses(
+    tmp_path: Path, declaration: str, changed: bool
+) -> None:
+    """M1 boundary: external ABCMeta and default type stop at canonical identity."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    receiver = (
+        "class A19ExternalMetaReceiver(metaclass=_a19_external_meta_abc.ABCMeta): pass"
+        if declaration == "explicit"
+        else "class A19ExternalMetaReceiver(_a19_external_meta_abc.ABC): pass"
+    )
+    mutation = "" if not changed else '''
+vars(A19ExternalMetaOwner)["marker"].callback = _a19_external_meta_types.MethodType(
+    a19_external_meta_callback, A19DefaultMetaReceiver
+)
+'''
+    source.write_text(source.read_text(encoding="utf-8") + f'''
+
+import abc as _a19_external_meta_abc
+import types as _a19_external_meta_types
+class A19ExternalMetaDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+{receiver}
+class A19DefaultMetaReceiver: pass
+def a19_external_meta_callback(cls):
+    return type(cls) is _a19_external_meta_abc.ABCMeta
+class A19ExternalMetaOwner:
+    marker = A19ExternalMetaDescriptor(
+        _a19_external_meta_types.MethodType(
+            a19_external_meta_callback, A19ExternalMetaReceiver
+        )
+    )
+assert vars(A19ExternalMetaOwner)["marker"].callback() is True
+{mutation}
+''', encoding="utf-8")
+
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if changed:
+        assert result.returncode == 1
+        assert "A19ExternalMetaOwner.marker.callback" in details
+    else:
+        assert result.returncode == 0, details
+
+
+def test_source_external_metaclass_compatibility_never_dispatches_subclasscheck(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """G010: concrete external ancestry, not subclass protocols, selects the metaclass."""
+    module_name = "g010_hostile_compatible_meta"
+    module = types.ModuleType(module_name)
+    exec(
+        '''
+calls = []
+class SentinelMeta(type):
+    def __subclasscheck__(cls, candidate):
+        calls.append((cls, candidate))
+        raise RuntimeError("custom subclasscheck dispatched")
+class BaseMeta(type, metaclass=SentinelMeta): pass
+class DerivedMeta(BaseMeta): pass
+class Base(metaclass=BaseMeta): pass
+''',
+        vars(module),
+    )
+    monkeypatch.setitem(sys.modules, module_name, module)
+    exec(
+        f"import {module_name} as ext\n"
+        "class Receiver(ext.Base, metaclass=ext.DerivedMeta): pass\n",
+        {},
+    )
+    semantics = _shipped_helpers(
+        "_frame", "_constant_bytes", "_source_class_semantics"
+    )["_source_class_semantics"]
+
+    encoded = semantics(
+        ast.parse(
+            f"import {module_name} as ext\n"
+            "class Receiver(ext.Base, metaclass=ext.DerivedMeta): pass\n"
+        )
+    )
+
+    assert encoded[("Receiver", 2)].startswith(b"K")
+    assert vars(module)["calls"] == []
+
+
+def test_source_external_metaclass_conflict_fails_closed_without_subclasscheck(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """G010: unrelated hostile external metaclasses stay unsupported without dispatch."""
+    module_name = "g010_hostile_conflicting_meta"
+    module = types.ModuleType(module_name)
+    exec(
+        '''
+calls = []
+class SentinelMeta(type):
+    def __subclasscheck__(cls, candidate):
+        calls.append((cls, candidate))
+        raise RuntimeError("custom subclasscheck dispatched")
+class LeftMeta(type, metaclass=SentinelMeta): pass
+class RightMeta(type, metaclass=SentinelMeta): pass
+class LeftBase(metaclass=LeftMeta): pass
+''',
+        vars(module),
+    )
+    monkeypatch.setitem(sys.modules, module_name, module)
+    semantics = _shipped_helpers(
+        "_frame", "_constant_bytes", "_source_class_semantics"
+    )["_source_class_semantics"]
+
+    encoded = semantics(
+        ast.parse(
+            f"import {module_name} as ext\n"
+            "class Receiver(ext.LeftBase, metaclass=ext.RightMeta): pass\n"
+        )
+    )
+
+    assert encoded[("Receiver", 2)].endswith(b"unsupported-lineage")
+    assert vars(module)["calls"] == []
+
+
+def test_cli_accepts_compatible_hostile_external_metaclasses_without_subclasscheck(
+    tmp_path: Path,
+) -> None:
+    """G010 real surface: valid product identity is receipted with an empty hook log."""
+    document = _executable_fixture(tmp_path)
+    hook_log = tmp_path / "subclasscheck.log"
+    hook_log.write_text("", encoding="utf-8")
+    (tmp_path / "ontologylab/g010_hostile_meta.py").write_text(
+        '''
+from pathlib import Path
+HOOK_LOG = Path(__file__).resolve().parents[1] / "subclasscheck.log"
+class SentinelMeta(type):
+    def __subclasscheck__(cls, candidate):
+        with HOOK_LOG.open("a", encoding="utf-8") as handle:
+            handle.write("called\\n")
+        raise RuntimeError("custom subclasscheck dispatched")
+class BaseMeta(type, metaclass=SentinelMeta): pass
+class DerivedMeta(BaseMeta): pass
+class Base(metaclass=BaseMeta): pass
+''',
+        encoding="utf-8",
+    )
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + '''
+
+import ontologylab.g010_hostile_meta as _g010_hostile_meta
+class G010CompatibleReceiver(
+    _g010_hostile_meta.Base, metaclass=_g010_hostile_meta.DerivedMeta
+): pass
+assert type(G010CompatibleReceiver) is _g010_hostile_meta.DerivedMeta
+''',
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    assert hook_log.read_text(encoding="utf-8") == ""
+    assert result.returncode == 0, json.loads(result.stdout)["issues"]
+    assert json.loads(result.stdout)["ok"] is True
+    assert "EVIDENCE: 13 canonical pytest nodes passed" in result.stderr
+
+
+def test_cli_applies_python_metaclass_compatibility_rule(tmp_path: Path) -> None:
+    """M1: an explicit local metaclass may refine the exact base metaclass event."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(source.read_text(encoding="utf-8") + '''
+
+import types as _a19_compatible_meta_types
+class A19CompatibleBaseMeta(type): pass
+class A19CompatibleDerivedMeta(A19CompatibleBaseMeta):
+    def event(cls): return "derived"
+class A19CompatibleBase(metaclass=A19CompatibleBaseMeta): pass
+class A19CompatibleReceiver(
+    A19CompatibleBase, metaclass=A19CompatibleDerivedMeta
+): pass
+class A19CompatibleDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+def a19_compatible_callback(cls): return cls.event()
+class A19CompatibleOwner:
+    marker = A19CompatibleDescriptor(
+        _a19_compatible_meta_types.MethodType(
+            a19_compatible_callback, A19CompatibleReceiver
+        )
+    )
+assert vars(A19CompatibleOwner)["marker"].callback() == "derived"
+''', encoding="utf-8")
+
+    result = _run_checker(tmp_path, document)
+    assert result.returncode == 0, json.loads(result.stdout)["issues"]
+
+
+def test_source_metaclass_conflicts_fail_closed() -> None:
+    """M1: incompatible static metaclass candidates never acquire a guessed token."""
+    semantics = _shipped_helpers(
+        "_frame", "_constant_bytes", "_source_class_semantics"
+    )["_source_class_semantics"]
+    tree = ast.parse('''
+class Left(type): pass
+class Right(type): pass
+class Base(metaclass=Left): pass
+class Receiver(Base, metaclass=Right): pass
+''')
+    assert semantics(tree)[("Receiver", 5)].endswith(b"unsupported-lineage")
+
+
+def test_cli_fails_closed_for_dynamic_metaclass_expression(tmp_path: Path) -> None:
+    """M1 boundary: an executable but unsupported metaclass expression is not guessed."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(source.read_text(encoding="utf-8") + '''
+
+import types as _a19_dynamic_meta_types
+def a19_choose_meta(): return type
+class A19DynamicMetaReceiver(metaclass=a19_choose_meta()): pass
+class A19DynamicMetaDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+def a19_dynamic_meta_callback(cls): return cls.__name__
+class A19DynamicMetaOwner:
+    marker = A19DynamicMetaDescriptor(
+        _a19_dynamic_meta_types.MethodType(
+            a19_dynamic_meta_callback, A19DynamicMetaReceiver
+        )
+    )
+''', encoding="utf-8")
+
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    assert result.returncode == 1
+    assert "A19DynamicMetaOwner.marker.callback" in details
+    assert "method receiver" in details
+
+
+@pytest.mark.parametrize("changed", (False, True))
+def test_cli_class_encoding_never_dispatches_metaclass_descriptors(
+    tmp_path: Path, changed: bool
+) -> None:
+    """M2: nested classes, bases, identity, and lineage use concrete type descriptors."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    mutation = "" if not changed else '''
+vars(A19SafeOwner)["marker"].callback = _a19_safe_types.MethodType(
+    a19_safe_callback, A19SafeChanged
+)
+'''
+    source.write_text(source.read_text(encoding="utf-8") + '''
+
+import types as _a19_safe_types
+class A19SafeMeta(type):
+    calls = []
+    @property
+    def __module__(cls):
+        type.__getattribute__(A19SafeMeta, "calls").append("property:__module__")
+        raise RuntimeError("__module__")
+    @property
+    def __bases__(cls):
+        type.__getattribute__(A19SafeMeta, "calls").append("property:__bases__")
+        raise RuntimeError("__bases__")
+    def __getattribute__(cls, name):
+        if name in {"__module__", "__qualname__", "__bases__", "__dict__"}:
+            type.__getattribute__(A19SafeMeta, "calls").append("getattribute:" + name)
+            raise RuntimeError(name)
+        return type.__getattribute__(cls, name)
+class A19SafeBase(metaclass=A19SafeMeta):
+    token = "base"
+class A19SafeReceiver(A19SafeBase, metaclass=A19SafeMeta):
+    class Nested:
+        token = "nested"
+    token = "source"
+class A19SafeChanged:
+    token = "changed"
+class A19SafeDescriptor:
+    def __init__(self, callback): self.callback = callback
+    def __get__(self, instance, owner): return self.callback
+def a19_safe_callback(cls): return vars(cls).get("token")
+class A19SafeOwner:
+    marker = A19SafeDescriptor(
+        _a19_safe_types.MethodType(a19_safe_callback, A19SafeReceiver)
+    )
+type.__getattribute__(A19SafeMeta, "calls").clear()
+''' + mutation, encoding="utf-8")
+
+    result = _run_checker(tmp_path, document)
+    details = " ".join(issue["detail"] for issue in json.loads(result.stdout)["issues"])
+    if changed:
+        assert result.returncode == 1
+        assert "A19SafeOwner.marker.callback" in details
+    else:
+        assert result.returncode == 0, details
+
+
 def test_class_lineage_never_invokes_custom_metaclass_getters() -> None:
     """C2 safety: static namespace and base traversal bypass metaclass lookup."""
     encode = _shipped_helpers("_frame", "_constant_bytes", "_class_definition_bytes")[
@@ -4355,10 +4733,20 @@ def test_class_lineage_never_invokes_custom_metaclass_getters() -> None:
     ]
 
     class Meta(type):
-        calls = 0
+        calls = []
+
+        @property
+        def __module__(self):
+            type.__getattribute__(Meta, "calls").append("property:__module__")
+            raise RuntimeError("__module__")
+
+        @property
+        def __bases__(self):
+            type.__getattribute__(Meta, "calls").append("property:__bases__")
+            raise RuntimeError("__bases__")
 
         def __getattribute__(self, name):
-            Meta.calls += 1
+            type.__getattribute__(Meta, "calls").append("getattribute:" + name)
             raise RuntimeError(name)
 
     class Base(metaclass=Meta):
@@ -4367,9 +4755,9 @@ def test_class_lineage_never_invokes_custom_metaclass_getters() -> None:
     class Receiver(Base, metaclass=Meta):
         token = "receiver"
 
-    Meta.calls = 0
+    type.__getattribute__(Meta, "calls").clear()
     assert encode(Receiver).startswith(b"K")
-    assert Meta.calls == 0
+    assert type.__getattribute__(Meta, "calls") == []
 
 
 def test_receiver_bytes_never_invokes_custom_getattribute() -> None:
@@ -5465,32 +5853,67 @@ def _shipped_helpers(*names: str) -> dict[str, object]:
         "types": types,
         "CodeType": CodeType,
         "UNBOUND_DEFAULT": object(),
+        "_TYPE_NAMESPACE": type.__dict__["__dict__"],
+        "_TYPE_BASES": type.__dict__["__bases__"],
+        "_TYPE_MRO": type.__dict__["__mro__"],
+        "_TYPE_MODULE": type.__dict__["__module__"],
+        "_TYPE_QUALNAME": type.__dict__["__qualname__"],
+        "_BUILTIN_TYPE_BINDING": ("external", "builtins", ("type",)),
     }
     requested = list(names)
-    if "source_descriptor_callables" in requested:
-        insertion = requested.index("source_descriptor_callables")
+    source_semantics_target = next(
+        (
+            name
+            for name in ("source_descriptor_callables", "_source_class_semantics")
+            if name in requested
+        ),
+        None,
+    )
+    if source_semantics_target is not None:
+        insertion = requested.index(source_semantics_target)
         requested[insertion:insertion] = [
-            "_code_bytes", "_class_semantic_bytes", "_method_semantic_bytes",
-            "_literal_semantic_bytes", "_source_class_semantics"
+            "_code_bytes", "_is_class", "_class_namespace", "_class_bases",
+            "_class_mro", "_class_identity", "_external_class",
+            "_external_class_binding", "_class_semantic_bytes",
+            "_method_semantic_bytes", "_literal_semantic_bytes",
+            "_source_class_semantics"
         ]
     if "_class_definition_bytes" in requested:
         insertion = requested.index("_class_definition_bytes")
         requested[insertion:insertion] = [
-            "_code_bytes", "_class_semantic_bytes", "_method_semantic_bytes",
-            "_literal_semantic_bytes"
+            "_code_bytes", "_is_class", "_class_namespace", "_class_bases",
+            "_class_mro", "_class_identity", "_class_semantic_bytes",
+            "_method_semantic_bytes", "_literal_semantic_bytes"
         ]
     if "_receiver_bytes" in requested:
         insertion = requested.index("_receiver_bytes")
         requested[insertion:insertion] = [
-            "_code_bytes", "_class_semantic_bytes", "_method_semantic_bytes",
-            "_literal_semantic_bytes", "_class_definition_bytes"
+            "_code_bytes", "_is_class", "_class_namespace", "_class_bases",
+            "_class_mro", "_class_identity", "_class_semantic_bytes",
+            "_method_semantic_bytes", "_literal_semantic_bytes",
+            "_class_definition_bytes"
+        ]
+    class_walker_target = next(
+        (
+            name
+            for name in ("live_code_objects", "_code_objects_of", "_descriptor_members")
+            if name in requested
+        ),
+        None,
+    )
+    if class_walker_target is not None:
+        insertion = requested.index(class_walker_target)
+        requested[insertion:insertion] = [
+            "_is_class", "_class_namespace", "_class_bases", "_class_mro",
+            "_class_identity"
         ]
     if "_descriptor_value_bytes" in requested:
         insertion = requested.index("_descriptor_value_bytes")
         requested[insertion:insertion] = [
-            "_code_bytes", "_class_semantic_bytes", "_method_semantic_bytes",
-            "_literal_semantic_bytes", "_class_definition_bytes", "_receiver_bytes",
-            "_callable_bytes"
+            "_code_bytes", "_is_class", "_class_namespace", "_class_bases",
+            "_class_mro", "_class_identity", "_class_semantic_bytes",
+            "_method_semantic_bytes", "_literal_semantic_bytes",
+            "_class_definition_bytes", "_receiver_bytes", "_callable_bytes"
         ]
     for name in requested:
         definition = next(

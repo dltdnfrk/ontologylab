@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ontologylab</title>
+  <meta name="application-name" content="ontologylab" />
+  <title>온톨로지랩</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body data-active-tab="home">
   <header class="app-header">
     <div class="brand">
-      <h1>ONTOLOGYLAB</h1>
+      <h1>온톨로지랩</h1>
     </div>
     <!-- 커맨드 라인. 단말의 이동 수단은 메뉴가 아니라 명령줄이고, 이 앱의
          명령줄은 이미 있다(⌘K 팔레트). 헤더 한가운데 놓아 발견되게 한다 —
@@ -61,12 +62,10 @@
          화면으로 데려다줄 뿐, 화면을 대체하지 않는다. -->
     <section id="tab-home" class="tab-panel active" data-tab-panel="home">
       <div class="chat">
-        <!-- 대화를 보관하니까 끝낼 방법도 있어야 한다. 기록이 있을 때만
-             나타난다 — 지울 것이 없는데 지우기 버튼이 있으면 그 버튼이
-             무엇을 지우는지 오히려 헷갈린다. -->
+        <!-- 새 대화는 기록을 없애지 않고 현재 작업의 경계만 바꾼다. -->
         <div class="chat-bar hidden" id="chat-bar">
-          <button type="button" id="chat-clear" class="btn-link"
-            aria-label="대화 기록 지우기">대화 기록 지우기</button>
+          <button type="button" id="chat-new-session" class="btn-link"
+            aria-label="새 대화 시작">새 대화</button>
         </div>
         <div class="chat-log" id="chat-log" aria-live="polite" aria-label="대화">
           <div class="chat-intro">
@@ -146,9 +145,9 @@
            removed a step nobody had a decision to make in; it did not remove
            the ability to point the tool at one specific URL or file. -->
       <details class="adv-opts">
-        <summary>직접 넣기 — URL·파일·소스를 지정할래요</summary>
+        <summary>직접 넣기 — 웹 주소·파일·소스를 지정할래요</summary>
       <form id="collect-form" class="form-grid">
-        <label class="span-2">URL (쉼표로 구분)
+        <label class="span-2">웹 주소 (쉼표로 구분)
           <input type="text" id="collect-urls" placeholder="https://example.org/a, https://example.org/b" />
         </label>
         <label class="span-2">파일 경로 (쉼표로 구분)
@@ -289,12 +288,12 @@
             <select id="critic-engine" aria-label="크리틱 채점에 쓸 엔진"></select>
           </label>
           <!-- title을 두면 리더가 그 문장을 버튼 이름으로 삼아, 이름이
-               "다른 AI 엔진으로 대기 항목을…"이 된다. 이름은 동작으로,
+               "다른 인공지능 엔진으로 대기 항목을…"이 된다. 이름은 동작으로,
                설명은 description으로 나눈다. -->
           <button type="button" id="critic-run-btn" class="btn"
             aria-label="크리틱 실행"
             aria-describedby="critic-run-help">크리틱 실행</button>
-          <span id="critic-run-help" class="sr-only">다른 AI 엔진으로 대기 항목을 다시 채점해 참고 점수를 채웁니다. 자동 승인이 아닙니다.</span>
+          <span id="critic-run-help" class="sr-only">다른 인공지능 엔진으로 대기 항목을 다시 채점해 참고 점수를 채웁니다. 자동 승인이 아닙니다.</span>
           <span class="muted"><small>자동 승인되지 않아요 · 결정은 항상 사용자가 해요</small></span>
         </div>
         <div id="critic-result" class="status-box result-box hidden"></div>
@@ -438,7 +437,7 @@
     <section id="tab-mcp" class="tab-panel" data-tab-panel="mcp">
       <div class="screen-head">
         <h2>연결</h2>
-        <span class="panel-note">팩 카드의 설정을 복사해 Claude에 붙여넣기 · AI는 읽기만</span>
+        <span class="panel-note">팩 카드의 설정을 복사해 Claude에 붙여넣기 · 인공지능은 읽기만</span>
       </div>
       <details class="help-details">
         <summary>Claude Desktop에 붙여넣는 방법</summary>
@@ -559,12 +558,12 @@
     <section id="tab-engines" class="tab-panel" data-tab-panel="engines">
       <div class="screen-head">
         <h2>엔진</h2>
-        <span class="panel-note"><code>mock</code>은 오프라인 연습용 · CLI 엔진은 설치 필요</span>
+        <span class="panel-note"><code>모의 엔진(mock)</code>은 오프라인 연습용 · 명령줄 엔진은 설치 필요</span>
       </div>
       <ul id="engines-list"></ul>
 
       <h3>프로바이더</h3>
-      <p class="muted">Anthropic·OpenAI 호환 API를 <code>api:&lt;id&gt;</code> 엔진으로
+      <p class="muted">앤트로픽·오픈AI 호환 API를 <code>api:&lt;id&gt;</code> 엔진으로
         등록 · 키는 환경변수, 여기엔 <strong>변수 이름만</strong> 저장</p>
       <div class="table-wrap table-scroll">
         <table id="providers-table">
@@ -572,7 +571,7 @@
             <tr>
               <th>ID</th>
               <th>종류</th>
-              <th>base_url</th>
+              <th>기본 주소</th>
               <th>키 환경변수</th>
               <th>키</th>
               <th>모델</th>
@@ -593,11 +592,11 @@
         </label>
         <label>종류
           <select id="provider-kind">
-            <option value="anthropic" selected>anthropic</option>
-            <option value="openai">openai (호환)</option>
+            <option value="anthropic" selected>앤트로픽</option>
+            <option value="openai">오픈AI 호환</option>
           </select>
         </label>
-        <label>base_url
+        <label>기본 주소
           <input type="text" id="provider-base-url" placeholder="https://api.anthropic.com/v1" />
         </label>
         <label>키 환경변수 이름
@@ -772,6 +771,9 @@
     </div>
   </footer>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/ui-utils.js?v=2"></script>
+  <script src="/static/localize.js?v=5"></script>
+  <script src="/static/chat-session.js?v=1"></script>
+  <script src="/static/app.js?v=7"></script>
 </body>
 </html>

@@ -512,16 +512,80 @@ def code_fingerprint(code):
     return hashlib.sha256(_code_bytes(code)).hexdigest()
 
 
-def _class_semantic_bytes(namespace, bases):
-    # Source and live class identity share this one canonical final-namespace format.
-    # Values already carry an explicit kind tag; names and declared bases are framed in a
-    # deterministic order, independent of dictionary and hash iteration order.
+_TYPE_NAMESPACE = type.__dict__["__dict__"]
+_TYPE_BASES = type.__dict__["__bases__"]
+_TYPE_MRO = type.__dict__["__mro__"]
+_TYPE_MODULE = type.__dict__["__module__"]
+_TYPE_QUALNAME = type.__dict__["__qualname__"]
+_BUILTIN_TYPE_BINDING = ("external", "builtins", ("type",))
+
+
+def _is_class(value):
+    concrete = type(value)
+    return type in _TYPE_MRO.__get__(concrete, type(concrete))
+
+
+def _class_namespace(value):
+    if not _is_class(value):
+        raise TypeError("value is not a class")
+    return _TYPE_NAMESPACE.__get__(value, type(value))
+
+
+def _class_bases(value):
+    if not _is_class(value):
+        raise TypeError("value is not a class")
+    return _TYPE_BASES.__get__(value, type(value))
+
+
+def _class_mro(value):
+    if not _is_class(value):
+        raise TypeError("value is not a class")
+    return _TYPE_MRO.__get__(value, type(value))
+
+
+def _class_identity(value):
+    namespace = _class_namespace(value)
+    module = namespace.get("__module__")
+    qualname = namespace.get("__qualname__")
+    if type(module) is not str:
+        module = _TYPE_MODULE.__get__(value, type(value))
+    if type(qualname) is not str:
+        qualname = _TYPE_QUALNAME.__get__(value, type(value))
+    if type(module) is not str or type(qualname) is not str:
+        raise TypeError("class has unsupported static identity")
+    return module, qualname
+
+
+def _external_class(binding):
+    module = sys.modules.get(binding[1])
+    if type(module) is not types.ModuleType:
+        return None
+    value = vars(module).get(binding[2][0]) if binding[2] else module
+    for attribute in binding[2][1:]:
+        if not _is_class(value):
+            return None
+        value = _class_namespace(value).get(attribute)
+    return value if _is_class(value) else None
+
+
+def _external_class_binding(value):
+    module, qualname = _class_identity(value)
+    return ("external", module, tuple(qualname.split(".")))
+
+
+def _class_semantic_bytes(namespace, bases, metaclass):
+    # Source and live class identity share one canonical final-namespace format. The exact
+    # effective metaclass is a separate lineage edge: local metaclass events recurse, while
+    # built-in type and external metaclasses stop at canonical identity.
     members = b"".join(
         _frame(b"N", _constant_bytes(name) + encoded)
         for name, encoded in sorted(namespace.items())
     )
     lineage = b"".join(_frame(b"B", encoded) for encoded in bases)
-    return _frame(b"K", _frame(b"L", lineage) + _frame(b"D", members))
+    return _frame(
+        b"K",
+        _frame(b"M", metaclass) + _frame(b"L", lineage) + _frame(b"D", members),
+    )
 
 
 def _method_semantic_bytes(wrapper, code):
@@ -542,6 +606,7 @@ def _source_class_semantics(tree):
     class_nodes = {}
     class_codes = {}
     base_bindings = {}
+    metaclass_bindings = {}
 
     def first_line(node):
         return min(
@@ -587,7 +652,11 @@ def _source_class_semantics(tree):
             return None
         binding = local.get(parts[0], module.get(parts[0]))
         if binding is None:
-            return ("external", "builtins", (parts[0],)) if parts == ("object",) else None
+            return (
+                ("external", "builtins", (parts[0],))
+                if parts in {("object",), ("type",)}
+                else None
+            )
         if binding[0] == "imports":
             tail = parts[1:]
             candidates = [
@@ -658,6 +727,62 @@ def _source_class_semantics(tree):
             return (statement.target,)
         return ()
 
+    def binding_subclass(left, right, seen=()):
+        if left == right:
+            return True
+        pair = (left, right)
+        if pair in seen:
+            return False
+        if left[0] == "external" and right[0] == "external":
+            left_value = _external_class(left)
+            right_value = _external_class(right)
+            return (
+                left_value is not None
+                and right_value is not None
+                and any(
+                    ancestor is right_value for ancestor in _class_mro(left_value)
+                )
+            )
+        if left[0] != "class":
+            return False
+        lineage = base_bindings.get(left[1])
+        return lineage is not None and any(
+            binding_subclass(base, right, (*seen, pair)) for base in lineage
+        )
+
+    def effective_metaclass(node, resolved_bases, enclosing, module):
+        explicit = [keyword.value for keyword in node.keywords if keyword.arg == "metaclass"]
+        if len(explicit) > 1 or any(keyword.arg is None for keyword in node.keywords):
+            return None
+        if explicit:
+            initial = resolve(explicit[0], enclosing, module)
+            if initial is None or initial[0] not in {"class", "external"}:
+                return None
+        else:
+            initial = _BUILTIN_TYPE_BINDING
+        candidates = [initial]
+        for base in resolved_bases:
+            if base[0] == "class":
+                candidate = metaclass_bindings.get(base[1])
+            else:
+                base_value = _external_class(base)
+                candidate = (
+                    _external_class_binding(type(base_value))
+                    if base_value is not None
+                    else None
+                )
+            if candidate is None:
+                return None
+            candidates.append(candidate)
+        return next(
+            (
+                candidate
+                for candidate in candidates
+                if all(binding_subclass(candidate, other) for other in candidates)
+            ),
+            None,
+        )
+
     def process_class(node, event, enclosing, module):
         local = {}
         resolved_bases = [] if node.bases else [("external", "builtins", ("object",))]
@@ -665,10 +790,14 @@ def _source_class_semantics(tree):
             binding = resolve(base, enclosing, module)
             if binding is None or binding[0] not in {"class", "external"}:
                 base_bindings[event] = None
+                metaclass_bindings[event] = None
                 break
             resolved_bases.append(binding)
         else:
             base_bindings[event] = tuple(resolved_bases)
+            metaclass_bindings[event] = effective_metaclass(
+                node, resolved_bases, enclosing, module
+            )
         code = class_codes[event]
         owner = event[0]
         for statement in node.body:
@@ -756,7 +885,11 @@ def _source_class_semantics(tree):
     def encode(event):
         if event in found:
             return found[event]
-        if event in active or base_bindings.get(event) is None:
+        if (
+            event in active
+            or base_bindings.get(event) is None
+            or metaclass_bindings.get(event) is None
+        ):
             found[event] = _frame(b"X", b"unsupported-lineage")
             return found[event]
         active.add(event)
@@ -772,8 +905,15 @@ def _source_class_semantics(tree):
                 lineage.append(_frame(b"C", encode(binding[1])))
             else:
                 lineage.append(_frame(b"E", _constant_bytes((binding[1], ".".join(binding[2])))))
+        metaclass = metaclass_bindings[event]
+        if metaclass[0] == "class":
+            metaclass_token = _frame(b"C", encode(metaclass[1]))
+        else:
+            metaclass_token = _frame(
+                b"E", _constant_bytes((metaclass[1], ".".join(metaclass[2])))
+            )
         active.remove(event)
-        found[event] = _class_semantic_bytes(namespace, lineage)
+        found[event] = _class_semantic_bytes(namespace, lineage, metaclass_token)
         return found[event]
 
     for event in class_nodes:
@@ -781,14 +921,24 @@ def _source_class_semantics(tree):
     return found
 
 
-def _class_definition_bytes(value, active=()):
-    # Encode a live class using only safe static type operations. Product-local bases recurse;
-    # external bases stop at canonical module/qualname identity, avoiding external graph walks.
+def _class_definition_bytes(value, active=(), local_module=None):
+    # Concrete descriptors from built-in type read class state without metaclass dispatch.
+    # Local bases/metaclasses recurse; external ones stop at canonical module/qualname identity.
     if any(value is candidate for candidate in active):
         return _frame(b"X", b"cyclic-lineage")
-    namespace = type.__getattribute__(value, "__dict__")
+    namespace = _class_namespace(value)
     members = {}
-    module = type.__getattribute__(value, "__module__")
+    static_module = namespace.get("__module__")
+    if type(static_module) is str:
+        module = static_module
+    else:
+        concrete_module = _TYPE_MODULE.__get__(value, type(value))
+        if type(concrete_module) is str:
+            module = concrete_module
+        elif local_module is not None:
+            module = local_module
+        else:
+            raise TypeError("class has unsupported static module")
     module_object = sys.modules.get(module)
     source_file = (
         vars(module_object).get("__file__")
@@ -818,13 +968,15 @@ def _class_definition_bytes(value, active=()):
                 continue
             members[name] = _method_semantic_bytes(wrapper, target.__code__)
             continue
-        member_type = type(member)
-        if (
-            type in type.__getattribute__(member_type, "__mro__")
-            and type.__getattribute__(member, "__module__") == module
-        ):
+        if _is_class(member):
+            try:
+                member_module, _ = _class_identity(member)
+            except TypeError:
+                member_module = module
+            if member_module != module:
+                continue
             members[name] = _frame(
-                b"C", _class_definition_bytes(member, (*active, value))
+                b"C", _class_definition_bytes(member, (*active, value), module)
             )
             continue
         if name.startswith("__") and name != "__slots__":
@@ -834,20 +986,38 @@ def _class_definition_bytes(value, active=()):
         except (TypeError, ValueError):
             continue
     lineage = []
-    for base in type.__getattribute__(value, "__bases__"):
-        base_module = type.__getattribute__(base, "__module__")
+    for base in _class_bases(value):
+        base_module, base_qualname = _class_identity(base)
         if base_module == module:
-            lineage.append(_frame(b"C", _class_definition_bytes(base, (*active, value))))
-        else:
             lineage.append(
                 _frame(
-                    b"E",
-                    _constant_bytes(
-                        (base_module, type.__getattribute__(base, "__qualname__"))
-                    ),
+                    b"C", _class_definition_bytes(base, (*active, value), module)
                 )
             )
-    return _class_semantic_bytes(members, lineage)
+        else:
+            lineage.append(
+                _frame(b"E", _constant_bytes((base_module, base_qualname)))
+            )
+    metaclass = type(value)
+    if metaclass is type:
+        metaclass_token = _frame(b"E", _constant_bytes(("builtins", "type")))
+    else:
+        try:
+            metaclass_module, metaclass_qualname = _class_identity(metaclass)
+        except TypeError:
+            metaclass_module, metaclass_qualname = module, None
+        if metaclass_module == module:
+            metaclass_token = _frame(
+                b"C",
+                _class_definition_bytes(metaclass, (*active, value), module),
+            )
+        elif metaclass_qualname is not None:
+            metaclass_token = _frame(
+                b"E", _constant_bytes((metaclass_module, metaclass_qualname))
+            )
+        else:
+            raise TypeError("metaclass has unsupported static identity")
+    return _class_semantic_bytes(members, lineage, metaclass_token)
 
 
 def literal_assignments(source, filename):
@@ -1403,17 +1573,17 @@ def live_code_objects(module, source_aliases=None, source_callables=None):
 
 
 def _receiver_bytes(receiver):
-    # type() and type.__getattribute__ bypass an instance's custom __getattribute__ and a
-    # class's custom metaclass lookup. A receiver is a class exactly when its concrete type's
-    # static MRO contains type; isinstance(receiver, type) would consult receiver.__class__.
+    # type() and concrete built-in type descriptors bypass instance and metaclass lookup.
+    # isinstance(receiver, type) is deliberately avoided because it can consult __class__.
     concrete_type = type(receiver)
-    is_class = type in type.__getattribute__(concrete_type, "__mro__")
+    is_class = _is_class(receiver)
     receiver_type = receiver if is_class else concrete_type
-    receiver_mro = type.__getattribute__(receiver_type, "__mro__")
+    receiver_mro = _class_mro(receiver_type)
+    receiver_module, receiver_qualname = _class_identity(receiver_type)
     identity = _constant_bytes(
         (
-            type.__getattribute__(receiver_type, "__module__"),
-            type.__getattribute__(receiver_type, "__qualname__"),
+            receiver_module,
+            receiver_qualname,
             _class_definition_bytes(receiver_type),
         )
     )
@@ -1421,7 +1591,7 @@ def _receiver_bytes(receiver):
         return _frame(b"C", identity)
     state = {}
     for base in receiver_mro:
-        descriptor = type.__getattribute__(base, "__dict__").get("__dict__")
+        descriptor = _class_namespace(base).get("__dict__")
         if isinstance(descriptor, (types.GetSetDescriptorType, types.MemberDescriptorType)):
             try:
                 candidate = descriptor.__get__(receiver, receiver_type)
@@ -1432,7 +1602,7 @@ def _receiver_bytes(receiver):
             break
     slots = []
     for base in reversed(receiver_mro):
-        namespace = type.__getattribute__(base, "__dict__")
+        namespace = _class_namespace(base)
         for name, descriptor in namespace.items():
             if name in {"__dict__", "__weakref__"} or not isinstance(
                 descriptor, types.MemberDescriptorType
@@ -1446,9 +1616,10 @@ def _receiver_bytes(receiver):
             else:
                 present = True
                 encoded = _constant_bytes(value)
+            base_module, base_qualname = _class_identity(base)
             identity_record = (
-                type.__getattribute__(base, "__module__"),
-                type.__getattribute__(base, "__qualname__"),
+                base_module,
+                base_qualname,
                 _class_definition_bytes(base),
                 name,
             )
@@ -1523,14 +1694,14 @@ def _descriptor_members(value):
     # objects are not opened, so this cannot turn into an external object-graph crawl.
     descriptor_type = type(value)
     if not any(
-        name in vars(base)
-        for base in descriptor_type.__mro__
+        name in _class_namespace(base)
+        for base in _class_mro(descriptor_type)
         for name in ("__get__", "__set__", "__delete__")
     ):
         return ()
     found = {}
-    for base in descriptor_type.__mro__:
-        namespace = vars(base)
+    for base in _class_mro(descriptor_type):
+        namespace = _class_namespace(base)
         dictionary_descriptor = namespace.get("__dict__")
         if isinstance(dictionary_descriptor, types.GetSetDescriptorType):
             try:
@@ -1578,13 +1749,13 @@ def _code_objects_of(
         if descriptor_owned or value.__module__ == module_name:
             yield prefix, source_binding or prefix, code, value
         return
-    value_type = type(value)
-    value_is_class = type in type.__getattribute__(value_type, "__mro__")
-    if (
-        value_is_class
-        and type.__getattribute__(value, "__module__") == module_name
-    ):
-        namespace = type.__getattribute__(value, "__dict__")
+    value_is_class = _is_class(value)
+    try:
+        value_module = _class_identity(value)[0] if value_is_class else None
+    except TypeError:
+        return
+    if value_is_class and value_module == module_name:
+        namespace = _class_namespace(value)
         for attribute, member in sorted(namespace.items(), key=lambda item: item[0]):
             binding = f"{prefix}.{attribute}"
             declared = (source_aliases or {}).get(binding, binding)
@@ -1849,12 +2020,9 @@ def product_identity():
                     continue
                 receiver = function.__self__
                 concrete_type = type(receiver)
-                is_class_receiver = type in type.__getattribute__(concrete_type, "__mro__")
+                is_class_receiver = _is_class(receiver)
                 receiver_type = receiver if is_class_receiver else concrete_type
-                live_receiver_identity = (
-                    type.__getattribute__(receiver_type, "__module__"),
-                    type.__getattribute__(receiver_type, "__qualname__"),
-                )
+                live_receiver_identity = _class_identity(receiver_type)
                 if receiver_name and isinstance(receiver_name[0], tuple):
                     same_receiver = any(
                         live_receiver_identity[1] == expected_qualname

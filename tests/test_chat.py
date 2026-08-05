@@ -20,6 +20,7 @@ Three properties are load-bearing here:
 from __future__ import annotations
 
 import os
+import sqlite3
 
 import pytest
 from fastapi.testclient import TestClient
@@ -336,6 +337,72 @@ def test_turns_come_back_oldest_first(client, monkeypatch) -> None:
     turns = client.get("/api/chat/history").json()["turns"]
 
     assert [t["message"] for t in turns] == ["질문 0", "질문 1", "질문 2"]
+
+
+def test_chat_sessions_are_isolated_without_deleting_history(
+    client, monkeypatch
+) -> None:
+    _classify_as(monkeypatch, Intent("status"))
+    for session_id, message in (
+        ("session-a", "첫 작업"),
+        ("session-b", "새 작업"),
+    ):
+        response = client.post(
+            "/api/chat",
+            json={
+                "message": message,
+                "engine": "mock",
+                "session_id": session_id,
+            },
+        )
+        assert response.status_code == 200
+
+    first = client.get(
+        "/api/chat/history", params={"session_id": "session-a"}
+    ).json()["turns"]
+    second = client.get(
+        "/api/chat/history", params={"session_id": "session-b"}
+    ).json()["turns"]
+    retained = client.get("/api/chat/history").json()["turns"]
+
+    assert [turn["message"] for turn in first] == ["첫 작업"]
+    assert [turn["message"] for turn in second] == ["새 작업"]
+    assert [turn["message"] for turn in retained] == ["첫 작업", "새 작업"]
+
+
+def test_opening_an_old_transcript_adds_a_legacy_session(tmp_path) -> None:
+    db_path = tmp_path / "chat.sqlite"
+    connection = sqlite3.connect(db_path)
+    connection.executescript(
+        """
+        CREATE TABLE turns (
+            id TEXT PRIMARY KEY,
+            created_ts REAL NOT NULL,
+            message TEXT NOT NULL,
+            action TEXT NOT NULL DEFAULT 'unknown',
+            reading TEXT NOT NULL DEFAULT '',
+            result_json TEXT NOT NULL DEFAULT '{}',
+            steps_json TEXT NOT NULL DEFAULT '[]',
+            job_id TEXT
+        );
+        INSERT INTO turns (
+            id, created_ts, message, action, reading, result_json, steps_json
+        ) VALUES ('old-turn', 1, '기존 대화', 'status', '', '{}', '[]');
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    store = ChatStore.open(db_path)
+    turns = store.history(session_id="legacy")
+    columns = {
+        row["name"]
+        for row in store.conn.execute("PRAGMA table_info(turns)").fetchall()
+    }
+    store.close()
+
+    assert "session_id" in columns
+    assert [turn["message"] for turn in turns] == ["기존 대화"]
 
 
 def test_a_turn_that_started_a_run_carries_its_job(client, monkeypatch) -> None:
