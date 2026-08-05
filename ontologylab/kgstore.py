@@ -425,6 +425,19 @@ CREATE TABLE IF NOT EXISTS runs (
     totals_json   TEXT NOT NULL DEFAULT '{}',
     ask_json      TEXT
 );
+
+-- Artifacts library (GAP-O3): every newly-created document and every built
+-- pack registers a row here so the UI can list and consume outputs beyond
+-- the pack. source_doc rows link to documents; pack_release rows name the
+-- pack dir. Versions/dependencies are a later story and stay out of scope.
+CREATE TABLE IF NOT EXISTS artifacts (
+    id            TEXT PRIMARY KEY,
+    kind          TEXT NOT NULL,
+    source_doc_id TEXT,
+    run_id        TEXT,
+    filename      TEXT,
+    created_ts    REAL NOT NULL
+);
 """
 
 _NODE_COLUMNS = (
@@ -961,6 +974,17 @@ class KGStore:
                 # The constraint fired for something other than the hash.
                 raise
             return self._row_to_document(row), False
+        # The document is a library output from its first moment: register it
+        # in the same transaction so a stored document can never exist
+        # without its source_doc artifact row.
+        self._artifact_insert(
+            uuid.uuid4().hex,
+            kind="source_doc",
+            source_doc_id=doc.id,
+            run_id=None,
+            filename=title or source_uri or doc.id,
+            created_ts=doc.fetched_ts,
+        )
         self.conn.commit()
         return doc, True
 
@@ -2334,6 +2358,64 @@ class KGStore:
             rec["ask"] = rec.pop("ask_json")
             out.append(rec)
         return out
+
+    def _artifact_insert(
+        self,
+        artifact_id: str,
+        *,
+        kind: str,
+        source_doc_id: str | None,
+        run_id: str | None,
+        filename: str | None,
+        created_ts: float,
+    ) -> None:
+        """Execute one artifacts INSERT without committing (caller owns the tx)."""
+        self.conn.execute(
+            "INSERT INTO artifacts "
+            "(id, kind, source_doc_id, run_id, filename, created_ts) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (artifact_id, kind, source_doc_id, run_id, filename, created_ts),
+        )
+
+    def register_artifact(
+        self,
+        *,
+        kind: str,
+        filename: str | None,
+        source_doc_id: str | None = None,
+        run_id: str | None = None,
+    ) -> str:
+        """Record one consumable output (document or pack) in the library."""
+        artifact_id = uuid.uuid4().hex
+        self._artifact_insert(
+            artifact_id, kind=kind, source_doc_id=source_doc_id,
+            run_id=run_id, filename=filename, created_ts=time.time(),
+        )
+        self.conn.commit()
+        return artifact_id
+
+    def list_artifacts(
+        self, *, kind: str | None = None, limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """Artifact rows, newest first (created_ts desc, id desc tiebreak)."""
+        where, args = "1=1", []
+        if kind:
+            where = "kind = ?"
+            args.append(kind)
+        args.append(limit)
+        rows = self.conn.execute(
+            f"SELECT * FROM artifacts WHERE {where} "
+            "ORDER BY created_ts DESC, id DESC LIMIT ?",
+            args,
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_artifact(self, artifact_id: str) -> dict[str, Any] | None:
+        """One artifact row, or None when the id is unknown."""
+        row = self.conn.execute(
+            "SELECT * FROM artifacts WHERE id = ?", (artifact_id,)
+        ).fetchone()
+        return dict(row) if row is not None else None
 
     def counts(self) -> dict[str, int]:
         out: dict[str, int] = {}

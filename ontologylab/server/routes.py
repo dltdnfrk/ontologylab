@@ -1072,6 +1072,81 @@ def get_documents(deps: AppDependency) -> dict[str, Any]:
     return {"documents": documents, "count": len(documents)}
 
 
+# ---------------------------------------------------------------------------
+# Artifacts library (Artifacts screen — documents and releases)
+# ---------------------------------------------------------------------------
+
+# The kinds the library knows. Rejecting an unknown kind loudly beats
+# silently returning an empty list: a typo would otherwise look like "no
+# artifacts of that type" and the screen would read as empty for no
+# discoverable reason.
+_ARTIFACT_KINDS = frozenset({"source_doc", "pack_release", "other"})
+
+
+def _enrich_artifacts(store: KGStore, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Attach document fields to source_doc rows, fail-open on deleted docs.
+
+    The artifact row is the durable record; the document it points at may
+    have been removed (raw file gone), and the library must still list the
+    artifact rather than vanish with it.
+    """
+    doc_ids = [
+        r["source_doc_id"] for r in rows
+        if r["kind"] == "source_doc" and r.get("source_doc_id")
+    ]
+    docs: dict[str, dict[str, Any]] = {}
+    for start in range(0, len(doc_ids), 500):
+        chunk = doc_ids[start:start + 500]
+        placeholders = ",".join("?" * len(chunk))
+        for d in store.conn.execute(
+            f"SELECT id, title, source_uri, content_hash FROM documents "
+            f"WHERE id IN ({placeholders})",
+            chunk,
+        ):
+            docs[d["id"]] = dict(d)
+    out = []
+    for r in rows:
+        item = dict(r)
+        if r["kind"] == "source_doc":
+            doc = docs.get(r.get("source_doc_id"))
+            item["title"] = doc["title"] if doc else None
+            item["source_uri"] = doc["source_uri"] if doc else None
+            item["content_hash"] = doc["content_hash"] if doc else None
+        out.append(item)
+    return out
+
+
+@router.get("/artifacts")
+def list_artifacts(deps: AppDependency,
+    kind: str | None = Query(None, description="source_doc | pack_release | other"),
+    limit: int = Query(100, ge=1, le=500),
+) -> dict[str, Any]:
+    store = _open_store(deps)
+    try:
+        if kind is not None and kind not in _ARTIFACT_KINDS:
+            raise HTTPException(
+                status_code=422, detail=f"unknown artifact kind {kind!r}"
+            )
+        rows = store.list_artifacts(kind=kind, limit=limit)
+        return {"artifacts": _enrich_artifacts(store, rows), "count": len(rows)}
+    finally:
+        store.close()
+
+
+@router.get("/artifacts/{artifact_id}")
+def get_artifact(deps: AppDependency, artifact_id: str) -> dict[str, Any]:
+    store = _open_store(deps)
+    try:
+        row = store.get_artifact(artifact_id)
+        if row is None:
+            raise HTTPException(
+                status_code=404, detail=f"unknown artifact {artifact_id!r}"
+            )
+        return _enrich_artifacts(store, [row])[0]
+    finally:
+        store.close()
+
+
 @router.post("/collect")
 def collect(deps: AppDependency, body: CollectRequest) -> dict[str, Any]:
     """Run a collect synchronously, mirroring main.cmd_collect's gate order.
@@ -1851,6 +1926,23 @@ def packs_build(deps: AppDependency, body: PackBuildRequest) -> dict[str, Any]:
         "build_pack.end",
         {"pack_id": manifest.pack_id, "counts": manifest.counts},
     )
+    # A built pack is a consumable release: register it in the artifacts
+    # library so the Artifacts screen can list it next to source docs.
+    # Side-effect only — the response shape and the pack itself are
+    # untouched, and a registration failure must not fail the build the
+    # operator already asked for.
+    try:
+        store = _open_store(deps)
+        try:
+            store.register_artifact(
+                kind="pack_release",
+                filename=manifest.pack_id,
+                run_id=job_dir.name,
+            )
+        finally:
+            store.close()
+    except (KGStoreError, OSError):
+        pass
     return {"ok": True, "manifest": dataclasses.asdict(manifest)}
 
 
