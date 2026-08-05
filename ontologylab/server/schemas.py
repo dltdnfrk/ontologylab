@@ -288,6 +288,10 @@ class JobStatus(BaseModel):
     # the response model would drop it silently — the job builds the list,
     # and pydantic quietly filters it out before the browser ever sees it.
     steps: list[dict[str, Any]] = Field(default_factory=list)
+    # Per-source collect status of a research run (GAP-O4): the badge band
+    # the job detail renders comes from here. Omitting it from the response
+    # model would drop it silently, exactly like `steps` above.
+    sources: list[dict[str, Any]] = Field(default_factory=list)
     error: Optional[str] = None
 
 

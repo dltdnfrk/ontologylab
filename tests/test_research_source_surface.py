@@ -144,6 +144,32 @@ def test_as_status_carries_the_sources_shape(tmp_path, monkeypatch) -> None:
     assert payload["sources"][1] == {"name": "crossref", "status": "failed", "detail": "fetch_failed"}
 
 
+def test_the_job_api_response_carries_sources(tmp_path, monkeypatch) -> None:
+    """The JobStatus response model must not silently drop `sources`.
+
+    Pydantic filters unknown fields out of response models — the job
+    builds the list, and without a declared field the browser never sees
+    it, which is the exact gap the badge band exists to close.
+    """
+    from ontologylab.server import jobs as jobs_module
+
+    monkeypatch.setattr(
+        jobs_module,
+        "fetch_sources",
+        _fake_fetch(
+            [("arxiv", [_paper("arxiv", "10.1/c")])],
+            failures=[SourceFailure("crossref", "boom", "fetch_failed")],
+        ),
+    )
+    client = _client(tmp_path)
+    job = _run(client)
+
+    body = client.get(f"/api/jobs/{job.job_id}").json()
+    by_name = {s["name"]: s for s in body["sources"]}
+    assert by_name["arxiv"]["status"] == "ok"
+    assert by_name["crossref"]["status"] == "failed"
+
+
 def test_the_ui_renders_badges_and_an_all_failed_banner() -> None:
     """Text contract: the job detail must render the source band (GAP-O4)."""
     from ontologylab.server.app import WEB_DIR
