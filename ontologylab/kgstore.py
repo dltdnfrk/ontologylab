@@ -406,6 +406,25 @@ CREATE TRIGGER IF NOT EXISTS nodes_fts_au AFTER UPDATE ON nodes BEGIN
     INSERT INTO nodes_fts(rowid, name, aliases_json, properties_json)
     VALUES (new.rowid, new.name, new.aliases_json, new.properties_json);
 END;
+
+-- Durable job history (GAP-O2). The job registry mirrors each job here on
+-- creation and state change so a server restart no longer empties the jobs
+-- screen; at startup the table becomes the history. project_id/session_id
+-- are deliberately absent — they belong to the Project/Session migration and
+-- would be speculative NULLs until then.
+CREATE TABLE IF NOT EXISTS runs (
+    id            TEXT PRIMARY KEY,
+    kind          TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'running',
+    phase         TEXT NOT NULL DEFAULT '',
+    engine        TEXT,
+    model         TEXT,
+    started_ts    REAL NOT NULL,
+    finished_ts   REAL,
+    error         TEXT,
+    totals_json   TEXT NOT NULL DEFAULT '{}',
+    ask_json      TEXT
+);
 """
 
 _NODE_COLUMNS = (
@@ -2275,6 +2294,46 @@ class KGStore:
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
             (name,),
         ).fetchone() is not None
+
+    def run_upsert(self, run: dict[str, Any]) -> None:
+        """Insert or replace one durable job-history row, keyed by job id.
+
+        The job registry always persists a complete snapshot, so REPLACE is
+        the right merge: a stale partial row never survives an update.
+        """
+        self.conn.execute(
+            "INSERT OR REPLACE INTO runs "
+            "(id, kind, status, phase, engine, model, started_ts, "
+            " finished_ts, error, totals_json, ask_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                run["id"],
+                run.get("kind"),
+                run.get("status", "running"),
+                run.get("phase", ""),
+                run.get("engine"),
+                run.get("model"),
+                run.get("started_ts"),
+                run.get("finished_ts"),
+                run.get("error"),
+                json.dumps(run.get("totals") or {}),
+                run.get("ask"),
+            ),
+        )
+        self.conn.commit()
+
+    def list_runs(self, limit: int = 500) -> list[dict[str, Any]]:
+        """Durable job rows, newest first — the jobs screen after a restart."""
+        rows = self.conn.execute(
+            "SELECT * FROM runs ORDER BY started_ts DESC LIMIT ?", (limit,)
+        ).fetchall()
+        out = []
+        for row in rows:
+            rec = dict(row)
+            rec["totals"] = json.loads(rec.pop("totals_json") or "{}")
+            rec["ask"] = rec.pop("ask_json")
+            out.append(rec)
+        return out
 
     def counts(self) -> dict[str, int]:
         out: dict[str, int] = {}

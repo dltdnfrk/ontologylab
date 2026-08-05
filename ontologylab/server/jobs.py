@@ -130,6 +130,13 @@ class Job:
     # can be read.
     steps: deque = field(default_factory=lambda: deque(maxlen=_PROGRESS_MAXLEN))
     error: Optional[str] = None
+    # The question that started a research run (topic), kept on the durable
+    # run row so history can say *why* a run ran. Extract jobs leave it None.
+    ask: Optional[str] = None
+    # True when this Job was restored from the runs table at registry startup:
+    # dead, no worker, empty progress — the history GAP-O2 exists to keep,
+    # exempt from eviction so a restart never re-empties the jobs screen.
+    persisted: bool = field(default=False, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     # Set by `cancel()`, read by the worker between units of work. An Event
     # rather than a bool because it is written from the request thread and
@@ -194,6 +201,8 @@ class Job:
         with self._lock:
             self.phase = phase
         self.record(Step("ontologylab", "phase", "running", phase))
+        if self._registry is not None:
+            self._registry.persist(self)
 
     def as_status(self) -> dict[str, Any]:
         with self._lock:
@@ -261,6 +270,81 @@ class JobRegistry:
         finally:
             store.close()
 
+        # ... and the jobs screen is refilled from the runs table. The
+        # registry used to be pure memory, so every restart emptied it.
+        self._load_persisted()
+
+    def _load_persisted(self) -> None:
+        """Restore job history from the runs table, oldest first.
+
+        A row still marked `running` is a zombie — its worker died with the
+        old process — so it is relabelled failed here and written back before
+        it is ever served to the dashboard. Telling the operator a run is
+        still going when nothing is working on it is a worse lie than an
+        honest interruption.
+        """
+        store = KGStore.open(paths.kg_db_path(self.data_dir))
+        try:
+            rows = store.list_runs()
+            for row in reversed(rows):  # oldest first, matching _order
+                status, error = row["status"], row.get("error")
+                if status == "running":
+                    status = "failed"
+                    error = "interrupted by server restart"
+                    row["status"], row["error"] = status, error
+                    store.run_upsert(row)
+                job = Job(
+                    job_id=row["id"],
+                    kind=row["kind"],
+                    engine=row.get("engine"),
+                    model=row.get("model"),
+                    started_ts=row["started_ts"],
+                    phase=row.get("phase", ""),
+                    status=status,
+                    finished_ts=row.get("finished_ts"),
+                    totals=dict(row.get("totals") or {}),
+                    error=error,
+                    ask=row.get("ask"),
+                    persisted=True,
+                )
+                with self._lock:
+                    self._jobs[job.job_id] = job
+                    self._order.append(job.job_id)
+        finally:
+            store.close()
+
+    def persist(self, job: Job) -> None:
+        """Mirror one job's current snapshot into the runs table.
+
+        Best-effort: a store write failure must not kill the job or its
+        worker — the run keeps going, only its history row is stale. Each
+        call opens its own store because sqlite connections are thread-bound
+        and this runs from both the request thread (spawn) and the worker
+        (phase/terminal transitions).
+        """
+        with job._lock:
+            snapshot = {
+                "id": job.job_id,
+                "kind": job.kind,
+                "status": job.status,
+                "phase": job.phase,
+                "engine": job.engine,
+                "model": job.model,
+                "started_ts": job.started_ts,
+                "finished_ts": job.finished_ts,
+                "error": job.error,
+                "totals": dict(job.totals),
+                "ask": job.ask,
+            }
+        try:
+            store = KGStore.open(paths.kg_db_path(self.data_dir))
+            try:
+                store.run_upsert(snapshot)
+            finally:
+                store.close()
+        except (KGStoreError, OSError):
+            pass
+
     def touch(self) -> None:
         """Record a visible change and wake any waiting stream clients."""
         with self._cond:
@@ -309,6 +393,7 @@ class JobRegistry:
             engine=engine,
             model=model,
             started_ts=time.time(),
+            ask=params.get("topic"),
             _registry=self,
         )
         with self._lock:
@@ -329,6 +414,7 @@ class JobRegistry:
             self._order.append(job.job_id)
             self._evict_locked()
         self.touch()  # new job appears in streams immediately
+        self.persist(job)  # ... and in history after a restart
         thread = threading.Thread(
             target=self._run,
             args=(job, job_dir, coroutine_factory),
@@ -441,8 +527,10 @@ class JobRegistry:
 
         Only finished jobs are candidates. Evicting a running one would drop
         the record a stream client is currently watching, and its worker
-        thread would keep writing to an object no reader can reach. Callers
-        must hold `self._lock`.
+        thread would keep writing to an object no reader can reach. Persisted
+        (restored) jobs are exempt: they carry no progress and are exactly
+        the history a restart must not re-empty. Callers must hold
+        `self._lock`.
         """
         if len(self._order) <= MAX_RETAINED_JOBS:
             return
@@ -456,7 +544,7 @@ class JobRegistry:
                 # would re-append it, so the registry could never heal.
                 continue
             finished = job.status in TERMINAL_STATUSES
-            if surplus > 0 and finished:
+            if surplus > 0 and finished and not job.persisted:
                 surplus -= 1
                 self._jobs.pop(job_id, None)
                 continue
@@ -516,6 +604,7 @@ class JobRegistry:
                      "error": str(exc)},
                 )
             job.log(f"[ontologylab] {job.kind} failed: {summary}")  # log() touches
+            self.persist(job)
         else:
             with job._lock:
                 # Derived from what the worker actually did, not from the
@@ -528,6 +617,7 @@ class JobRegistry:
                 job.status = "cancelled" if stopped_reason else "complete"
                 job.finished_ts = time.time()
             self.touch()  # running → terminal transition
+            self.persist(job)
 
     async def _extract_async(
         self,
