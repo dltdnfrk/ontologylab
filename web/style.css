@@ -2659,3 +2659,32 @@ body.rail-resizing {
   display: block;
   margin-top: 4px;
 }
+
+/* 리서치 소스별 상태 배지 — 로그 대신 한눈에 보는 팬아웃 결과. */
+.job-sources {
+  margin: 8px 0;
+}
+.src-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.src-badge {
+  border-radius: 10px;
+  padding: 2px 10px;
+  font-size: var(--fs-sm);
+  border: 1px solid transparent;
+}
+.src-badge.src-ok { background: var(--ok-bg, #e7f6ec); color: #1a7f37; }
+.src-badge.src-failed { background: var(--err-bg, #fdecec); color: #c0392b; }
+.src-badge.src-running { background: #eef2f7; color: #556; }
+.src-badge small { opacity: 0.8; }
+.src-aggregate { margin-top: 6px; font-size: var(--fs-sm); }
+.src-allfailed {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid #e2b6b6;
+  border-radius: 8px;
+  background: var(--err-bg, #fdecec);
+  font-size: var(--fs-sm);
+}

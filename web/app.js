@@ -1798,6 +1798,7 @@
     $("#job-detail-title").textContent =
       "작업 " + String(job.job_id || "").slice(0, 12) + " — " + statusKo(job.status);
     renderJobAsked(job.job_id);
+    renderJobSources(job);
 
     var lines = (job.progress || []).slice();
     if (job.error) lines.push("오류: " + job.error);
@@ -1846,6 +1847,47 @@
       });
       box.appendChild(details);
     });
+  }
+
+  /* 소스별 상태 배지 — 팬아웃의 결과를 로그 줄 대신 요약으로.
+     실행 중에는 "어느 소스가 아직 응답 중인가", 끝난 뒤에는 "몇 개가
+     응답했는가"가 질문이다. 실패 배지에는 종류(FAIL_KO)를, 전부 실패면
+     다음 행동을 바로 적는다. */
+  function renderJobSources(job) {
+    var box = $("#job-sources");
+    if (!box) return;
+    var sources = job.sources || [];
+    if (!sources.length) {
+      box.classList.add("hidden");
+      return;
+    }
+    var ok = sources.filter(function (s) { return s.status === "ok"; }).length;
+    var failed = sources.filter(function (s) { return s.status === "failed"; }).length;
+    var running = sources.length - ok - failed;
+    var allFailed = sources.length > 0 && failed === sources.length;
+    var badges = sources.map(function (s) {
+      var detail = s.detail || "";
+      if (s.status === "failed") detail = FAIL_KO[detail] || detail;
+      var mark = s.status === "ok" ? "✓"
+        : s.status === "failed" ? "✕" : "•";
+      return "<span class='src-badge src-" + escapeHtml(s.status) + "'>" +
+        mark + " " + escapeHtml(toolKo(s.name)) +
+        (detail ? " <small>" + escapeHtml(detail) + "</small>" : "") +
+        "</span>";
+    }).join("");
+    var html =
+      "<div class='src-badges'>" + badges + "</div>" +
+      "<div class='src-aggregate muted'>" +
+      "소스 " + sources.length + "개 중 " + ok + "개 응답" +
+      (failed ? " · 실패 " + failed : "") +
+      (running ? " · 진행 " + running : "") +
+      "</div>";
+    if (allFailed) {
+      html += "<p class='src-allfailed'><strong>아무 소스도 응답하지 않았어요.</strong> " +
+        "소스 연결 상태를 확인하고 리서치를 다시 실행해 보세요.</p>";
+    }
+    box.innerHTML = html;
+    box.classList.remove("hidden");
   }
 
   async function selectJob(jobId) {

@@ -123,6 +123,11 @@ class Job:
     status: str = "running"  # running | complete | failed | cancelled
     finished_ts: Optional[float] = None
     totals: dict[str, int] = field(default_factory=_new_totals)
+    # Per-source status of a research run's collect fan-out: source name ->
+    # {"status": "running"|"ok"|"failed", "detail": ...}. Fed by the same
+    # on_event callback that records steps, so the screen can summarise
+    # "4 of 7 sources answered" instead of burying it in log lines.
+    sources: dict[str, dict[str, str]] = field(default_factory=dict)
     progress: deque = field(default_factory=lambda: deque(maxlen=_PROGRESS_MAXLEN))
     # The same events as `progress`, still structured. Same bound: these two
     # are written together by `record()`, so letting one outlive the other
@@ -216,6 +221,10 @@ class Job:
                 "started_ts": self.started_ts,
                 "finished_ts": self.finished_ts,
                 "totals": dict(self.totals),
+                "sources": [
+                    {"name": name, **state}
+                    for name, state in self.sources.items()
+                ],
                 "progress": list(self.progress),
                 # The browser reads this to draw the trace. Without it the
                 # structure stops at the server and the screen is back to
@@ -573,6 +582,25 @@ class JobRegistry:
     # Worker (daemon thread)
     # ------------------------------------------------------------------
 
+    def _source_event(self, job: Job):
+        """The collect fan-out's reporter: one step + one structured status.
+
+        A lambda cannot do both without duplicating the step construction;
+        the step and the sources entry must agree on status and detail or
+        the badge row and the log would drift apart.
+        """
+
+        def report(kind: str, source: str, detail: object) -> None:
+            step = source_step(kind, source, detail)
+            job.record(step)
+            with job._lock:
+                job.sources[source] = {
+                    "status": step.status,
+                    "detail": step.detail,
+                }
+
+        return report
+
     def _run(self, job: Job, job_dir: Path, coroutine_factory, **params: Any) -> None:
         stopped_reason = ""
         try:
@@ -788,9 +816,7 @@ class JobRegistry:
             # resolve its credential; the keyless five ignore it.
             batches, failures = await fetch_sources(
                 sources, search_query, limit, self.data_dir,
-                on_event=lambda kind, source, detail: job.record(
-                    source_step(kind, source, detail)
-                ),
+                on_event=self._source_event(job),
             )
             for failure in failures:
                 # The source name and the kind of failure are safe to show;
