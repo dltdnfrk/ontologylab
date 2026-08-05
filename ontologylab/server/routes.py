@@ -13,6 +13,7 @@ import asyncio
 import dataclasses
 import json
 import logging
+import sqlite3
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncIterator, Optional
@@ -1941,7 +1942,7 @@ def packs_build(deps: AppDependency, body: PackBuildRequest) -> dict[str, Any]:
             )
         finally:
             store.close()
-    except (KGStoreError, OSError):
+    except (KGStoreError, OSError, sqlite3.Error):
         pass
     return {"ok": True, "manifest": dataclasses.asdict(manifest)}
 
