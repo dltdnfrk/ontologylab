@@ -164,3 +164,19 @@ def test_building_a_pack_registers_a_release_artifact(tmp_path: Path) -> None:
     assert len(rows) == 1
     assert rows[0]["kind"] == "pack_release"
     assert rows[0]["filename"] == manifest["pack_id"]
+
+
+def test_the_ui_shows_a_hint_for_each_empty_group() -> None:
+    """Text contract: a partially empty library must not render a bare heading.
+
+    The reviewer flagged that a store with docs but no packs rendered the
+    "릴리스" heading with nothing under it. Each group now shows its own
+    empty hint unless both are empty (then the big empty-state card speaks).
+    """
+    from ontologylab.server.app import WEB_DIR
+
+    script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
+    assert "수집한 문서가 없어요" in script
+    assert "빌드한 팩이 없어요" in script
+    assert "docs.length === 0 && hasAny" in script
+    assert "releases.length === 0 && hasAny" in script

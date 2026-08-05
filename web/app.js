@@ -2470,6 +2470,21 @@
         );
       }).join("");
       empty.classList.toggle("hidden", docs.length + releases.length > 0);
+      // 한쪽 그룹만 비었을 때도 그 자리에 빈 상태를 알린다 — 둘 다 비었을
+      // 때는 위의 전체 빈 상태 카드가 그 역할을 하므로 여기서는 중복하지
+      // 않는다. 스모크 기준: "문서가 하나도 없거나 팩이 없어도 빈 채로
+      // 멈추지 않는다".
+      var hasAny = docs.length + releases.length > 0;
+      if (docs.length === 0 && hasAny) {
+        docsBody.innerHTML =
+          "<tr><td colspan='3' class='muted'>수집한 문서가 없어요 — " +
+          "① 리서치로 문서를 모아 보세요</td></tr>";
+      }
+      if (releases.length === 0 && hasAny) {
+        releasesBox.innerHTML =
+          "<p class='muted artifact-empty-hint'>빌드한 팩이 없어요 — " +
+          "③ 팩을 빌드하면 여기에 나타나요</p>";
+      }
     } catch (e) {
       err.textContent = friendlyError(e);
       err.classList.remove("hidden");
