@@ -518,6 +518,7 @@ def test_an_unconnected_publisher_is_not_queried_by_default(tmp_path) -> None:
     feature the user has not opted into."""
     assert available_sources(tmp_path) == [
         "arxiv", "crossref", "openalex", "semanticscholar", "europepmc",
+        "biorxiv", "pubmed",
         "clinicaltrials",
     ]
 

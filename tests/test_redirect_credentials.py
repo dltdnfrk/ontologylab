@@ -126,6 +126,8 @@ def test_the_host_list_is_derived_from_the_endpoint_constants() -> None:
         "api.openalex.org",
         "api.semanticscholar.org",
         "www.ebi.ac.uk",
+        "api.biorxiv.org",
+        "eutils.ncbi.nlm.nih.gov",
         "clinicaltrials.gov",
         # publisher APIs — one fixed host each, which is what lets them sit
         # in an exact-match allowlist at all
@@ -141,6 +143,7 @@ def test_the_host_list_is_derived_from_the_endpoint_constants() -> None:
 
     hostless = set(SOURCE_ORDER) - {
         "arxiv", "crossref", "openalex", "semanticscholar", "europepmc",
+        "biorxiv", "pubmed",
         "clinicaltrials", "elsevier", "springer", "core",
     }
     assert hostless == {SEARXNG_SOURCE}, (

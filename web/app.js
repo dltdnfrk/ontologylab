@@ -4092,6 +4092,7 @@
     ontologylab: "파이프라인", store: "저장소", resources: "외부 자료",
     arxiv: "arXiv", crossref: "Crossref", openalex: "OpenAlex",
     semanticscholar: "Semantic Scholar", europepmc: "Europe PMC",
+    biorxiv: "bioRxiv", pubmed: "PubMed",
     clinicaltrials: "ClinicalTrials.gov", searxng: "SearXNG",
     elsevier: "Elsevier", springer: "Springer", core: "CORE",
   };
