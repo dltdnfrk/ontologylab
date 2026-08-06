@@ -30,9 +30,11 @@ from ontologylab.kgstore import KGStore
 from ontologylab.models import ProposedEntity
 
 UNIPROT_HIT = """{"results": [{
-  "primaryAccession": "P51587",
-  "proteinDescription": {"recommendedName": {"fullName": "BRCA2"}},
-  "genes": [{"geneName": {"value": "BRCA2"}}],
+  "primaryAccession": "Q86YC2",
+  "proteinDescription": {"recommendedName": {
+    "fullName": {"value": "Partner and localizer of BRCA2"}
+  }},
+  "genes": [{"geneName": {"value": "PALB2"}}],
   "organism": {"scientificName": "Homo sapiens"}
 }]}"""
 
@@ -72,8 +74,8 @@ def test_uniprot_lookup_extracts_accession_and_description(monkeypatch) -> None:
     _monkey_http(monkeypatch, {"rest.uniprot.org": UNIPROT_HIT})
     hit = lookup_uniprot("BRCA2")
     assert hit.registry == "uniprot"
-    assert hit.identifier == "P51587"
-    assert hit.label == "BRCA2"
+    assert hit.identifier == "Q86YC2"
+    assert hit.label == "Partner and localizer of BRCA2"
     assert "Homo sapiens" in hit.description
     assert hit.error == ""
 
@@ -97,6 +99,22 @@ def test_clinvar_lookup_uses_esearch_then_esummary(monkeypatch) -> None:
     assert hit.identifier == "17672"
     assert "c.5946delT" in hit.label
     assert "BRCA2" in hit.description
+
+
+def test_uniprot_lookup_unwraps_the_value_wrapped_full_name(monkeypatch) -> None:
+    """The live API wraps i18n strings as {'value': ...} — the smoke test
+    hit the old fixture's flat string and crashed the store write with a
+    dict bound to a TEXT column. This pins the real shape end to end.
+    """
+    _monkey_http(monkeypatch, {"rest.uniprot.org": UNIPROT_HIT})
+    hit = lookup_uniprot("BRCA2")
+    assert hit.identifier == "Q86YC2"
+    assert hit.label == "Partner and localizer of BRCA2"
+    assert hit.description == "PALB2 · Homo sapiens"
+    assert hit.error == ""
+
+    # and a dict fullName must never reach the store as a label
+    assert isinstance(hit.label, str)
 
 
 def test_lookup_entity_maps_kind_to_registry(monkeypatch) -> None:
@@ -188,10 +206,10 @@ def test_enrich_api_stores_and_returns(monkeypatch, tmp_path: Path) -> None:
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["enrichments"][0]["registry"] == "uniprot"
-    assert body["enrichments"][0]["identifier"] == "P51587"
+    assert body["enrichments"][0]["identifier"] == "Q86YC2"
 
     got = client.get("/api/enrichments/n_brca2").json()
-    assert got["enrichments"][0]["label"] == "BRCA2"
+    assert got["enrichments"][0]["label"] == "Partner and localizer of BRCA2"
     # advisory: approving is still the only status change, and a GET is read-only
     assert client.get("/api/enrichments/unknown-node").status_code == 200
     assert client.post("/api/review/unknown-node/enrich").status_code == 404

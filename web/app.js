@@ -931,7 +931,14 @@
     if (rect.bottom <= window.innerHeight + 600) reviewLoadMore();
   }
 
-  window.addEventListener("scroll", reviewMaybeLoadMore, { passive: true });
+  /* 표 바닥이 화면 하단에 닿았을 때만 다음 장을 당긴다. 실제 스크롤
+     컨테이너는 window가 아니라 <main>(overflow-y: auto)이다 — window에
+     붙이면 휠로 바닥까지 내려도 이벤트가 없다(시운전 2026-08-06에서
+     재현). capture 단계로 문서 전체에서 잡으면 컨테이너가 어디든
+     동작한다. */
+  document.addEventListener("scroll", reviewMaybeLoadMore, {
+    capture: true, passive: true,
+  });
 
   /* -- 외부 레코드(주석) 큐 --------------------------------------------
      제안 큐와 나란히 두되 묻는 것이 다르다. 여기서 사람이 판정하는 건

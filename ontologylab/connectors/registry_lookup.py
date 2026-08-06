@@ -84,6 +84,21 @@ def _get_json(url: str) -> dict[str, Any]:
         raise ValueError("shape") from exc
 
 
+def _text(value: Any) -> str:
+    """One text field, unwrapped and coerced.
+
+    UniProt wraps its i18n strings as ``{"value": ...}``; reading the
+    wrapper as the label crashed the store write (a dict bound to a TEXT
+    column). Unwrapping here, and coercing anything else to str, makes a
+    shape drift degrade to a wrong label, never a 500.
+    """
+    if isinstance(value, dict):
+        value = value.get("value", "")
+    if value is None:
+        return ""
+    return str(value)
+
+
 def lookup_uniprot(name: str) -> Enrichment:
     """Gene/protein name -> top UniProtKB hit (accession, name, function)."""
     url = (
@@ -95,14 +110,13 @@ def lookup_uniprot(name: str) -> Enrichment:
     if not results:
         return Enrichment("uniprot", "", name, error="not_found")
     hit = results[0]
-    label = (
-        (hit.get("proteinDescription") or {}).get("recommendedName") or {}
-    ).get("fullName") or name
-    gene = (hit.get("genes") or [{}])[0].get("geneName", {}).get("value", "")
-    organism = ((hit.get("organism") or {}).get("scientificName")) or ""
+    full_name = ((hit.get("proteinDescription") or {}).get("recommendedName") or {}).get("fullName")
+    label = _text(full_name) or name
+    gene = _text(((hit.get("genes") or [{}])[0].get("geneName") or {}).get("value"))
+    organism = _text((hit.get("organism") or {}).get("scientificName"))
     return Enrichment(
         "uniprot",
-        hit.get("primaryAccession") or "",
+        _text(hit.get("primaryAccession")),
         label,
         f"{gene} · {organism}".strip(" ·"),
     )

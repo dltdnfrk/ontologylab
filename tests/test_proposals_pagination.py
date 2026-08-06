@@ -154,3 +154,18 @@ def test_review_ui_row_cap() -> None:
     assert re.search(
         r'"/api/proposals\?limit=" \+ reviewPageSize', script
     ), "loadProposals must request exactly reviewPageSize rows"
+
+
+def test_review_scroll_listener_catches_the_real_scroll_container() -> None:
+    """The page scrolls inside <main> (overflow-y: auto), not the window.
+
+    A window listener never fired on wheel — the smoke test (2026-08-06)
+    reproduced scroll-to-bottom loading nothing. The hook must be attached
+    at document level in the capture phase so it sees any container's
+    scroll.
+    """
+    script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
+    assert re.search(
+        r'document\.addEventListener\("scroll", reviewMaybeLoadMore, \{\s*capture: true',
+        script,
+    ), "scroll hook must be document-level capture, not window"
