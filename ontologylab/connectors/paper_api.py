@@ -42,6 +42,7 @@ Three properties hold the keyed half together:
 from __future__ import annotations
 
 import asyncio
+import datetime
 import json
 import os
 import re
@@ -72,6 +73,15 @@ _ATOM_NS = "{http://www.w3.org/2005/Atom}"
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 CROSSREF_API_URL = "https://api.crossref.org/works"
 OPENALEX_API_URL = "https://api.openalex.org/works"
+# bioRxiv's official API is a date-browse, not a keyword search: it can only
+# list preprints published inside a window, one page of 100 at a time. The
+# query therefore never reaches the URL — the builder fixes a recent window
+# and the fetch path filters that page locally (see _fetch_biorxiv).
+BIORXIV_API_URL = "https://api.biorxiv.org/details/biorxiv"
+BIORXIV_WINDOW_DAYS = 28
+# NCBI E-utilities: esearch (keyword -> PMIDs) then efetch (PMIDs -> XML
+# with abstract + DOI). Two requests per query; keyless at 3 req/s.
+PUBMED_EUTILS_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 SEMANTIC_SCHOLAR_API_URL = (
     "https://api.semanticscholar.org/graph/v1/paper/search"
 )
@@ -146,6 +156,8 @@ CROSSREF_SOURCE = "crossref"
 OPENALEX_SOURCE = "openalex"
 SEMANTIC_SCHOLAR_SOURCE = "semanticscholar"
 CLINICALTRIALS_SOURCE = "clinicaltrials"
+BIORXIV_SOURCE = "biorxiv"
+PUBMED_SOURCE = "pubmed"
 EUROPEPMC_SOURCE = "europepmc"
 ELSEVIER_SOURCE = "elsevier"
 SPRINGER_SOURCE = "springer"
@@ -198,6 +210,8 @@ PAPER_API_HOSTS: frozenset[str] = frozenset(
         OPENALEX_API_URL,
         SEMANTIC_SCHOLAR_API_URL,
         EUROPEPMC_API_URL,
+        BIORXIV_API_URL,
+        PUBMED_EUTILS_URL,
         CLINICALTRIALS_API_URL,
         ELSEVIER_API_URL,
         SPRINGER_API_URL,
@@ -763,6 +777,125 @@ def parse_europepmc(json_text: str) -> list[RawDocument]:
     return documents
 
 
+# ---------------------------------------------------------------------------
+# bioRxiv (date-browse + local keyword filter)
+# ---------------------------------------------------------------------------
+
+
+def _build_biorxiv_url(query: str, limit: int) -> str:
+    """A recent-window browse URL; the query filters locally in the parser.
+
+    The bioRxiv API has no keyword endpoint, so the query cannot be encoded
+    here. The science-skills guidance is to browse a narrow window (1-4
+    weeks) and filter locally — a wider range means downloading every
+    preprint in it. `limit` does not reach the API either (the endpoint has
+    no result count); the fetch path caps the parsed page with it.
+    """
+    end = datetime.date.today()
+    start = end - datetime.timedelta(days=BIORXIV_WINDOW_DAYS)
+    return f"{BIORXIV_API_URL}/{start.isoformat()}/{end.isoformat()}/0"
+
+
+def parse_biorxiv(json_text: str) -> list[RawDocument]:
+    """Parse one page of the bioRxiv details API into documents.
+
+    Same ingest contract as the other parsers: title + abstract only, and
+    an item with no DOI or title never becomes a document row. Every row is
+    a preprint by definition, so the evidence grade is constant.
+    """
+    payload = _load_json(json_text, BIORXIV_SOURCE)
+    collection = payload.get("collection") or []
+    documents: list[RawDocument] = []
+    for item in collection:
+        if not isinstance(item, dict):
+            continue
+        title = _normalize(item.get("title"))
+        abstract = _normalize(item.get("abstract"))
+        if not title and not abstract:
+            continue
+        doi = _normalize(item.get("doi"))
+        if not doi:
+            continue
+        documents.append(
+            RawDocument(
+                source_kind="paper_api",
+                source_uri=f"{DOI_BASE_URL}{doi}",
+                title=title or None,
+                raw_text=f"{title}\n\n{abstract}",
+                doi=normalize_doi(doi),
+                        source=BIORXIV_SOURCE,
+            evidence_grade=evidence.grade_from_source(BIORXIV_SOURCE),
+)
+        )
+    return documents
+
+
+# ---------------------------------------------------------------------------
+# PubMed (NCBI E-utilities: esearch -> efetch)
+# ---------------------------------------------------------------------------
+
+
+def _build_pubmed_url(query: str, limit: int) -> str:
+    """The esearch step: keyword -> PMIDs. efetch follows in _fetch_pubmed."""
+    return (
+        f"{PUBMED_EUTILS_URL}/esearch.fcgi"
+        f"?db=pubmed&term={quote_plus(query)}"
+        f"&retmode=json&retmax={limit}"
+    )
+
+
+# PubMed's efetch XML wraps every abstract in <AbstractText>; the JATS
+# stripper is not needed, but paragraphs arrive as separate <AbstractText>
+# nodes and must be joined with spaces, not concatenated.
+_PUBMED_NS = "{http://www.w3.org/2005/Atom}"
+
+
+def parse_pubmed(xml_text: str) -> list[RawDocument]:
+    """Parse an efetch PubmedArticleSet into documents.
+
+    Same ingest contract: title + abstract only; an article without a DOI
+    or PMID gets no source_uri and is skipped — no provenance trail, no
+    ingestion.
+    """
+    root = ET.fromstring(xml_text)
+    documents: list[RawDocument] = []
+    for article in root.findall("PubmedArticle"):
+        title = _normalize(article.findtext("MedlineCitation/Article/ArticleTitle"))
+        abstract_parts = [
+            _normalize(node.text)
+            for node in article.findall(
+                "MedlineCitation/Article/Abstract/AbstractText"
+            )
+        ]
+        abstract = " ".join(p for p in abstract_parts if p)
+        if not title and not abstract:
+            continue
+        doi = _normalize(
+            article.findtext("PubmedData/ArticleIdList/ArticleId[@IdType='doi']")
+        )
+        pmid = _normalize(
+            article.findtext("PubmedData/ArticleIdList/ArticleId[@IdType='pubmed']")
+        )
+        if doi:
+            source_uri = f"{DOI_BASE_URL}{doi}"
+        elif pmid:
+            source_uri = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
+        else:
+            continue
+        documents.append(
+            RawDocument(
+                source_kind="paper_api",
+                source_uri=source_uri,
+                title=title or None,
+                raw_text=f"{title}\n\n{abstract}",
+                doi=normalize_doi(doi),
+                        source=PUBMED_SOURCE,
+            evidence_grade=evidence.grade_from_source(PUBMED_SOURCE),
+)
+        )
+    return documents
+
+
 # source -> (url builder, response parser). Adding a source = one endpoint
 # constant + one builder + one parser + one row here (+ the allowlist entry).
 # ---------------------------------------------------------------------------
@@ -1061,6 +1194,8 @@ _SOURCE_DISPATCH = {
     OPENALEX_SOURCE: (_build_openalex_url, parse_openalex),
     SEMANTIC_SCHOLAR_SOURCE: (_build_semanticscholar_url, parse_semanticscholar),
     EUROPEPMC_SOURCE: (_build_europepmc_url, parse_europepmc),
+    BIORXIV_SOURCE: (_build_biorxiv_url, parse_biorxiv),
+    PUBMED_SOURCE: (_build_pubmed_url, parse_pubmed),
     CLINICALTRIALS_SOURCE: (_build_clinicaltrials_url, parse_clinicaltrials),
     ELSEVIER_SOURCE: (_build_elsevier_url, parse_elsevier),
     SPRINGER_SOURCE: (_build_springer_url, parse_springer),
@@ -1119,6 +1254,8 @@ PAPER_SOURCE_LABELS: dict[str, str] = {
     OPENALEX_SOURCE: "OpenAlex",
     SEMANTIC_SCHOLAR_SOURCE: "Semantic Scholar",
     EUROPEPMC_SOURCE: "Europe PMC (PubMed)",
+    BIORXIV_SOURCE: "bioRxiv",
+    PUBMED_SOURCE: "PubMed",
     CLINICALTRIALS_SOURCE: "ClinicalTrials.gov",
     ELSEVIER_SOURCE: "Elsevier (Scopus)",
     SPRINGER_SOURCE: "Springer Nature",
@@ -1283,12 +1420,19 @@ class PaperApiConnector:
                 else:
                     query_key = (name, key)
 
+        url = build_url(query, limit)
+        if source == BIORXIV_SOURCE:
+            # The API is a date-browse; the query filters this page locally.
+            return await self._fetch_biorxiv(url, query, limit, parse)
+        if source == PUBMED_SOURCE:
+            # esearch gives PMIDs, efetch the abstracts: two requests.
+            return await self._fetch_pubmed(url, parse)
+
         # `_http_get_text` is a blocking `urlopen`; this coroutine used to be
         # `async` in name only, so gathering five sources ran them one after
         # another — five serial 30s timeouts in the worst case. Handing the
         # whole helper to a thread keeps its internals in order: the offline
         # guard still runs inside it, before the socket, on that same thread.
-        url = build_url(query, limit)
         # `url` is keyless and stays that way. A query credential is handed
         # to the fetcher as data, not spliced into the string, so nothing
         # from here down — the failure text this coroutine raises, the
@@ -1304,6 +1448,54 @@ class PaperApiConnector:
         else:
             body = await asyncio.to_thread(_http_get_text, url)
         return parse(body)
+
+    async def _fetch_biorxiv(
+        self, url: str, query: str, limit: int, parse: Any
+    ) -> list[RawDocument]:
+        """Browse one recent page of preprints, then filter it by the query.
+
+        The API cannot search, so this is the documented pattern (narrow
+        window + local filter): the builder fixes a 28-day window, this
+        fetches the single most recent page of 100, and only preprints
+        whose title or abstract shares a query term survive. `limit` caps
+        the matches, mirroring what every other source's result count does.
+        """
+        body = await asyncio.to_thread(_http_get_text, url)
+        docs = parse(body)
+        terms = {
+            t.lower() for t in re.findall(r"[A-Za-z0-9가-힣]{3,}", query)
+        }
+        if not terms:
+            return []
+        matched = [
+            d for d in docs
+            if terms & set(re.findall(r"[A-Za-z0-9가-힣]{3,}", d.raw_text.lower()))
+        ]
+        return matched[:limit]
+
+    async def _fetch_pubmed(self, esearch_url: str, parse: Any) -> list[RawDocument]:
+        """esearch (keyword -> PMIDs), then efetch (PMIDs -> XML abstracts).
+
+        Two requests, both to the same allowlisted host. An empty idlist is
+        a normal answer, not an error: "PubMed found nothing" must read as
+        a source that answered with nothing, exactly like the other sources.
+        """
+        body = await asyncio.to_thread(_http_get_text, esearch_url)
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"{PUBMED_SOURCE} esearch response is not valid JSON"
+            ) from exc
+        ids = ((payload.get("esearchresult") or {}).get("idlist")) or []
+        if not ids:
+            return []
+        efetch_url = (
+            f"{PUBMED_EUTILS_URL}/efetch.fcgi?db=pubmed&retmode=xml"
+            f"&id={','.join(ids)}"
+        )
+        xml_body = await asyncio.to_thread(_http_get_text, efetch_url)
+        return parse(xml_body)
 
     async def _fetch_searxng(
         self, url: str, limit: int, parse: Any

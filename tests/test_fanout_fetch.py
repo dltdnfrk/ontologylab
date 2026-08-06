@@ -63,7 +63,24 @@ _BODIES = {
     "clinicaltrials": """{"studies": [{"protocolSection": {
       "identificationModule": {"nctId": "NCT1", "briefTitle": "E"},
       "descriptionModule": {"briefSummary": "Body E"}}}]}""",
+    "biorxiv": """{"collection": [{"doi": "10.1101/2026.1.1.1",
+      "title": "F", "abstract": "Body F"}]}""",
 }
+
+# PubMed is two requests: esearch returns PMIDs, efetch the XML abstracts.
+# The shared _body_for must answer each phase with its own shape or the
+# parser chokes on the wrong one.
+_PUBMED_ESEARCH = '{"esearchresult": {"idlist": ["1"]}}'
+_PUBMED_EFETCH = """<?xml version="1.0"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation><Article><ArticleTitle>G</ArticleTitle></Article></MedlineCitation>
+    <PubmedData><ArticleIdList>
+      <ArticleId IdType="pubmed">1</ArticleId>
+      <ArticleId IdType="doi">10.1/g</ArticleId>
+    </ArticleIdList></PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>"""
 
 
 # Built from the endpoint constants themselves, so a changed URL surfaces as
@@ -75,6 +92,8 @@ _HOSTS = {
     paper_api.SEMANTIC_SCHOLAR_API_URL: "semanticscholar",
     paper_api.EUROPEPMC_API_URL: "europepmc",
     paper_api.CLINICALTRIALS_API_URL: "clinicaltrials",
+    paper_api.BIORXIV_API_URL: "biorxiv",
+    paper_api.PUBMED_EUTILS_URL: "pubmed",
 }
 
 
@@ -86,6 +105,8 @@ def _source_of(url: str) -> str:
 
 
 def _body_for(url: str) -> str:
+    if url.startswith(paper_api.PUBMED_EUTILS_URL):
+        return _PUBMED_ESEARCH if "esearch" in url else _PUBMED_EFETCH
     return _BODIES[_source_of(url)]
 
 

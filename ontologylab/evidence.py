@@ -52,6 +52,7 @@ GRADES = (PEER_REVIEWED, PREPRINT, REGISTRATION, OTHER, UNKNOWN)
 _SOURCE_GRADE: dict[str, str] = {
     "arxiv": PREPRINT,
     "biorxiv": PREPRINT,
+    "pubmed": PEER_REVIEWED,
     "medrxiv": PREPRINT,
     "clinicaltrials": REGISTRATION,
     # Publisher APIs search their own journal catalogues.

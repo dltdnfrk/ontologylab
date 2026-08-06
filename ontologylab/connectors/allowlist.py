@@ -62,6 +62,8 @@ PAPER_API_SOURCES: set[str] = {
     "openalex",
     "semanticscholar",
     "europepmc",
+        "biorxiv",
+        "pubmed",
     # Publisher APIs (2026-07). Keyed, but still one fixed host each, which
     # is why they fit an exact-match allowlist at all. Reaching full text by
     # crawling document pages was rejected for the opposite reason: a

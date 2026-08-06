@@ -258,6 +258,7 @@ def test_check_source_implemented_still_guards_unimplemented():
     assert IMPLEMENTED_SOURCES == frozenset({
         # keyless
         "arxiv", "crossref", "openalex", "semanticscholar", "europepmc",
+        "biorxiv", "pubmed",
         "clinicaltrials",
         # publisher APIs (keyed) — implemented, but only queryable once a
         # credential is connected; see `available_sources`.
