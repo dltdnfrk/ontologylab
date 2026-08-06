@@ -46,3 +46,21 @@ ontologylab = ["*.json"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+# basedpyright (LSP) — the codebase parses untyped JSON by design and writes
+# `Any` liberally, so the strict defaults drown real errors in style noise.
+# Basic mode + the rules below keep argument/attribute/return-type errors
+# visible (the signal) and silence the rest (the noise).
+[tool.basedpyright]
+typeCheckingMode = "basic"
+reportExplicitAny = "none"
+reportUnknownVariableType = "none"
+reportUnknownMemberType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownParameterType = "none"
+reportCallInDefaultInitializer = "none"
+reportUnusedCallResult = "none"
+reportImplicitStringConcatenation = "none"
+reportDeprecated = "none"
+reportPrivateUsage = "none"
+reportUnnecessaryComparison = "none"

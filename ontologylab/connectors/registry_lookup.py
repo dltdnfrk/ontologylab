@@ -17,9 +17,11 @@ from __future__ import annotations
 
 import json
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from typing import Any
 
 # Which entity kinds get looked up in which registry. Kinds without a
 # registry (Disease, Pathway, CellLine, Assay) are deliberately skipped —
@@ -71,7 +73,7 @@ def _get(url: str) -> bytes:
         raise ValueError("timeout") from None
 
 
-def _get_json(url: str) -> dict:
+def _get_json(url: str) -> dict[str, Any]:
     try:
         body = _get(url)
     except ValueError as exc:
