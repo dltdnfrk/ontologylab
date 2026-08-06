@@ -417,8 +417,84 @@
       "' data-id='" + escapeHtml(item.id || "") + "'>" +
       "<summary>계보 — 이 항목을 무엇이 언제 만들었나</summary>" +
       "<div class='prov-body muted'><small>여는 중…</small></div></details>";
+    // 레지스트리 강화: 이름이 실제 개체인지 외부 DB에 확인해 보여준다.
+    // 관계(엣지)는 강화 대상이 아니다. 조회 결과는 참고용일 뿐 — 승인은
+    // 여전히 사람만 한다는 문구를 버튼 옆에 박아 둔다.
+    if (item.kind === "node") {
+      html +=
+        "<div class='ev-enrich'>" +
+        "<h4>레지스트리 확인</h4>" +
+        "<button type='button' class='btn' data-enrich-id='" +
+        escapeHtml(item.id || "") + "'>강화 실행</button>" +
+        "<p class='muted'><small>UniProt·PubChem·ClinVar 조회 결과는 참고용이에요 — " +
+        "승인은 여전히 사람이 합니다.</small></p>" +
+        "<ul id='enrich-results' class='enrich-results'></ul>" +
+        "</div>";
+    }
     pane.innerHTML = html;
+    if (item.kind === "node") loadStoredEnrichments(item.id);
   }
+
+  /* 저장된 레지스트리 답을 강화 목록에 채운다. 강화 실행 버튼은 항상
+     다시 조회하지만, 이미 조회된 답은 포커스만 바꿔도 보여야 한다. */
+  async function loadStoredEnrichments(nodeId) {
+    var box = $("#enrich-results");
+    if (!box) return;
+    try {
+      var data = await api(
+        "/api/enrichments/" + encodeURIComponent(nodeId)
+      );
+      renderEnrichments(box, data.enrichments || []);
+    } catch (_) {
+      /* 저장된 답이 없거나 서버가 응답하지 않으면 빈 목록이면 된다. */
+    }
+  }
+
+  function renderEnrichments(box, rows) {
+    box.innerHTML = rows.map(function (r) {
+      var reg = REGISTRY_KO[r.registry] || r.registry;
+      if (r.error) {
+        return "<li class='enrich-row enrich-err'><strong>" +
+          escapeHtml(reg) + "</strong> 조회 실패 (" +
+          escapeHtml(ENRICH_ERR_KO[r.error] || r.error) + ")</li>";
+      }
+      return "<li class='enrich-row'><strong>" + escapeHtml(reg) + "</strong> " +
+        "<code>" + escapeHtml(r.identifier) + "</code> " +
+        escapeHtml(r.label) +
+        (r.description ? " <small class='muted'>" +
+          escapeHtml(r.description) + "</small>" : "") +
+        "</li>";
+    }).join("");
+    if (!rows.length) {
+      box.innerHTML =
+        "<li class='muted'><small>아직 조회한 답이 없어요.</small></li>";
+    }
+  }
+
+  async function runEnrichment(nodeId) {
+    var box = $("#enrich-results");
+    if (!box) return;
+    box.innerHTML = "<li class='muted'><small>확인 중…</small></li>";
+    try {
+      var data = await api(
+        "/api/review/" + encodeURIComponent(nodeId) + "/enrich",
+        { method: "POST" }
+      );
+      renderEnrichments(box, data.enrichments || []);
+    } catch (err) {
+      box.innerHTML = "<li class='enrich-row enrich-err'>" +
+        escapeHtml(friendlyError(err)) + "</li>";
+    }
+  }
+
+  var REGISTRY_KO = {
+    uniprot: "UniProt", pubchem: "PubChem", clinvar: "ClinVar",
+  };
+  var ENRICH_ERR_KO = {
+    not_found: "일치 항목 없음", timeout: "시간 초과",
+    offline: "네트워크 차단", refused: "거절됨",
+    http_429: "요청 한도", shape: "응답 형식 오류",
+  };
 
   function fmtProvenance(record) {
     var rows = [];
@@ -3983,6 +4059,11 @@
     document.addEventListener("click", function (ev) {
       var open = ev.target.closest("[data-open-doc]");
       if (open) openDoc(open.dataset.openDoc, open.dataset.openItem);
+    });
+    // 레지스트리 강화 — 이름을 외부 DB에 확인한다(advisory).
+    document.addEventListener("click", function (ev) {
+      var btn = ev.target.closest("[data-enrich-id]");
+      if (btn) runEnrichment(btn.dataset.enrichId);
     });
     var list = $("#documents-list");
     if (list) {

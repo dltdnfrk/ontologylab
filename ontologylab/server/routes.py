@@ -1148,6 +1148,79 @@ def get_artifact(deps: AppDependency, artifact_id: str) -> dict[str, Any]:
         store.close()
 
 
+# ---------------------------------------------------------------------------
+# Entity registry enrichment (review queue — advisory lookups)
+# ---------------------------------------------------------------------------
+
+
+def _proposal_node(store: KGStore, node_id: str) -> dict[str, Any]:
+    """One node row by id, or None — used to find name/type for lookups."""
+    row = store.conn.execute(
+        "SELECT id, name, entity_type FROM nodes WHERE id = ?", (node_id,)
+    ).fetchone()
+    return dict(row) if row is not None else None
+
+
+def _enrichment_payload(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = []
+    for row in rows:
+        out.append({
+            "registry": row["registry"],
+            "identifier": row["identifier"],
+            "label": row["label"],
+            "description": row.get("description") or "",
+            "error": row.get("error"),
+            "fetched_ts": row["fetched_ts"],
+        })
+    return out
+
+
+@router.get("/enrichments/{node_id}")
+def list_entity_enrichments(deps: AppDependency, node_id: str) -> dict[str, Any]:
+    """Stored registry answers for one entity (advisory, read-only)."""
+    store = _open_store(deps)
+    try:
+        rows = store.list_enrichments(node_id)
+        return {"enrichments": _enrichment_payload(rows)}
+    finally:
+        store.close()
+
+
+@router.post("/review/{node_id}/enrich")
+def enrich_proposal(deps: AppDependency, node_id: str) -> dict[str, Any]:
+    """Look the entity's name up in the registries its kind maps to.
+
+    Advisory by construction: the results are stored and shown next to the
+    evidence so the human can confirm the entity is real before approving.
+    Nothing here changes a status — the only path to `verified` remains
+    `kgstore.approve`.
+    """
+    from ontologylab.connectors.registry_lookup import lookup_entity
+
+    store = _open_store(deps)
+    try:
+        node = _proposal_node(store, node_id)
+        if node is None:
+            raise HTTPException(status_code=404, detail=f"unknown node {node_id!r}")
+        name = node["name"] or node_id
+        results = lookup_entity(name, node["entity_type"] or "")
+        fetched_ts = time.time()
+        for hit in results:
+            store.upsert_enrichment(
+                node_id=node_id,
+                registry=hit.registry,
+                identifier=hit.identifier,
+                label=hit.label,
+                description=hit.description,
+                fetched_ts=fetched_ts,
+                error=hit.error or None,
+            )
+        rows = store.list_enrichments(node_id)
+        return {"enrichments": _enrichment_payload(rows)}
+    finally:
+        store.close()
+
+
 @router.post("/collect")
 def collect(deps: AppDependency, body: CollectRequest) -> dict[str, Any]:
     """Run a collect synchronously, mirroring main.cmd_collect's gate order.

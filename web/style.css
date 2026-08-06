@@ -2688,3 +2688,25 @@ body.rail-resizing {
   background: var(--err-bg, #fdecec);
   font-size: var(--fs-sm);
 }
+
+/* 레지스트리 강화 목록 (검토 화면 근거 패널) */
+.enrich-results {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.enrich-row {
+  font-size: var(--fs-sm);
+  padding: 4px 8px;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 6px;
+}
+.enrich-row code {
+  margin: 0 4px;
+}
+.enrich-err { color: #c0392b; }
+.ev-enrich { margin-top: 10px; }
+.ev-enrich h4 { margin: 0 0 6px; }

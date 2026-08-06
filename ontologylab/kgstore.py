@@ -438,6 +438,22 @@ CREATE TABLE IF NOT EXISTS artifacts (
     filename      TEXT,
     created_ts    REAL NOT NULL
 );
+
+-- Advisory registry lookups (science-skills slice 2): what UniProt /
+-- PubChem / ClinVar said about a proposed entity's name. Advisory only —
+-- nothing here can change a row's status; the row exists so the human
+-- reviewing the proposal sees the check happened. One row per
+-- (node, registry); a re-run replaces the earlier answer.
+CREATE TABLE IF NOT EXISTS entity_enrichments (
+    node_id     TEXT NOT NULL,
+    registry    TEXT NOT NULL,
+    identifier  TEXT NOT NULL,
+    label       TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    fetched_ts  REAL NOT NULL,
+    error       TEXT,
+    PRIMARY KEY (node_id, registry)
+);
 """
 
 _NODE_COLUMNS = (
@@ -2416,6 +2432,35 @@ class KGStore:
             "SELECT * FROM artifacts WHERE id = ?", (artifact_id,)
         ).fetchone()
         return dict(row) if row is not None else None
+
+    def upsert_enrichment(
+        self,
+        *,
+        node_id: str,
+        registry: str,
+        identifier: str,
+        label: str,
+        description: str = "",
+        fetched_ts: float,
+        error: str | None = None,
+    ) -> None:
+        """Record what a registry said about one proposed entity."""
+        self.conn.execute(
+            "INSERT OR REPLACE INTO entity_enrichments "
+            "(node_id, registry, identifier, label, description, fetched_ts, error) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (node_id, registry, identifier, label, description, fetched_ts, error),
+        )
+        self.conn.commit()
+
+    def list_enrichments(self, node_id: str) -> list[dict[str, Any]]:
+        """Every stored registry answer for one entity, newest answer first."""
+        rows = self.conn.execute(
+            "SELECT * FROM entity_enrichments WHERE node_id = ? "
+            "ORDER BY fetched_ts DESC",
+            (node_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def counts(self) -> dict[str, int]:
         out: dict[str, int] = {}
