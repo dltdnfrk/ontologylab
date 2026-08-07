@@ -22,3 +22,7 @@ __pycache__/
 # is per-machine by nature. Narrowed deliberately: `.claude/agent-memory/` is
 # tracked, and ignoring the parent would make this file contradict the tree.
 .claude/launch.json
+
+# Agent-run working artifacts (plans, evidence, commit drafts) — 35MB of
+# session leftovers with no build/runtime role. Not project source.
+.omo/
