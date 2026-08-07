@@ -34,6 +34,7 @@ from ontologylab.connectors.allowlist import (
 )
 from ontologylab.connectors.base import RawDocument
 from ontologylab.connectors.paper_api import (
+    DEFAULT_LIMIT as PAPER_DEFAULT_LIMIT,
     DEFAULT_PAPER_SOURCE,
     PAPER_SOURCE_LABELS,
     CONNECTABLE_SOURCES,
@@ -56,7 +57,11 @@ from ontologylab.connectors.web_crawl import WebCrawlConnector
 from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError, UnknownItem
 from ontologylab.mcp_server import serve_args
 from ontologylab.packbuilder import PackBuildError, build_pack, list_packs
-from ontologylab.paths import kg_db_path
+from ontologylab.paths import (
+    DEFAULT_MAX_ENGINE_CALLS,
+    DEFAULT_TIME_BUDGET_S,
+    kg_db_path,
+)
 from ontologylab.providers import (
     Provider,
     ProviderError,
@@ -1109,7 +1114,8 @@ def _enrich_artifacts(store: KGStore, rows: list[dict[str, Any]]) -> list[dict[s
     for r in rows:
         item = dict(r)
         if r["kind"] == "source_doc":
-            doc = docs.get(r.get("source_doc_id"))
+            doc_id = r.get("source_doc_id") or ""
+            doc = docs.get(doc_id)
             item["title"] = doc["title"] if doc else None
             item["source_uri"] = doc["source_uri"] if doc else None
             item["content_hash"] = doc["content_hash"] if doc else None
@@ -1153,7 +1159,7 @@ def get_artifact(deps: AppDependency, artifact_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _proposal_node(store: KGStore, node_id: str) -> dict[str, Any]:
+def _proposal_node(store: KGStore, node_id: str) -> dict[str, Any] | None:
     """One node row by id, or None — used to find name/type for lookups."""
     row = store.conn.execute(
         "SELECT id, name, entity_type FROM nodes WHERE id = ?", (node_id,)
@@ -1739,8 +1745,15 @@ def _run_intent(
         # unsupported source, offline, already-running — lives there, and a
         # second path into the fan-out would be a second, laxer entrance to
         # the same network calls.
+        # Pass the Field defaults explicitly — basedpyright does not treat
+        # pydantic Field(...) defaults as optional constructor args here.
         started = start_research(deps=deps, body=ResearchRequest(
-            topic=topic, engine=body.engine, model=body.model,
+            topic=topic,
+            engine=body.engine,
+            model=body.model,
+            limit=PAPER_DEFAULT_LIMIT,
+            max_engine_calls=DEFAULT_MAX_ENGINE_CALLS,
+            time_budget=DEFAULT_TIME_BUDGET_S,
         ))
         if not started.get("ok"):
             trace.append(Step(
@@ -1771,7 +1784,10 @@ def _run_intent(
         return {"kind": "enrich", **result}
 
     if action == "build_pack":
-        built = packs_build(deps=deps, body=PackBuildRequest(name=params.get("name") or None))
+        # name is required (min_length=1); chat may omit it — fall back
+        # rather than hand pydantic a None that becomes a 422 mid-turn.
+        pack_name = (params.get("name") or "").strip() or "chat-pack"
+        built = packs_build(deps=deps, body=PackBuildRequest(name=pack_name))
         trace.append(Step("ontologylab", "build", "ok",
                           str(built.get("pack_id", ""))))
         return {"kind": "pack", **built}
@@ -1983,17 +1999,20 @@ def packs_build(deps: AppDependency, body: PackBuildRequest) -> dict[str, Any]:
             incomplete_extraction_intent=body.override_intent,
         )
     except (PackBuildError, OSError) as exc:
-        failure = {"error": str(exc)}
-        if hasattr(exc, "summary"):
-            failure["extraction_completeness"] = exc.summary
+        # Only IncompleteExtractionError carries .summary; getattr keeps
+        # the OSError branch typed without a hasattr-narrowing cast.
+        summary = getattr(exc, "summary", None)
+        failure: dict[str, Any] = {"error": str(exc)}
+        if summary is not None:
+            failure["extraction_completeness"] = summary
         provenance.log("build_pack.failed", failure)
         return {
             "ok": False,
             "detail": str(exc),
             "error_code": getattr(exc, "code", "pack_build_error"),
             **(
-                {"extraction_completeness": exc.summary}
-                if hasattr(exc, "summary") else {}
+                {"extraction_completeness": summary}
+                if summary is not None else {}
             ),
         }
     provenance.log(
@@ -2079,6 +2098,8 @@ def mcp_status(deps: AppDependency) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
     for manifest in list_packs(deps.packs_dir):
         pack_id = manifest.get("pack_id")
+        if not pack_id:
+            continue
         entries.append(
             {
                 "pack_id": pack_id,
