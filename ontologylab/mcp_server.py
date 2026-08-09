@@ -457,16 +457,20 @@ class PackSession:
     # Read tools (verified-only by default; packs have no proposed rows)
     # ------------------------------------------------------------------
 
-    def get_schema(self, pack_id: str | None = None) -> dict[str, Any]:
+    def get_schema(
+        self,
+        pack_id: str | None = None,
+        schema_version_id: int | None = None,
+    ) -> dict[str, Any]:
         if pack_id is not None and pack_id != self.pack_id:
             # Ephemeral open for a non-active pack; does not switch session.
             path = pack_sqlite_path(self.packs_dir, pack_id)
             store = KGStore.open(path, read_only=True)
             try:
-                return store.get_schema()
+                return store.get_schema(schema_version_id=schema_version_id)
             finally:
                 store.close()
-        return self._require_store().get_schema()
+        return self._require_store().get_schema(schema_version_id=schema_version_id)
 
     def entity_lookup(
         self,
@@ -908,9 +912,16 @@ def build_mcp_app(session: PackSession) -> Any:
         return session.load_pack(pack_id)
 
     @mcp.tool()
-    def get_schema(pack_id: str | None = None) -> dict[str, Any]:
-        """Return ontology (entity/relation types) for the active or named pack."""
-        return session.get_schema(pack_id=pack_id)
+    def get_schema(
+        pack_id: str | None = None, schema_version_id: int | None = None
+    ) -> dict[str, Any]:
+        """Return ontology (entity/relation types) for the active or named pack.
+        Pass schema_version_id to resolve one historical version the pack
+        carries — multi-schema packs preserve facts judged under each version;
+        an unknown id is a typed lookup error, never a silent active fallback."""
+        return session.get_schema(
+            pack_id=pack_id, schema_version_id=schema_version_id
+        )
 
     @mcp.tool()
     def entity_lookup(

@@ -4,7 +4,7 @@ A pack is the single deployable unit the MCP server serves:
 
     packs/<pack_id>/
       pack.sqlite       verified-only copy (same schema as the working DB)
-      schema.json       active ontology export
+      schema.json       ontology export (active alias + per-version schemas)
       manifest.json     identity, counts, content hash
       provenance.jsonl  build-job audit log copy
 
@@ -382,6 +382,24 @@ def build_pack(
     pack_store = KGStore.open(pack_sqlite, read_only=True)
     try:
         schema = pack_store.get_schema()
+        # Every schema version whose verified facts the pack ships. The pack
+        # preserves facts judged under historical ontologies, so a consumer
+        # must be able to resolve each fact's schema_version_id from pack
+        # contents — never a silent fallback to the active schema.
+        included_schema_version_ids = [
+            row[0]
+            for row in pack_store.conn.execute(
+                "SELECT schema_version_id FROM nodes "
+                "UNION SELECT schema_version_id FROM edges "
+                "ORDER BY schema_version_id"
+            )
+        ]
+        # Version-keyed full definitions, keyed by schema_version_id. The
+        # top-level fields stay the ACTIVE schema as compatibility aliases.
+        schema["schemas"] = {
+            str(version_id): pack_store.get_schema(schema_version_id=version_id)
+            for version_id in included_schema_version_ids
+        }
         # Honest tier labeling (§5.4): only claim the vector tier when the
         # pack actually carries embeddings, and record which model made them.
         pack_embedding_model = pack_store.embedding_model()
@@ -406,6 +424,7 @@ def build_pack(
         staleness_policy=dict(DEFAULT_STALENESS_POLICY),
         extraction_completeness=completeness,
         semantic_fact_baseline=semantic_baseline_marker(),
+        included_schema_version_ids=included_schema_version_ids,
     )
     (pack_dir / "manifest.json").write_text(
         json.dumps(manifest.__dict__, indent=2), encoding="utf-8"

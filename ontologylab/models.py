@@ -102,6 +102,12 @@ class PackManifest:
     # Version/algorithm capability marker for semantic comparison. Actual
     # packed facts remain solely in the content-hashed immutable pack.sqlite.
     semantic_fact_baseline: dict[str, Any] | None = None
+    # Sorted schema_version ids whose verified facts the pack ships. Packs
+    # preserve facts judged under every historical ontology version, so a
+    # consumer resolves each fact's schema_version_id against this list and
+    # the version-keyed "schemas" collection in schema.json. Absent (None)
+    # only on manifests written before the multi-schema contract.
+    included_schema_version_ids: list[int] | None = None
 
 
 @runtime_checkable

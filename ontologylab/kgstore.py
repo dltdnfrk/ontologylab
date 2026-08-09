@@ -973,9 +973,25 @@ class KGStore:
                 (schema_id,),
             )
 
-    def get_schema(self) -> dict[str, Any]:
-        """Return the active ontology (entity + relation types) as plain data."""
-        sv = self.active_schema_version()
+    def get_schema(self, schema_version_id: int | None = None) -> dict[str, Any]:
+        """Return one ontology version (entity + relation types) as plain data.
+
+        Defaults to the active version. Pass ``schema_version_id`` to read a
+        specific historical version: packs preserve verified facts judged
+        under every version the store has held, so a consumer must resolve
+        the exact ontology a fact was extracted against. An unknown id is a
+        typed ``UnknownItem``, never a silent fallback to the active schema.
+        """
+        if schema_version_id is None:
+            sv = self.active_schema_version()
+        else:
+            sv = self.conn.execute(
+                "SELECT * FROM schema_version WHERE id = ?", (schema_version_id,)
+            ).fetchone()
+            if sv is None:
+                raise UnknownItem(
+                    f"unknown schema version id {schema_version_id!r}"
+                )
         entity_types = [
             {
                 "name": r["name"],
