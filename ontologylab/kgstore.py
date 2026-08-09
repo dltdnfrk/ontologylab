@@ -26,11 +26,13 @@ rank is normalized to a 0..1 higher-is-better ``match_score`` (§5.4).
 from __future__ import annotations
 
 import json
+import math
 import re
 import sqlite3
 import time
 import uuid
 from collections import deque
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
@@ -59,6 +61,28 @@ class KGStoreError(Exception):
 
 class SchemaValidationError(KGStoreError):
     """Raised when a graph write does not conform to its row's ontology."""
+
+
+@dataclass(frozen=True, slots=True)
+class OntologyTermValidationError(KGStoreError):
+    """A rejected ontology-term field at the store boundary."""
+
+    field: str
+    message: str
+
+    def __str__(self) -> str:
+        return f"invalid ontology term {self.field}: {self.message}"
+
+
+@dataclass(frozen=True, slots=True)
+class XrefValidationError(KGStoreError):
+    """A rejected external cross-reference field at the store boundary."""
+
+    field: str
+    message: str
+
+    def __str__(self) -> str:
+        return f"invalid term xref {self.field}: {self.message}"
 
 
 class EndpointNotVerified(KGStoreError):
@@ -744,6 +768,185 @@ class KGStore:
                     (key, row["id"]),
                 )
 
+        KGStore._migrate_ontology_terms(conn)
+
+    @staticmethod
+    def _migrate_ontology_terms(conn: sqlite3.Connection) -> None:
+        """Add the ontology identity tables and backfill legacy vocabulary.
+
+        A savepoint owns the whole three-table migration. SQLite DDL is
+        transactional inside a savepoint, so an interrupted or rejected
+        statement cannot leave only part of the ontology table set behind.
+        """
+        conn.execute("SAVEPOINT ontology_term_migration")
+        succeeded = False
+        try:
+            conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS ontology_term (
+                    id                  TEXT PRIMARY KEY,
+                    iri                 TEXT NOT NULL UNIQUE
+                                            CHECK (iri = '{default_schema.LOCAL_TERM_IRI_BASE}/' || id),
+                    preferred_label     TEXT NOT NULL,
+                    language            TEXT NOT NULL,
+                    definition          TEXT NOT NULL,
+                    lifecycle           TEXT NOT NULL DEFAULT 'active'
+                                            CHECK (lifecycle IN ('active','deprecated','replaced')),
+                    replacement_term_id TEXT REFERENCES ontology_term(id),
+                    change_reason       TEXT,
+                    schema_version_id   INTEGER NOT NULL REFERENCES schema_version(id),
+                    reviewer            TEXT NOT NULL,
+                    provenance          TEXT NOT NULL,
+                    created_ts          REAL NOT NULL,
+                    updated_ts          REAL NOT NULL,
+                    legacy_kind         TEXT CHECK (
+                        legacy_kind IN ('entity_type','relation_type')
+                    ),
+                    legacy_id           INTEGER,
+                    CHECK ((legacy_kind IS NULL) = (legacy_id IS NULL)),
+                    CHECK (replacement_term_id IS NULL OR replacement_term_id <> id),
+                    CHECK (lifecycle = 'active' OR (
+                        change_reason IS NOT NULL AND length(trim(change_reason)) > 0
+                    )),
+                    CHECK (lifecycle <> 'replaced' OR replacement_term_id IS NOT NULL),
+                    UNIQUE (legacy_kind, legacy_id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS term_alias (
+                    id          TEXT PRIMARY KEY,
+                    term_id     TEXT NOT NULL REFERENCES ontology_term(id),
+                    label       TEXT NOT NULL,
+                    language    TEXT NOT NULL,
+                    alias_kind  TEXT NOT NULL CHECK (
+                        alias_kind IN ('alternative','hidden','former-preferred')
+                    ),
+                    reviewer    TEXT NOT NULL,
+                    provenance  TEXT NOT NULL,
+                    created_ts  REAL NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS term_xref (
+                    id                  TEXT PRIMARY KEY,
+                    term_id             TEXT NOT NULL REFERENCES ontology_term(id),
+                    authority           TEXT NOT NULL,
+                    external_id         TEXT NOT NULL,
+                    mapping_predicate   TEXT NOT NULL CHECK (
+                        mapping_predicate IN (
+                            'exact','close','broader','narrower','related','advisory'
+                        )),
+                    source_uri          TEXT NOT NULL,
+                    source_version      TEXT,
+                    valid_from          REAL,
+                    valid_to            REAL,
+                    retrieved_at        REAL NOT NULL,
+                    confidence          REAL NOT NULL
+                                            CHECK (confidence >= 0.0 AND confidence <= 1.0),
+                    reviewer            TEXT NOT NULL,
+                    lifecycle           TEXT NOT NULL DEFAULT 'active'
+                                            CHECK (lifecycle IN ('active','deprecated','replaced')),
+                    replacement_xref_id TEXT REFERENCES term_xref(id),
+                    change_reason       TEXT,
+                    license_gate        TEXT NOT NULL CHECK (
+                        license_gate IN ('allow','identifier-only','deny-text')
+                    ),
+                    created_ts          REAL NOT NULL,
+                    updated_ts          REAL NOT NULL,
+                    CHECK (source_version IS NOT NULL OR valid_from IS NOT NULL
+                           OR valid_to IS NOT NULL),
+                    CHECK (valid_to IS NULL OR valid_from IS NULL OR valid_to >= valid_from),
+                    CHECK (replacement_xref_id IS NULL OR replacement_xref_id <> id),
+                    CHECK (lifecycle = 'active' OR (
+                        change_reason IS NOT NULL AND length(trim(change_reason)) > 0
+                    )),
+                    CHECK (lifecycle <> 'replaced' OR replacement_xref_id IS NOT NULL)
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_term_alias_term "
+                "ON term_alias (term_id, created_ts)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_term_xref_term "
+                "ON term_xref (term_id, lifecycle)"
+            )
+            conn.execute(
+                """
+                CREATE TRIGGER IF NOT EXISTS ontology_term_identity_immutable
+                BEFORE UPDATE OF id, iri ON ontology_term
+                WHEN NEW.id IS NOT OLD.id OR NEW.iri IS NOT OLD.iri
+                BEGIN
+                    SELECT RAISE(ABORT, 'ontology term identity is immutable');
+                END
+                """
+            )
+            conn.execute(
+                """
+                CREATE TRIGGER IF NOT EXISTS term_xref_mapping_immutable
+                BEFORE UPDATE OF id, term_id, authority, external_id,
+                    mapping_predicate, source_uri, source_version, valid_from,
+                    valid_to, retrieved_at, confidence, license_gate, created_ts
+                ON term_xref
+                BEGIN
+                    SELECT RAISE(ABORT, 'term xref mappings are append-oriented');
+                END
+                """
+            )
+            KGStore._backfill_legacy_ontology_terms(conn)
+            succeeded = True
+        finally:
+            if not succeeded:
+                conn.execute("ROLLBACK TO ontology_term_migration")
+            conn.execute("RELEASE ontology_term_migration")
+
+    @staticmethod
+    def _backfill_legacy_ontology_terms(
+        conn: sqlite3.Connection,
+        *,
+        reviewer: str = default_schema.LEGACY_TERM_REVIEWER,
+        provenance: str = default_schema.LEGACY_TERM_PROVENANCE,
+    ) -> None:
+        """Give each legacy type one random identity, once."""
+        rows = conn.execute(
+            """
+            SELECT 'entity_type' AS legacy_kind, et.id AS legacy_id,
+                   et.schema_version_id, et.name AS preferred_label,
+                   COALESCE(et.description, '') AS definition
+            FROM entity_type AS et
+            LEFT JOIN ontology_term AS ot
+              ON ot.legacy_kind = 'entity_type' AND ot.legacy_id = et.id
+            WHERE ot.id IS NULL
+            UNION ALL
+            SELECT 'relation_type', rt.id, rt.schema_version_id, rt.name,
+                   COALESCE(rt.description, '')
+            FROM relation_type AS rt
+            LEFT JOIN ontology_term AS ot
+              ON ot.legacy_kind = 'relation_type' AND ot.legacy_id = rt.id
+            WHERE ot.id IS NULL
+            ORDER BY legacy_kind, legacy_id
+            """
+        ).fetchall()
+        now = time.time()
+        for row in rows:
+            KGStore._insert_ontology_term_row(
+                conn,
+                preferred_label=row["preferred_label"],
+                language=default_schema.DEFAULT_TERM_LANGUAGE,
+                definition=row["definition"],
+                schema_version_id=row["schema_version_id"],
+                reviewer=reviewer,
+                provenance=provenance,
+                now=now,
+                legacy_kind=row["legacy_kind"],
+                legacy_id=row["legacy_id"],
+            )
+
     def close(self) -> None:
         self.conn.close()
 
@@ -757,48 +960,138 @@ class KGStore:
     # Ontology schema
     # ------------------------------------------------------------------
 
-    def _seed_default_schema(self) -> None:
-        cur = self.conn.execute("SELECT COUNT(*) AS n FROM schema_version")
-        if cur.fetchone()["n"]:
-            return
-        now = time.time()
-        cur = self.conn.execute(
-            "INSERT INTO schema_version (label, description, created_ts, is_active) "
-            "VALUES (?, ?, ?, 1)",
+    @staticmethod
+    def _term_text(field: str, value: str | None) -> str:
+        """Parse one required reviewed-text field."""
+        if not isinstance(value, str) or not value.strip():
+            raise OntologyTermValidationError(field, "must be a non-empty string")
+        return value.strip()
+
+    @staticmethod
+    def _insert_ontology_term_row(
+        conn: sqlite3.Connection,
+        *,
+        preferred_label: str,
+        language: str,
+        definition: str,
+        schema_version_id: int,
+        reviewer: str,
+        provenance: str,
+        now: float,
+        legacy_kind: str | None = None,
+        legacy_id: int | None = None,
+    ) -> str:
+        """Insert one already-validated term without committing its caller's tx."""
+        term_id = str(uuid.uuid4())
+        conn.execute(
+            "INSERT INTO ontology_term "
+            "(id, iri, preferred_label, language, definition, lifecycle, "
+            "schema_version_id, reviewer, provenance, created_ts, updated_ts, "
+            "legacy_kind, legacy_id) "
+            "VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)",
             (
-                default_schema.DEFAULT_SCHEMA_LABEL,
-                default_schema.DEFAULT_SCHEMA_DESCRIPTION,
+                term_id,
+                default_schema.local_term_iri(term_id),
+                preferred_label,
+                language,
+                definition,
+                schema_version_id,
+                reviewer,
+                provenance,
                 now,
+                now,
+                legacy_kind,
+                legacy_id,
             ),
         )
-        sv_id = cur.lastrowid
-        for name, (desc, attrs) in default_schema.DEFAULT_ENTITY_TYPES.items():
-            self.conn.execute(
-                "INSERT INTO entity_type "
-                "(schema_version_id, name, description, attributes_json) "
-                "VALUES (?, ?, ?, ?)",
-                (sv_id, name, desc, json.dumps(attrs)),
-            )
-        for name, (desc, domain, range_, directed) in (
-            default_schema.DEFAULT_RELATION_TYPES.items()
-        ):
-            self.conn.execute(
-                "INSERT INTO relation_type "
-                "(schema_version_id, name, description, domain_type, range_type, "
-                "directed, qualifiers_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        return term_id
+
+    @staticmethod
+    def _insert_schema_term(
+        conn: sqlite3.Connection,
+        item: dict[str, Any],
+        *,
+        schema_version_id: int,
+        legacy_kind: str,
+        legacy_id: int | None,
+        reviewer: str,
+        provenance: str,
+        now: float,
+    ) -> None:
+        """Persist one installed type's reviewed term fields."""
+        if legacy_id is None:
+            raise KGStoreError("schema type insert did not return an id")
+        definition = item.get("definition", item.get("description", ""))
+        if not isinstance(definition, str):
+            raise OntologyTermValidationError("definition", "must be a string")
+        KGStore._insert_ontology_term_row(
+            conn,
+            preferred_label=KGStore._term_text(
+                "preferred_label", item.get("preferred_label", item["name"])
+            ),
+            language=KGStore._term_text(
+                "language",
+                item.get("language", default_schema.DEFAULT_TERM_LANGUAGE),
+            ),
+            definition=definition.strip(),
+            schema_version_id=schema_version_id,
+            reviewer=reviewer,
+            provenance=provenance,
+            now=now,
+            legacy_kind=legacy_kind,
+            legacy_id=legacy_id,
+        )
+
+    def _seed_default_schema(self) -> None:
+        if self.conn.execute(
+            "SELECT COUNT(*) AS n FROM schema_version"
+        ).fetchone()["n"]:
+            return
+        now = time.time()
+        with self.conn:
+            cur = self.conn.execute(
+                "INSERT INTO schema_version "
+                "(label, description, created_ts, is_active) VALUES (?, ?, ?, 1)",
                 (
-                    sv_id,
-                    name,
-                    desc,
-                    domain,
-                    range_,
-                    1 if directed else 0,
-                    json.dumps(
-                        default_schema.DEFAULT_RELATION_QUALIFIERS.get(name, {})
-                    ),
+                    default_schema.DEFAULT_SCHEMA_LABEL,
+                    default_schema.DEFAULT_SCHEMA_DESCRIPTION,
+                    now,
                 ),
             )
-        self.conn.commit()
+            if cur.lastrowid is None:
+                raise KGStoreError("default schema insert did not return an id")
+            sv_id = int(cur.lastrowid)
+            for name, (desc, attrs) in default_schema.DEFAULT_ENTITY_TYPES.items():
+                self.conn.execute(
+                    "INSERT INTO entity_type "
+                    "(schema_version_id, name, description, attributes_json) "
+                    "VALUES (?, ?, ?, ?)",
+                    (sv_id, name, desc, json.dumps(attrs)),
+                )
+            for name, (desc, domain, range_, directed) in (
+                default_schema.DEFAULT_RELATION_TYPES.items()
+            ):
+                self.conn.execute(
+                    "INSERT INTO relation_type "
+                    "(schema_version_id, name, description, domain_type, range_type, "
+                    "directed, qualifiers_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        sv_id,
+                        name,
+                        desc,
+                        domain,
+                        range_,
+                        1 if directed else 0,
+                        json.dumps(
+                            default_schema.DEFAULT_RELATION_QUALIFIERS.get(name, {})
+                        ),
+                    ),
+                )
+            self._backfill_legacy_ontology_terms(
+                self.conn,
+                reviewer=default_schema.BUNDLED_TERM_REVIEWER,
+                provenance=f"bundled-schema:{default_schema.DEFAULT_SCHEMA_LABEL}",
+            )
 
     def active_schema_version(self) -> sqlite3.Row:
         cur = self.conn.execute(
@@ -860,6 +1153,8 @@ class KGStore:
         description: str,
         entity_types: list[dict[str, Any]],
         relation_types: list[dict[str, Any]],
+        term_reviewer: str = DEFAULT_ACTOR,
+        term_provenance: str | None = None,
     ) -> int:
         """Add an ontology and make it the active one. Returns its id.
 
@@ -884,6 +1179,16 @@ class KGStore:
         if not label.strip():
             raise KGStoreError("a schema needs a label")
 
+        clean_label = label.strip()
+        reviewer = self._term_text("reviewer", term_reviewer)
+        provenance = self._term_text(
+            "provenance",
+            (
+                term_provenance
+                if term_provenance is not None
+                else f"schema-install:{clean_label}"
+            ),
+        )
         names = {e["name"] for e in entity_types}
         for relation in relation_types:
             self._validate_qualifier_specs(
@@ -907,20 +1212,30 @@ class KGStore:
             cur = self.conn.execute(
                 "INSERT INTO schema_version "
                 "(label, description, created_ts, is_active) VALUES (?,?,?,1)",
-                (label.strip(), description, now),
+                (clean_label, description, now),
             )
             if cur.lastrowid is None:
                 raise KGStoreError("schema install did not return an id")
             sv_id = int(cur.lastrowid)
             for entity in entity_types:
-                self.conn.execute(
+                type_cur = self.conn.execute(
                     "INSERT INTO entity_type (schema_version_id, name, "
                     "description, attributes_json) VALUES (?,?,?,?)",
                     (sv_id, entity["name"], entity.get("description", ""),
                      json.dumps(entity.get("attributes", {}))),
                 )
+                self._insert_schema_term(
+                    self.conn,
+                    entity,
+                    schema_version_id=sv_id,
+                    legacy_kind="entity_type",
+                    legacy_id=type_cur.lastrowid,
+                    reviewer=reviewer,
+                    provenance=provenance,
+                    now=now,
+                )
             for relation in relation_types:
-                self.conn.execute(
+                type_cur = self.conn.execute(
                     "INSERT INTO relation_type (schema_version_id, name, "
                     "description, domain_type, range_type, directed, "
                     "qualifiers_json) VALUES (?,?,?,?,?,?,?)",
@@ -933,6 +1248,16 @@ class KGStore:
                         1 if relation.get("directed", True) else 0,
                         json.dumps(relation.get("qualifiers", {})),
                     ),
+                )
+                self._insert_schema_term(
+                    self.conn,
+                    relation,
+                    schema_version_id=sv_id,
+                    legacy_kind="relation_type",
+                    legacy_id=type_cur.lastrowid,
+                    reviewer=reviewer,
+                    provenance=provenance,
+                    now=now,
                 )
         return sv_id
 
@@ -1027,6 +1352,530 @@ class KGStore:
             "entity_types": entity_types,
             "relation_types": relation_types,
         }
+
+    def _ontology_term_row(self, term_id: str) -> sqlite3.Row:
+        row = self.conn.execute(
+            "SELECT * FROM ontology_term WHERE id = ?", (term_id,)
+        ).fetchone()
+        if row is None:
+            raise UnknownItem(f"unknown ontology term id {term_id!r}")
+        return row
+
+    def create_ontology_term(
+        self,
+        *,
+        preferred_label: str,
+        language: str,
+        definition: str,
+        schema_version_id: int,
+        reviewer: str,
+        provenance: str,
+    ) -> str:
+        """Create a reviewed term with a random, immutable local identity."""
+        self._assert_writable()
+        clean_label = self._term_text("preferred_label", preferred_label)
+        clean_language = self._term_text("language", language)
+        clean_definition = self._term_text("definition", definition)
+        clean_reviewer = self._term_text("reviewer", reviewer)
+        clean_provenance = self._term_text("provenance", provenance)
+        if self.conn.execute(
+            "SELECT 1 FROM schema_version WHERE id = ?", (schema_version_id,)
+        ).fetchone() is None:
+            raise OntologyTermValidationError(
+                "schema_version_id", f"unknown schema version {schema_version_id!r}"
+            )
+        with self.conn:
+            return self._insert_ontology_term_row(
+                self.conn,
+                preferred_label=clean_label,
+                language=clean_language,
+                definition=clean_definition,
+                schema_version_id=schema_version_id,
+                reviewer=clean_reviewer,
+                provenance=clean_provenance,
+                now=time.time(),
+            )
+
+    def get_ontology_term(self, term_id: str) -> dict[str, Any]:
+        """Return one ontology term without rewriting its lifecycle state."""
+        return dict(self._ontology_term_row(term_id))
+
+    def add_term_alias(
+        self,
+        *,
+        term_id: str,
+        label: str,
+        language: str,
+        reviewer: str,
+        provenance: str,
+        alias_kind: str = "alternative",
+    ) -> str:
+        """Append one reviewed alias; existing alias rows are never rewritten."""
+        self._assert_writable()
+        self._ontology_term_row(term_id)
+        clean_label = self._term_text("label", label)
+        clean_language = self._term_text("language", language)
+        clean_reviewer = self._term_text("reviewer", reviewer)
+        clean_provenance = self._term_text("provenance", provenance)
+        if alias_kind not in default_schema.TERM_ALIAS_KINDS:
+            raise OntologyTermValidationError(
+                "alias_kind", f"unsupported value {alias_kind!r}"
+            )
+        alias_id = str(uuid.uuid4())
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO term_alias "
+                "(id, term_id, label, language, alias_kind, reviewer, provenance, "
+                "created_ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    alias_id,
+                    term_id,
+                    clean_label,
+                    clean_language,
+                    alias_kind,
+                    clean_reviewer,
+                    clean_provenance,
+                    time.time(),
+                ),
+            )
+        return alias_id
+
+    def list_term_aliases(self, term_id: str) -> list[dict[str, Any]]:
+        """Return aliases in append order."""
+        self._ontology_term_row(term_id)
+        rows = self.conn.execute(
+            "SELECT * FROM term_alias WHERE term_id = ? ORDER BY rowid",
+            (term_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def rename_ontology_term(
+        self,
+        term_id: str,
+        *,
+        preferred_label: str,
+        language: str,
+        reviewer: str,
+        provenance: str,
+    ) -> None:
+        """Rename a term in place and append its former preferred label."""
+        self._assert_writable()
+        term = self._ontology_term_row(term_id)
+        if term["lifecycle"] == "replaced":
+            raise OntologyTermValidationError(
+                "lifecycle", "a replaced term cannot be renamed"
+            )
+        clean_label = self._term_text("preferred_label", preferred_label)
+        clean_language = self._term_text("language", language)
+        clean_reviewer = self._term_text("reviewer", reviewer)
+        clean_provenance = self._term_text("provenance", provenance)
+        if (
+            clean_label == term["preferred_label"]
+            and clean_language == term["language"]
+        ):
+            raise OntologyTermValidationError(
+                "preferred_label", "rename must change the label or language"
+            )
+        now = time.time()
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO term_alias "
+                "(id, term_id, label, language, alias_kind, reviewer, provenance, "
+                "created_ts) VALUES (?, ?, ?, ?, 'former-preferred', ?, ?, ?)",
+                (
+                    str(uuid.uuid4()),
+                    term_id,
+                    term["preferred_label"],
+                    term["language"],
+                    clean_reviewer,
+                    clean_provenance,
+                    now,
+                ),
+            )
+            self.conn.execute(
+                "UPDATE ontology_term SET preferred_label = ?, language = ?, "
+                "reviewer = ?, provenance = ?, updated_ts = ? WHERE id = ?",
+                (
+                    clean_label,
+                    clean_language,
+                    clean_reviewer,
+                    clean_provenance,
+                    now,
+                    term_id,
+                ),
+            )
+
+    def _validate_term_lifecycle(
+        self,
+        *,
+        term_id: str,
+        lifecycle: str,
+        replacement_term_id: str | None,
+        change_reason: str | None,
+    ) -> tuple[str | None, str | None]:
+        if lifecycle not in default_schema.TERM_LIFECYCLES:
+            raise OntologyTermValidationError(
+                "lifecycle", f"unsupported value {lifecycle!r}"
+            )
+        if lifecycle == "active":
+            if replacement_term_id is not None:
+                raise OntologyTermValidationError(
+                    "replacement_term_id", "an active term cannot have a replacement"
+                )
+            return None, None
+
+        reason = self._term_text("change_reason", change_reason)
+        if lifecycle == "replaced" and replacement_term_id is None:
+            raise OntologyTermValidationError(
+                "replacement_term_id", "a replaced term needs a replacement"
+            )
+        if replacement_term_id is not None:
+            if replacement_term_id == term_id:
+                raise OntologyTermValidationError(
+                    "replacement_term_id", "a term cannot replace itself"
+                )
+            if self.conn.execute(
+                "SELECT 1 FROM ontology_term WHERE id = ?",
+                (replacement_term_id,),
+            ).fetchone() is None:
+                raise OntologyTermValidationError(
+                    "replacement_term_id",
+                    f"unknown ontology term {replacement_term_id!r}",
+                )
+        return replacement_term_id, reason
+
+    def set_ontology_term_lifecycle(
+        self,
+        term_id: str,
+        *,
+        lifecycle: str,
+        change_reason: str | None,
+        reviewer: str,
+        provenance: str,
+        replacement_term_id: str | None = None,
+    ) -> None:
+        """Set reviewed lifecycle state without changing term identity."""
+        self._assert_writable()
+        term = self._ontology_term_row(term_id)
+        if term["lifecycle"] == "replaced":
+            raise OntologyTermValidationError(
+                "lifecycle", "a replaced term is terminal"
+            )
+        replacement, reason = self._validate_term_lifecycle(
+            term_id=term_id,
+            lifecycle=lifecycle,
+            replacement_term_id=replacement_term_id,
+            change_reason=change_reason,
+        )
+        clean_reviewer = self._term_text("reviewer", reviewer)
+        clean_provenance = self._term_text("provenance", provenance)
+        with self.conn:
+            self.conn.execute(
+                "UPDATE ontology_term SET lifecycle = ?, replacement_term_id = ?, "
+                "change_reason = ?, reviewer = ?, provenance = ?, updated_ts = ? "
+                "WHERE id = ?",
+                (
+                    lifecycle,
+                    replacement,
+                    reason,
+                    clean_reviewer,
+                    clean_provenance,
+                    time.time(),
+                    term_id,
+                ),
+            )
+
+    def change_ontology_term_meaning(
+        self,
+        term_id: str,
+        *,
+        preferred_label: str,
+        language: str,
+        definition: str,
+        change_reason: str,
+        reviewer: str,
+        provenance: str,
+    ) -> str:
+        """Create a new identity and mark the old meaning as replaced."""
+        self._assert_writable()
+        old_term = self._ontology_term_row(term_id)
+        if old_term["lifecycle"] == "replaced":
+            raise OntologyTermValidationError(
+                "lifecycle", "a replaced term cannot be replaced again"
+            )
+        clean_label = self._term_text("preferred_label", preferred_label)
+        clean_language = self._term_text("language", language)
+        clean_definition = self._term_text("definition", definition)
+        clean_reason = self._term_text("change_reason", change_reason)
+        clean_reviewer = self._term_text("reviewer", reviewer)
+        clean_provenance = self._term_text("provenance", provenance)
+        now = time.time()
+        with self.conn:
+            replacement_id = self._insert_ontology_term_row(
+                self.conn,
+                preferred_label=clean_label,
+                language=clean_language,
+                definition=clean_definition,
+                schema_version_id=old_term["schema_version_id"],
+                reviewer=clean_reviewer,
+                provenance=clean_provenance,
+                now=now,
+            )
+            self.conn.execute(
+                "UPDATE ontology_term SET lifecycle = 'replaced', "
+                "replacement_term_id = ?, change_reason = ?, reviewer = ?, "
+                "provenance = ?, updated_ts = ? WHERE id = ?",
+                (
+                    replacement_id,
+                    clean_reason,
+                    clean_reviewer,
+                    clean_provenance,
+                    now,
+                    term_id,
+                ),
+            )
+        return replacement_id
+
+    @staticmethod
+    def _xref_text(field: str, value: str | None) -> str:
+        """Parse one required xref text field."""
+        if not isinstance(value, str) or not value.strip():
+            raise XrefValidationError(field, "must be a non-empty string")
+        return value.strip()
+
+    @staticmethod
+    def _xref_number(field: str, value: float | None) -> float:
+        """Parse one finite xref number, rejecting booleans."""
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise XrefValidationError(field, "must be a finite number")
+        parsed = float(value)
+        if not math.isfinite(parsed):
+            raise XrefValidationError(field, "must be a finite number")
+        return parsed
+
+    def _validate_xref_lifecycle(
+        self,
+        *,
+        xref_id: str,
+        term_id: str,
+        lifecycle: str | None,
+        replacement_xref_id: str | None,
+        change_reason: str | None,
+    ) -> tuple[str, str | None, str | None]:
+        if lifecycle not in default_schema.TERM_LIFECYCLES:
+            raise XrefValidationError(
+                "lifecycle", f"unsupported value {lifecycle!r}"
+            )
+        if lifecycle == "active":
+            if replacement_xref_id is not None:
+                raise XrefValidationError(
+                    "replacement_xref_id",
+                    "an active xref cannot have a replacement",
+                )
+            return lifecycle, None, None
+
+        reason = self._xref_text("change_reason", change_reason)
+        if lifecycle == "replaced" and replacement_xref_id is None:
+            raise XrefValidationError(
+                "replacement_xref_id", "a replaced xref needs a replacement"
+            )
+        if replacement_xref_id is not None:
+            if replacement_xref_id == xref_id:
+                raise XrefValidationError(
+                    "replacement_xref_id", "an xref cannot replace itself"
+                )
+            replacement = self.conn.execute(
+                "SELECT term_id FROM term_xref WHERE id = ?",
+                (replacement_xref_id,),
+            ).fetchone()
+            if replacement is None:
+                raise XrefValidationError(
+                    "replacement_xref_id",
+                    f"unknown term xref {replacement_xref_id!r}",
+                )
+            if replacement["term_id"] != term_id:
+                raise XrefValidationError(
+                    "replacement_xref_id",
+                    "replacement xref must belong to the same ontology term",
+                )
+        return lifecycle, replacement_xref_id, reason
+
+    def add_term_xref(
+        self,
+        *,
+        term_id: str,
+        authority: str | None = None,
+        external_id: str | None = None,
+        mapping_predicate: str | None = None,
+        source_uri: str | None = None,
+        source_version: str | None = None,
+        valid_from: float | None = None,
+        valid_to: float | None = None,
+        retrieved_at: float | None = None,
+        confidence: float | None = None,
+        reviewer: str | None = None,
+        license_gate: str | None = None,
+        lifecycle: str | None = "active",
+        replacement_xref_id: str | None = None,
+        change_reason: str | None = None,
+    ) -> str:
+        """Append a typed mapping record without changing local identity."""
+        self._assert_writable()
+        if self.conn.execute(
+            "SELECT 1 FROM ontology_term WHERE id = ?", (term_id,)
+        ).fetchone() is None:
+            raise XrefValidationError("term_id", f"unknown ontology term {term_id!r}")
+        clean_authority = self._xref_text("authority", authority)
+        clean_external_id = self._xref_text("external_id", external_id)
+        clean_predicate = self._xref_text(
+            "mapping_predicate", mapping_predicate
+        )
+        if clean_predicate not in default_schema.XREF_MAPPING_PREDICATES:
+            raise XrefValidationError(
+                "mapping_predicate", f"unsupported value {clean_predicate!r}"
+            )
+        clean_source_uri = self._xref_text("source_uri", source_uri)
+        clean_reviewer = self._xref_text("reviewer", reviewer)
+        clean_license_gate = self._xref_text("license_gate", license_gate)
+        if clean_license_gate not in default_schema.XREF_LICENSE_GATES:
+            raise XrefValidationError(
+                "license_gate", f"unsupported value {clean_license_gate!r}"
+            )
+        clean_retrieved_at = self._xref_number("retrieved_at", retrieved_at)
+        clean_confidence = self._xref_number("confidence", confidence)
+        if not 0.0 <= clean_confidence <= 1.0:
+            raise XrefValidationError("confidence", "must be between 0 and 1")
+
+        clean_source_version = None
+        if source_version is not None:
+            clean_source_version = self._xref_text(
+                "source_version", source_version
+            )
+        clean_valid_from = (
+            self._xref_number("valid_from", valid_from)
+            if valid_from is not None
+            else None
+        )
+        clean_valid_to = (
+            self._xref_number("valid_to", valid_to)
+            if valid_to is not None
+            else None
+        )
+        if (
+            clean_source_version is None
+            and clean_valid_from is None
+            and clean_valid_to is None
+        ):
+            raise XrefValidationError(
+                "source_version_or_valid_time",
+                "source_version or a valid-time bound is required",
+            )
+        if (
+            clean_valid_from is not None
+            and clean_valid_to is not None
+            and clean_valid_to < clean_valid_from
+        ):
+            raise XrefValidationError(
+                "valid_to", "must not precede valid_from"
+            )
+
+        xref_id = str(uuid.uuid4())
+        clean_lifecycle, replacement, reason = self._validate_xref_lifecycle(
+            xref_id=xref_id,
+            term_id=term_id,
+            lifecycle=lifecycle,
+            replacement_xref_id=replacement_xref_id,
+            change_reason=change_reason,
+        )
+        now = time.time()
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO term_xref "
+                "(id, term_id, authority, external_id, mapping_predicate, "
+                "source_uri, source_version, valid_from, valid_to, retrieved_at, "
+                "confidence, reviewer, lifecycle, replacement_xref_id, "
+                "change_reason, license_gate, created_ts, updated_ts) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    xref_id,
+                    term_id,
+                    clean_authority,
+                    clean_external_id,
+                    clean_predicate,
+                    clean_source_uri,
+                    clean_source_version,
+                    clean_valid_from,
+                    clean_valid_to,
+                    clean_retrieved_at,
+                    clean_confidence,
+                    clean_reviewer,
+                    clean_lifecycle,
+                    replacement,
+                    reason,
+                    clean_license_gate,
+                    now,
+                    now,
+                ),
+            )
+        return xref_id
+
+    def get_term_xref(self, xref_id: str) -> dict[str, Any]:
+        """Return one xref record by immutable row identity."""
+        row = self.conn.execute(
+            "SELECT * FROM term_xref WHERE id = ?", (xref_id,)
+        ).fetchone()
+        if row is None:
+            raise UnknownItem(f"unknown term xref id {xref_id!r}")
+        return dict(row)
+
+    def list_term_xrefs(self, term_id: str) -> list[dict[str, Any]]:
+        """Return a term's xrefs in append order, including retired rows."""
+        self._ontology_term_row(term_id)
+        rows = self.conn.execute(
+            "SELECT * FROM term_xref WHERE term_id = ? ORDER BY rowid",
+            (term_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def set_term_xref_lifecycle(
+        self,
+        xref_id: str,
+        *,
+        lifecycle: str,
+        change_reason: str | None,
+        reviewer: str,
+        replacement_xref_id: str | None = None,
+    ) -> None:
+        """Retire an xref while preserving its mapping record."""
+        self._assert_writable()
+        current = self.conn.execute(
+            "SELECT * FROM term_xref WHERE id = ?", (xref_id,)
+        ).fetchone()
+        if current is None:
+            raise UnknownItem(f"unknown term xref id {xref_id!r}")
+        if current["lifecycle"] == "replaced":
+            raise XrefValidationError("lifecycle", "a replaced xref is terminal")
+        clean_lifecycle, replacement, reason = self._validate_xref_lifecycle(
+            xref_id=xref_id,
+            term_id=current["term_id"],
+            lifecycle=lifecycle,
+            replacement_xref_id=replacement_xref_id,
+            change_reason=change_reason,
+        )
+        clean_reviewer = self._xref_text("reviewer", reviewer)
+        with self.conn:
+            self.conn.execute(
+                "UPDATE term_xref SET lifecycle = ?, replacement_xref_id = ?, "
+                "change_reason = ?, reviewer = ?, updated_ts = ? WHERE id = ?",
+                (
+                    clean_lifecycle,
+                    replacement,
+                    reason,
+                    clean_reviewer,
+                    time.time(),
+                    xref_id,
+                ),
+            )
 
     # ------------------------------------------------------------------
     # Documents

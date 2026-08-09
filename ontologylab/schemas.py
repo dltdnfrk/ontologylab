@@ -34,10 +34,16 @@ def _schema(
     relation_qualifiers: dict[str, dict[str, dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     return {
+        "term_reviewer": _default.BUNDLED_TERM_REVIEWER,
+        "term_provenance": f"bundled-schema:{label}",
         "label": label,
         "description": description,
         "entity_types": [
-            {"name": name, "description": desc, "attributes": attrs}
+            {
+                "name": name,
+                "description": desc,
+                "attributes": attrs,
+            }
             for name, (desc, attrs) in entities.items()
         ],
         "relation_types": [

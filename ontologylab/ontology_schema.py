@@ -12,6 +12,30 @@ is declared.
 
 from __future__ import annotations
 
+LOCAL_TERM_IRI_BASE = "https://ontologylab.local/term"
+DEFAULT_TERM_LANGUAGE = "en"
+BUNDLED_TERM_REVIEWER = "ontologylab-bundled-schema"
+LEGACY_TERM_REVIEWER = "ontologylab-schema-migration"
+LEGACY_TERM_PROVENANCE = "legacy-schema-backfill"
+
+TERM_LIFECYCLES = ("active", "deprecated", "replaced")
+TERM_ALIAS_KINDS = ("alternative", "hidden", "former-preferred")
+XREF_MAPPING_PREDICATES = (
+    "exact",
+    "close",
+    "broader",
+    "narrower",
+    "related",
+    "advisory",
+)
+XREF_LICENSE_GATES = ("allow", "identifier-only", "deny-text")
+
+
+def local_term_iri(term_id: str) -> str:
+    """Derive the local IRI from the immutable UUID and nothing else."""
+    return f"{LOCAL_TERM_IRI_BASE}/{term_id}"
+
+
 DEFAULT_SCHEMA_LABEL = "software-docs-v1"
 DEFAULT_SCHEMA_DESCRIPTION = (
     "Neutral default ontology for software / technical documentation."
