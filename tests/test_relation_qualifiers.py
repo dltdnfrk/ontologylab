@@ -247,6 +247,71 @@ def test_old_writable_database_migrates_qualifier_columns(tmp_path: Path) -> Non
         migrated.close()
 
 
+def test_pack_builds_from_pre_qualifier_migrated_store(tmp_path: Path) -> None:
+    db_path = tmp_path / "pre-qualifier.sqlite"
+    store = KGStore.open(db_path)
+    doc = _insert_document(
+        store, "ApiGateway RateLimiter SessionCache", "pre-qualifier-pack"
+    )
+    entities = [
+        ProposedEntity(id="source", entity_type="Component", name="ApiGateway"),
+        ProposedEntity(id="middle", entity_type="Component", name="RateLimiter"),
+        ProposedEntity(id="target", entity_type="Component", name="SessionCache"),
+    ]
+    relations = [
+        ProposedRelation(
+            id="edge-one",
+            relation_type="uses",
+            src_entity_id="source",
+            dst_entity_id="middle",
+            confidence=0.9,
+        ),
+        ProposedRelation(
+            id="edge-two",
+            relation_type="uses",
+            src_entity_id="middle",
+            dst_entity_id="target",
+        ),
+    ]
+    store.insert_proposed(
+        entities,
+        relations,
+        source_doc_id=doc.id,
+        extractor_engine="legacy",
+    )
+    for item_id in ("source", "middle", "target", "edge-one", "edge-two"):
+        store.approve(item_id, by="legacy")
+    store.close()
+
+    # Recreate the exact pre-claim table shape. Reopening writable then appends
+    # qualifiers_json at the end, as ALTER TABLE does for every existing user DB.
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("ALTER TABLE edges DROP COLUMN qualifiers_json")
+        conn.execute("ALTER TABLE relation_type DROP COLUMN qualifiers_json")
+    migrated = KGStore.open(db_path)
+    assert [
+        row[1] for row in migrated.conn.execute("PRAGMA table_info(edges)")
+    ][-1] == "qualifiers_json"
+    migrated.close()
+
+    manifest = build_pack(
+        db_path,
+        tmp_path / "packs",
+        name="migrated",
+        allow_incomplete_extraction=True,
+        incomplete_extraction_intent="pre-qualifier migration fixture",
+    )
+    pack_path = tmp_path / "packs" / manifest.pack_id / "pack.sqlite"
+    with sqlite3.connect(pack_path) as conn:
+        rows = conn.execute(
+            "SELECT id, source_doc_id, qualifiers_json FROM edges ORDER BY id"
+        ).fetchall()
+    assert rows == [
+        ("edge-one", doc.id, "{}"),
+        ("edge-two", doc.id, "{}"),
+    ]
+
+
 def test_old_read_only_pack_degrades_to_empty_qualifiers(tmp_path: Path) -> None:
     db_path = tmp_path / "old-pack.sqlite"
     store = KGStore.open(db_path)

@@ -70,6 +70,51 @@ class IncompleteExtractionError(PackBuildError):
 # an arbitrary write location or to read a pack.sqlite from outside the store.
 _SAFE_PACK_COMPONENT = re.compile(r"^[A-Za-z0-9._-]+$")
 
+# ATTACH copies must bind by column name, never by physical table order.
+# Additive SQLite migrations append columns while fresh CREATE TABLE schemas
+# can place the same column elsewhere; SELECT * would then silently shift data
+# (or fail a NOT NULL constraint) when packing an existing user database.
+_PACK_COPY_COLUMNS: dict[str, tuple[str, ...]] = {
+    "schema_version": ("id", "label", "description", "created_ts", "is_active"),
+    "entity_type": (
+        "id", "schema_version_id", "name", "description", "attributes_json",
+    ),
+    "relation_type": (
+        "id", "schema_version_id", "name", "description", "domain_type",
+        "range_type", "directed", "qualifiers_json",
+    ),
+    "documents": (
+        "id", "source_kind", "source_uri", "title", "fetched_ts",
+        "content_hash", "raw_text_path", "source", "evidence_grade",
+    ),
+    "nodes": (
+        "id", "schema_version_id", "entity_type", "name", "normalized_name",
+        "aliases_json", "properties_json", "status", "confidence",
+        "source_doc_id", "source_span", "extractor_engine", "extractor_model",
+        "prompt_version", "created_ts", "verified_ts", "verified_by",
+        "review_note", "embedding", "embedding_model", "decode_params",
+    ),
+    "edges": (
+        "id", "schema_version_id", "relation_type", "src_node_id",
+        "dst_node_id", "properties_json", "qualifiers_json", "status",
+        "confidence", "source_doc_id", "source_span", "extractor_engine",
+        "extractor_model", "prompt_version", "created_ts", "verified_ts",
+        "verified_by", "review_note", "valid_from", "invalidated_ts",
+        "invalidated_by", "invalidation_reason", "decode_params",
+    ),
+    "node_aliases": ("node_id", "normalized_alias", "surface"),
+    "citations": (
+        "kind", "item_id", "source_doc_id", "source_span", "created_ts",
+        "extractor_engine", "extractor_model", "prompt_version", "decode_params",
+    ),
+}
+
+
+def _copy_columns(table: str, *, alias: str | None = None) -> str:
+    columns = _PACK_COPY_COLUMNS[table]
+    prefix = f"{alias}." if alias else ""
+    return ", ".join(f"{prefix}{column}" for column in columns)
+
 
 def safe_pack_component(value: str, *, kind: str = "pack name") -> str:
     """Return ``value`` if it is a safe single path segment, else raise.
@@ -204,37 +249,51 @@ def build_pack(
         conn.execute("ATTACH DATABASE ? AS live", (str(snapshot_path),))
 
         # Verified subgraph and everything it cites, in dependency order.
+        # Both sides name columns explicitly: migrated stores can have a
+        # different physical order from the current fresh-create schema.
+        for table in ("schema_version", "entity_type", "relation_type"):
+            columns = _copy_columns(table)
+            conn.execute(
+                f"INSERT INTO main.{table} ({columns}) "
+                f"SELECT {columns} FROM live.{table}"
+            )
+        document_columns = _copy_columns("documents")
         conn.execute(
-            "INSERT INTO main.schema_version SELECT * FROM live.schema_version"
-        )
-        conn.execute("INSERT INTO main.entity_type SELECT * FROM live.entity_type")
-        conn.execute(
-            "INSERT INTO main.relation_type SELECT * FROM live.relation_type"
-        )
-        conn.execute(
-            "INSERT INTO main.documents SELECT * FROM live.documents WHERE id IN ("
+            f"INSERT INTO main.documents ({document_columns}) "
+            f"SELECT {document_columns} FROM live.documents WHERE id IN ("
             "  SELECT source_doc_id FROM live.nodes WHERE status='verified'"
             "  UNION SELECT source_doc_id FROM live.edges WHERE status='verified'"
             "  UNION SELECT c.source_doc_id FROM live.citations c"
             ")"
         )
+        node_columns = _copy_columns("nodes")
         conn.execute(
-            "INSERT INTO main.nodes SELECT * FROM live.nodes WHERE status='verified'"
+            f"INSERT INTO main.nodes ({node_columns}) "
+            f"SELECT {node_columns} FROM live.nodes WHERE status='verified'"
         )
         # W13: invalidated edges are history, not current truth — a pack
         # ships only what is currently valid.
+        edge_columns = _copy_columns("edges")
+        edge_projection = _copy_columns("edges", alias="e")
         conn.execute(
-            "INSERT INTO main.edges SELECT e.* FROM live.edges e "
+            f"INSERT INTO main.edges ({edge_columns}) SELECT {edge_projection} "
+            "FROM live.edges e "
             "JOIN live.nodes s ON s.id = e.src_node_id AND s.status='verified' "
             "JOIN live.nodes d ON d.id = e.dst_node_id AND d.status='verified' "
             "WHERE e.status='verified' AND e.invalidated_ts IS NULL"
         )
+        alias_columns = _copy_columns("node_aliases")
+        alias_projection = _copy_columns("node_aliases", alias="a")
         conn.execute(
-            "INSERT INTO main.node_aliases SELECT a.* FROM live.node_aliases a "
+            f"INSERT INTO main.node_aliases ({alias_columns}) "
+            f"SELECT {alias_projection} FROM live.node_aliases a "
             "JOIN main.nodes n ON n.id = a.node_id"
         )
+        citation_columns = _copy_columns("citations")
+        citation_projection = _copy_columns("citations", alias="c")
         conn.execute(
-            "INSERT INTO main.citations SELECT c.* FROM live.citations c WHERE "
+            f"INSERT INTO main.citations ({citation_columns}) "
+            f"SELECT {citation_projection} FROM live.citations c WHERE "
             "(c.kind='node' AND c.item_id IN (SELECT id FROM main.nodes)) OR "
             "(c.kind='edge' AND c.item_id IN (SELECT id FROM main.edges))"
         )
