@@ -107,6 +107,21 @@ _PACK_COPY_COLUMNS: dict[str, tuple[str, ...]] = {
         "kind", "item_id", "source_doc_id", "source_span", "created_ts",
         "extractor_engine", "extractor_model", "prompt_version", "decode_params",
     ),
+    "ontology_term": (
+        "id", "iri", "preferred_label", "language", "definition", "lifecycle",
+        "replacement_term_id", "change_reason", "schema_version_id", "reviewer",
+        "provenance", "created_ts", "updated_ts", "legacy_kind", "legacy_id",
+    ),
+    "term_alias": (
+        "id", "term_id", "label", "language", "alias_kind", "reviewer",
+        "provenance", "created_ts",
+    ),
+    "term_xref": (
+        "id", "term_id", "authority", "external_id", "mapping_predicate",
+        "source_uri", "source_version", "valid_from", "valid_to", "retrieved_at",
+        "confidence", "reviewer", "lifecycle", "replacement_xref_id",
+        "change_reason", "license_gate", "created_ts", "updated_ts",
+    ),
 }
 
 
@@ -114,6 +129,93 @@ def _copy_columns(table: str, *, alias: str | None = None) -> str:
     columns = _PACK_COPY_COLUMNS[table]
     prefix = f"{alias}." if alias else ""
     return ", ".join(f"{prefix}{column}" for column in columns)
+
+
+def _prepare_publishable_ontology(conn: sqlite3.Connection) -> None:
+    """Materialize the explicit P1-A review and xref publication boundary.
+
+    P1-A has no review-status column. A term is reviewed exactly when its
+    current reviewer and provenance are non-empty; lifecycle is independent
+    audit state. Xrefs additionally need the complete committed source,
+    confidence, lifecycle, and license contract. Replacement chains fail
+    closed rather than shipping a logically dangling predecessor.
+    """
+    conn.execute(
+        "CREATE TEMP TABLE publishable_ontology_term_id "
+        "(id TEXT PRIMARY KEY) WITHOUT ROWID"
+    )
+    conn.execute(
+        "INSERT INTO publishable_ontology_term_id (id) "
+        "SELECT id FROM live.ontology_term "
+        "WHERE typeof(reviewer) = 'text' AND length(trim(reviewer)) > 0 "
+        "AND typeof(provenance) = 'text' AND length(trim(provenance)) > 0 "
+        "ORDER BY id"
+    )
+    dangling_term = conn.execute(
+        "SELECT t.id, t.replacement_term_id FROM live.ontology_term AS t "
+        "JOIN publishable_ontology_term_id AS published ON published.id = t.id "
+        "WHERE t.replacement_term_id IS NOT NULL AND NOT EXISTS ("
+        "SELECT 1 FROM publishable_ontology_term_id AS replacement "
+        "WHERE replacement.id = t.replacement_term_id) ORDER BY t.id LIMIT 1"
+    ).fetchone()
+    if dangling_term is not None:
+        raise PackBuildError(
+            "ontology publication refused: publishable term replacement "
+            f"{dangling_term['id']!r} targets non-publishable "
+            f"{dangling_term['replacement_term_id']!r}"
+        )
+
+    conn.execute(
+        "CREATE TEMP TABLE publishable_term_xref_id "
+        "(id TEXT PRIMARY KEY) WITHOUT ROWID"
+    )
+    conn.execute(
+        """
+        INSERT INTO publishable_term_xref_id (id)
+        SELECT x.id FROM live.term_xref AS x
+        JOIN publishable_ontology_term_id AS term ON term.id = x.term_id
+        WHERE typeof(x.authority) = 'text' AND length(trim(x.authority)) > 0
+          AND typeof(x.external_id) = 'text' AND length(trim(x.external_id)) > 0
+          AND x.mapping_predicate IN (
+                'exact', 'close', 'broader', 'narrower', 'related', 'advisory')
+          AND typeof(x.source_uri) = 'text' AND length(trim(x.source_uri)) > 0
+          AND ((typeof(x.source_version) = 'text'
+                AND length(trim(x.source_version)) > 0)
+               OR typeof(x.valid_from) IN ('integer', 'real')
+               OR typeof(x.valid_to) IN ('integer', 'real'))
+          AND (x.valid_to IS NULL OR x.valid_from IS NULL
+               OR x.valid_to >= x.valid_from)
+          AND typeof(x.retrieved_at) IN ('integer', 'real')
+          AND typeof(x.confidence) IN ('integer', 'real')
+          AND x.confidence >= 0.0 AND x.confidence <= 1.0
+          AND typeof(x.reviewer) = 'text' AND length(trim(x.reviewer)) > 0
+          AND x.lifecycle IN ('active', 'deprecated', 'replaced')
+          AND (x.lifecycle = 'active' OR (
+                typeof(x.change_reason) = 'text'
+                AND length(trim(x.change_reason)) > 0))
+          AND (x.lifecycle <> 'replaced' OR x.replacement_xref_id IS NOT NULL)
+          AND (x.replacement_xref_id IS NULL OR x.replacement_xref_id <> x.id)
+          AND x.license_gate IN ('allow', 'identifier-only', 'deny-text')
+        ORDER BY x.id
+        """
+    )
+    dangling_xref = conn.execute(
+        "SELECT x.id, x.replacement_xref_id FROM live.term_xref AS x "
+        "JOIN publishable_term_xref_id AS published ON published.id = x.id "
+        "LEFT JOIN live.term_xref AS replacement "
+        "ON replacement.id = x.replacement_xref_id "
+        "LEFT JOIN publishable_term_xref_id AS published_replacement "
+        "ON published_replacement.id = x.replacement_xref_id "
+        "WHERE x.replacement_xref_id IS NOT NULL AND ("
+        "published_replacement.id IS NULL OR replacement.term_id <> x.term_id) "
+        "ORDER BY x.id LIMIT 1"
+    ).fetchone()
+    if dangling_xref is not None:
+        raise PackBuildError(
+            "ontology publication refused: publishable xref replacement "
+            f"{dangling_xref['id']!r} has a non-publishable or cross-term target "
+            f"{dangling_xref['replacement_xref_id']!r}"
+        )
 
 
 def safe_pack_component(value: str, *, kind: str = "pack name") -> str:
@@ -141,6 +243,17 @@ DEFAULT_STALENESS_POLICY: dict[str, Any] = {
         "advisory, not semantic truth. Semantic additions, invalidations, and "
         "replacements are authoritative; any nonzero delta recommends rebuilding."
     ),
+}
+
+# Stable sentinels distinguish the explicit P1-A boundary from a guessed
+# status heuristic. All license modes retain the exact identifier/provenance
+# row; external descriptive text is not a field in the term_xref schema.
+ONTOLOGY_PUBLICATION_POLICY: dict[str, Any] = {
+    "version": 1,
+    "review_boundary": "explicit-current-review-fields-v1",
+    "xref_verification": "complete-source-license-contract-v1",
+    "license_modes": ["allow", "identifier-only", "deny-text"],
+    "external_descriptive_text": "not-in-term-xref-schema",
 }
 
 
@@ -229,17 +342,32 @@ def build_pack(
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
     pack_id = f"{name}-{stamp}"
-    pack_dir = Path(packs_dir) / pack_id
-    if pack_dir.exists():
+    packs_path = Path(packs_dir)
+    final_pack_dir = packs_path / pack_id
+    if final_pack_dir.exists():
         snapshot_conn.close()
         snapshot_tmp.cleanup()
-        raise PackBuildError(f"pack directory already exists: {pack_dir}")
-    pack_dir.mkdir(parents=True)
+        raise PackBuildError(f"pack directory already exists: {final_pack_dir}")
+    packs_path.mkdir(parents=True, exist_ok=True)
+    # Build every byte in a sibling staging directory outside packs_path, so
+    # even a concurrent list_packs scan cannot discover it. TemporaryDirectory
+    # removes it on any exception; only the final same-filesystem atomic rename
+    # makes the complete pack visible to list_packs or MCP.
+    staging_tmp = tempfile.TemporaryDirectory(
+        prefix=f".{packs_path.name}-{pack_id}-staging-", dir=packs_path.parent
+    )
+    pack_dir = Path(staging_tmp.name)
     pack_sqlite = pack_dir / "pack.sqlite"
 
     conn = sqlite3.connect(str(pack_sqlite))
+    conn.row_factory = sqlite3.Row
     try:
+        conn.execute("PRAGMA foreign_keys=ON")
         conn.executescript(_SCHEMA)
+        # P1-A adds these tables through the writable-store migration rather
+        # than _SCHEMA. Create the same committed schema in the empty pack;
+        # backfill sees no type rows yet, so only DDL is materialized here.
+        KGStore._migrate_ontology_terms(conn)
         # The pack is immutable once built: its FTS index comes from the
         # single 'rebuild' below, so the working-DB sync triggers are dropped
         # up front (avoids indexing every row twice during the bulk INSERT,
@@ -257,6 +385,39 @@ def build_pack(
                 f"INSERT INTO main.{table} ({columns}) "
                 f"SELECT {columns} FROM live.{table}"
             )
+
+        # Reviewed ontology publication follows its FK dependency order.
+        # Exact named projections preserve every local term audit field and
+        # every xref identifier/provenance field. P1-A term_xref deliberately
+        # has no external descriptive-text column to redact or reinterpret.
+        _prepare_publishable_ontology(conn)
+        term_columns = _copy_columns("ontology_term")
+        term_projection = _copy_columns("ontology_term", alias="t")
+        conn.execute(
+            f"INSERT INTO main.ontology_term ({term_columns}) "
+            f"SELECT {term_projection} FROM live.ontology_term AS t "
+            "JOIN publishable_ontology_term_id AS published ON published.id = t.id "
+            "ORDER BY t.id"
+        )
+        alias_columns = _copy_columns("term_alias")
+        alias_projection = _copy_columns("term_alias", alias="a")
+        conn.execute(
+            f"INSERT INTO main.term_alias ({alias_columns}) "
+            f"SELECT {alias_projection} FROM live.term_alias AS a "
+            "JOIN publishable_ontology_term_id AS term ON term.id = a.term_id "
+            "WHERE typeof(a.reviewer) = 'text' AND length(trim(a.reviewer)) > 0 "
+            "AND typeof(a.provenance) = 'text' AND length(trim(a.provenance)) > 0 "
+            "ORDER BY a.id"
+        )
+        xref_columns = _copy_columns("term_xref")
+        xref_projection = _copy_columns("term_xref", alias="x")
+        conn.execute(
+            f"INSERT INTO main.term_xref ({xref_columns}) "
+            f"SELECT {xref_projection} FROM live.term_xref AS x "
+            "JOIN publishable_term_xref_id AS published ON published.id = x.id "
+            "ORDER BY x.id"
+        )
+
         document_columns = _copy_columns("documents")
         conn.execute(
             f"INSERT INTO main.documents ({document_columns}) "
@@ -370,6 +531,9 @@ def build_pack(
             "entity_types": _count(conn, "entity_type"),
             "relation_types": _count(conn, "relation_type"),
             "communities": _count(conn, "communities"),
+            "ontology_terms_reviewed": _count(conn, "ontology_term"),
+            "term_aliases_reviewed": _count(conn, "term_alias"),
+            "term_xrefs_reviewed": _count(conn, "term_xref"),
         }
     finally:
         conn.close()
@@ -391,6 +555,7 @@ def build_pack(
             for row in pack_store.conn.execute(
                 "SELECT schema_version_id FROM nodes "
                 "UNION SELECT schema_version_id FROM edges "
+                "UNION SELECT schema_version_id FROM ontology_term "
                 "ORDER BY schema_version_id"
             )
         ]
@@ -425,6 +590,7 @@ def build_pack(
         extraction_completeness=completeness,
         semantic_fact_baseline=semantic_baseline_marker(),
         included_schema_version_ids=included_schema_version_ids,
+        ontology_publication=dict(ONTOLOGY_PUBLICATION_POLICY),
     )
     (pack_dir / "manifest.json").write_text(
         json.dumps(manifest.__dict__, indent=2), encoding="utf-8"
@@ -460,6 +626,11 @@ def build_pack(
                 )
                 + "\n"
             )
+    if final_pack_dir.exists():
+        staging_tmp.cleanup()
+        raise PackBuildError(f"pack directory already exists: {final_pack_dir}")
+    pack_dir.rename(final_pack_dir)
+    staging_tmp.cleanup()
     return manifest
 
 

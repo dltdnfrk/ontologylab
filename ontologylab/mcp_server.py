@@ -195,6 +195,36 @@ def _entity_detail(store: KGStore, entity_id: str, *, include_proposed: bool) ->
     return entity
 
 
+def _ontology_tables_present(store: KGStore) -> bool:
+    """Whether a pack carries the P1 ontology publication tables."""
+    names = {
+        row[0]
+        for row in store.conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' "
+            "AND name IN ('ontology_term', 'term_alias', 'term_xref')"
+        )
+    }
+    return names == {"ontology_term", "term_alias", "term_xref"}
+
+
+def _ontology_term_detail(store: KGStore, term_id: str) -> dict[str, Any]:
+    """One published term with append-ordered aliases and xref history."""
+    if not _ontology_tables_present(store):
+        raise KGStoreError("pack predates ontology term publication")
+    return {
+        "term": store.get_ontology_term(term_id),
+        "aliases": store.list_term_aliases(term_id),
+        "xrefs": store.list_term_xrefs(term_id),
+    }
+
+
+def _term_xref_detail(store: KGStore, xref_id: str) -> dict[str, Any]:
+    """One published xref row; mapping predicates never merge identities."""
+    if not _ontology_tables_present(store):
+        raise KGStoreError("pack predates ontology term publication")
+    return {"xref": store.get_term_xref(xref_id)}
+
+
 def _verified_content_hash(pack_id: str, sqlite_path: Path) -> str:
     """Recompute the pack's SHA-256 from CURRENT bytes and check the receipt.
 
@@ -567,6 +597,22 @@ class PackSession:
         store, ephemeral = self._store_for(pack_id)
         try:
             return _entity_detail(store, entity_id, include_proposed=False)
+        finally:
+            if ephemeral:
+                store.close()
+
+    def resource_term(self, pack_id: str, term_id: str) -> dict[str, Any]:
+        store, ephemeral = self._store_for(pack_id)
+        try:
+            return _ontology_term_detail(store, term_id)
+        finally:
+            if ephemeral:
+                store.close()
+
+    def resource_xref(self, pack_id: str, xref_id: str) -> dict[str, Any]:
+        store, ephemeral = self._store_for(pack_id)
+        try:
+            return _term_xref_detail(store, xref_id)
         finally:
             if ephemeral:
                 store.close()
@@ -1088,6 +1134,16 @@ def build_mcp_app(session: PackSession) -> Any:
         return json.dumps(
             session.resource_entity(pack_id, entity_id), indent=2
         )
+
+    @mcp.resource("pack://{pack_id}/term/{term_id}")
+    def pack_term(pack_id: str, term_id: str) -> str:
+        """Published reviewed term with aliases and typed xref history."""
+        return json.dumps(session.resource_term(pack_id, term_id), indent=2)
+
+    @mcp.resource("pack://{pack_id}/xref/{xref_id}")
+    def pack_xref(pack_id: str, xref_id: str) -> str:
+        """One published typed xref; mapping predicates do not merge identity."""
+        return json.dumps(session.resource_xref(pack_id, xref_id), indent=2)
 
     return mcp
 

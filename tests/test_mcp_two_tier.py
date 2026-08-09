@@ -283,4 +283,6 @@ def test_fastmcp_exposes_two_tier_surface(pack_session):
         "pack://{pack_id}/manifest",
         "pack://{pack_id}/schema",
         "pack://{pack_id}/entity/{entity_id}",
+        "pack://{pack_id}/term/{term_id}",
+        "pack://{pack_id}/xref/{xref_id}",
     }

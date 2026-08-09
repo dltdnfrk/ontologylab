@@ -75,6 +75,65 @@ class ProposedRelation:
     source_span: SourceSpan | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class OntologyTerm:
+    """Exact immutable row shape published from ``ontology_term``."""
+
+    id: str
+    iri: str
+    preferred_label: str
+    language: str
+    definition: str
+    lifecycle: str
+    replacement_term_id: str | None
+    change_reason: str | None
+    schema_version_id: int
+    reviewer: str
+    provenance: str
+    created_ts: float
+    updated_ts: float
+    legacy_kind: str | None
+    legacy_id: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class TermAlias:
+    """Exact immutable row shape published from ``term_alias``."""
+
+    id: str
+    term_id: str
+    label: str
+    language: str
+    alias_kind: str
+    reviewer: str
+    provenance: str
+    created_ts: float
+
+
+@dataclass(frozen=True, slots=True)
+class TermXref:
+    """Exact immutable row shape published from ``term_xref``."""
+
+    id: str
+    term_id: str
+    authority: str
+    external_id: str
+    mapping_predicate: str
+    source_uri: str
+    source_version: str | None
+    valid_from: float | None
+    valid_to: float | None
+    retrieved_at: float
+    confidence: float
+    reviewer: str
+    lifecycle: str
+    replacement_xref_id: str | None
+    change_reason: str | None
+    license_gate: str
+    created_ts: float
+    updated_ts: float
+
+
 @dataclass
 class PackManifest:
     """Identity + integrity metadata for one immutable knowledge pack."""
@@ -108,6 +167,9 @@ class PackManifest:
     # the version-keyed "schemas" collection in schema.json. Absent (None)
     # only on manifests written before the multi-schema contract.
     included_schema_version_ids: list[int] | None = None
+    # Machine-readable publication boundary for first-class ontology rows.
+    # None only on packs written before ontology term publication shipped.
+    ontology_publication: dict[str, Any] | None = None
 
 
 @runtime_checkable
@@ -138,6 +200,9 @@ __all__ = [
     "SourceSpan",
     "ProposedEntity",
     "ProposedRelation",
+    "OntologyTerm",
+    "TermAlias",
+    "TermXref",
     "PackManifest",
     "Engine",
 ]
