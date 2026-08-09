@@ -54,7 +54,14 @@ from ontologylab.connectors.resources import (
     RESOURCE_ORDER,
 )
 from ontologylab.connectors.web_crawl import WebCrawlConnector
-from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError, UnknownItem
+from ontologylab.kgstore import (
+    EndpointNotVerified,
+    KGStore,
+    KGStoreError,
+    OntologyTermValidationError,
+    UnknownItem,
+    XrefValidationError,
+)
 from ontologylab.mcp_server import serve_args
 from ontologylab.packbuilder import PackBuildError, build_pack, list_packs
 from ontologylab.paths import (
@@ -115,6 +122,11 @@ from ontologylab.server.schemas import (
     SchemaInstall,
     Settings,
     SourceCreate,
+    TermAliasCreate,
+    TermLifecycle,
+    TermRename,
+    TermXrefCreate,
+    TermXrefReview,
     TranslationRequest,
 )
 
@@ -663,6 +675,288 @@ def activate_schema(deps: AppDependency, schema_id: int) -> dict[str, Any]:
         return {"ok": True, "active": store.get_schema()}
     except UnknownItem as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+# ---------------------------------------------------------------------------
+# Ontology terms (P1-B) — the reviewed vocabulary itself, not the graph.
+#
+# Every route below is one explicit human action. Nothing here looks anything
+# up externally and nothing here creates a verified term or mapping as a side
+# effect of reading: the only way a row changes is a person pressing a control
+# that carries their name. Writes go through the KGStore lifecycle API so the
+# invariants (identity is immutable, a replacement must exist, a retirement
+# needs a reason) are enforced in one place; the SELECTs are read-only.
+# ---------------------------------------------------------------------------
+
+_TERM_LIST_COLUMNS = (
+    "id, iri, preferred_label, language, definition, lifecycle, "
+    "replacement_term_id, change_reason, schema_version_id, reviewer, "
+    "provenance, created_ts, updated_ts"
+)
+
+
+def _term_error(exc: OntologyTermValidationError) -> HTTPException:
+    """Map a rejected term field onto a stable, machine-readable 400.
+
+    The field name is the part a caller can act on — the browser puts the
+    message beside the input it belongs to, and an agent can branch on
+    `error_kind` without parsing prose.
+    """
+    return HTTPException(
+        status_code=400,
+        detail={
+            "ok": False,
+            "error_kind": "ontology_term_invalid",
+            "field": exc.field,
+            "detail": exc.message,
+        },
+    )
+
+
+def _xref_error(exc: XrefValidationError) -> HTTPException:
+    """The same contract for a rejected cross-reference field."""
+    return HTTPException(
+        status_code=400,
+        detail={
+            "ok": False,
+            "error_kind": "term_xref_invalid",
+            "field": exc.field,
+            "detail": exc.message,
+        },
+    )
+
+
+def _unknown_term(term_id: str) -> HTTPException:
+    return HTTPException(
+        status_code=404,
+        detail={
+            "ok": False,
+            "error_kind": "unknown_term",
+            "detail": f"unknown ontology term {term_id!r}",
+        },
+    )
+
+
+@router.get("/ontology/terms")
+def list_ontology_terms(
+    deps: AppDependency,
+    schema_version_id: int | None = Query(None, ge=1),
+    limit: int = Query(500, ge=1, le=2000),
+) -> dict[str, Any]:
+    """The vocabulary this store holds, in label order.
+
+    Ordered for a person reading a picker rather than by recency, and
+    deliberately not filtered to `active`: a deprecated term is exactly what
+    a reviewer needs to find in order to point it at its replacement.
+    """
+    store = _open_store(deps)
+    try:
+        where, params = "", []
+        if schema_version_id is not None:
+            where = "WHERE schema_version_id = ?"
+            params.append(schema_version_id)
+        rows = store.conn.execute(
+            f"SELECT {_TERM_LIST_COLUMNS} FROM ontology_term {where} "
+            "ORDER BY preferred_label COLLATE NOCASE, created_ts LIMIT ?",
+            (*params, limit),
+        ).fetchall()
+        terms = [dict(row) for row in rows]
+        return {"terms": terms, "count": len(terms)}
+    finally:
+        store.close()
+
+
+@router.get("/ontology/terms/{term_id}")
+def get_ontology_term(deps: AppDependency, term_id: str) -> dict[str, Any]:
+    """One term with everything a reviewer needs to judge it.
+
+    Aliases and xrefs come back including retired rows — the audit question
+    is "what did we once say", and a list that hides retirements cannot
+    answer it. `replacement` is resolved here so the panel can name the
+    successor rather than print another UUID.
+    """
+    store = _open_store(deps)
+    try:
+        term = store.get_ontology_term(term_id)
+        replacement = None
+        if term["replacement_term_id"]:
+            replacement = store.get_ontology_term(term["replacement_term_id"])
+        return {
+            "term": term,
+            "replacement": replacement,
+            "aliases": store.list_term_aliases(term_id),
+            "xrefs": store.list_term_xrefs(term_id),
+        }
+    except UnknownItem as exc:
+        raise _unknown_term(term_id) from exc
+    finally:
+        store.close()
+
+
+@router.post("/ontology/terms/{term_id}/rename")
+def rename_ontology_term(
+    deps: AppDependency, term_id: str, body: TermRename
+) -> dict[str, Any]:
+    """Rename a term without changing what it is.
+
+    The UUID and the IRI derived from it survive, and the former preferred
+    label is filed as an alias — a rename is a change of wording, so anything
+    already pointing at this term keeps pointing at it.
+    """
+    store = _open_store(deps)
+    try:
+        store.rename_ontology_term(
+            term_id,
+            preferred_label=body.preferred_label,
+            language=body.language,
+            reviewer=body.reviewer,
+            provenance=body.provenance,
+        )
+        return {"ok": True, "term": store.get_ontology_term(term_id)}
+    except UnknownItem as exc:
+        raise _unknown_term(term_id) from exc
+    except OntologyTermValidationError as exc:
+        raise _term_error(exc) from exc
+    finally:
+        store.close()
+
+
+@router.post("/ontology/terms/{term_id}/lifecycle")
+def set_ontology_term_lifecycle(
+    deps: AppDependency, term_id: str, body: TermLifecycle
+) -> dict[str, Any]:
+    """Deprecate or replace a term, on the record.
+
+    A replacement that does not exist is refused by the store before any
+    write, so a failed retirement leaves the row exactly as it was rather
+    than half-applying and pointing at nothing.
+    """
+    store = _open_store(deps)
+    try:
+        store.set_ontology_term_lifecycle(
+            term_id,
+            lifecycle=body.lifecycle,
+            change_reason=body.change_reason,
+            replacement_term_id=body.replacement_term_id,
+            reviewer=body.reviewer,
+            provenance=body.provenance,
+        )
+        return {"ok": True, "term": store.get_ontology_term(term_id)}
+    except UnknownItem as exc:
+        raise _unknown_term(term_id) from exc
+    except OntologyTermValidationError as exc:
+        raise _term_error(exc) from exc
+    finally:
+        store.close()
+
+
+@router.post("/ontology/terms/{term_id}/aliases")
+def add_ontology_term_alias(
+    deps: AppDependency, term_id: str, body: TermAliasCreate
+) -> dict[str, Any]:
+    """Append one reviewed alias to a term."""
+    store = _open_store(deps)
+    try:
+        alias_id = store.add_term_alias(
+            term_id=term_id,
+            label=body.label,
+            language=body.language,
+            alias_kind=body.alias_kind,
+            reviewer=body.reviewer,
+            provenance=body.provenance,
+        )
+        return {
+            "ok": True,
+            "alias_id": alias_id,
+            "aliases": store.list_term_aliases(term_id),
+        }
+    except UnknownItem as exc:
+        raise _unknown_term(term_id) from exc
+    except OntologyTermValidationError as exc:
+        raise _term_error(exc) from exc
+    finally:
+        store.close()
+
+
+@router.post("/ontology/terms/{term_id}/xrefs")
+def add_ontology_term_xref(
+    deps: AppDependency, term_id: str, body: TermXrefCreate
+) -> dict[str, Any]:
+    """Record an external mapping a reviewer decided to trust.
+
+    Nothing on this path fetches anything: the authority, identifier, source
+    URI and retrieval time are all stated by the person filing the mapping,
+    which is what makes the record auditable rather than merely present.
+    """
+    store = _open_store(deps)
+    try:
+        xref_id = store.add_term_xref(
+            term_id=term_id,
+            authority=body.authority,
+            external_id=body.external_id,
+            mapping_predicate=body.mapping_predicate,
+            source_uri=body.source_uri,
+            source_version=body.source_version,
+            valid_from=body.valid_from,
+            valid_to=body.valid_to,
+            retrieved_at=body.retrieved_at,
+            confidence=body.confidence,
+            license_gate=body.license_gate,
+            reviewer=body.reviewer,
+        )
+        return {
+            "ok": True,
+            "xref_id": xref_id,
+            "xrefs": store.list_term_xrefs(term_id),
+        }
+    except XrefValidationError as exc:
+        if exc.field == "term_id":
+            raise _unknown_term(term_id) from exc
+        raise _xref_error(exc) from exc
+    finally:
+        store.close()
+
+
+@router.post("/ontology/terms/{term_id}/xrefs/{xref_id}/review")
+def review_ontology_term_xref(
+    deps: AppDependency, term_id: str, xref_id: str, body: TermXrefReview
+) -> dict[str, Any]:
+    """Retire one mapping under a reviewer's name.
+
+    The term id in the path is not decoration: an xref belonging to another
+    term is a 404 here rather than a silent cross-term write, so a stale
+    panel cannot retire a mapping the reviewer is not looking at.
+    """
+    store = _open_store(deps)
+    try:
+        owned = any(
+            row["id"] == xref_id for row in store.list_term_xrefs(term_id)
+        )
+        if not owned:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "ok": False,
+                    "error_kind": "unknown_xref",
+                    "detail": (
+                        f"term {term_id!r} has no cross-reference {xref_id!r}"
+                    ),
+                },
+            )
+        store.set_term_xref_lifecycle(
+            xref_id,
+            lifecycle=body.lifecycle,
+            change_reason=body.change_reason,
+            replacement_xref_id=body.replacement_xref_id,
+            reviewer=body.reviewer,
+        )
+        return {"ok": True, "xrefs": store.list_term_xrefs(term_id)}
+    except UnknownItem as exc:
+        raise _unknown_term(term_id) from exc
+    except XrefValidationError as exc:
+        raise _xref_error(exc) from exc
     finally:
         store.close()
 

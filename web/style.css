@@ -2710,3 +2710,68 @@ body.rail-resizing {
 .enrich-err { color: #c0392b; }
 .ev-enrich { margin-top: 10px; }
 .ev-enrich h4 { margin: 0 0 6px; }
+
+/* ---------- ontology term lifecycle ---------- */
+/* 용어 하나의 이력을 읽는 자리. 판정 화면과 같은 규율을 쓴다 — 상태는 배지가
+   말하고, 값은 --sp-* 격자와 --fs-* 스케일 위에만 놓인다. 여기서 새 색이나
+   손으로 고른 px를 쓰기 시작하면 이 패널만 다른 앱처럼 보이기 시작한다. */
+
+.term-detail {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  font-size: var(--fs-sm);
+}
+.term-detail > :first-child { margin-top: 0; }
+.term-detail > :last-child { margin-bottom: 0; }
+.term-detail h4 {
+  margin: var(--sp-4) 0 var(--sp-2);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-label);
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+}
+
+.term-headline {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-md);
+}
+
+/* 정의는 산문이다. 이 패널에서 유일하게 여러 줄로 읽히는 값이라, 본문 폭
+   제한을 걸어야 표 옆에서 한 줄이 화면 끝까지 늘어지지 않는다. */
+.term-definition {
+  max-width: var(--measure);
+  margin: 0 0 var(--sp-2);
+  line-height: var(--lh-body);
+  overflow-wrap: anywhere;
+}
+
+.term-reason { margin: 0 0 var(--sp-2); color: var(--muted-foreground); }
+
+.term-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.term-list li {
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.term-list li:last-child { border-bottom: none; }
+
+/* 좁은 창(이 앱이 실제로 도는 폭)에서는 두 열 폼이 글자 두 개 너비가 된다. */
+@media (max-width: 860px) {
+  #term-panel .form-grid { grid-template-columns: 1fr; }
+  #term-panel .form-grid label.span-2 { grid-column: auto; }
+}

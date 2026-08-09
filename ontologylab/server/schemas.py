@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -325,6 +325,82 @@ class AnnotationDecision(BaseModel):
 
     accept: bool
     note: str | None = None
+
+
+class TermRename(BaseModel):
+    """Rename one ontology term in place (Settings → 온톨로지 용어).
+
+    Identity is not in this body on purpose: renaming keeps the term's UUID
+    and IRI, so there is nothing here that could change them. `reviewer` and
+    `provenance` are required and have no defaults — a lifecycle record whose
+    author defaulted to a constant records nothing.
+    """
+
+    preferred_label: str
+    language: str
+    reviewer: str
+    provenance: str
+
+
+class TermLifecycle(BaseModel):
+    """Deprecate or replace a term, always with a stated reason.
+
+    The enum lives here rather than in the route so an invented state is a
+    422 naming the field, not a store error. `active` is accepted because the
+    store models it; a replacement id may only accompany a retirement.
+    """
+
+    lifecycle: Literal["active", "deprecated", "replaced"]
+    change_reason: Optional[str] = None
+    replacement_term_id: Optional[str] = None
+    reviewer: str
+    provenance: str
+
+
+class TermAliasCreate(BaseModel):
+    """Append one reviewed alias. Existing alias rows are never rewritten."""
+
+    label: str
+    language: str
+    alias_kind: Literal["alternative", "hidden", "former-preferred"] = (
+        "alternative"
+    )
+    reviewer: str
+    provenance: str
+
+
+class TermXrefCreate(BaseModel):
+    """Record one external mapping a human decided to trust.
+
+    A mapping predicate is data about two concepts, never an instruction to
+    resolve them to one identity — `exact` here does not merge anything. The
+    licence gate is mandatory because shipping a mirrored description the
+    authority did not licence is the failure this field exists to prevent.
+    """
+
+    authority: str
+    external_id: str
+    mapping_predicate: Literal[
+        "exact", "close", "broader", "narrower", "related", "advisory"
+    ]
+    source_uri: str
+    source_version: Optional[str] = None
+    valid_from: Optional[float] = None
+    valid_to: Optional[float] = None
+    retrieved_at: float
+    confidence: float
+    license_gate: Literal["allow", "identifier-only", "deny-text"]
+    reviewer: str
+
+
+class TermXrefReview(BaseModel):
+    """Retire an xref while preserving the mapping record it carries."""
+
+    lifecycle: Literal["active", "deprecated", "replaced"]
+    change_reason: Optional[str] = None
+    replacement_xref_id: Optional[str] = None
+    reviewer: str
+
 
 class SchemaInstall(BaseModel):
     """Install an ontology: either a bundled preset, or one written out.

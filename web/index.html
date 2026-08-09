@@ -750,6 +750,117 @@
         </div>
         <div id="schema-result" class="status-box result-box hidden"></div>
       </div>
+
+      <!-- 용어 자체의 이력. 온톨로지를 갈아끼우는 것(위 패널)과 한 용어를
+           고쳐 쓰는 것은 다른 일이다. 이름을 바꿔도 신원(UUID·IRI)은 그대로고,
+           뜻이 바뀌면 새 용어를 만들어 옵기며 옛 용어에는 사유와 대체 링크가
+           남는다. 외부 조회는 여기 없다 — 기록되는 모든 것은 사람이 누른
+           결과고, 그래서 검토자와 출처가 비울 수 없는 칸이다. -->
+      <div class="panel" id="term-panel">
+        <div class="panel-head">
+          <span class="panel-label">온톨로지 용어</span>
+          <span class="panel-note">이름·수명주기·별칭·외부 매핑을 사람이 고쳐요</span>
+        </div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <label>용어
+              <select id="term-select" aria-label="온톨로지 용어"
+                aria-describedby="term-picker-help"></select>
+            </label>
+            <label>검토자
+              <input type="text" id="term-reviewer" aria-label="검토자"
+                autocomplete="off" placeholder="이 변경을 책임지는 사람" />
+            </label>
+            <label class="span-2">출처 기록
+              <input type="text" id="term-provenance" aria-label="출처 기록"
+                autocomplete="off" placeholder="예: curation:2026-08-회의" />
+            </label>
+          </div>
+          <p id="term-picker-help" class="muted form-help"><small>
+            폐기된 용어도 목록에 남아요 — 대체 용어를 가리키려면 찾을 수
+            있어야 하기 때문이에요. 검토자와 출처는 모든 변경에 함께 기록돼요.
+          </small></p>
+          <div id="term-detail" class="term-detail"></div>
+        </div>
+
+        <div class="panel-head panel-head-sub">
+          <span class="panel-label">이름 바꾸기</span>
+          <span class="panel-note">신원은 그대로 · 예전 이름은 별칭으로 남아요</span>
+        </div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <label>새 대표 이름
+              <input type="text" id="term-rename-label" aria-label="새 대표 이름"
+                autocomplete="off" />
+            </label>
+            <label>언어 태그
+              <input type="text" id="term-rename-language" aria-label="언어 태그"
+                autocomplete="off" placeholder="en" />
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="button" id="term-rename-btn" class="btn btn-primary"
+              aria-label="용어 이름 바꾸기">이름 바꾸기</button>
+          </div>
+        </div>
+
+        <div class="panel-head panel-head-sub">
+          <span class="panel-label">수명주기</span>
+          <span class="panel-note">폐기·대체는 사유가 있어야 기록돼요</span>
+        </div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <label>상태
+              <select id="term-lifecycle-state" aria-label="수명주기 상태">
+                <option value="deprecated">폐기 (deprecated)</option>
+                <option value="replaced">대체됨 (replaced)</option>
+                <option value="active">사용 중 (active)</option>
+              </select>
+            </label>
+            <label>대체 용어
+              <select id="term-lifecycle-replacement" aria-label="대체 용어"></select>
+            </label>
+            <label class="span-2">변경 사유
+              <input type="text" id="term-lifecycle-reason" aria-label="변경 사유"
+                autocomplete="off" placeholder="왜 이 뜻을 더 쓰지 않나요?" />
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="button" id="term-lifecycle-btn" class="btn btn-danger"
+              aria-label="수명주기 상태 적용">상태 적용</button>
+          </div>
+        </div>
+
+        <div class="panel-head panel-head-sub">
+          <span class="panel-label">별칭 추가</span>
+          <span class="panel-note">쌓기만 해요 · 기존 별칭은 고쳐 쓰지 않아요</span>
+        </div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <label>별칭
+              <input type="text" id="term-alias-label" aria-label="추가할 별칭"
+                autocomplete="off" />
+            </label>
+            <label>언어 태그
+              <input type="text" id="term-alias-language" aria-label="별칭 언어 태그"
+                autocomplete="off" placeholder="ko" />
+            </label>
+            <label>종류
+              <select id="term-alias-kind" aria-label="별칭 종류">
+                <option value="alternative">다른 이름 (alternative)</option>
+                <option value="hidden">검색용 (hidden)</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="button" id="term-alias-btn" class="btn"
+              aria-label="별칭 추가">별칭 추가</button>
+          </div>
+        </div>
+
+        <div id="term-result" class="status-box result-box hidden"
+          role="status" aria-live="polite"></div>
+      </div>
     </section>
   </main>
 

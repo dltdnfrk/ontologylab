@@ -1332,6 +1332,7 @@
       showResult(box, escapeHtml(friendlyError(e)), true);
     }
     loadSchema();
+    loadTerms();
   }
 
   /* -- 온톨로지 --------------------------------------------------------------
@@ -1404,6 +1405,263 @@
       applySchema(null,
         "/api/schema/" + encodeURIComponent(a.dataset.schemaActivate) +
         "/activate");
+    }
+  });
+
+  /* -- 온톨로지 용어 수명주기 ------------------------------------------------
+     위의 패널은 어휘 한 벌을 통째로 갈아끼우고, 여기는 그 안의 한 용어를
+     고쳐 쓴다. 둘은 다른 일이다: 이름을 바꿔도 UUID·IRI는 그대로라 기존
+     사실이 계속 같은 것을 가리키고, 뜻이 바뀌면 그건 이름 변경이 아니라
+     대체다.
+
+     서버가 돌려주는 값은 전부 바깥글이다 — 정의·별칭·외부 권위명·식별자는
+     외부 어휘에서 온 산문이고, 검토자·출처는 사람이 타이핑한 문자열이다.
+     그래서 이 파일의 규칙을 그대로 따른다: innerHTML에 넣는 것은 반드시
+     escapeHtml, 그 외는 textContent. */
+
+  var termCache = [];        // 마지막으로 받은 용어 목록(서버 순서 그대로)
+  var termSelectedId = "";   // 지금 패널이 보여주는 용어
+
+  var TERM_LIFECYCLE_KO = {
+    active: "사용 중",
+    deprecated: "폐기됨",
+    replaced: "대체됨",
+  };
+  var TERM_ALIAS_KIND_KO = {
+    alternative: "다른 이름",
+    hidden: "검색용",
+    "former-preferred": "예전 대표 이름",
+  };
+  var TERM_PREDICATE_KO = {
+    exact: "정확히 같음", close: "거의 같음", broader: "더 넓음",
+    narrower: "더 좁음", related: "관련", advisory: "참고",
+  };
+  var TERM_LICENSE_KO = {
+    allow: "본문 허용", "identifier-only": "식별자만", "deny-text": "본문 금지",
+  };
+
+  function termLifecycleBadge(lifecycle) {
+    var cls = lifecycle === "active" ? "st-verified"
+      : lifecycle === "replaced" ? "st-rejected" : "st-proposed";
+    return "<span class='badge " + cls + "'>" +
+      escapeHtml(TERM_LIFECYCLE_KO[lifecycle] || lifecycle) + "</span>";
+  }
+
+  /* 옵션은 문자열 조립이 아니라 노드로 만든다. 대표 이름은 외부에서 온
+     값이고, <option> 안은 무해해 보이기 때문에 이스케이프를 빼먹기 가장 쉬운
+     자리다 — textContent면 그 실수 자체가 불가능해진다. */
+  function termOption(term, includeBlank) {
+    var option = document.createElement("option");
+    option.value = includeBlank ? "" : term.id;
+    if (includeBlank) {
+      option.textContent = "— 없음 —";
+      return option;
+    }
+    var suffix = term.lifecycle === "active"
+      ? "" : " (" + (TERM_LIFECYCLE_KO[term.lifecycle] || term.lifecycle) + ")";
+    option.textContent = term.preferred_label + " [" + term.language + "]" +
+      suffix;
+    return option;
+  }
+
+  function fillTermPickers() {
+    var picker = $("#term-select");
+    var replacement = $("#term-lifecycle-replacement");
+    if (!picker || !replacement) return;
+    picker.innerHTML = "";
+    replacement.innerHTML = "";
+    replacement.appendChild(termOption(null, true));
+    termCache.forEach(function (term) {
+      picker.appendChild(termOption(term, false));
+      if (term.id !== termSelectedId) {
+        replacement.appendChild(termOption(term, false));
+      }
+    });
+    if (termSelectedId) picker.value = termSelectedId;
+  }
+
+  function termMetaLine(term) {
+    return "<small class='muted'>검토자 " + escapeHtml(term.reviewer) +
+      " · 출처 " + escapeHtml(term.provenance) +
+      " · <code>" + escapeHtml(term.iri) + "</code></small>";
+  }
+
+  function termAliasRow(alias) {
+    return "<li><strong>" + escapeHtml(alias.label) + "</strong> " +
+      "<small class='muted'>[" + escapeHtml(alias.language) + "] · " +
+      escapeHtml(TERM_ALIAS_KIND_KO[alias.alias_kind] || alias.alias_kind) +
+      " · 검토자 " + escapeHtml(alias.reviewer) + "</small></li>";
+  }
+
+  function termXrefRow(xref) {
+    return "<li>" + termLifecycleBadge(xref.lifecycle) + " <strong>" +
+      escapeHtml(xref.authority) + "</strong> <code>" +
+      escapeHtml(xref.external_id) + "</code> " +
+      "<small class='muted'>" +
+      escapeHtml(TERM_PREDICATE_KO[xref.mapping_predicate] ||
+                 xref.mapping_predicate) +
+      " · " + escapeHtml(TERM_LICENSE_KO[xref.license_gate] ||
+                          xref.license_gate) +
+      " · 출처 " + escapeHtml(xref.source_uri) +
+      " · 검토자 " + escapeHtml(xref.reviewer) +
+      (xref.change_reason
+        ? " · 사유 " + escapeHtml(xref.change_reason) : "") +
+      "</small></li>";
+  }
+
+  function renderTermDetail(payload) {
+    var box = $("#term-detail");
+    if (!box) return;
+    if (!payload) { box.textContent = "용어를 고르면 여기 나와요."; return; }
+    var term = payload.term || {};
+    var html = "<p class='term-headline'><strong>" +
+      escapeHtml(term.preferred_label) + "</strong> " +
+      "<small class='muted'>[" + escapeHtml(term.language) + "]</small> " +
+      termLifecycleBadge(term.lifecycle) + "</p>";
+    html += "<p class='term-definition'>" + escapeHtml(term.definition) +
+      "</p>";
+    if (term.change_reason) {
+      html += "<p class='term-reason'><small>변경 사유: " +
+        escapeHtml(term.change_reason) + "</small></p>";
+    }
+    if (payload.replacement) {
+      html += "<p class='term-reason'><small>대체 용어: <strong>" +
+        escapeHtml(payload.replacement.preferred_label) + "</strong> " +
+        "<code>" + escapeHtml(payload.replacement.iri) +
+        "</code></small></p>";
+    }
+    html += "<p>" + termMetaLine(term) + "</p>";
+    var aliases = payload.aliases || [];
+    html += "<h4>별칭 (" + escapeHtml(String(aliases.length)) + ")</h4>";
+    html += aliases.length
+      ? "<ul class='term-list'>" + aliases.map(termAliasRow).join("") + "</ul>"
+      : "<p class='muted'><small>아직 없어요.</small></p>";
+    var xrefs = payload.xrefs || [];
+    html += "<h4>외부 매핑 (" + escapeHtml(String(xrefs.length)) + ")</h4>";
+    html += xrefs.length
+      ? "<ul class='term-list'>" + xrefs.map(termXrefRow).join("") + "</ul>"
+      : "<p class='muted'><small>아직 없어요 — 매핑은 사람이 기록해요.</small></p>";
+    box.innerHTML = html;
+  }
+
+  /* 서버가 4xx를 돌려주면 detail은 문자열이 아니라 {error_kind, field,
+     detail} 이다. 어느 칸이 틀렸는지까지 말해야 고칠 수 있으므로 그대로
+     풀어서 보여 준다. */
+  function termErrorText(res) {
+    var detail = res && res.detail;
+    if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+      return (detail.field ? detail.field + ": " : "") +
+        (detail.detail || "요청을 처리하지 못했어요.");
+    }
+    if (Array.isArray(detail)) {
+      return detail.map(function (item) {
+        return (item.loc || []).slice(-1).join("") + ": " + (item.msg || "");
+      }).join(" · ");
+    }
+    return String(detail || "요청을 처리하지 못했어요.");
+  }
+
+  async function loadTerms(selectId) {
+    var box = $("#term-detail");
+    if (!box) return;
+    try {
+      var listed = await api("/api/ontology/terms");
+      termCache = listed.terms || [];
+    } catch (e) {
+      box.textContent = friendlyError(e);
+      return;
+    }
+    if (!termCache.length) {
+      termSelectedId = "";
+      fillTermPickers();
+      box.textContent = "아직 용어가 없어요.";
+      return;
+    }
+    var wanted = selectId || termSelectedId;
+    var found = termCache.filter(function (t) { return t.id === wanted; })[0];
+    termSelectedId = found ? found.id : termCache[0].id;
+    fillTermPickers();
+    await loadTermDetail(termSelectedId);
+  }
+
+  async function loadTermDetail(termId) {
+    var box = $("#term-detail");
+    if (!box) return;
+    try {
+      var payload = await api(
+        "/api/ontology/terms/" + encodeURIComponent(termId));
+    } catch (e) {
+      box.textContent = friendlyError(e);
+      return;
+    }
+    renderTermDetail(payload);
+    var rename = $("#term-rename-label");
+    var language = $("#term-rename-language");
+    if (rename) rename.value = payload.term.preferred_label;
+    if (language) language.value = payload.term.language;
+  }
+
+  /* 모든 변경은 사람이 버튼을 눌렀을 때만 일어난다. 자동 저장도, 목록을
+     열었다는 이유로 생기는 레코드도 없다. */
+  async function termMutate(path, payload) {
+    var box = $("#term-result");
+    var reviewer = ($("#term-reviewer").value || "").trim();
+    var provenance = ($("#term-provenance").value || "").trim();
+    if (!termSelectedId) {
+      showResult(box, "먼저 용어를 골라주세요.", true);
+      return;
+    }
+    if (!reviewer || !provenance) {
+      showResult(box, "검토자와 출처를 적어야 기록으로 남아요.", true);
+      return;
+    }
+    payload.reviewer = reviewer;
+    payload.provenance = provenance;
+    try {
+      var res = await apiSend(
+        "/api/ontology/terms/" + encodeURIComponent(termSelectedId) + path,
+        payload);
+      if (res && res.ok) {
+        showResult(box, "반영했어요.", false);
+      } else {
+        showResult(box, escapeHtml(termErrorText(res)), true);
+      }
+    } catch (e) {
+      showResult(box, escapeHtml(friendlyError(e)), true);
+      return;
+    }
+    await loadTerms(termSelectedId);
+  }
+
+  document.addEventListener("change", function (ev) {
+    if (ev.target && ev.target.id === "term-select") {
+      termSelectedId = ev.target.value;
+      fillTermPickers();
+      loadTermDetail(termSelectedId);
+    }
+  });
+
+  document.addEventListener("click", function (ev) {
+    var target = ev.target.closest("button");
+    if (!target) return;
+    if (target.id === "term-rename-btn") {
+      termMutate("/rename", {
+        preferred_label: ($("#term-rename-label").value || "").trim(),
+        language: ($("#term-rename-language").value || "").trim(),
+      });
+    } else if (target.id === "term-lifecycle-btn") {
+      var replacement = ($("#term-lifecycle-replacement").value || "").trim();
+      termMutate("/lifecycle", {
+        lifecycle: $("#term-lifecycle-state").value,
+        change_reason: ($("#term-lifecycle-reason").value || "").trim() || null,
+        replacement_term_id: replacement || null,
+      });
+    } else if (target.id === "term-alias-btn") {
+      termMutate("/aliases", {
+        label: ($("#term-alias-label").value || "").trim(),
+        language: ($("#term-alias-language").value || "").trim(),
+        alias_kind: $("#term-alias-kind").value,
+      });
     }
   });
 
@@ -4165,12 +4423,17 @@
      순서가 곧 무엇을 먼저 물었는지이기 때문이다.
 
      단계(phase)는 접지 않는다. 그건 사건이 아니라 구간 표시라, 모으는 중과
-     뽑는 중이 한 줄로 합쳐지면 순서가 사라진다. */
+     뽑는 중이 한 줄로 합쳐지면 순서가 사라진다.
+
+     구분자는 U+0000이되 이스케이프로 적는다. 예전에는 소스에 진짜 0x00
+     바이트가 박혀 있었다 — 화면에도 diff에도 보이지 않고, git·grep·에디터는
+     이 파일을 바이너리로 취급했으며, 텍스트 파이프라인을 한 번만 통과해도
+     키가 조용히 달라졌다. 키의 의미는 그대로 두고 표기만 바꾼다. */
   function collapseSteps(steps) {
     var order = [], byKey = {};
     steps.forEach(function (s) {
       var key = s.action === "phase"
-        ? "phase:" + s.detail : s.tool + " " + s.action;
+        ? "phase:" + s.detail : s.tool + "\u0000" + s.action;
       if (!(key in byKey)) order.push(key);
       byKey[key] = s;
     });
