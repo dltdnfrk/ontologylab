@@ -64,6 +64,14 @@ from ontologylab.kgstore import (
 )
 from ontologylab.mcp_server import serve_args
 from ontologylab.packbuilder import PackBuildError, build_pack, list_packs
+from ontologylab.proposals import (
+    OntologyProposalError,
+    build_ontology_proposals,
+    candidates_from_preview_request,
+    proposal_to_dict,
+    verify_ontology_proposal,
+    verify_request_from_dict,
+)
 from ontologylab.paths import (
     DEFAULT_MAX_ENGINE_CALLS,
     DEFAULT_TIME_BUDGET_S,
@@ -675,6 +683,88 @@ def activate_schema(deps: AppDependency, schema_id: int) -> dict[str, Any]:
         return {"ok": True, "active": store.get_schema()}
     except UnknownItem as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+# ---------------------------------------------------------------------------
+# Extraction-to-ontology proposals (P1-D)
+#
+# Previewing is read-only and deterministic. Applying is a separate endpoint
+# whose body must name the human reviewer and provenance; extraction status,
+# model confidence, and external xref predicates never satisfy that gate.
+# ---------------------------------------------------------------------------
+
+
+def _ontology_proposal_error(exc: OntologyProposalError) -> HTTPException:
+    return HTTPException(
+        status_code=exc.status_code,
+        detail={
+            "ok": False,
+            "error_kind": exc.error_kind,
+            "field": exc.field,
+            "detail": exc.message,
+        },
+    )
+
+
+async def _ontology_proposal_body(
+    request: Request, error_kind: str
+) -> Any:
+    """Parse JSON here so malformed bytes use the same typed 4xx envelope."""
+    try:
+        return await request.json()
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        error = OntologyProposalError(
+            error_kind, "body", "must contain valid JSON"
+        )
+        raise _ontology_proposal_error(error) from exc
+
+
+@router.post("/ontology/proposals/preview")
+async def preview_ontology_proposals(
+    deps: AppDependency, request: Request
+) -> dict[str, Any]:
+    """Collapse real extraction rows or typed candidates into review artifacts."""
+    body = await _ontology_proposal_body(request, "ontology_candidate_invalid")
+    store = _open_store(deps)
+    try:
+        candidates = candidates_from_preview_request(store, body)
+        proposals = build_ontology_proposals(store, candidates)
+        return {
+            "ok": True,
+            "candidates": [dataclasses.asdict(item) for item in candidates],
+            "proposals": [proposal_to_dict(item) for item in proposals],
+            "count": len(proposals),
+        }
+    except OntologyProposalError as exc:
+        raise _ontology_proposal_error(exc) from exc
+    finally:
+        store.close()
+
+
+@router.post("/ontology/proposals/verify")
+async def verify_ontology_proposal_route(
+    deps: AppDependency, request: Request
+) -> dict[str, Any]:
+    """Apply exactly one content-addressed proposal after a human decision."""
+    body = await _ontology_proposal_body(request, "ontology_proposal_invalid")
+    store = _open_store(deps)
+    try:
+        proposal, verification = verify_request_from_dict(body)
+        verified, term, created = verify_ontology_proposal(
+            store, proposal, verification
+        )
+        return {
+            "ok": True,
+            "created": created,
+            "proposal": proposal_to_dict(verified),
+            "term": term,
+            "aliases": store.list_term_aliases(term["id"]),
+            "xrefs": store.list_term_xrefs(term["id"]),
+        }
+    except OntologyProposalError as exc:
+        raise _ontology_proposal_error(exc) from exc
     finally:
         store.close()
 

@@ -3178,6 +3178,115 @@
     }
   }
 
+  async function previewOntologyProposal(entityId, host) {
+    host.textContent = "";
+    var waiting = document.createElement("p");
+    waiting.className = "muted";
+    waiting.textContent = "온톨로지 제안을 만드는 중…";
+    host.appendChild(waiting);
+
+    var response;
+    try {
+      response = await apiSend("/api/ontology/proposals/preview", {
+        source_ids: [entityId]
+      });
+    } catch (e) {
+      host.textContent = friendlyError(e);
+      return;
+    }
+    if (!response || !response.ok) {
+      host.textContent = termErrorText(response);
+      return;
+    }
+    var proposal = (response.proposals || [])[0];
+    if (!proposal) {
+      host.textContent = "검토할 제안이 없어요.";
+      return;
+    }
+
+    host.textContent = "";
+    var summary = document.createElement("p");
+    var title = document.createElement("strong");
+    title.textContent = proposal.preferred_label || "";
+    summary.appendChild(title);
+    summary.appendChild(document.createTextNode(
+      " · " + (proposal.action === "create" ? "새 용어" : "기존 용어 보강")
+    ));
+    host.appendChild(summary);
+
+    var definition = document.createElement("p");
+    definition.textContent = proposal.definition || "";
+    host.appendChild(definition);
+    if (Object.keys(proposal.qualifiers || {}).length) {
+      var qualifiers = document.createElement("pre");
+      qualifiers.className = "code-block";
+      qualifiers.textContent = JSON.stringify(proposal.qualifiers, null, 2);
+      host.appendChild(qualifiers);
+    }
+
+    var reviewer = document.createElement("input");
+    reviewer.type = "text";
+    reviewer.placeholder = "검토자";
+    reviewer.setAttribute("aria-label", "온톨로지 제안 검토자");
+    reviewer.setAttribute("data-ontology-proposal-reviewer", "");
+    var provenance = document.createElement("input");
+    provenance.type = "text";
+    provenance.placeholder = "검토 출처";
+    provenance.setAttribute("aria-label", "온톨로지 제안 검토 출처");
+    provenance.setAttribute("data-ontology-proposal-provenance", "");
+    var verify = document.createElement("button");
+    verify.type = "button";
+    verify.className = "btn btn-primary";
+    verify.textContent = "사람이 확인하고 반영";
+    verify.setAttribute("data-ontology-proposal-verify", proposal.id || "");
+    host.appendChild(reviewer);
+    host.appendChild(document.createTextNode(" "));
+    host.appendChild(provenance);
+    host.appendChild(document.createTextNode(" "));
+    host.appendChild(verify);
+
+    verify.addEventListener("click", async function () {
+      var reviewerValue = reviewer.value.trim();
+      var provenanceValue = provenance.value.trim();
+      if (!reviewerValue || !provenanceValue) {
+        var missing = document.createElement("p");
+        missing.className = "err-msg";
+        missing.textContent = "검토자와 검토 출처를 모두 적어주세요.";
+        host.appendChild(missing);
+        return;
+      }
+      verify.disabled = true;
+      var applied;
+      try {
+        applied = await apiSend("/api/ontology/proposals/verify", {
+          proposal: proposal,
+          verification: {
+            reviewer: reviewerValue,
+            provenance: provenanceValue
+          }
+        });
+      } catch (e) {
+        host.textContent = friendlyError(e);
+        return;
+      } finally {
+        verify.disabled = false;
+      }
+      if (!applied || !applied.ok) {
+        host.textContent = termErrorText(applied);
+        return;
+      }
+      host.textContent = "";
+      var receipt = document.createElement("p");
+      receipt.className = "ok-msg";
+      receipt.textContent = "사람 검토를 기록하고 온톨로지에 반영했어요.";
+      host.appendChild(receipt);
+      var identity = document.createElement("code");
+      identity.textContent = (applied.term || {}).iri || (applied.term || {}).id || "";
+      host.appendChild(identity);
+      loadTerms((applied.term || {}).id || "");
+    });
+  }
+
   async function loadEntityPanel(entityId) {
     var panel = $("#entity-panel");
     var body = $("#entity-panel-body");
@@ -3311,6 +3420,28 @@
         body.appendChild(line);
       });
     }
+
+    var proposalPanel = document.createElement("div");
+    proposalPanel.className = "status-box";
+    var proposalButton = document.createElement("button");
+    proposalButton.type = "button";
+    proposalButton.className = "btn";
+    proposalButton.textContent = "온톨로지 제안 검토";
+    proposalButton.setAttribute("data-ontology-proposal-preview", entityId);
+    proposalButton.setAttribute("aria-label", "추출 항목을 온톨로지 제안으로 검토");
+    var proposalResult = document.createElement("div");
+    proposalResult.setAttribute("data-ontology-proposal-result", entityId);
+    proposalResult.setAttribute("role", "status");
+    proposalResult.setAttribute("aria-live", "polite");
+    proposalPanel.appendChild(proposalButton);
+    proposalPanel.appendChild(proposalResult);
+    proposalButton.addEventListener("click", function () {
+      proposalButton.disabled = true;
+      previewOntologyProposal(entityId, proposalResult).finally(function () {
+        proposalButton.disabled = false;
+      });
+    });
+    body.appendChild(proposalPanel);
   }
 
   /* -- Merge review (W7) -- */

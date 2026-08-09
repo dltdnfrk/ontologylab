@@ -76,6 +76,101 @@ class ProposedRelation:
 
 
 @dataclass(frozen=True, slots=True)
+class OntologyXrefCandidate:
+    """One unverified external mapping carried by an extraction candidate."""
+
+    authority: str
+    external_id: str
+    mapping_predicate: str
+    source_uri: str
+    source_version: str | None
+    valid_from: float | None
+    valid_to: float | None
+    retrieved_at: float
+    confidence: float
+    license_gate: str
+    lifecycle: str
+    replacement_xref_id: str | None
+    change_reason: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class OntologyCandidate:
+    """Typed evidence offered to the ontology proposal workflow.
+
+    Source review and ontology review are deliberately separate.  A verified
+    graph row records who accepted the extracted fact; it still becomes an
+    ontology term only after the proposal carries its own human verification.
+    """
+
+    id: str
+    source_kind: str
+    source_id: str
+    source_status: str
+    source_verified_by: str | None
+    source_verified_at: float | None
+    schema_version_id: int
+    type_name: str
+    preferred_label: str
+    language: str
+    definition: str
+    aliases: tuple[str, ...]
+    qualifiers: dict[str, Any]
+    lifecycle: str
+    replacement_term_id: str | None
+    change_reason: str | None
+    xrefs: tuple[OntologyXrefCandidate, ...]
+    source_doc_id: str | None
+    source_span: SourceSpan | None
+
+
+@dataclass(frozen=True, slots=True)
+class OntologySourceVerification:
+    """Review state of one extraction artifact contributing to a proposal."""
+
+    candidate_id: str
+    status: str
+    verified_by: str | None
+    verified_at: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class HumanVerification:
+    """The explicit human decision that turns a proposal into a term change."""
+
+    decision: str
+    reviewer: str
+    provenance: str
+    verified_at: float
+    note: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OntologyProposal:
+    """Deterministic proposal artifact; never verified when first produced."""
+
+    id: str
+    action: str
+    target_term_id: str | None
+    schema_version_id: int
+    source_kind: str
+    type_name: str
+    preferred_label: str
+    language: str
+    definition: str
+    aliases: tuple[str, ...]
+    qualifiers: dict[str, Any]
+    lifecycle: str
+    replacement_term_id: str | None
+    change_reason: str | None
+    xrefs: tuple[OntologyXrefCandidate, ...]
+    source_candidate_ids: tuple[str, ...]
+    source_verifications: tuple[OntologySourceVerification, ...]
+    requires_human_verification: bool
+    verification: HumanVerification | None
+
+
+@dataclass(frozen=True, slots=True)
 class OntologyTerm:
     """Exact immutable row shape published from ``ontology_term``."""
 
@@ -200,6 +295,11 @@ __all__ = [
     "SourceSpan",
     "ProposedEntity",
     "ProposedRelation",
+    "OntologyXrefCandidate",
+    "OntologyCandidate",
+    "OntologySourceVerification",
+    "HumanVerification",
+    "OntologyProposal",
     "OntologyTerm",
     "TermAlias",
     "TermXref",
