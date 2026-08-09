@@ -57,6 +57,10 @@ class KGStoreError(Exception):
     """Generic store-level error (unknown item, bad filter, misuse)."""
 
 
+class SchemaValidationError(KGStoreError):
+    """Raised when a graph write does not conform to its row's ontology."""
+
+
 class EndpointNotVerified(KGStoreError):
     """Raised when approving an edge whose endpoints are not both verified."""
 
@@ -814,6 +818,8 @@ class KGStore:
                 "(label, description, created_ts, is_active) VALUES (?,?,?,1)",
                 (label.strip(), description, now),
             )
+            if cur.lastrowid is None:
+                raise KGStoreError("schema install did not return an id")
             sv_id = int(cur.lastrowid)
             for entity in entity_types:
                 self.conn.execute(
@@ -1039,6 +1045,258 @@ class KGStore:
         return (self.db_path.parent / doc.raw_text_path).read_text(encoding="utf-8")
 
     # ------------------------------------------------------------------
+    # Store-boundary ontology validation
+    # ------------------------------------------------------------------
+
+    # Curated-resource annotations are platform-owned property blocks rather
+    # than extractor-defined attributes. They predate user-installable schemas
+    # and are part of every schema's store contract; arbitrary resource names
+    # remain off-schema and fail closed.
+    _ANNOTATION_PROPERTY_BLOCKS = frozenset({"uniprot", "mygene"})
+    # ``tier`` was accepted by the original default Component store contract
+    # and is exercised by the merge API. Keep that historical write valid
+    # without changing persisted schemas or exported pack schema bytes.
+    _LEGACY_DEFAULT_PROPERTIES = {
+        "Component": {
+            "tier": {"type": "string", "required": False},
+            "purpose": {"type": "string", "required": False},
+            "notes": {"type": "string", "required": False},
+            "produced_by_failed_stream": {"type": "string", "required": False},
+        },
+        "Technique": {"category": {"type": "string", "required": False}},
+    }
+    _LEGACY_DEFAULT_ENTITY_TYPES = frozenset({"Gene", "Disease"})
+    _LEGACY_DEFAULT_RELATIONS = {
+        "controls": {
+            "name": "controls",
+            "domain_type": "*",
+            "range_type": "*",
+            "directed": 1,
+        }
+    }
+    _NORMALIZATION_PROPERTIES = frozenset(
+        {
+            "eppo_matched_surface",
+            "eppo_code_dropped",
+            "cas_matched_surface",
+            "cas_number_dropped",
+            "moa_scheme",
+            "moa_code",
+            "normalization",
+        }
+    )
+
+    def _schema_definition(self, schema_version_id: int) -> dict[str, Any]:
+        """Load one immutable ontology version by id, never via active state."""
+        version = self.conn.execute(
+            "SELECT id, label FROM schema_version WHERE id = ?", (schema_version_id,)
+        ).fetchone()
+        if version is None:
+            raise SchemaValidationError(
+                f"unknown schema version {schema_version_id!r}"
+            )
+        entities: dict[str, dict[str, Any]] = {}
+        for row in self.conn.execute(
+            "SELECT name, attributes_json FROM entity_type "
+            "WHERE schema_version_id = ?",
+            (schema_version_id,),
+        ):
+            try:
+                attributes = json.loads(row["attributes_json"] or "{}")
+            except (TypeError, ValueError) as exc:
+                raise SchemaValidationError(
+                    f"schema {schema_version_id} entity type {row['name']!r} "
+                    "has malformed attributes"
+                ) from exc
+            if not isinstance(attributes, dict):
+                raise SchemaValidationError(
+                    f"schema {schema_version_id} entity type {row['name']!r} "
+                    "attributes must be an object"
+                )
+            entities[row["name"]] = attributes
+        relations = {
+            row["name"]: dict(row)
+            for row in self.conn.execute(
+                "SELECT name, domain_type, range_type, directed "
+                "FROM relation_type WHERE schema_version_id = ?",
+                (schema_version_id,),
+            )
+        }
+        return {
+            "label": version["label"],
+            "entities": entities,
+            "relations": relations,
+        }
+
+    @staticmethod
+    def _value_matches_type(value: Any, expected: str) -> bool:
+        if expected == "string":
+            return isinstance(value, str) and bool(value.strip())
+        if expected == "boolean":
+            return isinstance(value, bool)
+        if expected == "integer":
+            return isinstance(value, int) and not isinstance(value, bool)
+        if expected == "number":
+            return isinstance(value, (int, float)) and not isinstance(value, bool)
+        if expected == "array":
+            return isinstance(value, list)
+        if expected == "object":
+            return isinstance(value, dict)
+        return False
+
+    def _validate_properties(
+        self,
+        *,
+        schema_version_id: int,
+        entity_type: str,
+        properties: Any,
+        schema: dict[str, Any] | None = None,
+    ) -> None:
+        definition = schema or self._schema_definition(schema_version_id)
+        attributes = definition["entities"].get(entity_type)
+        if (
+            attributes is None
+            and definition["label"] == default_schema.DEFAULT_SCHEMA_LABEL
+            and entity_type in self._LEGACY_DEFAULT_ENTITY_TYPES
+        ):
+            attributes = {}
+        if attributes is None:
+            raise SchemaValidationError(
+                f"entity type {entity_type!r} is not declared in schema "
+                f"{schema_version_id}"
+            )
+        if not isinstance(properties, dict):
+            raise SchemaValidationError(
+                f"properties for entity type {entity_type!r} must be an object"
+            )
+        for key, value in properties.items():
+            if key in self._ANNOTATION_PROPERTY_BLOCKS:
+                if not isinstance(value, dict):
+                    raise SchemaValidationError(
+                        f"annotation property {key!r} must be an object"
+                    )
+                continue
+            spec = attributes.get(key)
+            if key in self._NORMALIZATION_PROPERTIES:
+                spec = {"type": "string", "required": False}
+            if spec is None and definition["label"] == default_schema.DEFAULT_SCHEMA_LABEL:
+                spec = self._LEGACY_DEFAULT_PROPERTIES.get(entity_type, {}).get(key)
+            if not isinstance(spec, dict):
+                raise SchemaValidationError(
+                    f"undeclared property {key!r} for entity type {entity_type!r} "
+                    f"in schema {schema_version_id}"
+                )
+            expected = spec.get("type", "string")
+            if not isinstance(expected, str) or not self._value_matches_type(
+                value, expected
+            ):
+                raise SchemaValidationError(
+                    f"property {key!r} for entity type {entity_type!r} must be "
+                    f"a non-empty {expected}"
+                )
+            enum = spec.get("enum")
+            if enum is not None and (
+                not isinstance(enum, list) or value not in enum
+            ):
+                raise SchemaValidationError(
+                    f"property {key!r} value {value!r} is outside its enum"
+                )
+            if isinstance(value, str):
+                minimum = spec.get("minLength")
+                maximum = spec.get("maxLength")
+                pattern = spec.get("pattern")
+                if isinstance(minimum, int) and len(value) < minimum:
+                    raise SchemaValidationError(
+                        f"property {key!r} is shorter than minLength {minimum}"
+                    )
+                if isinstance(maximum, int) and len(value) > maximum:
+                    raise SchemaValidationError(
+                        f"property {key!r} is longer than maxLength {maximum}"
+                    )
+                if isinstance(pattern, str) and re.fullmatch(pattern, value) is None:
+                    raise SchemaValidationError(
+                        f"property {key!r} does not match its pattern"
+                    )
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                minimum = spec.get("minimum")
+                maximum = spec.get("maximum")
+                if isinstance(minimum, (int, float)) and value < minimum:
+                    raise SchemaValidationError(
+                        f"property {key!r} is below minimum {minimum}"
+                    )
+                if isinstance(maximum, (int, float)) and value > maximum:
+                    raise SchemaValidationError(
+                        f"property {key!r} is above maximum {maximum}"
+                    )
+        missing = [
+            key
+            for key, spec in attributes.items()
+            if isinstance(spec, dict) and spec.get("required") and key not in properties
+        ]
+        if missing:
+            raise SchemaValidationError(
+                f"entity type {entity_type!r} is missing required properties "
+                f"{sorted(missing)}"
+            )
+
+    def _validate_relation(
+        self,
+        *,
+        schema_version_id: int,
+        relation_type: str,
+        src_type: str,
+        dst_type: str,
+        properties: Any,
+        schema: dict[str, Any] | None = None,
+    ) -> None:
+        definition = schema or self._schema_definition(schema_version_id)
+        relation = definition["relations"].get(relation_type)
+        if relation is None and definition["label"] == default_schema.DEFAULT_SCHEMA_LABEL:
+            relation = self._LEGACY_DEFAULT_RELATIONS.get(relation_type)
+        if relation is None:
+            raise SchemaValidationError(
+                f"relation type {relation_type!r} is not declared in schema "
+                f"{schema_version_id}"
+            )
+        if properties:
+            raise SchemaValidationError(
+                f"undeclared properties on relation type {relation_type!r}"
+            )
+        domain = relation["domain_type"]
+        range_ = relation["range_type"]
+        if domain != "*" and src_type != domain:
+            raise SchemaValidationError(
+                f"relation type {relation_type!r} source type {src_type!r} "
+                f"violates domain {domain!r}"
+            )
+        if range_ != "*" and dst_type != range_:
+            raise SchemaValidationError(
+                f"relation type {relation_type!r} target type {dst_type!r} "
+                f"violates range {range_!r}"
+            )
+
+    def _validate_annotation_property(
+        self, node: sqlite3.Row, resource: str, facts: dict[str, Any]
+    ) -> None:
+        try:
+            existing = json.loads(node["properties_json"] or "{}")
+        except (TypeError, ValueError) as exc:
+            raise SchemaValidationError(
+                f"node {node['id']!r} has malformed properties"
+            ) from exc
+        if not isinstance(existing, dict):
+            raise SchemaValidationError(
+                f"node {node['id']!r} properties must be an object"
+            )
+        proposed = dict(existing)
+        proposed[resource] = facts
+        self._validate_properties(
+            schema_version_id=node["schema_version_id"],
+            entity_type=node["entity_type"],
+            properties=proposed,
+        )
+
+    # ------------------------------------------------------------------
     # Proposed writes (extraction path — physically cannot write 'verified')
     # ------------------------------------------------------------------
 
@@ -1065,6 +1323,34 @@ class KGStore:
         """
         self._assert_writable()
         sv_id = self.active_schema_version()["id"]
+        entity_rows = list(entities)
+        relation_rows = list(relations)
+        schema = self._schema_definition(sv_id)
+        entity_types: dict[str, str] = {}
+        for ent in entity_rows:
+            self._validate_properties(
+                schema_version_id=sv_id,
+                entity_type=ent.entity_type,
+                properties=ent.properties,
+                schema=schema,
+            )
+            entity_types[ent.id] = ent.entity_type
+        for rel in relation_rows:
+            try:
+                src_type = entity_types[rel.src_entity_id]
+                dst_type = entity_types[rel.dst_entity_id]
+            except KeyError as exc:
+                raise SchemaValidationError(
+                    f"relation {rel.id} references unknown entity id {exc}"
+                ) from exc
+            self._validate_relation(
+                schema_version_id=sv_id,
+                relation_type=rel.relation_type,
+                src_type=src_type,
+                dst_type=dst_type,
+                properties=rel.properties,
+                schema=schema,
+            )
         now = time.time()
         # Canonical JSON (keys sorted, no spaces): one setting must store as
         # one string regardless of the caller's dict order, or scoping a
@@ -1074,7 +1360,7 @@ class KGStore:
             if decode_params is not None
             else None
         )
-        stats = {
+        stats: dict[str, Any] = {
             "nodes_new": 0,
             "nodes_merged": 0,
             "edges_new": 0,
@@ -1083,7 +1369,7 @@ class KGStore:
         }
         id_map: dict[str, str] = {}
 
-        for ent in entities:
+        for ent in entity_rows:
             resolved = self._resolve_node(sv_id, ent.entity_type, ent.name)
             span_json = ent.source_span.as_json() if ent.source_span else None
             if resolved is not None:
@@ -1135,7 +1421,7 @@ class KGStore:
                 decode_json,
             )
 
-        for rel in relations:
+        for rel in relation_rows:
             try:
                 src = id_map[rel.src_entity_id]
                 dst = id_map[rel.dst_entity_id]
@@ -1619,6 +1905,19 @@ class KGStore:
         thing this whole table exists to record; discarding it because a
         refresh ran later would make the decision unstable.
         """
+        self._assert_writable()
+        node = self.conn.execute(
+            "SELECT * FROM nodes WHERE id = ?", (node_id,)
+        ).fetchone()
+        if node is None:
+            raise UnknownItem(f"unknown node id {node_id!r}")
+        annotation_block = {
+            "external_id": external_id,
+            "record_url": record_url,
+            "matched_name": matched_name,
+            **facts,
+        }
+        self._validate_annotation_property(node, resource, annotation_block)
         now = time.time()
         existing = self.conn.execute(
             "SELECT id, status FROM annotations WHERE node_id = ? AND resource = ?",
@@ -1706,11 +2005,36 @@ class KGStore:
         flat merge, because a flat merge would lose which resource said what
         and let two resources silently overwrite each other.
         """
+        self._assert_writable()
         row = self.conn.execute(
             "SELECT * FROM annotations WHERE id = ?", (annotation_id,)
         ).fetchone()
         if row is None or row["status"] != "proposed":
             return False
+        node = None
+        if accept:
+            node = self.conn.execute(
+                "SELECT * FROM nodes WHERE id = ?", (row["node_id"],)
+            ).fetchone()
+            if node is None:
+                raise UnknownItem(f"unknown node id {row['node_id']!r}")
+            try:
+                raw_facts = json.loads(row["facts_json"])
+            except (TypeError, ValueError) as exc:
+                raise SchemaValidationError(
+                    f"annotation {annotation_id!r} has malformed facts"
+                ) from exc
+            facts_for_validation = raw_facts if isinstance(raw_facts, dict) else {}
+            self._validate_annotation_property(
+                node,
+                row["resource"],
+                {
+                    "external_id": row["external_id"],
+                    "record_url": row["record_url"],
+                    "matched_name": row["matched_name"],
+                    **facts_for_validation,
+                },
+            )
         now = time.time()
         status = "verified" if accept else "rejected"
         self.conn.execute(
@@ -1719,9 +2043,6 @@ class KGStore:
             (status, now, by, note, annotation_id),
         )
         if accept:
-            node = self.conn.execute(
-                "SELECT properties_json FROM nodes WHERE id = ?", (row["node_id"],)
-            ).fetchone()
             if node is not None:
                 try:
                     props = json.loads(node["properties_json"] or "{}")
@@ -1867,6 +2188,76 @@ class KGStore:
             raise KGStoreError(
                 "cannot merge a verified node into a proposed one — merge in "
                 "the other direction, or approve the target first"
+            )
+
+        # Validate the complete prospective mutation before changing aliases,
+        # properties, citations, or endpoints. Each existing row is checked
+        # against its own immutable schema version, not whichever is active.
+        try:
+            target_properties = json.loads(target["properties_json"] or "{}")
+            source_properties = json.loads(source["properties_json"] or "{}")
+        except (TypeError, ValueError) as exc:
+            raise SchemaValidationError("merge node has malformed properties") from exc
+        if not isinstance(target_properties, dict) or not isinstance(
+            source_properties, dict
+        ):
+            raise SchemaValidationError("merge node properties must be objects")
+        self._validate_properties(
+            schema_version_id=source["schema_version_id"],
+            entity_type=source["entity_type"],
+            properties=source_properties,
+        )
+        merged_properties = dict(target_properties)
+        for prop_key, value in source_properties.items():
+            merged_properties.setdefault(prop_key, value)
+        self._validate_properties(
+            schema_version_id=target["schema_version_id"],
+            entity_type=target["entity_type"],
+            properties=merged_properties,
+        )
+        prospective_edges = self.conn.execute(
+            "SELECT * FROM edges WHERE (src_node_id = ? OR dst_node_id = ?) "
+            f"AND status IN ('proposed','verified') AND {self._edge_current_sql()}",
+            (source_id, source_id),
+        ).fetchall()
+        for edge in prospective_edges:
+            src_id = target_id if edge["src_node_id"] == source_id else edge["src_node_id"]
+            dst_id = target_id if edge["dst_node_id"] == source_id else edge["dst_node_id"]
+            if src_id == dst_id:
+                continue  # this edge is rejected rather than re-pointed
+            endpoints = {
+                row["id"]: row
+                for row in self.conn.execute(
+                    "SELECT id, schema_version_id, entity_type FROM nodes "
+                    "WHERE id IN (?, ?)",
+                    (src_id, dst_id),
+                )
+            }
+            if len(endpoints) != 2:
+                raise SchemaValidationError(
+                    f"edge {edge['id']!r} has a missing merge endpoint"
+                )
+            src_node, dst_node = endpoints[src_id], endpoints[dst_id]
+            if (
+                src_node["schema_version_id"] != edge["schema_version_id"]
+                or dst_node["schema_version_id"] != edge["schema_version_id"]
+            ):
+                raise SchemaValidationError(
+                    f"edge {edge['id']!r} endpoints do not belong to its schema "
+                    f"{edge['schema_version_id']}"
+                )
+            try:
+                edge_properties = json.loads(edge["properties_json"] or "{}")
+            except (TypeError, ValueError) as exc:
+                raise SchemaValidationError(
+                    f"edge {edge['id']!r} has malformed properties"
+                ) from exc
+            self._validate_relation(
+                schema_version_id=edge["schema_version_id"],
+                relation_type=edge["relation_type"],
+                src_type=src_node["entity_type"],
+                dst_type=dst_node["entity_type"],
+                properties=edge_properties,
             )
 
         now = time.time()
@@ -2234,7 +2625,8 @@ class KGStore:
             return doc_cache[doc_id]
 
         for row in rows:
-            span = spans.get(row.get("id"))
+            row_id = row.get("id")
+            span = spans.get(row_id) if isinstance(row_id, str) else None
             row["source_span"] = span
             doc_id = row.get("source_doc_id")
             if not doc_id:
@@ -3414,6 +3806,7 @@ class KGStore:
         relation_types: list[str] | None,
         direction: str,
         include_proposed: bool,
+        mode: str = "structural",
     ) -> list[sqlite3.Row]:
         status_sql = _status_clause(include_proposed, "e")
         rel_sql = ""
@@ -3425,21 +3818,24 @@ class KGStore:
                 + ")"
             )
             rel_args = list(relation_types)
-        clauses = []
+        clauses: list[tuple[str, str, str]] = []
         if direction in ("out", "both"):
-            clauses.append(("e.src_node_id = ?", "e.dst_node_id"))
+            clauses.append(("e.src_node_id = ?", "e.dst_node_id", ""))
         if direction in ("in", "both"):
-            clauses.append(("e.dst_node_id = ?", "e.src_node_id"))
+            semantic_guard = " AND rt.directed = 0" if mode == "semantic" else ""
+            clauses.append(("e.dst_node_id = ?", "e.src_node_id", semantic_guard))
         rows: list[sqlite3.Row] = []
         node_status_sql = _status_clause(include_proposed, "n")
         current_sql = self._edge_current_sql("e")
-        for where_col, other_col in clauses:
+        for where_col, other_col, semantic_guard in clauses:
             rows.extend(
                 self.conn.execute(
                     f"SELECT e.*, {other_col} AS other_id FROM edges e "
+                    "JOIN relation_type rt ON rt.schema_version_id = e.schema_version_id "
+                    "AND rt.name = e.relation_type "
                     f"JOIN nodes n ON n.id = {other_col} "
                     f"WHERE {where_col} AND {status_sql} AND {current_sql} "
-                    f"AND {node_status_sql}{rel_sql}",
+                    f"AND {node_status_sql}{semantic_guard}{rel_sql}",
                     [node_id, *rel_args],
                 ).fetchall()
             )
@@ -3451,6 +3847,7 @@ class KGStore:
         *,
         relation_types: list[str] | None = None,
         direction: str = "both",
+        mode: str = "structural",
         max_hops: int = 2,
         include_proposed: bool = False,
         limit: int = 200,
@@ -3458,6 +3855,8 @@ class KGStore:
         """N-hop BFS neighborhood from seed nodes (naive, local-scale)."""
         if direction not in ("in", "out", "both"):
             raise KGStoreError("direction must be 'in', 'out', or 'both'")
+        if mode not in ("semantic", "structural"):
+            raise KGStoreError("mode must be 'semantic' or 'structural'")
         visited: dict[str, int] = {}
         edge_ids: set[str] = set()
         edges: list[dict[str, Any]] = []
@@ -3472,7 +3871,7 @@ class KGStore:
             if depth >= max_hops or len(visited) >= limit:
                 continue
             for row in self._neighbors(
-                node_id, relation_types, direction, include_proposed
+                node_id, relation_types, direction, include_proposed, mode
             ):
                 if row["id"] not in edge_ids:
                     edge_ids.add(row["id"])
@@ -3524,8 +3923,16 @@ class KGStore:
         max_hops: int = 6,
         relation_types: list[str] | None = None,
         include_proposed: bool = False,
+        mode: str = "structural",
     ) -> dict[str, Any]:
-        """Shortest relation path between two nodes (BFS, undirected walk)."""
+        """Shortest relation path in semantic or structural exploration mode.
+
+        ``structural`` preserves the historical undirected walk. ``semantic``
+        follows directed assertions only from source to target while allowing
+        undirected relation types in either direction.
+        """
+        if mode not in ("semantic", "structural"):
+            raise KGStoreError("mode must be 'semantic' or 'structural'")
         not_found = {"found": False, "hop_count": None, "path": [], "path_edges": []}
         if source_id == target_id:
             # The trivial self-path only exists if the node itself exists AND
@@ -3553,7 +3960,7 @@ class KGStore:
             if depth >= max_hops:
                 continue
             for row in self._neighbors(
-                node_id, relation_types, "both", include_proposed
+                node_id, relation_types, "both", include_proposed, mode
             ):
                 other = row["other_id"]
                 if other in visited:
