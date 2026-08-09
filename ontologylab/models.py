@@ -70,6 +70,7 @@ class ProposedRelation:
     src_entity_id: str
     dst_entity_id: str
     properties: dict[str, Any] = field(default_factory=dict)
+    qualifiers: dict[str, Any] = field(default_factory=dict)
     confidence: float | None = None
     source_span: SourceSpan | None = None
 

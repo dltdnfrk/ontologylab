@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS relation_type (
     domain_type       TEXT NOT NULL,
     range_type        TEXT NOT NULL,
     directed          INTEGER NOT NULL DEFAULT 1,
+    qualifiers_json   TEXT NOT NULL DEFAULT '{}',
     UNIQUE (schema_version_id, name)
 );
 
@@ -233,6 +234,7 @@ CREATE TABLE IF NOT EXISTS edges (
     src_node_id       TEXT NOT NULL REFERENCES nodes(id),
     dst_node_id       TEXT NOT NULL REFERENCES nodes(id),
     properties_json   TEXT NOT NULL DEFAULT '{}',
+    qualifiers_json   TEXT NOT NULL DEFAULT '{}',
 
     status            TEXT NOT NULL DEFAULT 'proposed'
                           CHECK (status IN ('proposed','verified','rejected')),
@@ -505,6 +507,11 @@ def _edge_dict(row: sqlite3.Row) -> dict[str, Any]:
         "source_id": row["src_node_id"],
         "target_id": row["dst_node_id"],
         "properties": json.loads(row["properties_json"]),
+        "qualifiers": (
+            json.loads(row["qualifiers_json"])
+            if "qualifiers_json" in keys and row["qualifiers_json"]
+            else {}
+        ),
         "status": row["status"],
         "confidence": row["confidence"],
         "source_doc_id": row["source_doc_id"],
@@ -531,6 +538,7 @@ class KGStore:
         self.db_path = db_path
         self.read_only = read_only
         self._edges_bitemporal_cache: bool | None = None
+        self._edges_qualifiers_cache: bool | None = None
         self._vec_loaded: bool | None = None
 
     def _vec_available(self) -> bool:
@@ -559,6 +567,19 @@ class KGStore:
             }
             self._edges_bitemporal_cache = "invalidated_ts" in columns
         return self._edges_bitemporal_cache
+
+    def _edges_have_qualifiers(self) -> bool:
+        """Whether edge rows carry first-class qualifiers.
+
+        Historical packs are immutable and therefore intentionally lack the
+        column; read paths expose an empty qualifier object for those rows.
+        """
+        if self._edges_qualifiers_cache is None:
+            columns = {
+                row["name"] for row in self.conn.execute("PRAGMA table_info(edges)")
+            }
+            self._edges_qualifiers_cache = "qualifiers_json" in columns
+        return self._edges_qualifiers_cache
 
     def _edge_current_sql(self, alias: str = "") -> str:
         """WHERE fragment excluding invalidated edges from current truth."""
@@ -654,9 +675,23 @@ class KGStore:
                 "decode_params",
                 "ALTER TABLE edges ADD COLUMN decode_params TEXT",
             ),
+            (
+                "qualifiers_json",
+                "ALTER TABLE edges ADD COLUMN qualifiers_json "
+                "TEXT NOT NULL DEFAULT '{}'",
+            ),
         ):
             if column not in edge_columns:
                 conn.execute(ddl)
+        relation_type_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(relation_type)")
+        }
+        if "qualifiers_json" not in relation_type_columns:
+            conn.execute(
+                "ALTER TABLE relation_type ADD COLUMN qualifiers_json "
+                "TEXT NOT NULL DEFAULT '{}'"
+            )
         node_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(nodes)")
         }
@@ -749,9 +784,19 @@ class KGStore:
         ):
             self.conn.execute(
                 "INSERT INTO relation_type "
-                "(schema_version_id, name, description, domain_type, range_type, directed) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (sv_id, name, desc, domain, range_, 1 if directed else 0),
+                "(schema_version_id, name, description, domain_type, range_type, "
+                "directed, qualifiers_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    sv_id,
+                    name,
+                    desc,
+                    domain,
+                    range_,
+                    1 if directed else 0,
+                    json.dumps(
+                        default_schema.DEFAULT_RELATION_QUALIFIERS.get(name, {})
+                    ),
+                ),
             )
         self.conn.commit()
 
@@ -764,6 +809,49 @@ class KGStore:
         if row is None:
             raise KGStoreError("no active schema_version row")
         return row
+
+    @staticmethod
+    def _validate_qualifier_specs(relation_name: str, specs: Any) -> None:
+        if not isinstance(specs, dict):
+            raise KGStoreError(
+                f"relation {relation_name!r} qualifiers must be an object"
+            )
+        supported = {"string", "boolean", "integer", "number", "array", "object"}
+        for name, spec in specs.items():
+            if not isinstance(name, str) or re.fullmatch(
+                r"[A-Za-z_][A-Za-z0-9_]*", name
+            ) is None:
+                raise KGStoreError(
+                    f"relation {relation_name!r} has invalid qualifier name {name!r}"
+                )
+            if not isinstance(spec, dict):
+                raise KGStoreError(
+                    f"relation {relation_name!r} qualifier {name!r} spec must be an object"
+                )
+            expected = spec.get("type", "string")
+            if expected not in supported:
+                raise KGStoreError(
+                    f"relation {relation_name!r} qualifier {name!r} has unsupported "
+                    f"type {expected!r}"
+                )
+            enum = spec.get("enum")
+            if enum is not None and not isinstance(enum, list):
+                raise KGStoreError(
+                    f"relation {relation_name!r} qualifier {name!r} enum must be a list"
+                )
+            pattern = spec.get("pattern")
+            if pattern is not None:
+                if not isinstance(pattern, str):
+                    raise KGStoreError(
+                        f"relation {relation_name!r} qualifier {name!r} pattern "
+                        "must be a string"
+                    )
+                try:
+                    re.compile(pattern)
+                except re.error as exc:
+                    raise KGStoreError(
+                        f"relation {relation_name!r} qualifier {name!r} has invalid pattern"
+                    ) from exc
 
     def install_schema(
         self,
@@ -798,6 +886,9 @@ class KGStore:
 
         names = {e["name"] for e in entity_types}
         for relation in relation_types:
+            self._validate_qualifier_specs(
+                relation["name"], relation.get("qualifiers", {})
+            )
             for side in ("domain_type", "range_type"):
                 declared = relation.get(side, "*")
                 # `*` means any. Anything else has to be a type this same
@@ -831,12 +922,17 @@ class KGStore:
             for relation in relation_types:
                 self.conn.execute(
                     "INSERT INTO relation_type (schema_version_id, name, "
-                    "description, domain_type, range_type, directed) "
-                    "VALUES (?,?,?,?,?,?)",
-                    (sv_id, relation["name"], relation.get("description", ""),
-                     relation.get("domain_type", "*"),
-                     relation.get("range_type", "*"),
-                     1 if relation.get("directed", True) else 0),
+                    "description, domain_type, range_type, directed, "
+                    "qualifiers_json) VALUES (?,?,?,?,?,?,?)",
+                    (
+                        sv_id,
+                        relation["name"],
+                        relation.get("description", ""),
+                        relation.get("domain_type", "*"),
+                        relation.get("range_type", "*"),
+                        1 if relation.get("directed", True) else 0,
+                        json.dumps(relation.get("qualifiers", {})),
+                    ),
                 )
         return sv_id
 
@@ -898,6 +994,11 @@ class KGStore:
                 "domain_type": r["domain_type"],
                 "range_type": r["range_type"],
                 "directed": bool(r["directed"]),
+                "qualifiers": (
+                    json.loads(r["qualifiers_json"])
+                    if "qualifiers_json" in r.keys() and r["qualifiers_json"]
+                    else {}
+                ),
             }
             for r in self.conn.execute(
                 "SELECT * FROM relation_type WHERE schema_version_id = ? ORDER BY name",
@@ -1114,14 +1215,27 @@ class KGStore:
                     "attributes must be an object"
                 )
             entities[row["name"]] = attributes
-        relations = {
-            row["name"]: dict(row)
-            for row in self.conn.execute(
-                "SELECT name, domain_type, range_type, directed "
-                "FROM relation_type WHERE schema_version_id = ?",
-                (schema_version_id,),
-            )
-        }
+        relations: dict[str, dict[str, Any]] = {}
+        for row in self.conn.execute(
+            "SELECT name, domain_type, range_type, directed, qualifiers_json "
+            "FROM relation_type WHERE schema_version_id = ?",
+            (schema_version_id,),
+        ):
+            try:
+                qualifiers = json.loads(row["qualifiers_json"] or "{}")
+            except (TypeError, ValueError) as exc:
+                raise SchemaValidationError(
+                    f"schema {schema_version_id} relation type {row['name']!r} "
+                    "has malformed qualifiers"
+                ) from exc
+            if not isinstance(qualifiers, dict):
+                raise SchemaValidationError(
+                    f"schema {schema_version_id} relation type {row['name']!r} "
+                    "qualifiers must be an object"
+                )
+            relation = dict(row)
+            relation["qualifiers"] = qualifiers
+            relations[row["name"]] = relation
         return {
             "label": version["label"],
             "entities": entities,
@@ -1239,6 +1353,85 @@ class KGStore:
                 f"{sorted(missing)}"
             )
 
+    def _validate_qualifiers(
+        self,
+        *,
+        schema_version_id: int,
+        relation_type: str,
+        qualifiers: Any,
+        specs: Any,
+    ) -> None:
+        if not isinstance(qualifiers, dict):
+            raise SchemaValidationError(
+                f"qualifiers for relation type {relation_type!r} must be an object"
+            )
+        if not isinstance(specs, dict):
+            raise SchemaValidationError(
+                f"relation type {relation_type!r} in schema {schema_version_id} "
+                "has malformed qualifier specs"
+            )
+        for name, value in qualifiers.items():
+            spec = specs.get(name)
+            if not isinstance(spec, dict):
+                raise SchemaValidationError(
+                    f"undeclared qualifier {name!r} for relation type "
+                    f"{relation_type!r} in schema {schema_version_id}"
+                )
+            expected = spec.get("type", "string")
+            if not isinstance(expected, str) or not self._value_matches_type(
+                value, expected
+            ):
+                raise SchemaValidationError(
+                    f"qualifier {name!r} for relation type {relation_type!r} "
+                    f"must be a non-empty {expected}"
+                )
+            enum = spec.get("enum")
+            if enum is not None and (
+                not isinstance(enum, list) or value not in enum
+            ):
+                raise SchemaValidationError(
+                    f"qualifier {name!r} value {value!r} is outside its enum"
+                )
+            if isinstance(value, str):
+                minimum = spec.get("minLength")
+                maximum = spec.get("maxLength")
+                pattern = spec.get("pattern")
+                if isinstance(minimum, int) and len(value) < minimum:
+                    raise SchemaValidationError(
+                        f"qualifier {name!r} is shorter than minLength {minimum}"
+                    )
+                if isinstance(maximum, int) and len(value) > maximum:
+                    raise SchemaValidationError(
+                        f"qualifier {name!r} is longer than maxLength {maximum}"
+                    )
+                if isinstance(pattern, str) and re.fullmatch(pattern, value) is None:
+                    raise SchemaValidationError(
+                        f"qualifier {name!r} does not match its pattern"
+                    )
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                minimum = spec.get("minimum")
+                maximum = spec.get("maximum")
+                if isinstance(minimum, (int, float)) and value < minimum:
+                    raise SchemaValidationError(
+                        f"qualifier {name!r} is below minimum {minimum}"
+                    )
+                if isinstance(maximum, (int, float)) and value > maximum:
+                    raise SchemaValidationError(
+                        f"qualifier {name!r} is above maximum {maximum}"
+                    )
+        missing = [
+            name
+            for name, spec in specs.items()
+            if isinstance(spec, dict)
+            and spec.get("required")
+            and name not in qualifiers
+        ]
+        if missing:
+            raise SchemaValidationError(
+                f"relation type {relation_type!r} is missing required qualifiers "
+                f"{sorted(missing)}"
+            )
+
     def _validate_relation(
         self,
         *,
@@ -1247,6 +1440,7 @@ class KGStore:
         src_type: str,
         dst_type: str,
         properties: Any,
+        qualifiers: Any,
         schema: dict[str, Any] | None = None,
     ) -> None:
         definition = schema or self._schema_definition(schema_version_id)
@@ -1262,6 +1456,12 @@ class KGStore:
             raise SchemaValidationError(
                 f"undeclared properties on relation type {relation_type!r}"
             )
+        self._validate_qualifiers(
+            schema_version_id=schema_version_id,
+            relation_type=relation_type,
+            qualifiers=qualifiers,
+            specs=relation.get("qualifiers", {}),
+        )
         domain = relation["domain_type"]
         range_ = relation["range_type"]
         if domain != "*" and src_type != domain:
@@ -1349,6 +1549,7 @@ class KGStore:
                 src_type=src_type,
                 dst_type=dst_type,
                 properties=rel.properties,
+                qualifiers=rel.qualifiers,
                 schema=schema,
             )
         now = time.time()
@@ -1446,10 +1647,10 @@ class KGStore:
                 self.conn.execute(
                     "INSERT INTO edges "
                     "(id, schema_version_id, relation_type, src_node_id, dst_node_id, "
-                    " properties_json, status, confidence, source_doc_id, source_span, "
-                    " extractor_engine, extractor_model, prompt_version, created_ts, "
-                    " valid_from, decode_params) "
-                    "VALUES (?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " properties_json, qualifiers_json, status, confidence, "
+                    " source_doc_id, source_span, extractor_engine, extractor_model, "
+                    " prompt_version, created_ts, valid_from, decode_params) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         edge_id,
                         sv_id,
@@ -1457,6 +1658,7 @@ class KGStore:
                         src,
                         dst,
                         json.dumps(rel.properties),
+                        json.dumps(rel.qualifiers),
                         rel.confidence,
                         source_doc_id,
                         span_json,
@@ -2248,9 +2450,10 @@ class KGStore:
                 )
             try:
                 edge_properties = json.loads(edge["properties_json"] or "{}")
+                edge_qualifiers = json.loads(edge["qualifiers_json"] or "{}")
             except (TypeError, ValueError) as exc:
                 raise SchemaValidationError(
-                    f"edge {edge['id']!r} has malformed properties"
+                    f"edge {edge['id']!r} has malformed properties or qualifiers"
                 ) from exc
             self._validate_relation(
                 schema_version_id=edge["schema_version_id"],
@@ -2258,6 +2461,7 @@ class KGStore:
                 src_type=src_node["entity_type"],
                 dst_type=dst_node["entity_type"],
                 properties=edge_properties,
+                qualifiers=edge_qualifiers,
             )
 
         now = time.time()
@@ -2542,21 +2746,32 @@ class KGStore:
         raise KGStoreError(f"unknown review order {order!r}")
 
     def _attach_properties(self, rows: list[dict[str, Any]]) -> None:
-        """Expose stored proposal properties on the review-queue surface."""
+        """Expose stored properties and edge qualifiers on the review surface."""
         for kind, table in (("node", "nodes"), ("edge", "edges")):
             targets = {row["id"]: row for row in rows if row.get("kind") == kind}
             ids = list(targets)
             for start in range(0, len(ids), 500):
                 chunk = ids[start : start + 500]
                 placeholders = ",".join("?" * len(chunk))
+                qualifier_column = (
+                    ", qualifiers_json"
+                    if kind == "edge" and self._edges_have_qualifiers()
+                    else ""
+                )
                 for row in self.conn.execute(
-                    f"SELECT id, properties_json FROM {table} "
+                    f"SELECT id, properties_json{qualifier_column} FROM {table} "
                     f"WHERE id IN ({placeholders})",
                     chunk,
                 ):
-                    targets[row["id"]]["properties"] = json.loads(
-                        row["properties_json"]
-                    )
+                    target = targets[row["id"]]
+                    target["properties"] = json.loads(row["properties_json"])
+                    if kind == "edge":
+                        target["qualifiers"] = (
+                            json.loads(row["qualifiers_json"])
+                            if "qualifiers_json" in row.keys()
+                            and row["qualifiers_json"]
+                            else {}
+                        )
 
     def _attach_evidence(self, rows: list[dict[str, Any]]) -> None:
         """Attach the source excerpt each proposal was extracted from, in place.
@@ -2919,6 +3134,7 @@ class KGStore:
         items: list[dict[str, Any]] = []
         for row in rows:
             span = json.loads(row["source_span"]) if row["source_span"] else None
+            qualifiers: dict[str, Any] = {}
             if row["kind"] == "node":
                 nrow = self.conn.execute(
                     "SELECT name, entity_type, status FROM nodes WHERE id = ?",
@@ -2930,9 +3146,12 @@ class KGStore:
                     nrow["name"], nrow["entity_type"], nrow["status"],
                 )
             else:
+                qualifier_column = (
+                    ", e.qualifiers_json" if self._edges_have_qualifiers() else ""
+                )
                 erow = self.conn.execute(
                     "SELECT e.relation_type, e.status, s.name AS src, "
-                    "d.name AS dst FROM edges e "
+                    f"d.name AS dst{qualifier_column} FROM edges e "
                     "JOIN nodes s ON s.id = e.src_node_id "
                     "JOIN nodes d ON d.id = e.dst_node_id WHERE e.id = ?",
                     (row["item_id"],),
@@ -2942,12 +3161,18 @@ class KGStore:
                 # An edge shown as `related_to` alone cannot be judged.
                 label = f"{erow['src']} → {erow['dst']}"
                 kind_label, status = erow["relation_type"], erow["status"]
+                qualifiers = (
+                    json.loads(erow["qualifiers_json"])
+                    if "qualifiers_json" in erow.keys() and erow["qualifiers_json"]
+                    else {}
+                )
             items.append({
                 "kind": row["kind"],
                 "id": row["item_id"],
                 "label": label,
                 "type": kind_label,
                 "status": status,
+                "qualifiers": qualifiers if row["kind"] == "edge" else None,
                 # A span past the cap is reported as absent rather than as a
                 # position the caller would draw in the wrong place —
                 # highlighting the wrong sentence asserts evidence that is
@@ -3071,6 +3296,12 @@ class KGStore:
                     },
                     "status": edge["status"],
                     "confidence": edge["confidence"],
+                    "qualifiers": (
+                        json.loads(edge["qualifiers_json"])
+                        if "qualifiers_json" in edge.keys()
+                        and edge["qualifiers_json"]
+                        else {}
+                    ),
                     "critic_score": edge_critic.get(edge["id"]),
                     "source_doc_id": edge["source_doc_id"],
                 }
@@ -3331,6 +3562,12 @@ class KGStore:
         record["label"] = (
             row["name"] if kind == "node" else row["relation_type"]
         )
+        if kind == "edge":
+            record["qualifiers"] = (
+                json.loads(row["qualifiers_json"])
+                if "qualifiers_json" in keys and row["qualifiers_json"]
+                else {}
+            )
 
         # The document is the anchor of the whole claim; without its title
         # and URI the engine/model line is trivia.

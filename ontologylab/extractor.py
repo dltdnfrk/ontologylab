@@ -150,9 +150,11 @@ def _schema_block(schema: dict[str, Any]) -> str:
     for rt in schema["relation_types"]:
         domain = rt["domain_type"]
         range_ = rt["range_type"]
+        qualifiers = rt.get("qualifiers", {})
         lines.append(
             f"- {rt['name']}: {rt['description']} (source type: {domain}, "
-            f"target type: {range_}; '*' means any)"
+            f"target type: {range_}; '*' means any; qualifiers: "
+            f"{json.dumps(qualifiers, sort_keys=True)})"
         )
     return "\n".join(lines)
 
@@ -176,7 +178,8 @@ Rules:
    source_span {{"start": int, "end": int}} — character offsets INTO THE CHUNK
    TEXT BELOW (0 = first character of the chunk) covering the mention.
 4. Each relation references its endpoints by {{"name": ..., "entity_type": ...}}
-   of entities you emitted — never by array index, never by an invented id.
+   of entities you emitted — never by array index, never by an invented id;
+   qualifiers is an object containing only qualifiers declared for its type.
 5. Only extract facts stated in the chunk. Do not use outside knowledge.
 6. If nothing is extractable, return {{"entities": [], "relations": []}}.
 
@@ -263,6 +266,99 @@ def _clamp_confidence(raw: Any) -> float | None:
     return min(1.0, max(0.0, value))
 
 
+def _qualifier_value_matches_type(value: Any, expected: str) -> bool:
+    if expected == "string":
+        return isinstance(value, str) and bool(value.strip())
+    if expected == "boolean":
+        return isinstance(value, bool)
+    if expected == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if expected == "array":
+        return isinstance(value, list)
+    if expected == "object":
+        return isinstance(value, dict)
+    return False
+
+
+def _validate_relation_qualifiers(
+    raw: Any, specs: Any, *, relation_index: int, relation_type: str
+) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise EngineError(
+            f"relation[{relation_index}] {relation_type}: qualifiers must be an object"
+        )
+    if not isinstance(specs, dict):
+        raise EngineError(
+            f"relation[{relation_index}] {relation_type}: schema qualifiers malformed"
+        )
+    for name, value in raw.items():
+        spec = specs.get(name)
+        if not isinstance(spec, dict):
+            raise EngineError(
+                f"relation[{relation_index}] {relation_type}: undeclared qualifier "
+                f"{name!r}"
+            )
+        expected = spec.get("type", "string")
+        if not isinstance(expected, str) or not _qualifier_value_matches_type(
+            value, expected
+        ):
+            raise EngineError(
+                f"relation[{relation_index}] {relation_type}: qualifier {name!r} "
+                f"must be a non-empty {expected}"
+            )
+        enum = spec.get("enum")
+        if enum is not None and (not isinstance(enum, list) or value not in enum):
+            raise EngineError(
+                f"relation[{relation_index}] {relation_type}: qualifier {name!r} "
+                f"value {value!r} is outside its enum"
+            )
+        if isinstance(value, str):
+            minimum = spec.get("minLength")
+            maximum = spec.get("maxLength")
+            pattern = spec.get("pattern")
+            if isinstance(minimum, int) and len(value) < minimum:
+                raise EngineError(
+                    f"relation[{relation_index}] {relation_type}: qualifier "
+                    f"{name!r} is shorter than minLength {minimum}"
+                )
+            if isinstance(maximum, int) and len(value) > maximum:
+                raise EngineError(
+                    f"relation[{relation_index}] {relation_type}: qualifier "
+                    f"{name!r} is longer than maxLength {maximum}"
+                )
+            if isinstance(pattern, str) and re.fullmatch(pattern, value) is None:
+                raise EngineError(
+                    f"relation[{relation_index}] {relation_type}: qualifier "
+                    f"{name!r} does not match its pattern"
+                )
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            minimum = spec.get("minimum")
+            maximum = spec.get("maximum")
+            if isinstance(minimum, (int, float)) and value < minimum:
+                raise EngineError(
+                    f"relation[{relation_index}] {relation_type}: qualifier "
+                    f"{name!r} is below minimum {minimum}"
+                )
+            if isinstance(maximum, (int, float)) and value > maximum:
+                raise EngineError(
+                    f"relation[{relation_index}] {relation_type}: qualifier "
+                    f"{name!r} is above maximum {maximum}"
+                )
+    missing = [
+        name
+        for name, spec in specs.items()
+        if isinstance(spec, dict) and spec.get("required") and name not in raw
+    ]
+    if missing:
+        raise EngineError(
+            f"relation[{relation_index}] {relation_type}: missing required "
+            f"qualifiers {sorted(missing)}"
+        )
+    return dict(raw)
+
+
 def parse_and_validate_extraction(
     raw_text: str, schema: dict[str, Any], chunk: Chunk
 ) -> ExtractionResult:
@@ -299,7 +395,7 @@ def parse_and_validate_extraction(
             warnings.append(f"entity[{i}]: missing/empty name; rejected")
             continue
         name = name.strip()
-        if etype not in entity_types:
+        if not isinstance(etype, str) or etype not in entity_types:
             warnings.append(
                 f"entity[{i}] {name!r}: unknown entity_type {etype!r}; rejected"
             )
@@ -392,7 +488,7 @@ def parse_and_validate_extraction(
             warnings.append(f"relation[{rel_index}]: {side} endpoint missing name")
             return None
         ref_name = ref_name.strip()
-        if ref_type not in entity_types:
+        if not isinstance(ref_type, str) or ref_type not in entity_types:
             warnings.append(
                 f"relation[{rel_index}]: {side} endpoint has unknown type {ref_type!r}"
             )
@@ -444,6 +540,11 @@ def parse_and_validate_extraction(
             warnings.append(f"relation[{i}]: not an object; rejected")
             continue
         rtype = raw_rel.get("relation_type")
+        if not isinstance(rtype, str):
+            warnings.append(
+                f"relation[{i}]: unknown relation_type {rtype!r}; rejected"
+            )
+            continue
         rt_spec = relation_types.get(rtype)
         if rt_spec is None:
             warnings.append(
@@ -489,12 +590,19 @@ def parse_and_validate_extraction(
                 end=max(src.source_span.end, dst.source_span.end),
             )
 
+        qualifiers = _validate_relation_qualifiers(
+            raw_rel.get("qualifiers", {}),
+            rt_spec.get("qualifiers", {}),
+            relation_index=i,
+            relation_type=rtype,
+        )
         relations.append(
             ProposedRelation(
                 id=uuid.uuid4().hex,
                 relation_type=rtype,
                 src_entity_id=src.id,
                 dst_entity_id=dst.id,
+                qualifiers=qualifiers,
                 confidence=_clamp_confidence(raw_rel.get("confidence")),
                 source_span=doc_span,
             )

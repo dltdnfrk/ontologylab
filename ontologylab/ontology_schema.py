@@ -42,3 +42,10 @@ DEFAULT_RELATION_TYPES: dict[str, tuple[str, str, str, bool]] = {
     "part_of": ("Source is a constituent of target.", "*", "*", True),
     "related_to": ("Source and target are associated.", "*", "*", False),
 }
+
+# Relation qualifiers are declared independently from entity properties. The
+# default ontology permits none, but every relation still has an explicit
+# qualifier contract so schema exports and prompts have one stable shape.
+DEFAULT_RELATION_QUALIFIERS: dict[str, dict[str, dict]] = {
+    name: {} for name in DEFAULT_RELATION_TYPES
+}

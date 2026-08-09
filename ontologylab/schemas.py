@@ -31,6 +31,7 @@ def _schema(
     description: str,
     entities: dict[str, tuple[str, dict]],
     relations: dict[str, tuple[str, str, str, bool]],
+    relation_qualifiers: dict[str, dict[str, dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     return {
         "label": label,
@@ -46,6 +47,7 @@ def _schema(
                 "domain_type": domain,
                 "range_type": range_,
                 "directed": directed,
+                "qualifiers": (relation_qualifiers or {}).get(name, {}),
             }
             for name, (desc, domain, range_, directed) in relations.items()
         ],
@@ -378,6 +380,7 @@ PRESETS: dict[str, dict[str, Any]] = {
         _default.DEFAULT_SCHEMA_DESCRIPTION,
         _default.DEFAULT_ENTITY_TYPES,
         _default.DEFAULT_RELATION_TYPES,
+        _default.DEFAULT_RELATION_QUALIFIERS,
     ),
     "biomedical": _schema(
         "biomed-v1",
