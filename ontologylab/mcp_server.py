@@ -12,6 +12,8 @@ Tool logic lives on ``PackSession`` so it is unit-testable without the
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac
 import json
 import sys
 from pathlib import Path
@@ -36,6 +38,18 @@ from ontologylab.semantic_staleness import baseline_compatible, semantic_deltas
 
 class NoActivePack(Exception):
     """Raised when a query tool is called before any pack is loaded."""
+
+
+class PackIntegrityError(Exception):
+    """Raised when a pack fails load-time integrity verification.
+
+    Two shapes: the pack's bytes do not match the manifest's content_hash
+    receipt (tampered or corrupted in transit/at rest), or the pack carries
+    no usable receipt at all (unverifiable — it must be rebuilt, never
+    silently loaded). The hash is an integrity receipt, NOT a signature: it
+    proves the served bytes are exactly what the builder recorded, nothing
+    about who built them.
+    """
 
 
 def serve_args(packs_dir: str | Path, pack_id: str) -> list[str]:
@@ -179,6 +193,61 @@ def _entity_detail(store: KGStore, entity_id: str, *, include_proposed: bool) ->
         edges.append(edge)
     entity["edges"] = edges
     return entity
+
+
+def _verified_content_hash(pack_id: str, sqlite_path: Path) -> str:
+    """Recompute the pack's SHA-256 from CURRENT bytes and check the receipt.
+
+    Returns the verified ``sha256:<hex>`` receipt string. Raises
+    PackIntegrityError when the manifest is missing/unreadable, the receipt
+    is missing or malformed (unverifiable — rebuild required), or the
+    digest does not match (tampered/corrupted bytes). Read-only: the pack
+    is never mutated.
+    """
+    manifest_path = sqlite_path.parent / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PackIntegrityError(
+            f"pack {pack_id!r} is unverifiable: no readable manifest.json "
+            f"({exc}); rebuild the pack to generate an integrity receipt"
+        ) from exc
+    receipt = manifest.get("content_hash")
+    expected = ""
+    if isinstance(receipt, str) and receipt.startswith("sha256:"):
+        candidate = receipt[len("sha256:"):]
+        try:
+            bytes.fromhex(candidate)
+        except ValueError:
+            candidate = ""
+        if len(candidate) == 64:
+            expected = candidate
+    if not expected:
+        raise PackIntegrityError(
+            f"pack {pack_id!r} is unverifiable: manifest has no usable "
+            f"content_hash receipt; rebuild the pack so its integrity can "
+            f"be verified at load time"
+        )
+    digest = hashlib.sha256()
+    try:
+        with sqlite_path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError as exc:
+        raise PackIntegrityError(
+            f"pack {pack_id!r} is unverifiable: cannot read pack bytes "
+            f"({exc}); rebuild the pack"
+        ) from exc
+    actual = digest.hexdigest()
+    if not hmac.compare_digest(actual, expected):
+        raise PackIntegrityError(
+            f"pack {pack_id!r} failed integrity verification: pack.sqlite "
+            f"hash mismatch (manifest sha256:{expected}, actual "
+            f"sha256:{actual}); the pack was tampered with or corrupted — "
+            f"rebuild it from the working store"
+        )
+    assert isinstance(receipt, str)
+    return receipt
 
 
 class PackSession:
@@ -349,28 +418,30 @@ class PackSession:
 
     def load_pack(self, pack_id: str) -> dict[str, Any]:
         sqlite_path = pack_sqlite_path(self.packs_dir, pack_id)
+        # Verify BEFORE touching session state: a tampered or unverifiable
+        # pack must never displace a working one. The digest is recomputed
+        # from current bytes on every load — no cached verdicts.
+        content_hash = _verified_content_hash(pack_id, sqlite_path)
+        store = KGStore.open(sqlite_path, read_only=True)
+        try:
+            counts = store.counts()
+            schema = store.get_schema()
+        except Exception:
+            store.close()
+            raise
+        # Atomic switch: only now, with a verified pack fully open, does the
+        # session drop the previous store and publish the new identity.
         if self.store is not None:
             self.store.close()
-            self.store = None
-            self.pack_id = None
-            self.pack_hash = None
-        store = KGStore.open(sqlite_path, read_only=True)
         self.store = store
         self.pack_id = pack_id
-        self.pack_hash = None
-        manifest_path = sqlite_path.parent / "manifest.json"
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            self.pack_hash = manifest.get("content_hash")
-        except (OSError, json.JSONDecodeError):
-            pass  # provenance degrades to pack_id-only, never blocks loading
-        counts = store.counts()
+        self.pack_hash = content_hash
         return {
             "pack_id": pack_id,
             "content_hash": self.pack_hash,
             "sqlite_path": str(sqlite_path),
             "counts": counts,
-            "schema": store.get_schema(),
+            "schema": schema,
         }
 
     def try_autoload(self) -> str | None:

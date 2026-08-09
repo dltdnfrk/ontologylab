@@ -228,6 +228,19 @@ def test_legacy_pack_without_w7_w8_tables_loads(pack_session, tmp_path):
     conn.execute("DROP TABLE critic_reviews")
     conn.commit()
     conn.close()
+    # Re-receipt the mutated bytes: P0-B load-time verification rejects a
+    # manifest whose content_hash predates the file's current bytes. A real
+    # pre-W7/W8 pack's hash was computed over ITS bytes at build time.
+    import hashlib
+
+    manifest_path = legacy_dir / "manifest.json"
+    legacy_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    legacy_manifest["content_hash"] = "sha256:" + hashlib.sha256(
+        (legacy_dir / "pack.sqlite").read_bytes()
+    ).hexdigest()
+    manifest_path.write_text(
+        json.dumps(legacy_manifest, indent=2), encoding="utf-8"
+    )
 
     legacy = PackSession(tmp_path / "legacy-packs")
     try:

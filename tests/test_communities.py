@@ -185,6 +185,21 @@ def test_legacy_pack_without_communities_degrades(community_pack, tmp_path):
     conn.execute("DROP TABLE communities")
     conn.commit()
     conn.close()
+    # Re-receipt the mutated bytes: P0-B load-time verification rejects a
+    # manifest whose content_hash predates the file's current bytes. A real
+    # pre-communities pack's hash was computed over ITS bytes at build time.
+    import hashlib
+    import json
+
+    manifest_path = legacy_dir / "manifest.json"
+    legacy_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    legacy_hash = "sha256:" + hashlib.sha256(
+        (legacy_dir / "pack.sqlite").read_bytes()
+    ).hexdigest()
+    legacy_manifest["content_hash"] = legacy_hash
+    manifest_path.write_text(
+        json.dumps(legacy_manifest, indent=2), encoding="utf-8"
+    )
 
     session = PackSession(tmp_path / "legacy")
     session.load_pack(manifest.pack_id)
@@ -192,7 +207,7 @@ def test_legacy_pack_without_communities_degrades(community_pack, tmp_path):
         assert session.get_communities() == {
             "communities": [], "members": [], "count": 0,
             "pack": {"pack_id": manifest.pack_id,
-                     "content_hash": manifest.content_hash},
+                     "content_hash": legacy_hash},
         }
     finally:
         session.close()
