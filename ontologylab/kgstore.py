@@ -3831,7 +3831,7 @@ class KGStore:
             rows.extend(
                 self.conn.execute(
                     f"SELECT e.*, {other_col} AS other_id FROM edges e "
-                    "JOIN relation_type rt ON rt.schema_version_id = e.schema_version_id "
+                    "LEFT JOIN relation_type rt ON rt.schema_version_id = e.schema_version_id "
                     "AND rt.name = e.relation_type "
                     f"JOIN nodes n ON n.id = {other_col} "
                     f"WHERE {where_col} AND {status_sql} AND {current_sql} "

@@ -36,6 +36,27 @@ def _verified_graph(store, doc, *, directed: bool) -> tuple[str, str]:
     return source_id, target_id
 
 
+def test_legacy_relation_without_schema_row_remains_structurally_visible(
+    store, doc
+) -> None:
+    source = make_entity("boscalid")
+    target = make_entity("Botrytis")
+    relation = make_relation(source, target, "controls")
+    stats = store.insert_proposed(
+        [source, target],
+        [relation],
+        source_doc_id=doc.id,
+        extractor_engine="mock",
+    )
+    source_id = stats["id_map"][source.id]
+    target_id = stats["id_map"][target.id]
+    for item_id in (source_id, target_id, relation.id):
+        store.approve(item_id, by="tester")
+
+    assert store.find_path(source_id, target_id)["found"] is True
+    assert store.find_path(source_id, target_id, mode="structural")["found"] is True
+
+
 def test_semantic_path_does_not_walk_a_directed_relation_backward(store, doc) -> None:
     source_id, target_id = _verified_graph(store, doc, directed=True)
 
