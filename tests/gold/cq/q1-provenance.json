@@ -1,0 +1,66 @@
+{
+  "question_id": "Q1",
+  "question": "Can every verified fact be traced to its exact source document, extraction stream, and approval record?",
+  "configuration": {
+    "document": {
+      "title": "CQ Provenance Test",
+      "source_uri": "gold://cq/q1-provenance",
+      "text": "The ApiGateway forwards requests to the RateLimiter. The RateLimiter uses the TokenBucketAlgorithm to shape traffic."
+    },
+    "extraction": {
+      "engine": "mock",
+      "prompt_version": "cq-v1"
+    },
+    "approval": {
+      "verified_by": "cq-release-gate"
+    }
+  },
+  "expected": {
+    "entities": [
+      {
+        "normalized_name": "apigateway",
+        "entity_type": "Component",
+        "source_doc_title": "CQ Provenance Test",
+        "extractor_engine": "mock",
+        "status": "verified",
+        "verified_by": "cq-release-gate"
+      },
+      {
+        "normalized_name": "ratelimiter",
+        "entity_type": "Component",
+        "source_doc_title": "CQ Provenance Test",
+        "extractor_engine": "mock",
+        "status": "verified",
+        "verified_by": "cq-release-gate"
+      },
+      {
+        "normalized_name": "tokenbucketalgorithm",
+        "entity_type": "Component",
+        "source_doc_title": "CQ Provenance Test",
+        "extractor_engine": "mock",
+        "status": "verified",
+        "verified_by": "cq-release-gate"
+      }
+    ],
+    "relations": [
+      {
+        "src_norm": "apigateway",
+        "relation_type": "uses",
+        "dst_norm": "ratelimiter",
+        "source_doc_title": "CQ Provenance Test",
+        "extractor_engine": "mock",
+        "status": "verified",
+        "verified_by": "cq-release-gate"
+      },
+      {
+        "src_norm": "ratelimiter",
+        "relation_type": "uses",
+        "dst_norm": "tokenbucketalgorithm",
+        "source_doc_title": "CQ Provenance Test",
+        "extractor_engine": "mock",
+        "status": "verified",
+        "verified_by": "cq-release-gate"
+      }
+    ]
+  }
+}

@@ -278,7 +278,11 @@ def test_packs_build_list_and_mcp_status(tmp_path: Path) -> None:
     assert _wait_for_job(client, job_id)["status"] == "complete"
     _approve_all(client)
 
-    assert client.get("/api/packs").json() == {"packs": [], "count": 0}
+    packs_resp = client.get("/api/packs").json()
+    assert packs_resp["packs"] == []
+    assert packs_resp["count"] == 0
+    # P2-A: competency receipt is embedded in the packs response
+    assert "competency" in packs_resp
 
     built = client.post("/api/packs/build", json={"name": "svcnotes"})
     assert built.status_code == 200

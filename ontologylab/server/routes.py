@@ -2354,7 +2354,31 @@ def get_job(deps: AppDependency, job_id: str) -> JobStatus:
 @router.get("/packs")
 def get_packs(deps: AppDependency) -> dict[str, Any]:
     packs = list_packs(deps.packs_dir)
-    return {"packs": packs, "count": len(packs)}
+    # P2-A: embed the competency release receipt so the Packs screen can
+    # surface it alongside the pack list. The evaluator creates its own
+    # temporary store, so the live data dir is never touched.
+    receipt = _competency_receipt()
+    return {"packs": packs, "count": len(packs), "competency": receipt}
+
+
+@router.get("/packs/competency")
+def get_competency_receipt(deps: AppDependency) -> dict[str, Any]:
+    """P2-A: return the frozen competency release-gate receipt.
+
+    Runs Q1 (provenance), Q2 (extraction), Q3 (pack-query) against the
+    current pipeline using deterministic mock extraction. The receipt is
+    agent-executable — every question has a binary pass/fail and a diff.
+    """
+    return _competency_receipt()
+
+
+def _competency_receipt() -> dict[str, Any]:
+    """Run the competency suite in a throwaway store and return the receipt."""
+    from ontologylab.competency import run_competency_suite
+
+    gold_dir = Path(__file__).resolve().parent.parent.parent / "tests" / "gold"
+    receipt = run_competency_suite(gold_dir)
+    return receipt.to_dict()
 
 
 @router.post("/packs/build")

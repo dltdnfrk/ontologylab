@@ -1,0 +1,57 @@
+{
+  "question_id": "Q3",
+  "question": "Does a built pack return exact answers to user queries?",
+  "configuration": {
+    "document": {
+      "title": "CQ Pack Query Test",
+      "source_uri": "gold://cq/q3-pack-query",
+      "text": "The ApiGateway forwards requests to the RateLimiter. The RateLimiter uses the TokenBucketAlgorithm to shape traffic."
+    },
+    "extraction": {
+      "engine": "mock",
+      "prompt_version": "cq-v1"
+    },
+    "approval": {
+      "verified_by": "cq-release-gate"
+    },
+    "pack_name": "cq-release-pack"
+  },
+  "expected": {
+    "verified_entities": [
+      "apigateway",
+      "ratelimiter",
+      "tokenbucketalgorithm"
+    ],
+    "verified_relations": [
+      {
+        "src_norm": "apigateway",
+        "relation_type": "uses",
+        "dst_norm": "ratelimiter"
+      },
+      {
+        "src_norm": "ratelimiter",
+        "relation_type": "uses",
+        "dst_norm": "tokenbucketalgorithm"
+      }
+    ],
+    "graph_query_uses": {
+      "nodes": [
+        "apigateway",
+        "ratelimiter",
+        "tokenbucketalgorithm"
+      ],
+      "edges": [
+        {
+          "src_norm": "apigateway",
+          "relation_type": "uses",
+          "dst_norm": "ratelimiter"
+        },
+        {
+          "src_norm": "ratelimiter",
+          "relation_type": "uses",
+          "dst_norm": "tokenbucketalgorithm"
+        }
+      ]
+    }
+  }
+}

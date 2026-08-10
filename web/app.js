@@ -2757,11 +2757,55 @@
         .join("");
       empty.classList.toggle("hidden", packs.length > 0);
       populateDiffSelects(packs);
+      renderCompetencyReceipt(data && data.competency);
     } catch (e) {
       tbody.innerHTML = "";
       err.textContent = friendlyError(e);
       err.classList.remove("hidden");
     }
+  }
+
+  /* -- P2-A: Competency release receipt (Packs screen) -- */
+
+  function renderCompetencyReceipt(comp) {
+    var box = $("#competency-receipt");
+    var body = $("#competency-body");
+    if (!box || !body) return;
+    if (!comp) {
+      box.classList.add("hidden");
+      return;
+    }
+    box.classList.remove("hidden");
+    var qs = comp.questions || [];
+    var passed = comp.passed_count || 0;
+    var total = comp.total_count || 0;
+    var allOk = comp.all_passed;
+    var status = allOk ? "PASS" : "FAIL";
+    var cls = allOk ? "ok" : "fail";
+    body.innerHTML =
+      "<div class='status-row'><span class='" + cls + "'><strong>" +
+      escapeHtml(status) + "</strong> — " + passed + "/" + total +
+      " 질문 통과</span></div>" +
+      qs.map(function (q) {
+        var qOk = q.passed;
+        var qCls = qOk ? "ok" : "fail";
+        var html =
+          "<div class='status-row'><span class='" + qCls + "'>" +
+          escapeHtml(q.question_id || "") + " " + (qOk ? "✓" : "✗") +
+          "</span> <small>" + escapeHtml(q.question || "") +
+          "</small></div>";
+        if (!qOk && (q.missing || []).length > 0) {
+          html += "<div class='muted'><small>누락: " +
+            escapeHtml(JSON.stringify(q.missing.slice(0, 3))) +
+            "</small></div>";
+        }
+        if (!qOk && (q.spurious || []).length > 0) {
+          html += "<div class='muted'><small>과잉: " +
+            escapeHtml(JSON.stringify(q.spurious.slice(0, 3))) +
+            "</small></div>";
+        }
+        return html;
+      }).join("");
   }
 
   /* -- Artifacts (문서·릴리스 열람): 산출물을 목록으로 -- */

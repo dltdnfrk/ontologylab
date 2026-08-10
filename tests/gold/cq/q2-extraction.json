@@ -1,0 +1,69 @@
+{
+  "question_id": "Q2",
+  "question": "Does the extractor produce the exact expected entities and relations from a known document?",
+  "configuration": {
+    "document": {
+      "title": "CQ Extraction Test",
+      "text": "The ApiGateway forwards requests to the RateLimiter. The RateLimiter uses the TokenBucketAlgorithm to shape traffic and stores counters in the SessionCache. The OrderService writes into the OrderDatabase."
+    },
+    "extraction": {
+      "engine": "mock",
+      "schema": "default"
+    }
+  },
+  "expected": {
+    "entities": [
+      {
+        "normalized_name": "apigateway",
+        "entity_type": "Component"
+      },
+      {
+        "normalized_name": "ratelimiter",
+        "entity_type": "Component"
+      },
+      {
+        "normalized_name": "tokenbucketalgorithm",
+        "entity_type": "Component"
+      },
+      {
+        "normalized_name": "sessioncache",
+        "entity_type": "Component"
+      },
+      {
+        "normalized_name": "orderservice",
+        "entity_type": "Component"
+      },
+      {
+        "normalized_name": "orderdatabase",
+        "entity_type": "Component"
+      }
+    ],
+    "relations": [
+      {
+        "src_norm": "apigateway",
+        "relation_type": "uses",
+        "dst_norm": "ratelimiter"
+      },
+      {
+        "src_norm": "ratelimiter",
+        "relation_type": "uses",
+        "dst_norm": "tokenbucketalgorithm"
+      },
+      {
+        "src_norm": "tokenbucketalgorithm",
+        "relation_type": "uses",
+        "dst_norm": "sessioncache"
+      },
+      {
+        "src_norm": "sessioncache",
+        "relation_type": "uses",
+        "dst_norm": "orderservice"
+      },
+      {
+        "src_norm": "orderservice",
+        "relation_type": "uses",
+        "dst_norm": "orderdatabase"
+      }
+    ]
+  }
+}
