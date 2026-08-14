@@ -25,6 +25,15 @@ except ImportError:  # pragma: no cover
     from typing import TypedDict
 
 from ontologylab.kgstore import KGStore, KGStoreError
+from ontologylab.method_mcp import (
+    MethodDetailResult,
+    MethodGapsResult,
+    MethodListResult,
+    MethodPackReader,
+    MethodTraceResult,
+)
+from ontologylab.method_mcp_sql import MethodPackSql
+from ontologylab.mcp_runtime import McpApp
 from ontologylab.engines import EngineError, engine_name_arg, get_engine
 from ontologylab.expansion import expand_query
 from ontologylab.packbuilder import (
@@ -280,6 +289,73 @@ def _verified_content_hash(pack_id: str, sqlite_path: Path) -> str:
     return receipt
 
 
+def _active_pack_paths(
+    packs_dir: Path,
+    pack_id: str,
+) -> tuple[Path, Path]:
+    safe_pack_component(pack_id, kind="pack id")
+    canonical_root = packs_dir.resolve(strict=True)
+    pack_dir = canonical_root / pack_id
+    database = pack_dir / "pack.sqlite"
+    manifest = pack_dir / "manifest.json"
+    for path, label in (
+        (pack_dir, "pack directory"),
+        (database, "pack.sqlite"),
+        (manifest, "manifest.json"),
+    ):
+        if path.is_symlink():
+            raise PackIntegrityError(
+                f"pack {pack_id!r} has a symlinked {label}; "
+                "active packs must be exact physical pack files"
+            )
+        try:
+            resolved = path.resolve(strict=True)
+        except OSError as exc:
+            raise PackIntegrityError(
+                f"pack {pack_id!r} is unverifiable: {label} not found"
+            ) from exc
+        if resolved != path:
+            raise PackIntegrityError(
+                f"pack {pack_id!r} has a non-canonical {label}"
+            )
+        if resolved != canonical_root and canonical_root not in resolved.parents:
+            raise PackIntegrityError(
+                f"pack {pack_id!r} escapes the canonical packs root"
+            )
+    for path, label in (
+        (database, "pack.sqlite"),
+        (manifest, "manifest.json"),
+    ):
+        if path.stat().st_nlink != 1:
+            raise PackIntegrityError(
+                f"pack {pack_id!r} has a hard-linked {label}"
+            )
+    return database, manifest
+
+
+def _verified_pack(
+    packs_dir: Path,
+    pack_id: str,
+) -> tuple[Path, str, dict[str, Any]]:
+    database, manifest_path = _active_pack_paths(packs_dir, pack_id)
+    content_hash = _verified_content_hash(pack_id, database)
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PackIntegrityError(
+            f"pack {pack_id!r} has no readable manifest"
+        ) from exc
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("pack_id") != pack_id
+        or manifest.get("content_hash") != content_hash
+    ):
+        raise PackIntegrityError(
+            f"pack {pack_id!r} manifest identity is invalid"
+        )
+    return database, content_hash, manifest
+
+
 class PackSession:
     """In-memory MCP session: packs-dir + one active read-only KGStore.
 
@@ -299,6 +375,7 @@ class PackSession:
         self.store: KGStore | None = None
         self.pack_id: str | None = None
         self.pack_hash: str | None = None
+        self._methodology: dict[str, Any] | None = None
         self.expansion_engine = expansion_engine
         self.expansion_model = expansion_model
         self.embedder = embedder
@@ -417,11 +494,64 @@ class PackSession:
         always say WHICH immutable pack produced an answer."""
         return {"pack_id": self.pack_id, "content_hash": self.pack_hash}
 
+    def _method_reader(self) -> MethodPackReader:
+        store = self._require_store()
+        assert self.pack_id is not None
+        assert self.pack_hash is not None
+        _, content_hash, manifest = _verified_pack(
+            self.packs_dir,
+            self.pack_id,
+        )
+        if content_hash != self.pack_hash:
+            raise PackIntegrityError(
+                f"active pack {self.pack_id!r} identity changed"
+            )
+        methodology = manifest.get("methodology")
+        if methodology != self._methodology:
+            raise PackIntegrityError(
+                f"active pack {self.pack_id!r} manifest changed"
+            )
+        return MethodPackReader(
+            MethodPackSql(store.conn),
+            pack_id=self.pack_id,
+            pack_hash=self.pack_hash,
+            methodology=methodology or {},
+        )
+
+    def list_methods(
+        self,
+        query: str | None = None,
+        limit: int = 20,
+    ) -> MethodListResult:
+        return self._method_reader().list_methods(search=query, limit=limit)
+
+    def get_method(
+        self,
+        method_id: str,
+        version: int | None = None,
+    ) -> MethodDetailResult:
+        return self._method_reader().get_method(method_id, version=version)
+
+    def trace_method(
+        self,
+        method_id: str,
+        field_path: str | None = None,
+    ) -> MethodTraceResult:
+        return self._method_reader().trace_method(
+            method_id,
+            field_path=field_path,
+        )
+
+    def list_method_gaps(self, method_id: str) -> MethodGapsResult:
+        return self._method_reader().list_method_gaps(method_id)
+
     def close(self) -> None:
         if self.store is not None:
             self.store.close()
             self.store = None
             self.pack_id = None
+            self.pack_hash = None
+            self._methodology = None
         if self._live_store is not None:
             self._live_store.close()
             self._live_store = None
@@ -447,11 +577,13 @@ class PackSession:
         }
 
     def load_pack(self, pack_id: str) -> dict[str, Any]:
-        sqlite_path = pack_sqlite_path(self.packs_dir, pack_id)
+        sqlite_path, content_hash, manifest = _verified_pack(
+            self.packs_dir,
+            pack_id,
+        )
         # Verify BEFORE touching session state: a tampered or unverifiable
         # pack must never displace a working one. The digest is recomputed
         # from current bytes on every load — no cached verdicts.
-        content_hash = _verified_content_hash(pack_id, sqlite_path)
         store = KGStore.open(sqlite_path, read_only=True)
         try:
             counts = store.counts()
@@ -466,6 +598,10 @@ class PackSession:
         self.store = store
         self.pack_id = pack_id
         self.pack_hash = content_hash
+        methodology = manifest.get("methodology")
+        self._methodology = (
+            dict(methodology) if isinstance(methodology, dict) else None
+        )
         return {
             "pack_id": pack_id,
             "content_hash": self.pack_hash,
@@ -616,6 +752,34 @@ class PackSession:
         finally:
             if ephemeral:
                 store.close()
+
+    def resource_method(
+        self,
+        pack_id: str,
+        method_id: str,
+    ) -> MethodDetailResult:
+        if pack_id != self.pack_id:
+            raise ValueError(
+                "Method resources only serve the active physical pack"
+            )
+        return self._method_reader().get_method(method_id)
+
+    def resource_method_trace(
+        self,
+        pack_id: str,
+        method_id: str,
+        field_path: str,
+    ) -> MethodTraceResult:
+        from urllib.parse import unquote
+
+        if pack_id != self.pack_id:
+            raise ValueError(
+                "Method resources only serve the active physical pack"
+            )
+        return self._method_reader().trace_method(
+            method_id,
+            field_path=unquote(field_path),
+        )
 
     def _active_reranker(self):
         """Second-stage reranker, resolved once per server, cached-only.
@@ -930,15 +1094,8 @@ class PathResult(TypedDict):
 
 
 def build_mcp_app(session: PackSession) -> Any:
-    """Wire ``PackSession`` methods onto a FastMCP app (requires ``mcp``)."""
-    try:
-        from mcp.server.fastmcp import FastMCP
-    except ImportError as exc:  # pragma: no cover
-        raise SystemExit(
-            "mcp package not installed; pip install 'ontologylab[mcp]'"
-        ) from exc
-
-    mcp = FastMCP("ontologylab")
+    """Wire ``PackSession`` onto the bounded local MCP stdio registry."""
+    mcp = McpApp("ontologylab")
 
     @mcp.tool()
     def list_packs() -> PackListResult:
@@ -1114,6 +1271,35 @@ def build_mcp_app(session: PackSession) -> Any:
             include_proposed=include_proposed,
         )
 
+    @mcp.tool()
+    def list_methods(
+        query: str | None = None,
+        limit: int = 20,
+    ) -> MethodListResult:
+        """List selected immutable Methods as compact, bounded rows."""
+        return session.list_methods(query=query, limit=limit)
+
+    @mcp.tool()
+    def get_method(
+        method_id: str,
+        version: int | None = None,
+    ) -> MethodDetailResult:
+        """Return one selected immutable Method and its hash-bound receipts."""
+        return session.get_method(method_id, version=version)
+
+    @mcp.tool()
+    def trace_method(
+        method_id: str,
+        field_path: str | None = None,
+    ) -> MethodTraceResult:
+        """Trace exact Method source anchors, links, and accepted assumptions."""
+        return session.trace_method(method_id, field_path=field_path)
+
+    @mcp.tool()
+    def list_method_gaps(method_id: str) -> MethodGapsResult:
+        """List the packed open or waived gaps for one selected Method."""
+        return session.list_method_gaps(method_id)
+
     # -- Resources: stable pack:// addresses for entities and pack metadata.
     # Read-only JSON; lets clients cite/refetch a fact by URI instead of
     # re-running a query tool.
@@ -1144,6 +1330,36 @@ def build_mcp_app(session: PackSession) -> Any:
     def pack_xref(pack_id: str, xref_id: str) -> str:
         """One published typed xref; mapping predicates do not merge identity."""
         return json.dumps(session.resource_xref(pack_id, xref_id), indent=2)
+
+    @mcp.resource("pack://{pack_id}/method/{method_id}")
+    def pack_method(pack_id: str, method_id: str) -> str:
+        """One selected immutable Method plus release/publication receipts."""
+        return json.dumps(
+            session.resource_method(pack_id, method_id),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+    @mcp.resource(
+        "pack://{pack_id}/method/{method_id}/trace/{field_path}"
+    )
+    def pack_method_trace(
+        pack_id: str,
+        method_id: str,
+        field_path: str,
+    ) -> str:
+        """One percent-encoded field path traced to immutable source rows."""
+        return json.dumps(
+            session.resource_method_trace(
+                pack_id,
+                method_id,
+                field_path,
+            ),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
     return mcp
 

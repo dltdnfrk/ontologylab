@@ -6,13 +6,19 @@ import sqlite3
 import sys
 from pathlib import Path
 
+import pytest
+
 _ROOT = str(Path(__file__).resolve().parent.parent)
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from ontologylab.kgstore import KGStore  # noqa: E402
 from ontologylab.models import ProposedEntity, ProposedRelation  # noqa: E402
-from ontologylab.packbuilder import build_pack, list_packs  # noqa: E402
+from ontologylab.packbuilder import (  # noqa: E402
+    PackBuildError,
+    build_pack,
+    list_packs,
+)
 
 
 def _populate(store: KGStore) -> None:
@@ -94,3 +100,26 @@ def test_build_pack_verified_only_and_fts(tmp_path: Path) -> None:
     discovered = list_packs(packs)
     assert len(discovered) == 1
     assert discovered[0]["pack_id"] == manifest.pack_id
+
+
+def test_method_selection_failure_leaves_no_visible_pack(
+    tmp_path: Path,
+) -> None:
+    kg = tmp_path / "kg.sqlite"
+    packs = tmp_path / "packs"
+    store = KGStore.open(kg)
+    _populate(store)
+    store.close()
+
+    with pytest.raises(PackBuildError, match="unknown Method release"):
+        build_pack(
+            kg,
+            packs,
+            name="demo",
+            method_release_ids=("missing-release",),
+            allow_incomplete_extraction=True,
+            incomplete_extraction_intent="synthetic packbuilder fixture",
+        )
+
+    assert list_packs(packs) == []
+    assert not list(tmp_path.glob(".packs-*-staging-*"))

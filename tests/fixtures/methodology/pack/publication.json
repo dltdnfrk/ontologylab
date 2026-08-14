@@ -1,0 +1,15 @@
+{
+  "compiled_method_hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "compiled_method_source_hash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "compiler_version": "method-compiler-v1",
+  "method_schema_version": "method-v1",
+  "schema_version": "methodology-publication-v1",
+  "selection": [
+    {
+      "method_id": "method-pack-1",
+      "release_content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "release_id": "release-pack-1"
+    }
+  ],
+  "source_snapshot_hash": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+}

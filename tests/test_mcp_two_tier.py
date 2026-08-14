@@ -271,7 +271,13 @@ def test_fastmcp_exposes_two_tier_surface(pack_session):
     tools = {t.name: t for t in asyncio.run(app.list_tools())}
     assert "get_entity" in tools
     assert "get_communities" in tools
-    assert len(tools) == 11  # 8 original + get_entity + get_communities + get_staleness
+    assert len(tools) == 15
+    assert {
+        "list_methods",
+        "get_method",
+        "trace_method",
+        "list_method_gaps",
+    } <= tools.keys()
     for name in ("semantic_search", "entity_lookup", "graph_query",
                  "traverse_relations"):
         assert "detail" in tools[name].inputSchema["properties"], name
@@ -285,4 +291,6 @@ def test_fastmcp_exposes_two_tier_surface(pack_session):
         "pack://{pack_id}/entity/{entity_id}",
         "pack://{pack_id}/term/{term_id}",
         "pack://{pack_id}/xref/{xref_id}",
+        "pack://{pack_id}/method/{method_id}",
+        "pack://{pack_id}/method/{method_id}/trace/{field_path}",
     }

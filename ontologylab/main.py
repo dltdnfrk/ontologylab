@@ -58,6 +58,15 @@ from ontologylab.extractor import (
     run_extraction,
 )
 from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError
+from ontologylab.method_ir import (
+    MethodIR, StatementOccurrence, canonical_json_bytes, parse_method,
+    parse_occurrences,
+)
+from ontologylab.method_pack import (
+    MethodPackError,
+    reject_duplicate_release_ids,
+)
+from ontologylab.method_store import MethodError, MethodStore, MethodUnitOfWork
 from ontologylab.packbuilder import PackBuildError, build_pack
 from ontologylab.provenance import Provenance
 from ontologylab.safety import Caps, KillSwitch
@@ -74,6 +83,325 @@ def _add_data_dir(parser: argparse.ArgumentParser) -> None:
         default=str(paths.default_data_dir()),
         help="Working data directory (default: ROOT/data).",
     )
+
+
+def _canonical_json(path: str) -> tuple[bytes, object]:
+    raw = Path(path).read_bytes()
+    value = json.loads(raw)
+    if raw != canonical_json_bytes(value):
+        raise ValueError("Method import file must be canonical JSON")
+    return raw, value
+
+
+def _canonical_occurrences(path: str) -> tuple[StatementOccurrence, ...]:
+    _, value = _canonical_json(path)
+    return parse_occurrences(value)
+
+
+def _canonical_method(path: str) -> MethodIR:
+    _, value = _canonical_json(path)
+    return parse_method(value)
+
+
+def _compiler_fixtures(path: str) -> tuple[dict[str, object], ...]:
+    from ontologylab.method_compiler_replay import MAX_REPLAY_BYTES
+
+    if Path(path).stat().st_size > MAX_REPLAY_BYTES:
+        raise ValueError("compiler fixtures exceed replay byte limit")
+    _, value = _canonical_json(path)
+    if (
+        not isinstance(value, list)
+        or any(not isinstance(item, dict) for item in value)
+    ):
+        raise ValueError("compiler fixtures must be a JSON array")
+    return tuple(dict(item) for item in value)
+
+
+def cmd_method(args: argparse.Namespace) -> int:
+    """Run one explicit, human-operated Method command."""
+    store = _open_store(args)
+    try:
+        command = args.method_command
+        if command == "extract":
+            from ontologylab.method_extract import extract_occurrences
+
+            engine = get_engine(
+                args.engine, model=args.model, data_dir=Path(args.data_dir),
+                decode_params={},
+            )
+            caps = Caps(SimpleNamespace(
+                iterations=0, time_budget_s=args.time_budget,
+                max_engine_calls=args.max_engine_calls,
+            ))
+            kill_switch = KillSwitch(args.data_dir)
+            kill_switch.install()
+            try:
+                run_id = asyncio.run(extract_occurrences(
+                    store, workspace_id=args.workspace_id,
+                    document_id=args.document_id,
+                    policy_snapshot_id=args.policy_snapshot_id, engine=engine,
+                    processor=args.processor, region=args.region,
+                    owner_token=args.owner_token, model=args.model,
+                    run_id=args.run_id, resume=args.resume, caps=caps,
+                    kill_switch=kill_switch,
+                ))
+            finally:
+                kill_switch.uninstall()
+            print(json.dumps({"run_id": run_id, "status": "complete"}, sort_keys=True))
+            return 0
+        with MethodUnitOfWork(store.conn) as uow:
+            method = MethodStore(store.conn, uow)
+            if command == "workspace-create":
+                method.create_workspace(
+                    args.id, name=args.name, objective=args.objective,
+                    scope=json.loads(args.scope), created_by=args.created_by,
+                )
+            elif command == "policy-add":
+                method.create_source_policy(
+                    args.id, origin_pattern=args.origin_pattern,
+                    policy_version=args.policy_version,
+                    allowed_quote=args.allowed_quote,
+                    allowed_extract=args.allowed_extract,
+                    allowed_pack=args.allowed_pack,
+                    allowed_train=args.allowed_train,
+                    allowed_redistribute=args.allowed_redistribute,
+                    sensitivity=args.sensitivity,
+                    allowed_processors=tuple(args.processor),
+                    allowed_regions=tuple(args.region),
+                    decision_note=args.note, decided_by=args.reviewer,
+                )
+            elif command == "policy-snapshot":
+                method.create_document_policy_snapshot(
+                    args.id, document_id=args.document_id,
+                    document_content_hash=args.document_content_hash,
+                    source_policy_id=args.policy_id,
+                    resolution_status=args.status, resolved_by=args.reviewer,
+                )
+            elif command == "occurrence-import":
+                occurrences = _canonical_occurrences(args.file)
+                for occurrence in occurrences:
+                    method.import_occurrence(
+                        args.workspace_id, occurrence,
+                        extractor_engine="offline-import", extractor_model=None,
+                        prompt_version="method-occurrence-v1", decode_params={},
+                    )
+            elif command == "fragment-import":
+                ir = _canonical_method(args.file)
+                for fragment in ir.fragments:
+                    method.propose_fragment(
+                        args.workspace_id, fragment,
+                        generator="offline-import", parser_version="method-v1",
+                    )
+            elif command == "link-import":
+                ir = _canonical_method(args.file)
+                for link in ir.links:
+                    method.propose_link(
+                        args.workspace_id, link, provenance={"file": args.file}
+                    )
+            elif command == "bridge-import":
+                ir = _canonical_method(args.file)
+                for bridge in ir.bridge_assumptions:
+                    method.propose_bridge(
+                        args.workspace_id, bridge, generator="offline-import",
+                        model=None, prompt_version="method-v1",
+                    )
+            elif command == "review":
+                snapshot = method.read_snapshot(args.workspace_id)
+                print(snapshot.canonical_json.decode())
+                return 0
+            elif command == "detect-gaps":
+                from ontologylab.method_gaps import (
+                    upsert_detected_gaps,
+                )
+
+                snapshot = method.read_compilation_snapshot(
+                    args.workspace_id
+                )
+                gaps = upsert_detected_gaps(method, snapshot)
+                print(json.dumps(
+                    [gap.to_dict() for gap in gaps],
+                    sort_keys=True,
+                ))
+                return 0
+            elif command == "compile":
+                from ontologylab.method_compiler import (
+                    CompileSelection,
+                    compile_and_persist,
+                    compile_method,
+                )
+
+                snapshot = method.read_compilation_snapshot(
+                    args.workspace_id
+                )
+                fixture_rows = _compiler_fixtures(args.fixtures)
+                selected = (
+                    args.release_id,
+                    args.method_id,
+                    args.release_version,
+                )
+                if all(value is None for value in selected):
+                    preview = compile_method(
+                        snapshot,
+                        None,
+                        fixture_rows,
+                    )
+                    failed = [
+                        gate.gate_id.value
+                        for gate in preview.gates
+                        if not gate.passed
+                    ]
+                    if failed:
+                        raise ValueError(
+                            "failed compiler gates: "
+                            + ",".join(failed)
+                        )
+                    raise ValueError(
+                        "explicit release selection required"
+                    )
+                if any(value is None for value in selected):
+                    raise ValueError(
+                        "release-id, method-id, and release-version "
+                        "must be selected together"
+                    )
+                selection = CompileSelection(
+                    args.attempt_id,
+                    args.release_id,
+                    args.method_id,
+                    args.release_version,
+                )
+                result = compile_and_persist(
+                    method,
+                    snapshot,
+                    selection,
+                    fixture_rows,
+                )
+                if not result.passed:
+                    failed = [
+                        gate.gate_id.value
+                        for gate in result.gates
+                        if not gate.passed
+                    ]
+                    error = (
+                        "failed compiler gates: "
+                        + ",".join(failed)
+                    )
+                else:
+                    print(json.dumps({
+                        "content_hash": result.content_hash,
+                        "release_id": result.release_id,
+                    }, sort_keys=True))
+                    return 0
+            elif command == "decide":
+                method.decide(
+                    args.kind, args.id, args.decision,
+                    reviewer=args.reviewer, note=args.note,
+                    review_event_id=args.event_id,
+                )
+        if command == "compile" and not result.passed:
+            print(
+                f"[ontologylab] method compile: {error}",
+                file=sys.stderr,
+            )
+            return 2
+        print(json.dumps({"command": command, "status": "ok"}, sort_keys=True))
+        return 0
+    except (MethodError, OSError, ValueError, json.JSONDecodeError, EngineError) as exc:
+        print(f"[ontologylab] method {args.method_command}: {exc}", file=sys.stderr)
+        return 2
+    finally:
+        store.close()
+
+
+def _add_method_parser(sub: argparse._SubParsersAction) -> None:
+    method = sub.add_parser("method", help="Human-operated Method workspace commands.")
+    nested = method.add_subparsers(dest="method_command", required=True)
+
+    def add(name: str) -> argparse.ArgumentParser:
+        parser = nested.add_parser(name)
+        _add_data_dir(parser)
+        parser.set_defaults(func=cmd_method)
+        return parser
+
+    workspace = add("workspace-create")
+    workspace.add_argument("--id", required=True)
+    workspace.add_argument("--name", required=True)
+    workspace.add_argument("--objective", required=True)
+    workspace.add_argument("--scope", default="{}")
+    workspace.add_argument("--created-by", required=True)
+
+    policy = add("policy-add")
+    policy.add_argument("--id", required=True)
+    policy.add_argument("--origin-pattern", required=True)
+    policy.add_argument("--policy-version", required=True)
+    for flag in ("quote", "extract", "pack", "train", "redistribute"):
+        policy.add_argument(f"--allowed-{flag}", action="store_true")
+    policy.add_argument("--sensitivity", required=True)
+    policy.add_argument("--processor", action="append", required=True)
+    policy.add_argument("--region", action="append", required=True)
+    policy.add_argument("--reviewer", required=True)
+    policy.add_argument("--note", required=True)
+
+    snapshot = add("policy-snapshot")
+    snapshot.add_argument("--id", required=True)
+    snapshot.add_argument("--document-id", required=True)
+    snapshot.add_argument("--document-content-hash", required=True)
+    snapshot.add_argument("--policy-id", required=True)
+    snapshot.add_argument(
+        "--status", required=True,
+        choices=["resolved", "discovery_only", "denied", "ambiguous"],
+    )
+    snapshot.add_argument("--reviewer", required=True)
+
+    occurrence = add("occurrence-import")
+    occurrence.add_argument("--workspace-id", required=True)
+    occurrence.add_argument("--file", required=True)
+
+    extract = add("extract")
+    extract.add_argument("--workspace-id", required=True)
+    extract.add_argument("--document-id", required=True)
+    extract.add_argument("--policy-snapshot-id", required=True)
+    extract.add_argument("--engine", default="mock")
+    extract.add_argument("--model")
+    extract.add_argument("--processor", required=True)
+    extract.add_argument("--region", required=True)
+    extract.add_argument("--owner-token", required=True)
+    extract.add_argument("--run-id")
+    extract.add_argument("--resume", action="store_true")
+    extract.add_argument("--time-budget", type=float, default=0.0)
+    extract.add_argument("--max-engine-calls", type=int, default=0)
+
+    for name in ("fragment-import", "link-import", "bridge-import"):
+        parser = add(name)
+        parser.add_argument("--workspace-id", required=True)
+        parser.add_argument("--file", required=True)
+
+    review = add("review")
+    review.add_argument("--workspace-id", required=True)
+
+    detect = add("detect-gaps")
+    detect.add_argument("--workspace-id", required=True)
+
+    compile_parser = add("compile")
+    compile_parser.add_argument("--workspace-id", required=True)
+    compile_parser.add_argument("--fixtures", required=True)
+    compile_parser.add_argument("--attempt-id", required=True)
+    compile_parser.add_argument("--release-id")
+    compile_parser.add_argument("--method-id")
+    compile_parser.add_argument(
+        "--release-version",
+        type=int,
+    )
+
+    decide = add("decide")
+    decide.add_argument(
+        "--kind", required=True,
+        choices=["occurrence", "fragment", "link", "bridge", "gap"],
+    )
+    decide.add_argument("--id", required=True)
+    decide.add_argument("--decision", required=True)
+    decide.add_argument("--reviewer", required=True)
+    decide.add_argument("--note", required=True)
+    decide.add_argument("--event-id")
 
 
 # ---------------------------------------------------------------------------
@@ -796,6 +1124,13 @@ def cmd_merge_dismiss(args: argparse.Namespace) -> int:
 
 
 def cmd_build_pack(args: argparse.Namespace) -> int:
+    try:
+        method_release_ids = reject_duplicate_release_ids(
+            args.method_release_id
+        )
+    except MethodPackError as exc:
+        print(f"[ontologylab] ERROR: {exc}", file=sys.stderr)
+        return 2
     data_dir = Path(args.data_dir)
     job_dir = paths.new_job_dir(data_dir, "build-pack")
     provenance = Provenance(str(job_dir), seed=0)
@@ -830,11 +1165,13 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
             summary_method=summary_method,
             allow_incomplete_extraction=args.allow_incomplete_extraction,
             incomplete_extraction_intent=args.override_intent,
+            method_release_ids=method_release_ids,
         )
     except (PackBuildError, OSError) as exc:
         payload = {"error": str(exc)}
-        if hasattr(exc, "summary"):
-            payload["extraction_completeness"] = exc.summary
+        summary = getattr(exc, "summary", None)
+        if summary is not None:
+            payload["extraction_completeness"] = summary
         provenance.log("build_pack.failed", payload)
         print(f"[ontologylab] ERROR: {exc}", file=sys.stderr)
         return 2
@@ -1236,6 +1573,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
+    _add_method_parser(sub)
 
     p_collect = sub.add_parser("collect", help="Fetch documents into the working KG.")
     p_collect.add_argument("--url", action="append", default=[],
@@ -1448,6 +1786,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     p_build = sub.add_parser("build-pack", help="Export verified subgraph as a pack.")
     p_build.add_argument("--name", required=True)
+    p_build.add_argument(
+        "--method-release-id",
+        action="append",
+        default=[],
+        help="Explicit immutable Method release id to publish (repeatable).",
+    )
     p_build.add_argument("--packs-dir", default=str(paths.default_packs_dir()))
     p_build.add_argument(
         "--summarize-engine", default=None,

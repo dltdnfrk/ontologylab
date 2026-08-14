@@ -1,0 +1,182 @@
+{
+  "required_slot_missing": {
+    "fragments": [
+      {
+        "id": "input-missing",
+        "kind": "input",
+        "epistemic_class": "deterministic_derivation",
+        "payload_json": "{\"name\":{\"state\":\"known\",\"value\":\"sample\"}}",
+        "status": "accepted"
+      }
+    ],
+    "links": []
+  },
+  "factual_field_without_evidence": {
+    "fragments": [
+      {
+        "id": "fact-1",
+        "kind": "objective",
+        "epistemic_class": "source_supported",
+        "payload_json": "{\"description\":{\"state\":\"known\",\"value\":\"quantify mass\"}}",
+        "status": "accepted"
+      }
+    ],
+    "fragment_evidence": [],
+    "links": []
+  },
+  "dangling_reference": {
+    "links": [
+      {
+        "id": "dangling-link",
+        "src_fragment_id": "input-1",
+        "dst_fragment_id": "missing-step",
+        "kind": "produces",
+        "status": "accepted"
+      }
+    ]
+  },
+  "unreachable_step_or_result": {
+    "fragments": [
+      {
+        "id": "orphan-result",
+        "kind": "result",
+        "epistemic_class": "deterministic_derivation",
+        "payload_json": "{\"name\":{\"state\":\"known\",\"value\":\"orphan\"}}",
+        "status": "accepted"
+      }
+    ],
+    "links": []
+  },
+  "type_discontinuity": {
+    "fragments": [
+      {
+        "id": "producer",
+        "kind": "input",
+        "epistemic_class": "deterministic_derivation",
+        "payload_json": "{\"name\":{\"state\":\"known\",\"value\":\"x\"},\"output_type\":\"mass\",\"type\":{\"state\":\"known\",\"value\":\"mass\"}}",
+        "status": "accepted"
+      },
+      {
+        "id": "consumer",
+        "kind": "step",
+        "epistemic_class": "deterministic_derivation",
+        "payload_json": "{\"entry\":false,\"input_type\":\"volume\",\"name\":{\"state\":\"known\",\"value\":\"consume\"}}",
+        "status": "accepted"
+      }
+    ],
+    "links": [
+      {
+        "id": "type-link",
+        "src_fragment_id": "producer",
+        "dst_fragment_id": "consumer",
+        "kind": "produces",
+        "status": "accepted"
+      }
+    ]
+  },
+  "unit_dimension_mismatch": {
+    "fragments": [
+      {
+        "id": "unit-producer",
+        "kind": "input",
+        "epistemic_class": "deterministic_derivation",
+        "payload_json": "{\"name\":{\"state\":\"known\",\"value\":\"x\"},\"output_unit\":{\"dimension\":\"mass\",\"symbol\":\"g\"},\"type\":{\"state\":\"known\",\"value\":\"sample\"}}",
+        "status": "accepted"
+      },
+      {
+        "id": "unit-consumer",
+        "kind": "step",
+        "epistemic_class": "deterministic_derivation",
+        "payload_json": "{\"entry\":false,\"input_unit\":{\"dimension\":\"volume\",\"symbol\":\"mL\"},\"name\":{\"state\":\"known\",\"value\":\"consume\"}}",
+        "status": "accepted"
+      }
+    ],
+    "links": [
+      {
+        "id": "unit-link",
+        "src_fragment_id": "unit-producer",
+        "dst_fragment_id": "unit-consumer",
+        "kind": "produces",
+        "status": "accepted"
+      }
+    ]
+  },
+  "unmeasurable_condition": {
+    "fragments": [
+      {
+        "id": "condition-1",
+        "kind": "condition",
+        "epistemic_class": "deterministic_derivation",
+        "payload_json": "{\"criterion\":{\"kind\":\"real\",\"state\":\"unknown\"}}",
+        "status": "accepted"
+      }
+    ],
+    "links": []
+  },
+  "stale_selector": {
+    "occurrences": [
+      {
+        "id": "occurrence-stale",
+        "document_id": "document-1",
+        "document_content_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "status": "accepted"
+      }
+    ]
+  },
+  "blocked_policy": {
+    "policy_snapshots": [
+      {
+        "id": "policy-blocked",
+        "document_id": "document-1",
+        "document_content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "resolution_status": "denied"
+      }
+    ]
+  },
+  "failed_fixture": {
+    "workspace": {
+      "id": "workspace-gaps",
+      "scope_json": "{\"fixtures\":[{\"id\":\"normal\",\"kind\":\"normal\",\"passed\":true},{\"id\":\"error\",\"kind\":\"expected_error\",\"passed\":true},{\"id\":\"no-output\",\"kind\":\"expected_no_output\",\"passed\":false},{\"id\":\"unknown\",\"kind\":\"unknown\",\"passed\":true}]}"
+    }
+  },
+  "explicit_counter_evidence": {
+    "fragments": [
+      {
+        "id": "fact-conflicted",
+        "kind": "objective",
+        "epistemic_class": "source_supported",
+        "payload_json": "{\"description\":{\"state\":\"known\",\"value\":\"claim\"}}",
+        "status": "accepted"
+      }
+    ],
+    "fragment_evidence": [
+      {
+        "id": "supports-fact",
+        "fragment_id": "fact-conflicted",
+        "field_path": "/description",
+        "occurrence_id": "occurrence-1",
+        "evidence_role": "supports"
+      },
+      {
+        "id": "counters-fact",
+        "fragment_id": "fact-conflicted",
+        "field_path": "/description",
+        "occurrence_id": "occurrence-1",
+        "evidence_role": "contradicts"
+      }
+    ],
+    "links": []
+  },
+  "open_conflict": {
+    "gaps": [
+      {
+        "id": "recorded-conflict",
+        "gap_class": "open_conflict",
+        "target_fragment_id": "step-1",
+        "field_path": null,
+        "status": "open",
+        "detail_json": "{\"scope\":\"compatible\"}"
+      }
+    ]
+  }
+}

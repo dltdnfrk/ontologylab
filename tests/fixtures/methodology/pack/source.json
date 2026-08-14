@@ -1,0 +1,14 @@
+{
+  "document_content_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "document_id": "doc-pack-1",
+  "epistemic_class": "source_supported",
+  "evidence_role": "supports",
+  "field_path": "/temperature",
+  "method_id": "method-pack-1",
+  "receipt_ref": "review-pack-1",
+  "release_id": "release-pack-1",
+  "selected_text_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "span_end": 11,
+  "span_start": 0,
+  "statement_occurrence_id": "occurrence-pack-1"
+}

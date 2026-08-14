@@ -1,0 +1,16 @@
+{
+  "compiler_version": "method-compiler-v1",
+  "gate_receipt_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "method_count": 1,
+  "method_json_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "publication_receipt_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "schema_version": "method-v1",
+  "selected_release_hashes": {
+    "release-pack-1": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "selected_release_ids": [
+    "release-pack-1"
+  ],
+  "selection_input_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "source_index_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555"
+}

@@ -19,8 +19,10 @@ pack_id, never mutates one in place.
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
+import os
 import re
 import shutil
 import sqlite3
@@ -28,12 +30,21 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from ontologylab import __version__
 from ontologylab.kgstore import _SCHEMA, KGStore
 from ontologylab.models import PackManifest
+from ontologylab.method_pack import (
+    MethodPackError,
+    MethodPackSql,
+    copy_method_releases,
+    methodology_manifest,
+    reject_duplicate_release_ids,
+    validate_method_pack,
+)
 from ontologylab.pack_completeness import extraction_completeness, with_override
+from ontologylab.paths import MAX_JOB_DIR_ATTEMPTS
 from ontologylab.semantic_staleness import semantic_baseline_marker
 
 
@@ -280,7 +291,7 @@ def _git_head() -> str | None:
     return head if len(head) == 40 else None
 
 
-def build_pack(
+def _build_pack_unlocked(
     kg_db_path: str | Path,
     packs_dir: str | Path,
     name: str,
@@ -291,6 +302,8 @@ def build_pack(
     summary_method: str = "extractive",
     allow_incomplete_extraction: bool = False,
     incomplete_extraction_intent: str | None = None,
+    method_release_ids: Sequence[str] = (),
+    owned_stages: list[Path],
 ) -> PackManifest:
     """Snapshot the verified subgraph into a new immutable pack directory.
 
@@ -301,6 +314,12 @@ def build_pack(
     ``summary_method`` to label how those summaries were made.
     """
     safe_pack_component(name, kind="pack name")
+    try:
+        method_release_ids = reject_duplicate_release_ids(
+            method_release_ids
+        )
+    except MethodPackError as exc:
+        raise PackBuildError(str(exc)) from exc
     kg_db_path = Path(kg_db_path)
     if not kg_db_path.is_file():
         raise PackBuildError(f"working KG not found: {kg_db_path}")
@@ -339,16 +358,47 @@ def build_pack(
         snapshot_conn.close()
         snapshot_tmp.cleanup()
         raise IncompleteExtractionError(completeness)
-
-    stamp = time.strftime("%Y%m%d-%H%M%S")
-    pack_id = f"{name}-{stamp}"
-    packs_path = Path(packs_dir)
-    final_pack_dir = packs_path / pack_id
-    if final_pack_dir.exists():
+    preflight = sqlite3.connect(":memory:")
+    try:
+        try:
+            method_selection = copy_method_releases(
+                MethodPackSql(
+                    snapshot_conn,
+                    preflight,
+                    source_root=kg_db_path.parent,
+                    snapshot_path=snapshot_path,
+                ),
+                method_release_ids,
+            )
+            if method_selection.release_ids:
+                validate_method_pack(preflight, method_selection)
+        except MethodPackError as exc:
+            raise PackBuildError(str(exc)) from exc
+    except BaseException:
         snapshot_conn.close()
         snapshot_tmp.cleanup()
-        raise PackBuildError(f"pack directory already exists: {final_pack_dir}")
+        raise
+    finally:
+        preflight.close()
+
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    packs_path = Path(packs_dir)
     packs_path.mkdir(parents=True, exist_ok=True)
+    for suffix in range(1, MAX_JOB_DIR_ATTEMPTS + 1):
+        pack_id = (
+            f"{name}-{stamp}" if suffix == 1
+            else f"{name}-{stamp}-{suffix}"
+        )
+        final_pack_dir = packs_path / pack_id
+        if not final_pack_dir.exists():
+            break
+    else:
+        snapshot_conn.close()
+        snapshot_tmp.cleanup()
+        raise PackBuildError(
+            f"could not allocate a pack directory for {name!r} after "
+            f"{MAX_JOB_DIR_ATTEMPTS} attempts"
+        )
     # Build every byte in a sibling staging directory outside packs_path, so
     # even a concurrent list_packs scan cannot discover it. TemporaryDirectory
     # removes it on any exception; only the final same-filesystem atomic rename
@@ -357,6 +407,7 @@ def build_pack(
         prefix=f".{packs_path.name}-{pack_id}-staging-", dir=packs_path.parent
     )
     pack_dir = Path(staging_tmp.name)
+    owned_stages.append(pack_dir)
     pack_sqlite = pack_dir / "pack.sqlite"
 
     conn = sqlite3.connect(str(pack_sqlite))
@@ -508,6 +559,18 @@ def build_pack(
                 "VALUES (?, ?)",
                 [(row["id"], node_id) for node_id in row["members"]],
             )
+        try:
+            method_selection = copy_method_releases(
+                MethodPackSql(
+                    snapshot_conn,
+                    conn,
+                    source_root=kg_db_path.parent,
+                    snapshot_path=snapshot_path,
+                ),
+                method_release_ids,
+            )
+        except MethodPackError as exc:
+            raise PackBuildError(str(exc)) from exc
         conn.commit()
 
         # Finalize for read-only serving: WAL off, optimized, vacuumed.
@@ -523,6 +586,8 @@ def build_pack(
         # last guarantees docid/rowid alignment in the shipped file.
         conn.execute("INSERT INTO nodes_fts(nodes_fts) VALUES('rebuild')")
         conn.commit()
+        if method_selection.release_ids:
+            validate_method_pack(conn, method_selection)
 
         counts = {
             "documents": _count(conn, "documents"),
@@ -591,9 +656,22 @@ def build_pack(
         semantic_fact_baseline=semantic_baseline_marker(),
         included_schema_version_ids=included_schema_version_ids,
         ontology_publication=dict(ONTOLOGY_PUBLICATION_POLICY),
+        methodology=(
+            methodology_manifest(method_selection)
+            if method_selection.release_ids
+            else None
+        ),
+        capabilities=(
+            ["knowledge-graph-v1", "methodology-v1"]
+            if method_selection.release_ids
+            else ["knowledge-graph-v1"]
+        ),
     )
+    manifest_json = manifest.__dict__.copy()
+    if manifest.methodology is None:
+        manifest_json.pop("methodology")
     (pack_dir / "manifest.json").write_text(
-        json.dumps(manifest.__dict__, indent=2), encoding="utf-8"
+        json.dumps(manifest_json, indent=2), encoding="utf-8"
     )
 
     pack_provenance = pack_dir / "provenance.jsonl"
@@ -626,12 +704,93 @@ def build_pack(
                 )
                 + "\n"
             )
+    if manifest.methodology is not None:
+        with pack_provenance.open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "ts": time.time(),
+                        "step": "build_pack.methodology",
+                        "payload": manifest.methodology,
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            )
     if final_pack_dir.exists():
         staging_tmp.cleanup()
         raise PackBuildError(f"pack directory already exists: {final_pack_dir}")
     pack_dir.rename(final_pack_dir)
     staging_tmp.cleanup()
+    try:
+        final_sqlite = final_pack_dir / "pack.sqlite"
+        final_hash = (
+            "sha256:" + hashlib.sha256(final_sqlite.read_bytes()).hexdigest()
+        )
+        if final_hash != manifest.content_hash:
+            raise PackBuildError("final pack content hash changed after rename")
+        if manifest.methodology is not None:
+            connection = sqlite3.connect(
+                f"file:{final_sqlite}?mode=ro",
+                uri=True,
+            )
+            try:
+                validate_method_pack(connection, method_selection)
+            finally:
+                connection.close()
+    except BaseException:
+        shutil.rmtree(final_pack_dir)
+        raise
     return manifest
+
+
+def build_pack(
+    kg_db_path: str | Path,
+    packs_dir: str | Path,
+    name: str,
+    *,
+    source_job_id: str | None = None,
+    provenance_jsonl: str | Path | None = None,
+    summarizer=None,
+    summary_method: str = "extractive",
+    allow_incomplete_extraction: bool = False,
+    incomplete_extraction_intent: str | None = None,
+    method_release_ids: Sequence[str] = (),
+) -> PackManifest:
+    """Build one pack while serializing release IDs in its packs directory."""
+    safe_pack_component(name, kind="pack name")
+    try:
+        method_release_ids = reject_duplicate_release_ids(
+            method_release_ids
+        )
+    except MethodPackError as exc:
+        raise PackBuildError(str(exc)) from exc
+    packs_path = Path(packs_dir)
+    owned_stages: list[Path] = []
+    lock_path = packs_path.parent
+    while not lock_path.exists():
+        lock_path = lock_path.parent
+    lock_fd = os.open(lock_path, os.O_RDONLY)
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        return _build_pack_unlocked(
+            kg_db_path,
+            packs_path,
+            name,
+            source_job_id=source_job_id,
+            provenance_jsonl=provenance_jsonl,
+            summarizer=summarizer,
+            summary_method=summary_method,
+            allow_incomplete_extraction=allow_incomplete_extraction,
+            incomplete_extraction_intent=incomplete_extraction_intent,
+            method_release_ids=method_release_ids,
+            owned_stages=owned_stages,
+        )
+    finally:
+        os.close(lock_fd)
+        for stage in owned_stages:
+            if stage.exists():
+                shutil.rmtree(stage)
 
 
 def _count(conn: sqlite3.Connection, table: str) -> int:

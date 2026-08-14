@@ -243,9 +243,9 @@ def test_resources_are_pack_specific_read_only_and_legacy_safe(tmp_path: Path) -
     assert session.resource_xref(old.pack_id, seed.deny_text)["xref"]["license_gate"] == "deny-text"
     app = build_mcp_app(session)
     tools = {tool.name for tool in asyncio.run(app.list_tools())}
-    assert tools == {"list_packs", "get_staleness", "load_pack", "get_schema", "entity_lookup", "get_communities", "get_entity", "semantic_search", "graph_query", "traverse_relations", "find_path"}
+    assert tools == {"list_packs", "get_staleness", "load_pack", "get_schema", "entity_lookup", "get_communities", "get_entity", "semantic_search", "graph_query", "traverse_relations", "find_path", "list_methods", "get_method", "trace_method", "list_method_gaps"}
     templates = {str(item.uriTemplate) for item in asyncio.run(app.list_resource_templates())}
-    assert templates == {"pack://{pack_id}/manifest", "pack://{pack_id}/schema", "pack://{pack_id}/entity/{entity_id}", "pack://{pack_id}/term/{term_id}", "pack://{pack_id}/xref/{xref_id}"}
+    assert templates == {"pack://{pack_id}/manifest", "pack://{pack_id}/schema", "pack://{pack_id}/entity/{entity_id}", "pack://{pack_id}/term/{term_id}", "pack://{pack_id}/xref/{xref_id}", "pack://{pack_id}/method/{method_id}", "pack://{pack_id}/method/{method_id}/trace/{field_path}"}
 
     legacy = packs / "legacy"
     legacy.mkdir()
