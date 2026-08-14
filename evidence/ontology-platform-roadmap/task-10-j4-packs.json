@@ -1,0 +1,112 @@
+{
+  "packs": [
+    {
+      "pack_id": "aside-qa-pack-20260810-092705",
+      "created_ts": 1786321625.2909188,
+      "schema_version_id": 1,
+      "schema_label": "software-docs-v1",
+      "source_job_id": "build-pack-20260810-092705",
+      "counts": {
+        "documents": 1,
+        "nodes_verified": 5,
+        "edges_verified": 1,
+        "entity_types": 3,
+        "relation_types": 3,
+        "communities": 4,
+        "ontology_terms_reviewed": 6,
+        "term_aliases_reviewed": 0,
+        "term_xrefs_reviewed": 0
+      },
+      "search_tier": "fts5",
+      "embedding_model": null,
+      "ontologylab_version": "0.1.0",
+      "content_hash": "sha256:03e5d46f1f6013af111a9521e78b511aa11fd8ee2d2374e60d122a20a05e319a",
+      "basis_commit": "7de03f0098b4d540a435b5204baf3c34b44dc226",
+      "staleness_policy": {
+        "pending_verified_count_threshold": 0,
+        "description": "pending_verified_count is a backward-compatible count-difference advisory, not semantic truth. Semantic additions, invalidations, and replacements are authoritative; any nonzero delta recommends rebuilding."
+      },
+      "extraction_completeness": {
+        "status": "complete",
+        "relevant_stream_count": 1,
+        "relevant_document_ids": [
+          "fc5e789d41f442cfba6dc6da84a94f4e"
+        ],
+        "unknown_streams": [],
+        "incomplete_streams": [],
+        "run_status_counts": {
+          "complete": 1
+        },
+        "chunk_status_counts": {
+          "succeeded": 1
+        },
+        "override": {
+          "used": false,
+          "operator_intent": null
+        }
+      },
+      "semantic_fact_baseline": {
+        "version": 1,
+        "fingerprint_algorithm": "sha256-canonical-json-v1",
+        "source": "pack.sqlite"
+      },
+      "included_schema_version_ids": [
+        1
+      ],
+      "ontology_publication": {
+        "version": 1,
+        "review_boundary": "explicit-current-review-fields-v1",
+        "xref_verification": "complete-source-license-contract-v1",
+        "license_modes": [
+          "allow",
+          "identifier-only",
+          "deny-text"
+        ],
+        "external_descriptive_text": "not-in-term-xref-schema"
+      }
+    }
+  ],
+  "count": 1,
+  "competency": {
+    "questions": [
+      {
+        "question_id": "Q1",
+        "question": "Can every verified fact be traced to its exact source document, extraction stream, and approval record?",
+        "passed": true,
+        "expected_count": 5,
+        "actual_count": 5,
+        "missing": [],
+        "spurious": [],
+        "detail": {}
+      },
+      {
+        "question_id": "Q2",
+        "question": "Does the extractor produce the exact expected entities and relations from a known document?",
+        "passed": true,
+        "expected_count": 11,
+        "actual_count": 11,
+        "missing": [],
+        "spurious": [],
+        "detail": {
+          "parser_f1": 1.0
+        }
+      },
+      {
+        "question_id": "Q3",
+        "question": "Does a built pack return exact answers to user queries?",
+        "passed": true,
+        "expected_count": 5,
+        "actual_count": 5,
+        "missing": [],
+        "spurious": [],
+        "detail": {
+          "pack_id": "cq-release-pack-20260810-092705"
+        }
+      }
+    ],
+    "all_passed": true,
+    "passed_count": 3,
+    "total_count": 3,
+    "evaluated_at": 1786321625.375337
+  }
+}

@@ -646,7 +646,12 @@ class KGStore:
         # WAL sidecars sqlite creates get the same treatment.
         for sidecar in (db_path, *db_path.parent.glob(db_path.name + "-*")):
             if sidecar.is_file():
-                sidecar.chmod(0o600)
+                try:
+                    sidecar.chmod(0o600)
+                except FileNotFoundError:
+                    # SQLite may checkpoint and remove a WAL sidecar between
+                    # the directory scan and chmod.
+                    pass
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA foreign_keys=ON;")

@@ -1,0 +1,98 @@
+{
+  "items": [
+    {
+      "kind": "edge",
+      "id": "10dfc451d81d43978927962f178b102c",
+      "type_name": "part_of",
+      "label": "TokenBucketAlgorithm → OrderService",
+      "confidence": 0.8,
+      "source_doc_id": "fc5e789d41f442cfba6dc6da84a94f4e",
+      "created_ts": 1786321624.724702,
+      "critic_score": null,
+      "critic_rationale": null,
+      "critic_engine": null,
+      "critic_disagreement": false,
+      "src_id": "a31cf357ce124b6fbb9f1cc9c3aff2e1",
+      "dst_id": "02a73189f3274389b0de18b763746b1b",
+      "src_label": "TokenBucketAlgorithm",
+      "dst_label": "OrderService",
+      "properties": {},
+      "qualifiers": {},
+      "source_span": {
+        "start": 95,
+        "end": 150
+      },
+      "doc_title": "sample",
+      "doc_source": "",
+      "evidence_grade": "unknown",
+      "excerpt": "# Service Notes\n\nThe ApiGateway forwards requests to the RateLimiter. The RateLimiter uses the >>>TokenBucketAlgorithm to shape traffic. The OrderService<<< writes into the OrderDatabase."
+    },
+    {
+      "kind": "edge",
+      "id": "269e9f9061bd4054992755c474692576",
+      "type_name": "part_of",
+      "label": "ApiGateway → RateLimiter",
+      "confidence": 0.8,
+      "source_doc_id": "fc5e789d41f442cfba6dc6da84a94f4e",
+      "created_ts": 1786321624.724702,
+      "critic_score": null,
+      "critic_rationale": null,
+      "critic_engine": null,
+      "critic_disagreement": false,
+      "src_id": "12620efe719047c695c2064903e8dc7c",
+      "dst_id": "28341284651f42a7b349d3078a8183aa",
+      "src_label": "ApiGateway",
+      "dst_label": "RateLimiter",
+      "properties": {},
+      "qualifiers": {},
+      "source_span": {
+        "start": 21,
+        "end": 68
+      },
+      "doc_title": "sample",
+      "doc_source": "",
+      "evidence_grade": "unknown",
+      "excerpt": "# Service Notes\n\nThe >>>ApiGateway forwards requests to the RateLimiter<<<. The RateLimiter uses the TokenBucketAlgorithm to shape traffic. The OrderService writes into the OrderDatabase."
+    },
+    {
+      "kind": "edge",
+      "id": "4c4066077d3a41cf8c90dec251c450f8",
+      "type_name": "part_of",
+      "label": "RateLimiter → TokenBucketAlgorithm",
+      "confidence": 0.8,
+      "source_doc_id": "fc5e789d41f442cfba6dc6da84a94f4e",
+      "created_ts": 1786321624.724702,
+      "critic_score": null,
+      "critic_rationale": null,
+      "critic_engine": null,
+      "critic_disagreement": false,
+      "src_id": "28341284651f42a7b349d3078a8183aa",
+      "dst_id": "a31cf357ce124b6fbb9f1cc9c3aff2e1",
+      "src_label": "RateLimiter",
+      "dst_label": "TokenBucketAlgorithm",
+      "properties": {},
+      "qualifiers": {},
+      "source_span": {
+        "start": 57,
+        "end": 115
+      },
+      "doc_title": "sample",
+      "doc_source": "",
+      "evidence_grade": "unknown",
+      "excerpt": "# Service Notes\n\nThe ApiGateway forwards requests to the >>>RateLimiter. The RateLimiter uses the TokenBucketAlgorithm<<< to shape traffic. The OrderService writes into the OrderDatabase."
+    }
+  ],
+  "counts": {
+    "nodes_proposed": 0,
+    "edges_proposed": 3,
+    "nodes_verified": 5,
+    "edges_verified": 1,
+    "nodes_rejected": 0,
+    "edges_rejected": 0,
+    "documents": 1,
+    "merge_candidates_pending": 0
+  },
+  "count": 3,
+  "has_more": false,
+  "next_cursor": null
+}

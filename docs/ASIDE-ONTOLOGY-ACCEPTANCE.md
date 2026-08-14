@@ -2,7 +2,7 @@
 
 > Generated: 2026-08-10  
 > Method: FastAPI TestClient (live server stack, same ASGI pipeline as production)  
-> Evidence: `.omo/evidence/ontology-platform-roadmap/task-10-*`
+> Evidence: `evidence/ontology-platform-roadmap/task-10-*`
 
 ## Summary
 
@@ -79,7 +79,7 @@ machine-checkable evidence artifacts.
 ## Cleanup
 - Temp data dir: removed
 - QA processes: 0 (TestClient, no background server)
-- Evidence artifacts: 20 files in `.omo/evidence/ontology-platform-roadmap/task-10-*`
+- Evidence artifacts: 16 machine-contract files in `evidence/ontology-platform-roadmap/task-10-*`
 
 ## Notes
 - Browser-driven screenshots (Aside/Orca) require a live desktop session

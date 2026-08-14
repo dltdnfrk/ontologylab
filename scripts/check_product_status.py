@@ -70,7 +70,7 @@ TEST_EVIDENCE_DIGESTS: Final = {
     "tests/test_cas_normalization.py::test_alias_resolution_cache_authority_and_moa_follow_canonical_cas": "5426ba3764035bda5cc22050c74b7353eff60ac47a08fb42bef8288a826afb9d",
     "tests/test_cas_normalization.py::test_unknown_active_is_flagged_without_moa_and_model_cas_is_dropped": "5f4919c76a1300590de379f4e46f0fa34624a25ba0d5abbdb23de1f4748a8547",
     "tests/test_mcp_two_tier.py::test_get_entity_full_record": "d88dc1a163345101f58ab9615f923c69e5998b8a899dbaf041bccb327774b7a6",
-    "tests/test_mcp_two_tier.py::test_fastmcp_exposes_two_tier_surface": "81899c9a0856c1515df3ef2fd90e16bc61a87c246c6ae069096152e823c94d75",
+    "tests/test_mcp_two_tier.py::test_fastmcp_exposes_two_tier_surface": "086159f9899fe49a369fab97b4304639b687c875fd359bc2a1d83bba8c3049d0",
 }
 _UNSIGNED: Final = -1
 SWEEP_DIGEST: Final = "66eacf5b9d57b4687d7f0b378871ea6885ad79fd68b4e9718e3dc8b06df7045f"
@@ -93,7 +93,7 @@ EVIDENCE_MODULE_DIGESTS: Final = {
     "tests/factories.py": "b2ee5b19a316920e95b775be055d2e015617cfdc11f2c6effb5b9a4840411d89",
     "tests/test_agrochem_schema.py": "f1131a56975b6c85f5e809292f074e3aa2a1b015e386ef9db0e6f0de7b9ab7ca",
     "tests/test_cas_normalization.py": "ce2748cf82aed53f3fe18a8b4d48485d8c84facf408005939546cd6837aa4951",
-    "tests/test_mcp_two_tier.py": "08253ae7c85cb8d71e704775e9f393a3d311825cdbcdbf2db0e9ba9a2fbc0dbb",
+    "tests/test_mcp_two_tier.py": "481563fb252ba37f98276870e567d2ab6c85036a70ee6ee4ba9ce3219c52d067",
     "tests/test_normalization.py": "4e246aba9d334f89c2533d3042c45cae8c5c07834c4a512980ad92786bb1056d",
     "tests/test_registry.py": "ddfb3ef255f72f4717fbf487c1c3af1c3ac6f001cd77666e10f38c387b81c4ba",
     "tests/test_staleness.py": "4718c614d0f5df94fc20a20ad8cade9e11622978179c0c17a684a94f2a853adf",
