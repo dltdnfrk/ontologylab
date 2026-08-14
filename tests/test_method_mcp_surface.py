@@ -273,4 +273,3 @@ def test_selected_pack_method_payload_is_inert_json(tmp_path: Path) -> None:
         ).fetchone()[0] == 0
     finally:
         session.close()
-

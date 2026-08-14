@@ -637,4 +637,3 @@ def test_storage_permutation_keeps_list_and_trace_order(
         )
     finally:
         connection.close()
-
