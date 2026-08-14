@@ -12,10 +12,10 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # The suite takes ~14-15 min on runners (machine variance puts the
-    # matrix's slower leg past 15 min); 25 gives headroom without letting a
-    # hung job burn a quarter hour past that.
-    timeout-minutes: 25
+    # The executable product-status audit puts the matrix at ~21-25 min on
+    # runners. 35 keeps ten minutes of machine-variance headroom without
+    # leaving a hung job unbounded.
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
