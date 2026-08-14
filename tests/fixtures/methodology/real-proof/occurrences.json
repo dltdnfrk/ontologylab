@@ -1,0 +1,35 @@
+{
+  "schema_version": "method-occurrence-v1",
+  "occurrences": [
+    {
+      "id": "real-occ-pipeline",
+      "selector": {
+        "document_id": "__DOCUMENT_ID__",
+        "document_content_hash": "__DOCUMENT_HASH__",
+        "span_start": "__SPAN_START_PIPELINE__",
+        "span_end": "__SPAN_END_PIPELINE__",
+        "selected_text_hash": "__TEXT_HASH_PIPELINE__"
+      },
+      "statement_text": "collect -> extract -> human verify -> immutable knowledge pack -> read-only MCP",
+      "polarity": "positive",
+      "modality": "required",
+      "temporal_scope": {"state": "absent", "kind": "string"},
+      "applicability_scope": {"state": "absent", "kind": "string"}
+    },
+    {
+      "id": "real-occ-immutable",
+      "selector": {
+        "document_id": "__DOCUMENT_ID__",
+        "document_content_hash": "__DOCUMENT_HASH__",
+        "span_start": "__SPAN_START_IMMUTABLE__",
+        "span_end": "__SPAN_END_IMMUTABLE__",
+        "selected_text_hash": "__TEXT_HASH_IMMUTABLE__"
+      },
+      "statement_text": "방법론 수정은 새 pack을 만든다. 기존 pack을 갱신하지 않는다.",
+      "polarity": "positive",
+      "modality": "required",
+      "temporal_scope": {"state": "absent", "kind": "string"},
+      "applicability_scope": {"state": "absent", "kind": "string"}
+    }
+  ]
+}
