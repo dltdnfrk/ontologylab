@@ -1,0 +1,3 @@
+temp_dir=/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/aside-qa-5imkt9ch
+removed=True
+no_qa_processes=0

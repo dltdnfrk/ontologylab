@@ -1,0 +1,3 @@
+PASS=True
+has_entity_types=True
+has_relation_types=True
