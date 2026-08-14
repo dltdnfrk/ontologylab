@@ -32,6 +32,8 @@ from scripts.check_product_status import (
     check_status,
 )
 
+AUDITED_SOURCE_REVISION = "3976ba27d88e10d0bf464a2948b5fdf4dfe9c48b"
+
 
 ROWS = """\
 | ID | Status | Evidence | Follow-up |
@@ -97,7 +99,7 @@ def _fixture(root: Path, rows: str = ROWS) -> Path:
 def _executable_fixture(root: Path) -> Path:
     repository = Path(__file__).resolve().parents[1]
     archive = subprocess.run(
-        ["git", "archive", "--format=tar", "0baab72"],
+        ["git", "archive", "--format=tar", AUDITED_SOURCE_REVISION],
         cwd=repository,
         check=True,
         capture_output=True,

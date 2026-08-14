@@ -1,5 +1,7 @@
 """KG store invariants: entity resolution, the human gate, read-only packs."""
 
+from pathlib import Path
+
 import pytest
 
 from ontologylab.kgstore import (
@@ -9,6 +11,35 @@ from ontologylab.kgstore import (
     normalize_name,
 )
 from tests.conftest import insert, make_entity, make_relation
+
+
+def test_open_tolerates_wal_disappearing_before_permissions(
+    tmp_path, monkeypatch
+) -> None:
+    db_path = tmp_path / "kg.sqlite"
+    wal_path = tmp_path / "kg.sqlite-wal"
+    original_glob = Path.glob
+    original_chmod = Path.chmod
+
+    def racing_glob(path: Path, pattern: str):
+        if path == tmp_path and pattern == "kg.sqlite-*":
+            wal_path.touch()
+            return iter((wal_path,))
+        return original_glob(path, pattern)
+
+    def racing_chmod(
+        path: Path, mode: int, *, follow_symlinks: bool = True
+    ) -> None:
+        if path == wal_path:
+            wal_path.unlink()
+            raise FileNotFoundError(wal_path)
+        original_chmod(path, mode, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(Path, "glob", racing_glob)
+    monkeypatch.setattr(Path, "chmod", racing_chmod)
+
+    store = KGStore.open(db_path)
+    store.close()
 
 
 def test_normalize_name_folds_case_space_punct():

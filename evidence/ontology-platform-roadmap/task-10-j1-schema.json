@@ -1,0 +1,91 @@
+{
+  "active": {
+    "schema_version_id": 1,
+    "schema_label": "software-docs-v1",
+    "entity_types": [
+      {
+        "name": "Component",
+        "description": "A concrete software artifact: module, service, library, tool, API.",
+        "attributes": {
+          "language": {
+            "type": "string",
+            "required": false
+          },
+          "version": {
+            "type": "string",
+            "required": false
+          }
+        }
+      },
+      {
+        "name": "Concept",
+        "description": "An abstract idea, algorithm, pattern, or principle.",
+        "attributes": {}
+      },
+      {
+        "name": "Technique",
+        "description": "A method, procedure, or practice applied to build or operate systems.",
+        "attributes": {}
+      }
+    ],
+    "relation_types": [
+      {
+        "name": "part_of",
+        "description": "Source is a constituent of target.",
+        "domain_type": "*",
+        "range_type": "*",
+        "directed": true,
+        "qualifiers": {}
+      },
+      {
+        "name": "related_to",
+        "description": "Source and target are associated.",
+        "domain_type": "*",
+        "range_type": "*",
+        "directed": false,
+        "qualifiers": {}
+      },
+      {
+        "name": "uses",
+        "description": "Source makes use of target.",
+        "domain_type": "*",
+        "range_type": "*",
+        "directed": true,
+        "qualifiers": {}
+      }
+    ]
+  },
+  "installed": [
+    {
+      "id": 1,
+      "label": "software-docs-v1",
+      "description": "Neutral default ontology for software / technical documentation.",
+      "created_ts": 1786321624.6759229,
+      "active": true,
+      "items": 9
+    }
+  ],
+  "presets": [
+    {
+      "name": "agrochem",
+      "label": "agrochem-v1",
+      "description": "Crop protection: what controls which pathogen, pest or weed, by which mode of action, how resistance breaks it, what residue and toxicity it leaves, and what a trial measured.",
+      "entity_types": 26,
+      "relation_types": 30
+    },
+    {
+      "name": "biomedical",
+      "label": "biomed-v1",
+      "description": "Genes, proteins, variants, diseases and the claims papers make about them.",
+      "entity_types": 8,
+      "relation_types": 11
+    },
+    {
+      "name": "software-docs",
+      "label": "software-docs-v1",
+      "description": "Neutral default ontology for software / technical documentation.",
+      "entity_types": 3,
+      "relation_types": 3
+    }
+  ]
+}

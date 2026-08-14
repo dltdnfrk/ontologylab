@@ -1,0 +1,32 @@
+{
+  "pack_a": {
+    "pack_id": "aside-qa-pack-20260810-092705",
+    "content_hash": "sha256:03e5d46f1f6013af111a9521e78b511aa11fd8ee2d2374e60d122a20a05e319a",
+    "created_ts": 1786321625.2909188
+  },
+  "pack_b": {
+    "pack_id": "aside-qa-pack-2-20260810-092705",
+    "content_hash": "sha256:3f72adcbb4bd29abca0c00cfbe68cf1766d5c5ae8de1357fa97cee36ecb30b42",
+    "created_ts": 1786321625.401647
+  },
+  "identical": false,
+  "manifest_changes": {},
+  "nodes": {
+    "added": [],
+    "removed": [],
+    "changed": []
+  },
+  "edges": {
+    "added": [],
+    "removed": [],
+    "changed": []
+  },
+  "summary": {
+    "nodes_added": 0,
+    "nodes_removed": 0,
+    "nodes_changed": 0,
+    "edges_added": 0,
+    "edges_removed": 0,
+    "edges_changed": 0
+  }
+}

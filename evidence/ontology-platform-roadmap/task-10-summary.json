@@ -1,0 +1,12 @@
+{
+  "journeys": {
+    "j1_schema_meaning": true,
+    "j2_identity_conflict": true,
+    "j3_qualifier_evidence": true,
+    "j4_asserted_proposed_inferred": true,
+    "j5_pack_compare_reselect": true,
+    "j6_failure_retry": true,
+    "j7_pack_audit": true
+  },
+  "all_pass": true
+}
