@@ -13,6 +13,7 @@ import asyncio
 import dataclasses
 import json
 import logging
+import shutil
 import sqlite3
 import time
 from pathlib import Path
@@ -2423,15 +2424,8 @@ def packs_build(deps: AppDependency, body: PackBuildRequest) -> dict[str, Any]:
                 if summary is not None else {}
             ),
         }
-    provenance.log(
-        "build_pack.end",
-        {"pack_id": manifest.pack_id, "counts": manifest.counts},
-    )
     # A built pack is a consumable release: register it in the artifacts
     # library so the Artifacts screen can list it next to source docs.
-    # Side-effect only — the response shape and the pack itself are
-    # untouched, and a registration failure must not fail the build the
-    # operator already asked for.
     try:
         store = _open_store(deps)
         try:
@@ -2443,7 +2437,20 @@ def packs_build(deps: AppDependency, body: PackBuildRequest) -> dict[str, Any]:
         finally:
             store.close()
     except (KGStoreError, OSError, sqlite3.Error):
-        pass
+        pack_dir = deps.packs_dir / manifest.pack_id
+        shutil.rmtree(pack_dir)
+        provenance.log(
+            "build_pack.failed",
+            {
+                "error": "pack artifact registration failed",
+                "pack_id": manifest.pack_id,
+            },
+        )
+        raise
+    provenance.log(
+        "build_pack.end",
+        {"pack_id": manifest.pack_id, "counts": manifest.counts},
+    )
     return {"ok": True, "manifest": dataclasses.asdict(manifest)}
 
 

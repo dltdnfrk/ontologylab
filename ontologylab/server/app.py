@@ -48,9 +48,12 @@ def create_app(
     resolved.mkdir(parents=True, exist_ok=True)
     app.state.data_dir = resolved
 
-    resolved_packs = (
-        Path(packs_dir) if packs_dir is not None else default_packs_dir()
-    )
+    if packs_dir is not None:
+        resolved_packs = Path(packs_dir)
+    elif data_dir is not None:
+        resolved_packs = resolved.parent / "packs"
+    else:
+        resolved_packs = default_packs_dir()
     app.state.packs_dir = resolved_packs
 
     # Construction performs G002 startup recovery for this app's store.

@@ -1,0 +1,28 @@
+[
+  {
+    "id": "real-replay-id",
+    "kind": "expected_output",
+    "expected": "real-method",
+    "query": {"op": "get", "path": "/id"}
+  },
+  {
+    "id": "real-replay-error",
+    "kind": "expected_error",
+    "query": {"op": "get", "path": "/does-not-exist"}
+  },
+  {
+    "id": "real-replay-no-output",
+    "kind": "expected_no_output",
+    "query": {
+      "field": "/id",
+      "op": "select",
+      "path": "/fragments",
+      "where": {"id": "absent"}
+    }
+  },
+  {
+    "id": "real-replay-unknown",
+    "kind": "unknown",
+    "query": {"op": "get", "path": "/unknown"}
+  }
+]

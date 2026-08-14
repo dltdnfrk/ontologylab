@@ -55,6 +55,18 @@ VEC_SHORTLIST_FACTOR = 8
 VEC_SHORTLIST_MIN_MARGIN = 64
 
 
+def _execute_sql_script(conn: sqlite3.Connection, script: str) -> None:
+    """Execute a SQL script without sqlite3.executescript's implicit commit."""
+    statement = ""
+    for line in script.splitlines():
+        statement += line + "\n"
+        if sqlite3.complete_statement(statement):
+            conn.execute(statement)
+            statement = ""
+    if statement.strip():
+        raise sqlite3.OperationalError("incomplete schema statement")
+
+
 class KGStoreError(Exception):
     """Generic store-level error (unknown item, bad filter, misuse)."""
 
@@ -637,6 +649,9 @@ class KGStore:
                 uri += "&immutable=1"
             conn = sqlite3.connect(uri, uri=True, timeout=30.0)
             conn.row_factory = sqlite3.Row
+            from ontologylab.method_store import prepare_method_connection
+
+            prepare_method_connection(conn)
             return cls(conn, db_path, read_only=True)
 
         db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -655,21 +670,42 @@ class KGStore:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA foreign_keys=ON;")
-        conn.executescript(_SCHEMA)
-        cls._migrate(conn)
-        from ontologylab.extraction_state import ensure_schema
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            _execute_sql_script(conn, _SCHEMA)
+            cls._migrate(conn)
+            from ontologylab import extraction_state
 
-        ensure_schema(conn)
-        conn.commit()
+            _execute_sql_script(conn, extraction_state._SCHEMA)
+            for table, column in (
+                ("extraction_runs", "owner_token"),
+                ("extraction_chunks", "owner_token"),
+            ):
+                columns = {
+                    row["name"]
+                    for row in conn.execute(f"PRAGMA table_info({table})")
+                }
+                if column not in columns:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+            conn.commit()
+        except BaseException:
+            if conn.in_transaction:
+                conn.rollback()
+            conn.close()
+            raise
         store = cls(conn, db_path, read_only=False)
-        store._seed_default_schema()
+        try:
+            store._seed_default_schema()
+        except BaseException:
+            store.close()
+            raise
         return store
 
     @staticmethod
     def _migrate(conn: sqlite3.Connection) -> None:
         """Bring a pre-existing writable DB up to the current schema.
 
-        ``executescript(_SCHEMA)`` only creates MISSING tables/indexes; it
+        The base schema only creates MISSING tables/indexes; it
         never adds columns to an existing table or changes an existing
         index's predicate — both are handled here. Read-only packs are
         never migrated: query paths degrade instead (see _edge_current_sql
@@ -774,6 +810,9 @@ class KGStore:
                 )
 
         KGStore._migrate_ontology_terms(conn)
+        from ontologylab.method_store import ensure_method_schema
+
+        ensure_method_schema(conn)
 
     @staticmethod
     def _migrate_ontology_terms(conn: sqlite3.Connection) -> None:

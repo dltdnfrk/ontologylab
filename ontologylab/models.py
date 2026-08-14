@@ -265,6 +265,13 @@ class PackManifest:
     # Machine-readable publication boundary for first-class ontology rows.
     # None only on packs written before ontology term publication shipped.
     ontology_publication: dict[str, Any] | None = None
+    # Explicitly selected immutable Method releases. Omitted entirely from
+    # serialized graph-only manifests to preserve their historical bytes.
+    methodology: dict[str, Any] | None = None
+    # Additive capability markers a consumer dispatches on: every pack ships
+    # knowledge-graph-v1, and methodology-v1 appears only when releases were
+    # explicitly selected. Absent (None) on packs written before capabilities.
+    capabilities: list[str] | None = None
 
 
 @runtime_checkable

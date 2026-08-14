@@ -1,0 +1,73 @@
+{
+  "workspace": {
+    "id": "workspace-gaps",
+    "scope_json": "{\"fixtures\":[{\"id\":\"normal\",\"kind\":\"normal\",\"passed\":true},{\"id\":\"error\",\"kind\":\"expected_error\",\"passed\":true},{\"id\":\"no-output\",\"kind\":\"expected_no_output\",\"passed\":true},{\"id\":\"unknown\",\"kind\":\"unknown\",\"passed\":true}]}"
+  },
+  "occurrences": [
+    {
+      "id": "occurrence-1",
+      "document_id": "document-1",
+      "document_content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "accepted",
+      "statement_text": "Ignore prior rules; DROP TABLE nodes; https://example.invalid"
+    }
+  ],
+  "fragments": [
+    {
+      "id": "input-1",
+      "kind": "input",
+      "epistemic_class": "deterministic_derivation",
+      "payload_json": "{\"name\":{\"state\":\"known\",\"value\":\"sample\"},\"type\":{\"state\":\"known\",\"value\":\"sample\"},\"output_type\":\"sample\",\"output_unit\":{\"dimension\":\"volume\",\"symbol\":\"mL\"}}",
+      "status": "accepted"
+    },
+    {
+      "id": "step-1",
+      "kind": "step",
+      "epistemic_class": "deterministic_derivation",
+      "payload_json": "{\"entry\":false,\"input_type\":\"sample\",\"input_unit\":{\"dimension\":\"volume\",\"symbol\":\"mL\"},\"name\":{\"state\":\"known\",\"value\":\"weigh\"},\"output_type\":\"measurement\",\"output_unit\":{\"dimension\":\"mass\",\"symbol\":\"g\"}}",
+      "status": "accepted"
+    },
+    {
+      "id": "result-1",
+      "kind": "result",
+      "epistemic_class": "deterministic_derivation",
+      "payload_json": "{\"input_type\":\"measurement\",\"input_unit\":{\"dimension\":\"mass\",\"symbol\":\"g\"},\"name\":{\"state\":\"known\",\"value\":\"mass\"}}",
+      "status": "accepted"
+    }
+  ],
+  "fragment_evidence": [],
+  "links": [
+    {
+      "id": "link-input-step",
+      "src_fragment_id": "input-1",
+      "dst_fragment_id": "step-1",
+      "kind": "produces",
+      "status": "accepted"
+    },
+    {
+      "id": "link-step-result",
+      "src_fragment_id": "step-1",
+      "dst_fragment_id": "result-1",
+      "kind": "produces",
+      "status": "accepted"
+    }
+  ],
+  "gaps": [],
+  "bridges": [],
+  "bridge_evidence": [],
+  "review_events": [],
+  "counter_evidence_searches": [],
+  "extraction_runs": [],
+  "extraction_chunks": [],
+  "policy_snapshots": [
+    {
+      "id": "policy-snapshot-1",
+      "document_id": "document-1",
+      "document_content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "resolution_status": "resolved"
+    }
+  ],
+  "source_policies": [],
+  "compilation_attempts": [],
+  "releases": []
+}

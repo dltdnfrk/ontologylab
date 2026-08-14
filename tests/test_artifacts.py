@@ -13,8 +13,12 @@ ordering and kind filtering, and 404/422 boundaries.
 
 from __future__ import annotations
 
+import sqlite3
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
+from unittest.mock import patch
 
 import pytest
 
@@ -32,7 +36,34 @@ if TestClient is None:
 
 from ontologylab.kgstore import KGStore  # noqa: E402
 from ontologylab.models import ProposedEntity  # noqa: E402
+from ontologylab.packbuilder import build_pack  # noqa: E402
 from ontologylab.server.app import create_app  # noqa: E402
+
+
+def _populate_pack_source(data_dir: Path, *, suffix: str) -> None:
+    data_dir.mkdir()
+    store = KGStore.open(data_dir / "kg.sqlite")
+    doc, _ = store.insert_document(
+        source_kind="upload",
+        source_uri=f"file:///{suffix}.txt",
+        title="T",
+        raw_text="Alpha beta",
+        content_hash=f"art-{suffix}",
+    )
+    store.insert_proposed(
+        [
+            ProposedEntity(
+                id=f"n_{suffix}",
+                entity_type="Component",
+                name="ApiGateway",
+            )
+        ],
+        [],
+        source_doc_id=doc.id,
+        extractor_engine="mock",
+    )
+    store.approve(f"n_{suffix}", by="tester")
+    store.close()
 
 
 def _store(tmp_path: Path) -> KGStore:
@@ -133,20 +164,7 @@ def test_artifacts_api_boundaries(tmp_path: Path) -> None:
 
 def test_building_a_pack_registers_a_release_artifact(tmp_path: Path) -> None:
     data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    store = KGStore.open(data_dir / "kg.sqlite")
-    doc, _ = store.insert_document(
-        source_kind="upload", source_uri="file:///t.txt", title="T",
-        raw_text="Alpha beta", content_hash="art-h1",
-    )
-    store.insert_proposed(
-        [ProposedEntity(id="n_gw", entity_type="Component", name="ApiGateway")],
-        [],
-        source_doc_id=doc.id,
-        extractor_engine="mock",
-    )
-    store.approve("n_gw", by="tester")
-    store.close()
+    _populate_pack_source(data_dir, suffix="gw")
     client = TestClient(create_app(data_dir=data_dir))
 
     resp = client.post(
@@ -164,6 +182,75 @@ def test_building_a_pack_registers_a_release_artifact(tmp_path: Path) -> None:
     assert len(rows) == 1
     assert rows[0]["kind"] == "pack_release"
     assert rows[0]["filename"] == manifest["pack_id"]
+
+
+def test_explicit_data_dir_uses_an_app_scoped_default_packs_dir(
+    tmp_path: Path,
+) -> None:
+    data_dir = tmp_path / "data"
+
+    app = create_app(data_dir=data_dir)
+
+    assert app.state.packs_dir == tmp_path / "packs"
+
+
+def test_pack_registration_failure_removes_the_unregistered_pack(
+    tmp_path: Path,
+) -> None:
+    data_dir = tmp_path / "data"
+    packs_dir = tmp_path / "packs"
+    _populate_pack_source(data_dir, suffix="register_failure")
+    client = TestClient(create_app(data_dir=data_dir, packs_dir=packs_dir))
+
+    with patch.object(
+        KGStore,
+        "register_artifact",
+        side_effect=sqlite3.OperationalError("injected registration failure"),
+    ):
+        response = client.post(
+            "/api/packs/build",
+            json={
+                "name": "registration-failure",
+                "allow_incomplete_extraction": True,
+                "override_intent": "테스트용 부분 추출 승인",
+            },
+        )
+
+    assert response.status_code == 500
+    assert list(packs_dir.iterdir()) == []
+
+
+def test_simultaneous_pack_builds_allocate_distinct_release_ids(
+    tmp_path: Path,
+) -> None:
+    data_dir = tmp_path / "data"
+    packs_dir = tmp_path / "packs"
+    _populate_pack_source(data_dir, suffix="rapid")
+    barrier = Barrier(2)
+
+    def build_one() -> str:
+        barrier.wait(timeout=5)
+        return build_pack(
+            data_dir / "kg.sqlite",
+            packs_dir,
+            "rapid-release",
+            allow_incomplete_extraction=True,
+            incomplete_extraction_intent="테스트용 부분 추출 승인",
+        ).pack_id
+
+    pack_ids: list[str] = []
+    with patch(
+        "ontologylab.packbuilder.time.strftime",
+        return_value="20260812-120000",
+    ):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(build_one) for _ in range(2)]
+            pack_ids = sorted(future.result(timeout=30) for future in futures)
+
+    assert pack_ids == [
+        "rapid-release-20260812-120000",
+        "rapid-release-20260812-120000-2",
+    ]
 
 
 def test_the_ui_shows_a_hint_for_each_empty_group() -> None:

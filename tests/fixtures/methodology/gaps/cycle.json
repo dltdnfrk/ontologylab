@@ -1,0 +1,51 @@
+{
+  "workspace": {
+    "id": "workspace-cycle",
+    "scope_json": "{\"fixtures\":[]}"
+  },
+  "occurrences": [],
+  "fragments": [
+    {
+      "id": "step-a",
+      "kind": "step",
+      "epistemic_class": "deterministic_derivation",
+      "payload_json": "{\"entry\":true,\"name\":{\"state\":\"known\",\"value\":\"A\"}}",
+      "status": "accepted"
+    },
+    {
+      "id": "step-b",
+      "kind": "step",
+      "epistemic_class": "deterministic_derivation",
+      "payload_json": "{\"entry\":true,\"name\":{\"state\":\"known\",\"value\":\"B\"}}",
+      "status": "accepted"
+    }
+  ],
+  "fragment_evidence": [],
+  "links": [
+    {
+      "id": "requires-a-b",
+      "src_fragment_id": "step-a",
+      "dst_fragment_id": "step-b",
+      "kind": "requires",
+      "status": "accepted"
+    },
+    {
+      "id": "requires-b-a",
+      "src_fragment_id": "step-b",
+      "dst_fragment_id": "step-a",
+      "kind": "requires",
+      "status": "accepted"
+    }
+  ],
+  "gaps": [],
+  "bridges": [],
+  "bridge_evidence": [],
+  "review_events": [],
+  "counter_evidence_searches": [],
+  "extraction_runs": [],
+  "extraction_chunks": [],
+  "policy_snapshots": [],
+  "source_policies": [],
+  "compilation_attempts": [],
+  "releases": []
+}

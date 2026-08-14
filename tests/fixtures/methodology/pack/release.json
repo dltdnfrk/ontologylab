@@ -1,0 +1,10 @@
+{
+  "canonical_json": "{\"id\":\"method-pack-1\",\"name\":\"Fixture method\",\"schema_version\":\"method-v1\",\"version\":1}",
+  "compiler_receipt_json": "{\"compiler_version\":\"method-compiler-v1\"}",
+  "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "method_id": "method-pack-1",
+  "name": "Fixture method",
+  "release_id": "release-pack-1",
+  "source_index_json": "[]",
+  "version": 1
+}
