@@ -134,7 +134,14 @@ def _gate_rows(
 class MethodReleaseStore:
     _validation_persistence: ReleaseCore
     _release_persistence: ReleasePersistence
-    canonical_envelope = staticmethod(canonical_release_envelope)
+
+    @staticmethod
+    def canonical_envelope(
+        method_json: Mapping[str, Any],
+        source_index: Sequence[Mapping[str, Any]],
+        receipt: CompilerReceipt,
+    ) -> CanonicalReleaseEnvelope:
+        return canonical_release_envelope(method_json, source_index, receipt)
 
     def _workspace(self, workspace_id: str) -> str:
         self._validation_persistence.ensure_active()
