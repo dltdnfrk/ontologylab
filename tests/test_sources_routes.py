@@ -33,7 +33,6 @@ from ontologylab.server import routes
 from ontologylab.server.app import create_app
 
 SECRET = "ELS-key-that-must-never-come-back-9f3a"
-TEST_SERVICE = "ontologylab-pytest-routes"
 _REAL_RUN = subprocess.run
 
 needs_keychain = pytest.mark.skipif(
@@ -42,14 +41,15 @@ needs_keychain = pytest.mark.skipif(
 
 
 @pytest.fixture(autouse=True)
-def _isolated_keychain(monkeypatch):
-    monkeypatch.setattr(keychain, "KEYCHAIN_SERVICE", TEST_SERVICE)
+def _isolated_keychain(monkeypatch, tmp_path):
+    test_service = f"ontologylab-pytest-routes-{uuid.uuid5(uuid.NAMESPACE_URL, str(tmp_path))}"
+    monkeypatch.setattr(keychain, "KEYCHAIN_SERVICE", test_service)
     yield
     if not keychain_available():
         return
     for _ in range(20):
         found = _REAL_RUN(
-            ["security", "find-generic-password", "-s", TEST_SERVICE],
+            ["security", "find-generic-password", "-s", test_service],
             capture_output=True, text=True, timeout=15,
         )
         if found.returncode != 0:
@@ -62,7 +62,7 @@ def _isolated_keychain(monkeypatch):
             break
         _REAL_RUN(
             ["security", "delete-generic-password",
-             "-s", TEST_SERVICE, "-a", account],
+             "-s", test_service, "-a", account],
             capture_output=True, text=True, timeout=15,
         )
 
