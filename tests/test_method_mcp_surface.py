@@ -121,7 +121,6 @@ def test_method_query_detects_deleted_active_database(tmp_path: Path) -> None:
     finally:
         session.close()
 
-
 def test_method_query_detects_manifest_methodology_mismatch(
     tmp_path: Path,
 ) -> None:

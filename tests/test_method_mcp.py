@@ -383,7 +383,6 @@ def test_method_queries_fail_closed_on_bad_inputs(
     finally:
         connection.close()
 
-
 def test_graph_only_pack_has_explicit_capability_error(tmp_path: Path) -> None:
     connection = sqlite3.connect(tmp_path / "graph-only.sqlite")
     reader = MethodPackReader(
