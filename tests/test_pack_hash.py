@@ -52,4 +52,3 @@ def test_selected_method_changes_pack_content_hash(tmp_path: Path) -> None:
     assert json.loads(receipt_json)["selection"][0][
         "release_content_hash"
     ] == selected.methodology["selected_release_hashes"]["release-1"]
-

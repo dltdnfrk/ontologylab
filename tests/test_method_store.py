@@ -1721,4 +1721,3 @@ def test_method_store_composes_concrete_sql_owners_without_facades() -> None:
         and node.name not in {"MethodUnitOfWork", "MethodStore"}
     }
     assert forbidden == set()
-

@@ -359,7 +359,6 @@ def test_list_get_trace_and_gaps_are_deterministic(tmp_path: Path) -> None:
         )
     finally:
         connection.close()
-
 @pytest.mark.parametrize(
     ("call", "match"),
     [

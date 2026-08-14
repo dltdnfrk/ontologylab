@@ -106,7 +106,6 @@ def test_method_resource_rejects_inactive_valid_pack(tmp_path: Path) -> None:
             session.resource_method(inactive_id, "method-1")
     finally:
         session.close()
-
 def test_method_query_detects_deleted_active_database(tmp_path: Path) -> None:
     # Given
     packs, pack_id = _selected_pack(tmp_path)
