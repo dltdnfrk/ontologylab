@@ -1024,12 +1024,13 @@ def test_attempt_and_counter_search_receipts_are_append_only(
             "method_counter_evidence_search",
         ):
             for operation in ("UPDATE", "DELETE"):
+                update_assignment = (
+                    "reasons_json=reasons_json"
+                    if table == "method_compilation_gate"
+                    else "created_ts=created_ts"
+                )
                 sql = (
-                    f"UPDATE {table} SET {(
-                        'reasons_json=reasons_json'
-                        if table == 'method_compilation_gate'
-                        else 'created_ts=created_ts'
-                    )}"
+                    f"UPDATE {table} SET {update_assignment}"
                     if operation == "UPDATE"
                     else f"DELETE FROM {table}"
                 )
