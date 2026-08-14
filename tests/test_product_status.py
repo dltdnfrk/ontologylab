@@ -32,6 +32,8 @@ from scripts.check_product_status import (
     check_status,
 )
 
+AUDITED_SOURCE_REVISION = "06954a3b4a1f3d20a13359618b307d5f6d1bbb9e"
+
 
 ROWS = """\
 | ID | Status | Evidence | Follow-up |
@@ -97,7 +99,7 @@ def _fixture(root: Path, rows: str = ROWS) -> Path:
 def _executable_fixture(root: Path) -> Path:
     repository = Path(__file__).resolve().parents[1]
     archive = subprocess.run(
-        ["git", "archive", "--format=tar", "0baab72"],
+        ["git", "archive", "--format=tar", AUDITED_SOURCE_REVISION],
         cwd=repository,
         check=True,
         capture_output=True,
@@ -2002,6 +2004,59 @@ def test_cli_accepts_genuinely_generated_dataclass_methods(tmp_path: Path) -> No
     assert payload["ok"] is True
     assert payload["issues"] == []
     assert "EVIDENCE: 13 canonical pytest nodes passed" in result.stderr
+
+
+def test_cli_accepts_genuinely_generated_namedtuple_methods(
+    tmp_path: Path,
+) -> None:
+    """A source-declared NamedTuple may expose its generated ``__new__``."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + "\n\nfrom typing import NamedTuple as _NamedTuple\n\n\n"
+        "class LegitimateTuple(_NamedTuple):\n"
+        "    label: str\n"
+        "    size: int = 3\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, payload["issues"]
+    assert payload["ok"] is True
+    assert payload["issues"] == []
+
+
+def test_cli_rejects_a_leftover_on_a_genuine_namedtuple(
+    tmp_path: Path,
+) -> None:
+    """A matching synthetic origin is insufficient without re-derivation."""
+    document = _executable_fixture(tmp_path)
+    source = tmp_path / "ontologylab/registry.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + "\n\nfrom typing import NamedTuple as _NamedTuple\n\n\n"
+        "class LegitimateTuple(_NamedTuple):\n"
+        "    label: str\n"
+        "    size: int = 3\n\n"
+        "_leftover_ns = {}\n"
+        "exec(compile("
+        "\"def __new__(_cls, label, size=3): "
+        "return tuple.__new__(_cls, (label, size))\", "
+        "\"<string>\", \"exec\"), _leftover_ns)\n"
+        "LegitimateTuple.__new__ = staticmethod(_leftover_ns[\"__new__\"])\n",
+        encoding="utf-8",
+    )
+
+    result = _run_checker(tmp_path, document)
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert payload["ok"] is False
+    details = " ".join(issue["detail"] for issue in payload["issues"])
+    assert "LegitimateTuple.__new__" in details
 
 
 

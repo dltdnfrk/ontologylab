@@ -70,7 +70,7 @@ TEST_EVIDENCE_DIGESTS: Final = {
     "tests/test_cas_normalization.py::test_alias_resolution_cache_authority_and_moa_follow_canonical_cas": "5426ba3764035bda5cc22050c74b7353eff60ac47a08fb42bef8288a826afb9d",
     "tests/test_cas_normalization.py::test_unknown_active_is_flagged_without_moa_and_model_cas_is_dropped": "5f4919c76a1300590de379f4e46f0fa34624a25ba0d5abbdb23de1f4748a8547",
     "tests/test_mcp_two_tier.py::test_get_entity_full_record": "d88dc1a163345101f58ab9615f923c69e5998b8a899dbaf041bccb327774b7a6",
-    "tests/test_mcp_two_tier.py::test_fastmcp_exposes_two_tier_surface": "81899c9a0856c1515df3ef2fd90e16bc61a87c246c6ae069096152e823c94d75",
+    "tests/test_mcp_two_tier.py::test_fastmcp_exposes_two_tier_surface": "a1f65598e837a9db80a1e5f4c3933df9180930dfb53164fd7ba564f48d2436f3",
 }
 _UNSIGNED: Final = -1
 SWEEP_DIGEST: Final = "66eacf5b9d57b4687d7f0b378871ea6885ad79fd68b4e9718e3dc8b06df7045f"
@@ -93,7 +93,7 @@ EVIDENCE_MODULE_DIGESTS: Final = {
     "tests/factories.py": "b2ee5b19a316920e95b775be055d2e015617cfdc11f2c6effb5b9a4840411d89",
     "tests/test_agrochem_schema.py": "f1131a56975b6c85f5e809292f074e3aa2a1b015e386ef9db0e6f0de7b9ab7ca",
     "tests/test_cas_normalization.py": "ce2748cf82aed53f3fe18a8b4d48485d8c84facf408005939546cd6837aa4951",
-    "tests/test_mcp_two_tier.py": "08253ae7c85cb8d71e704775e9f393a3d311825cdbcdbf2db0e9ba9a2fbc0dbb",
+    "tests/test_mcp_two_tier.py": "8767d3a8d87087f2b860b61b6310bdddc13f7f1646c083b432dff6310654e313",
     "tests/test_normalization.py": "4e246aba9d334f89c2533d3042c45cae8c5c07834c4a512980ad92786bb1056d",
     "tests/test_registry.py": "ddfb3ef255f72f4717fbf487c1c3af1c3ac6f001cd77666e10f38c387b81c4ba",
     "tests/test_staleness.py": "4718c614d0f5df94fc20a20ad8cade9e11622978179c0c17a684a94f2a853adf",
@@ -450,6 +450,37 @@ def dataclass_generated_names(tree):
             if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
         }
         generated[node.name] = allowed - written
+    return generated
+
+
+def namedtuple_aliases(tree):
+    aliases = {"NamedTuple", "typing.NamedTuple"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "typing":
+            for alias in node.names:
+                if alias.name == "NamedTuple":
+                    aliases.add(alias.asname or alias.name)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "typing" and alias.asname:
+                    aliases.add(f"{alias.asname}.NamedTuple")
+    return aliases
+
+
+def namedtuple_generated_names(tree):
+    generated = {}
+    aliases = namedtuple_aliases(tree)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for base in node.bases:
+            if isinstance(base, ast.Attribute):
+                name = f"{getattr(base.value, 'id', '')}.{base.attr}"
+            else:
+                name = getattr(base, "id", None)
+            if name in aliases:
+                generated[node.name] = frozenset({"__new__"})
+                break
     return generated
 
 
@@ -1930,7 +1961,11 @@ def product_identity():
         # only whether the bytecode appeared anywhere in the file.
         try:
             module_tree = ast.parse(source, filename=str(path))
-            generated_by_dataclass = dataclass_generated_names(module_tree)
+            generated_by_source = dataclass_generated_names(module_tree)
+            for owner, names in namedtuple_generated_names(module_tree).items():
+                generated_by_source[owner] = (
+                    generated_by_source.get(owner, set()) | names
+                )
             member_aliases = source_member_aliases(module_tree)
             descriptor_callables = source_descriptor_callables(
                 module_tree, member_aliases, module.__name__
@@ -1942,7 +1977,7 @@ def product_identity():
                 if isinstance(node, ast.ClassDef)
             }
         except SyntaxError:
-            generated_by_dataclass = {}
+            generated_by_source = {}
             member_aliases = {}
             descriptor_callables = {}
             function_defaults = {}
@@ -1985,7 +2020,7 @@ def product_identity():
             # Anything else claiming a synthetic origin is reported under its binding path.
             if origin.startswith("<") and origin.endswith(">"):
                 owner, _, attribute = qualname.rpartition(".")
-                permitted = generated_by_dataclass.get(owner, frozenset())
+                permitted = generated_by_source.get(owner, frozenset())
                 if (
                     origin == "<string>"
                     and attribute in permitted
