@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/dltdnfrk/ontologylab/actions/workflows/ci.yml/badge.svg)](https://github.com/dltdnfrk/ontologylab/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
-![local-first](https://img.shields.io/badge/local--first-no%20cloud-8b8b8b)
+![local-first](https://img.shields.io/badge/local--first-local%20storage-8b8b8b)
 ![MIT](https://img.shields.io/badge/license-MIT-green)
 
 Local-first, single-user **knowledge-graph pipeline**:
@@ -11,6 +11,18 @@ Local-first, single-user **knowledge-graph pipeline**:
 collect → extract (LLM) → verify (human) → knowledge pack → local MCP server
 ```
 
+## Product boundary
+
+OntologyLab's raw material is existing external evidence: papers, technical
+documents, registries, and other attributable sources. It turns that evidence
+into usable knowledge by extracting claims, preserving their source spans,
+normalizing and connecting entities, requiring human review, and shipping only
+verified facts through read-only delivery surfaces.
+
+Accordingly, OntologyLab's success is measured by evidence coverage,
+traceability, extraction quality, reviewability, graph connectivity, and
+retrieval usefulness — not by novelty of generated results.
+
 **The AI proposes; a human decides; only verified facts ship.** Every
 extracted node/edge is born `proposed` and becomes `verified` only through an
 explicit human approval. Packs are immutable, verified-only snapshots, and the
@@ -18,8 +30,10 @@ MCP surface is strictly read-only — see
 [`docs/DESIGN-RATIONALE.md`](docs/DESIGN-RATIONALE.md) for the 36-paper
 evidence base behind this design.
 
-Neutral domain only (software / technical docs / general knowledge). No cloud,
-no multi-user, all data stays on your machine.
+The pipeline core is domain-neutral; the current product domain is
+agrochemistry and plant protection. There is no hosted backend or multi-user
+service; persistent data stays on your machine. Source acquisition and
+optional live LLM inference can make explicit outbound requests.
 
 | Guided pipeline | Review queue (HITL gate) | Graph browser |
 |---|---|---|
@@ -116,5 +130,6 @@ CI runs the same suite on Python 3.11/3.12 plus a dashboard JS syntax check.
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — data model, HITL invariants, MCP contracts
 - [`docs/DESIGN-RATIONALE.md`](docs/DESIGN-RATIONALE.md) — literature dossier (36 verified papers)
+- [`docs/ONTOLOGYLAB-IMPLEMENTATION-AUDIT-2026-08-08.md`](docs/ONTOLOGYLAB-IMPLEMENTATION-AUDIT-2026-08-08.md) — product identity and implementation audit
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — M0–M8 + post-MVP waves
 - [`HANDOFF.md`](HANDOFF.md) — implementation status & session handoff

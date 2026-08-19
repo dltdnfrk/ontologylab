@@ -103,8 +103,12 @@
       body = null;
     }
     if (!res.ok) {
-      var detail = (body && body.detail) || res.statusText;
-      throw new Error(detail);
+      // detail은 문자열일 수도, {field, detail}일 수도, 422면 [{loc, msg}]
+      // 배열일 수도 있다. 그대로 Error에 넣으면 화면에 `[object Object]`
+      // 만 남고 어느 칸이 틀렸는지는 사라진다.
+      var err = new Error(errorText(body, res.statusText));
+      err.retryAfter = retryAfterSeconds(res);
+      throw err;
     }
     return body;
   }
@@ -1020,7 +1024,7 @@
       } else {
         showResult($("#enrich-result"),
           errorKindBadge(res && res.error_kind) + " " +
-          escapeHtml((res && res.detail) || "결정 실패."), true);
+          escapeHtml(errorText(res, "결정 실패.")), true);
       }
     } catch (e) {
       showResult($("#enrich-result"), escapeHtml(friendlyError(e)), true);
@@ -1067,7 +1071,7 @@
         await loadAnnotations();
       } else {
         showResult(box, errorKindBadge(res && res.error_kind) + " " +
-          escapeHtml((res && res.detail) || "조회 실패."), true);
+          escapeHtml(errorText(res, "조회 실패.")), true);
       }
     } catch (e) {
       showResult(box, escapeHtml(friendlyError(e)), true);
@@ -1310,7 +1314,7 @@
         $("#provider-label").value = "";
         await loadProviders();
       } else {
-        showResult(box, escapeHtml((res && res.detail) || "추가에 실패했어요."), true);
+        showResult(box, escapeHtml(errorText(res, "추가에 실패했어요.")), true);
       }
     } catch (e) {
       showResult(box, escapeHtml(friendlyError(e)), true);
@@ -1389,7 +1393,7 @@
           escapeHtml((r.active || {}).schema_label || "") +
           "</code> 로 바꿨어요. 다음 추출부터 적용돼요.", false);
       } else {
-        showResult(box, escapeHtml((r && r.detail) || "바꾸지 못했어요."), true);
+        showResult(box, escapeHtml(errorText(r, "바꾸지 못했어요.")), true);
       }
     } catch (e) {
       showResult(box, escapeHtml(friendlyError(e)), true);
@@ -1545,20 +1549,65 @@
   }
 
   /* 서버가 4xx를 돌려주면 detail은 문자열이 아니라 {error_kind, field,
-     detail} 이다. 어느 칸이 틀렸는지까지 말해야 고칠 수 있으므로 그대로
-     풀어서 보여 준다. */
-  function termErrorText(res) {
+     detail} 이거나, 422일 때는 [{loc, msg}, …] 배열이다. 어느 칸이
+     틀렸는지까지 말해야 고칠 수 있으므로 그대로 풀어서 보여 준다.
+
+     이 함수는 화면 전체가 함께 쓴다. 예전엔 열세 곳이 각자
+     `(res && res.detail) || "…"` 로 detail을 문자열에 그대로 이어
+     붙였는데, 422의 detail은 배열이라 그 자리에 `[object Object]` 가
+     찍혔다 — 어느 칸이 왜 거절됐는지 말해야 할 바로 그 자리에서. 정규화는
+     한 곳에만 둔다. 두 벌이 되면 두 벌이 서로 다르게 말한다. */
+  function errorText(res, fallback) {
+    var miss = fallback || "요청을 처리하지 못했어요.";
     var detail = res && res.detail;
     if (detail && typeof detail === "object" && !Array.isArray(detail)) {
       return (detail.field ? detail.field + ": " : "") +
-        (detail.detail || "요청을 처리하지 못했어요.");
+        (detail.detail || miss);
     }
     if (Array.isArray(detail)) {
       return detail.map(function (item) {
         return (item.loc || []).slice(-1).join("") + ": " + (item.msg || "");
       }).join(" · ");
     }
-    return String(detail || "요청을 처리하지 못했어요.");
+    // detail이 아예 없는 응답도 있다 (`error`만 오는 경로). 마지막으로
+    // 그쪽을 보고, 그것도 없으면 호출부가 준 문장을 쓴다.
+    return String(detail || (res && res.error) || miss);
+  }
+
+  /* 용어 화면이 부르던 이름. 같은 함수다 — 부르는 곳을 그대로 두기 위한
+     별칭일 뿐이므로 동작은 위 하나뿐이다. */
+  function termErrorText(res) {
+    return errorText(res);
+  }
+
+  /* 쓰기가 정말 일어난 것인지 판정한다. 아니면 던진다.
+
+     `apiSend`는 비-2xx에도 본문을 돌려준다 — {ok:false} 계약 봉투를 화면에
+     그리려고 일부러 그러기로 한 것이다. 그래서 예전 방버인
+     `res.ok === undefined` 은 정확히 그 봉투를 놓친다: 거절된 쓰기의
+     ok는 undefined가 아니라 false다. 때린 KB에 503을 받고도 목록만
+     새로 불러와, 사람은 무효화가 된 줄 알았다 — 화면은 성공과 똑같았고
+     기록은 그대로였다. 이제 ok를 직접 본다. */
+  function throwIfRefused(res) {
+    if (!res) return;
+    if (res.ok === true) return;
+    if (res.ok === false || res.detail || res.error) {
+      var e = new Error(errorText(res, "서버가 요청을 받아들이지 않았어요."));
+      e.errorKind = res.error_kind || null;
+      // busy는 다시 보내면 되는 실패다. 몇 초인지까지 말해야 "잠시 뒤"가
+      // 추측이 아니게 된다.
+      if (res.retry_after !== undefined && res.retry_after !== null) {
+        e.retryAfter = res.retry_after;
+      }
+      throw e;
+    }
+  }
+
+  /* 재시도 안내를 메시지 뒤에 붙인다. */
+  function retryHint(e) {
+    var s = e && e.retryAfter;
+    if (s === undefined || s === null) return "";
+    return " — " + s + "초 뒤에 다시 시도해주세요.";
   }
 
   async function loadTerms(selectId) {
@@ -1696,9 +1745,32 @@
     } catch (_) {
       body = null;
     }
-    if (body && typeof body === "object") return body;
+    if (body && typeof body === "object") {
+      // 응답 상태를 본문에 싶어 넣는다. 이걸 버리면 호출부가 본문만 보고
+      // 503과 200을 구별해야 하고, 서버가 보낸 Retry-After는 여기서 사라졌다
+      // — "잠시 뒤에 다시"라고만 말하고 얼마 뒤인지는 못 말하게 된다.
+      if (!("ok" in body)) body.ok = res.ok;
+      body.http_status = res.status;
+      var wait = retryAfterSeconds(res);
+      if (wait !== null && body.retry_after === undefined) {
+        body.retry_after = wait;
+      }
+      return body;
+    }
     if (!res.ok) throw new Error(res.statusText || "HTTP " + res.status);
     return {};
+  }
+
+  /* 503은 "지금은 안 된다"이지 "안 된다"가 아니다. 서버가 몇 초를
+     기다리라고 보냈으면 그 숫자를 그대로 전한다. HTTP는 날짜 형식도
+     허용하지만 이 서버는 초 단위만 보내므로 숫자만 읽는다. */
+  function retryAfterSeconds(res) {
+    var raw = res && res.headers && res.headers.get
+      ? res.headers.get("Retry-After")
+      : null;
+    if (!raw) return null;
+    var n = parseInt(String(raw).trim(), 10);
+    return isFinite(n) && n >= 0 ? n : null;
   }
 
   function splitList(value) {
@@ -1981,7 +2053,7 @@
           box,
           errorKindBadge(res && res.error_kind) +
             " " +
-            escapeHtml((res && res.detail) || "수집 실패."),
+            escapeHtml(errorText(res, "수집 실패.")),
           true
         );
       }
@@ -2332,11 +2404,29 @@
         );
         loadProposals();
       } else if (prev === "running" && job.status === "failed") {
+        // 청크 단위 실패는 전부 아니면 전무가 아니다. 엔진이 넌어졌어도 그
+        // 전까지 성공한 청크는 진짜 제안을 이미 썼다. "실패"만 말하고
+        // 끝내면 사람은 존재하는 결과를 버리게 된다 — 예전의 거짓된 성공
+        // 배너와 방향만 반대인 같은 거짓이다. 나온 게 있으면 세서 보여주고
+        // 검토로 가는 길을 열어 둔다.
+        var t = job.totals || {};
+        var produced =
+          (t.nodes_new || 0) + (t.nodes_merged || 0) +
+          (t.edges_new || 0) + (t.edges_merged || 0);
         showResult(
           box,
-          statusBadge("failed") + " " + escapeHtml(job.error || "실패"),
+          statusBadge("failed") + " " + escapeHtml(job.error || "실패") +
+            (produced
+              ? " — 그래도 여기까지 나온 제안은 남아 있어요. " +
+                escapeHtml(totalsSummary(job.totals)) +
+                ". 위 추출 양식으로 나머지를 다시 돌릴 수 있어요." +
+                " <button type='button' class='btn btn-primary'" +
+                " data-goto='review'>검토 →</button>"
+              : " — 새로 나온 제안은 없어요. 위 추출 양식으로 다시 시도해주세요."),
           true
         );
+        // 제안이 실제로 쌓였으면 검토 목록과 배지도 그만큼 올라가 있어야 한다.
+        if (produced) loadProposals();
       } else if (prev === "running" && job.status === "cancelled") {
         // 취소는 실패가 아니다. 여기까지 나온 제안은 그대로 남아 있으므로
         // 검토로 갈 수 있다고 알려준다.
@@ -2448,7 +2538,7 @@
       } else {
         showResult(
           box,
-          escapeHtml((res && (res.detail || res.error)) || "추출 시작 실패."),
+          escapeHtml(errorText(res, "추출 시작 실패.")),
           true
         );
       }
@@ -2576,7 +2666,7 @@
         showResult(
           box,
           errorKindBadge(res && res.error_kind) + " " +
-            escapeHtml((res && res.detail) || "연결 실패."),
+            escapeHtml(errorText(res, "연결 실패.")),
           true
         );
       }
@@ -2666,7 +2756,7 @@
           box,
           errorKindBadge(res && res.error_kind) +
             " " +
-            escapeHtml((res && res.detail) || "리서치 시작 실패."),
+            escapeHtml(errorText(res, "리서치 시작 실패.")),
           true
         );
       }
@@ -2701,6 +2791,53 @@
   });
 
   /* -- Packs -- */
+
+  /* 읽힐 수 없는 팩 디렉터리를 보고한다.
+
+     서버는 검증에 실패한 디렉터리를 `unusable[]`로 따로 내려보낸다
+     (`pack_dir`과 `reason` 둘뿐 — counts도 serve_command도 없다).
+     팩으로 그리면 모든 칸이 0이나 — 인 행이 생기고, 섬기지도 못하는
+     것에 연결 버튼을 내주게 된다. 그렇다고 조용히 버리면 방금 만든 팩이
+     목록에 없는 이유를 사람이 알 길이 없다. 그래서 팩도 무음도 아닌
+     세 번째 자리 — 안내 블록에 둔다. 비었으면 아예 그리지 않는다:
+     항상 떠 있는 경고는 읽히지 않는 경고가 된다. */
+  function renderUnusablePacks(hostId, anchorId, unusable) {
+    var host = document.getElementById(hostId);
+    if (!host) {
+      // 마크업에 자리를 미리 만들어 두지 않고 필요할 때 만든다. 비었을 때가
+      // 정상이기 때문에, 항상 있는 빈 상자를 두는 것보다 이쪽이 정직하다.
+      var anchor = document.getElementById(anchorId);
+      if (!anchor || !anchor.parentNode) return;
+      host = document.createElement("div");
+      host.id = hostId;
+      host.className = "hidden";
+      anchor.parentNode.insertBefore(host, anchor);
+    }
+    var items = unusable || [];
+    if (!items.length) {
+      host.innerHTML = "";
+      host.classList.add("hidden");
+      return;
+    }
+    host.innerHTML =
+      "<div class='mcp-card'>" +
+      "<p class='eyebrow'>열 수 없는 팩 폴더 " + escapeHtml(String(items.length)) +
+      "개</p>" +
+      "<p class='muted'>아래 폴더는 팩으로 읽힐 수 없어서 목록과 비교에서 빠졌어요. " +
+      "다시 빌드하거나 폴더를 치우면 이 안내도 사라져요.</p>" +
+      "<ul class='term-list'>" +
+      items
+        .map(function (item) {
+          return (
+            "<li><code>" + escapeHtml(item.pack_dir || "") + "</code> — " +
+            "<span class='err-msg'>" + escapeHtml(item.reason || "이유 미상") +
+            "</span></li>"
+          );
+        })
+        .join("") +
+      "</ul></div>";
+    host.classList.remove("hidden");
+  }
 
   async function loadPacks() {
     var tbody = $("#packs-body");
@@ -2756,10 +2893,16 @@
         })
         .join("");
       empty.classList.toggle("hidden", packs.length > 0);
+      // 비교 드롭다운에는 쓸 수 있는 팩만 들어간다 — 열지도 못하는 팩을
+      // 고를 수 있게 하는 것은 실패할 diff 요청을 만들어 주는 일이다.
       populateDiffSelects(packs);
+      renderUnusablePacks("packs-unusable", "packs-error", data && data.unusable);
       renderCompetencyReceipt(data && data.competency);
     } catch (e) {
       tbody.innerHTML = "";
+      // 목록을 못 받았으면 지난번 안내도 근거가 없다. 남겨 두면 이미
+      // 고친 폴더를 여전히 고장이라고 우기는 화면이 된다.
+      renderUnusablePacks("packs-unusable", "packs-error", []);
       err.textContent = friendlyError(e);
       err.classList.remove("hidden");
     }
@@ -2871,7 +3014,7 @@
           "③ 팩을 빌드하면 여기에 나타나요</p>";
       }
     } catch (e) {
-      err.textContent = friendlyError(e);
+      err.textContent = friendlyError(e) + retryHint(e);
       err.classList.remove("hidden");
     }
   }
@@ -2999,7 +3142,7 @@
       } else {
         flashButton(btn, "실패");
         var errEl = $("#packs-error");
-        errEl.textContent = (res && res.detail) || "mcpb 번들 생성 실패";
+        errEl.textContent = errorText(res, "mcpb 번들 생성 실패");
         errEl.classList.remove("hidden");
       }
     } catch (e) {
@@ -3052,7 +3195,7 @@
         await loadPacks();
         await loadMcp();
       } else {
-        showResult(box, escapeHtml((res && res.detail) || "팩 빌드 실패."), true);
+        showResult(box, escapeHtml(errorText(res, "팩 빌드 실패.")), true);
       }
     } catch (e) {
       showResult(box, escapeHtml(friendlyError(e)), true);
@@ -3110,8 +3253,10 @@
         cards.appendChild(card);
       });
       empty.classList.toggle("hidden", packs.length > 0);
+      renderUnusablePacks("mcp-unusable", "mcp-error", data && data.unusable);
     } catch (e) {
-      err.textContent = friendlyError(e);
+      renderUnusablePacks("mcp-unusable", "mcp-error", []);
+      err.textContent = friendlyError(e) + retryHint(e);
       err.classList.remove("hidden");
     }
   }
@@ -3214,10 +3359,10 @@
         "/api/edges/" + encodeURIComponent(edgeId) + "/invalidate",
         { note: "invalidated via dashboard" }
       );
-      if (res && res.ok === undefined && res.detail) throw new Error(res.detail);
+      throwIfRefused(res);
       loadEntityPanel(entityId);
     } catch (e) {
-      err.textContent = friendlyError(e);
+      err.textContent = friendlyError(e) + retryHint(e);
       err.classList.remove("hidden");
     }
   }
@@ -3519,11 +3664,11 @@
         "/api/merge/candidates/" + encodeURIComponent(candidateId) + "/merge",
         { target_id: targetId, source_id: sourceId }
       );
-      if (res && res.ok === undefined && res.detail) throw new Error(res.detail);
+      throwIfRefused(res);
       await loadMergeCandidates();
       await loadProposals();
     } catch (e) {
-      err.textContent = friendlyError(e);
+      err.textContent = friendlyError(e) + retryHint(e);
       err.classList.remove("hidden");
     } finally {
       actPending = false;
@@ -3540,10 +3685,10 @@
         "/api/merge/candidates/" + encodeURIComponent(candidateId) + "/dismiss",
         {}
       );
-      if (res && res.ok === undefined && res.detail) throw new Error(res.detail);
+      throwIfRefused(res);
       await loadMergeCandidates();
     } catch (e) {
-      err.textContent = friendlyError(e);
+      err.textContent = friendlyError(e) + retryHint(e);
       err.classList.remove("hidden");
     } finally {
       actPending = false;
@@ -3603,7 +3748,7 @@
       });
       empty.classList.toggle("hidden", items.length > 0);
     } catch (e) {
-      err.textContent = friendlyError(e);
+      err.textContent = friendlyError(e) + retryHint(e);
       err.classList.remove("hidden");
     }
   }
@@ -3624,7 +3769,7 @@
         );
         await loadMergeCandidates();
       } else {
-        showResult(box, escapeHtml((res && res.detail) || "스캔 실패."), true);
+        showResult(box, escapeHtml(errorText(res, "스캔 실패.")), true);
       }
     } catch (e) {
       showResult(box, escapeHtml(friendlyError(e)), true);
@@ -3966,7 +4111,7 @@
       graphStats();
       reheatGraph(0.6);
     } catch (e) {
-      err.textContent = friendlyError(e);
+      err.textContent = friendlyError(e) + retryHint(e);
       err.classList.remove("hidden");
     }
   }
@@ -4019,7 +4164,7 @@
       graphStats();
       reheatGraph(1);
     } catch (e) {
-      err.textContent = friendlyError(e);
+      err.textContent = friendlyError(e) + retryHint(e);
       err.classList.remove("hidden");
     }
   }
@@ -5015,7 +5160,7 @@
           ? "「" + (res.title || "샘플") + "」 문서가 들어왔어요! 이제 2번으로 가볼까요?"
           : "샘플은 이미 들어와 있어요 — 바로 2번으로 가면 돼요!";
       } else {
-        out.textContent = (res && res.detail) || "샘플을 넣지 못했어요.";
+        out.textContent = errorText(res, "샘플을 넣지 못했어요.");
       }
       loadHome();
     } catch (e) {
@@ -5101,7 +5246,7 @@
         reviewOrder = "critic";
         await loadProposals();
       } else {
-        showResult(box, escapeHtml((res && res.detail) || "크리틱 실행 실패."), true);
+        showResult(box, escapeHtml(errorText(res, "크리틱 실행 실패.")), true);
       }
     } catch (e) {
       showResult(box, escapeHtml(friendlyError(e)), true);

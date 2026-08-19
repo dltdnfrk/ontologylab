@@ -229,10 +229,60 @@ def test_invalidate_api(client, tmp_path):
     store.close()
 
     res = client.post(f"/api/edges/{edge_id}/invalidate",
-                      json={"id": edge_id, "note": "superseded"})
+                      json={"note": "superseded"})
     assert res.status_code == 200 and res.json()["ok"] is True
     # double invalidation is a client error
-    res = client.post(f"/api/edges/{edge_id}/invalidate", json={"id": edge_id})
+    res = client.post(f"/api/edges/{edge_id}/invalidate", json={})
     assert res.status_code == 400
     assert client.post("/api/edges/nope/invalidate",
-                       json={"id": "nope"}).status_code == 404
+                       json={}).status_code == 404
+
+
+def test_invalidate_api_body_needs_no_id(client, tmp_path):
+    """The dashboard sends only {note}; the id already lives in the URL path.
+
+    Regression: the route used to bind ProposalAction, whose `id` field is
+    required, so the UI's {note}-only request always answered 422 and the
+    invalidation never landed. The id is never read from the body.
+    """
+    from ontologylab.paths import kg_db_path
+
+    store = KGStore.open(kg_db_path(tmp_path / "data"))
+    doc, _ = store.insert_document(
+        source_kind="upload", source_uri="file:///x", title="x",
+        raw_text="ApiGateway RateLimiter", content_hash="sha256:x",
+    )
+    edge_id = _seed_verified_edge(store, doc)
+    store.close()
+
+    res = client.post(f"/api/edges/{edge_id}/invalidate",
+                      json={"note": "superseded"})
+    assert res.status_code == 200, res.text
+    assert res.json()["ok"] is True
+
+    store = KGStore.open(kg_db_path(tmp_path / "data"))
+    try:
+        row = store.conn.execute(
+            "SELECT invalidated_ts, invalidation_reason FROM edges WHERE id = ?",
+            (edge_id,),
+        ).fetchone()
+        assert row["invalidated_ts"] is not None
+        assert row["invalidation_reason"] == "superseded"
+    finally:
+        store.close()
+
+    # A redundant id in the body stays tolerated (pydantic ignores extras):
+    # no gratuitous break for any consumer that worked around the old schema.
+    store = KGStore.open(kg_db_path(tmp_path / "data"))
+    try:
+        store.conn.execute(
+            "UPDATE edges SET invalidated_ts = NULL, invalidation_reason = NULL,"
+            " invalidated_by = NULL WHERE id = ?",
+            (edge_id,),
+        )
+        store.conn.commit()
+    finally:
+        store.close()
+    res = client.post(f"/api/edges/{edge_id}/invalidate",
+                      json={"id": edge_id, "note": "again"})
+    assert res.status_code == 200, res.text

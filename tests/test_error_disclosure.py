@@ -144,6 +144,65 @@ def test_a_real_failing_job_records_only_the_summary(tmp_path, monkeypatch) -> N
     assert SECRET in raw, "provenance must keep the untruncated failure"
 
 
+def test_chunk_engine_error_is_redacted_from_job_status(
+    tmp_path, monkeypatch
+) -> None:
+    """A handled chunk error crosses the same browser boundary as a crash."""
+    from ontologylab.engines import MockEngine
+    from ontologylab.server import jobs as jobs_module
+    from ontologylab.server.jobs import JobRegistry
+
+    class _LeakingChunkEngine:
+        def __init__(self) -> None:
+            self.inner = MockEngine(seed=0)
+            self.calls = 0
+
+        async def generate(self, prompt: str, *, model: str | None = None):
+            self.calls += 1
+            if self.calls == 2:
+                raise EngineError(
+                    "request failed url=https://example.invalid/?key=" + SECRET
+                )
+            return await self.inner.generate(prompt, model=model)
+
+    data_dir = tmp_path / "data"
+    store = KGStore.open(paths_kg(tmp_path))
+    try:
+        doc, _ = store.insert_document(
+            source_kind="upload",
+            source_uri="file:///chunk-secret.txt",
+            title="chunk secret",
+            raw_text="The PaymentGateway uses the DatabaseService. " * 800,
+            content_hash="sha256:chunk-secret",
+        )
+    finally:
+        store.close()
+
+    engine = _LeakingChunkEngine()
+    monkeypatch.setattr(jobs_module, "get_engine", lambda *args, **kwargs: engine)
+    registry = JobRegistry(data_dir)
+    job = registry.create(
+        engine="mock",
+        model=None,
+        doc_ids=[doc.id],
+        max_engine_calls=20,
+        time_budget=60.0,
+        seed=0,
+    )
+    assert job._thread is not None
+    job._thread.join(timeout=30)
+    assert not job._thread.is_alive(), "extraction worker did not terminate"
+
+    payload = json.dumps(job.as_status())
+    assert SECRET not in payload
+    assert "example.invalid" not in payload
+    assert "extraction engine failed" in payload
+    raw = "\n".join(
+        json.dumps(line) for line in _provenance_lines(data_dir)
+    )
+    assert SECRET in raw, "provenance must retain the full chunk failure"
+
+
 def paths_kg(tmp_path: Path) -> Path:
     from ontologylab import paths as _paths
 

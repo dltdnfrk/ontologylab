@@ -10,13 +10,35 @@ Inspired by opencrab.sh/mcp (ingest -> ontology + KG -> knowledge packs -> remot
 
 This document unifies three design perspectives — system architecture, the ontology/KG data model, and the MCP server interface — into one specification. Where the perspectives disagreed, the reconciled decision is marked **[Reconciled]** with rationale.
 
-All examples and shipped connectors use **neutral domains only**: software, technical documentation, and general knowledge. Connectors are **deny-by-default**: only allowlisted sources and queries are permitted (see §12).
+## Product identity
+
+OntologyLab is an evidence-to-knowledge system. Its inputs already exist
+outside the system — papers, documents, registries, or other attributable
+records — and its job is to make that evidence usable by extracting,
+grounding, normalizing, connecting, reviewing, and packaging it into reusable,
+provenance-bearing knowledge.
+
+This boundary determines the architecture. Extracted claims retain source
+grounding and provenance; model output enters as a proposal; human approval is
+the trust transition; packs contain verified facts only; and delivery surfaces
+are read-only. A grounded relation may require a synthesized proposed endpoint
+that has no independent node span, so that endpoint remains a review obligation
+rather than established evidence. Algorithms may improve recall, ranking,
+normalization, or review priority, but they may not manufacture evidence or
+bypass verification. Confidence-filtered bulk approval is permitted only as an
+explicit human action; a score never triggers approval by itself.
+
+The pipeline core is domain-neutral, while the current product domain is
+**agrochemistry and plant protection** as defined in `PRODUCT_SPEC.md`.
+Connector security is endpoint-based rather than topic-based: connectors are
+**deny-by-default**, and only allowlisted sources and queries are permitted
+(see §12).
 
 ---
 
 ## 1. Design principles
 
-1. **Local-first, single-user.** Everything runs on one machine. The dashboard binds `127.0.0.1` only, no auth; the MCP server speaks stdio to the client that spawns it. No cloud, no multi-user, no network services beyond outbound document fetching through an allowlisted connector.
+1. **Local-first, single-user.** Persistent storage and serving run on one machine. The dashboard binds `127.0.0.1` only, no auth; the MCP server speaks stdio to the client that spawns it. There is no hosted OntologyLab backend or multi-user service. Source acquisition uses allowlisted outbound requests, and optional live LLM engines call their configured subscription CLI or API provider; offline modes remain available.
 2. **Human-in-the-loop is mandatory.** LLM auto-extraction is the default *first* step, never the last. Every extracted entity/relation is born `proposed` and can only become `verified` through an explicit human action — the direct descendant of drylab's `Finding.verified` invariant ("never silently treat unverified output as ground truth").
 3. **Verified-only leaves the building.** A knowledge pack — the deployable unit the MCP server serves — contains *only* `verified` rows. `proposed`/`rejected` rows never leave the working database. Enforced structurally (a pack is a separate file built from a verified-only query), not just by a status filter.
 4. **Easiest correct storage.** One sqlite file, reusing drylab's `memory.py` pattern (WAL, functional `open()` + OO wrapper). No external graph DB, no vector DB — at single-user scale indexed sqlite answers neighbor/path/type queries fast enough and ships zero extra services.

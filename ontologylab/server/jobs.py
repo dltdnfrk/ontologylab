@@ -38,6 +38,8 @@ from ontologylab.extraction_state import (
     recover_running_once,
 )
 from ontologylab.extractor import (
+    ENGINE_FAILURE_SUMMARY,
+    ExtractionOutcome,
     extraction_decode_params,
     extraction_doc_ids,
     run_extraction,
@@ -91,7 +93,7 @@ def summarize_failure(exc: BaseException) -> str:
         # one message that is actionable on its own.
         return "offline mode blocked network egress"
     if isinstance(exc, EngineError):
-        return "extraction engine failed"
+        return ENGINE_FAILURE_SUMMARY
     if isinstance(exc, KGStoreError):
         return "knowledge store rejected a write"
     if isinstance(exc, TimeoutError):
@@ -603,8 +605,13 @@ class JobRegistry:
 
     def _run(self, job: Job, job_dir: Path, coroutine_factory, **params: Any) -> None:
         stopped_reason = ""
+        chunk_failed = False
         try:
-            stopped_reason = asyncio.run(coroutine_factory(job, job_dir, **params)) or ""
+            outcome = asyncio.run(coroutine_factory(job, job_dir, **params))
+            stopped_reason = str(outcome or "")
+            chunk_failed = (
+                isinstance(outcome, ExtractionOutcome) and outcome.chunk_failed
+            )
         except Exception as exc:  # noqa: BLE001 — job must record any failure
             # `job.error` and the progress log both reach the browser through
             # `as_status()` and the SSE stream, so neither may carry the
@@ -642,7 +649,13 @@ class JobRegistry:
                 # complete run look truncated, inviting the reviewer to pay
                 # for the same documents twice. `stopped_reason` is non-empty
                 # only when the loop really stopped early.
-                job.status = "cancelled" if stopped_reason else "complete"
+                if stopped_reason:
+                    job.status = "cancelled"
+                elif chunk_failed:
+                    job.status = "failed"
+                    job.error = ENGINE_FAILURE_SUMMARY
+                else:
+                    job.status = "complete"
                 job.finished_ts = time.time()
             self.touch()  # running → terminal transition
             self.persist(job)
@@ -728,10 +741,15 @@ class JobRegistry:
             provenance.log("extract.end", {"totals": totals, "stopped": stopped_reason})
             if stopped_reason:
                 job.log(f"[ontologylab] extraction stopped early: {stopped_reason}")
-            job.log(
-                f"[ontologylab] extraction done: {totals['nodes_new']} new nodes, "
-                f"{totals['edges_new']} new edges (proposed; review to verify)"
-            )
+            if stopped_reason.chunk_failed:
+                job.log(
+                    f"[ontologylab] extraction failed: {ENGINE_FAILURE_SUMMARY}"
+                )
+            else:
+                job.log(
+                    f"[ontologylab] extraction done: {totals['nodes_new']} new nodes, "
+                    f"{totals['edges_new']} new edges (proposed; review to verify)"
+                )
             return stopped_reason
         finally:
             store.close()
@@ -958,10 +976,15 @@ class JobRegistry:
             )
             if stopped_reason:
                 job.log(f"[ontologylab] extraction stopped early: {stopped_reason}")
-            job.log(
-                f"[ontologylab] research done: {totals['nodes_new']} new nodes, "
-                f"{totals['edges_new']} new edges (proposed; review to verify)"
-            )
+            if stopped_reason.chunk_failed:
+                job.log(
+                    f"[ontologylab] research failed: {ENGINE_FAILURE_SUMMARY}"
+                )
+            else:
+                job.log(
+                    f"[ontologylab] research done: {totals['nodes_new']} new nodes, "
+                    f"{totals['edges_new']} new edges (proposed; review to verify)"
+                )
             return stopped_reason
         finally:
             store.close()

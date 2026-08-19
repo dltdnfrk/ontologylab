@@ -48,21 +48,96 @@ def _json_type(annotation: object) -> str:
         return "array"
     return "string"
 
+_NUMERIC_BOUNDS: dict[str, tuple[int | float | None, int | float | None]] = {
+    "limit": (1, 1000),
+    "top_k": (1, 1000),
+    "max_hops": (0, 100),
+    "min_score": (0.0, 1.0),
+    "offset": (0, None),
+}
+
+
 def _input_schema(function: Callable[..., Any]) -> dict[str, Any]:
     signature = inspect.signature(function)
     properties: dict[str, Any] = {}
     required: list[str] = []
     for name, parameter in signature.parameters.items():
-        properties[name] = {"type": _json_type(parameter.annotation)}
+        json_type: str | list[str] = _json_type(parameter.annotation)
+        if parameter.default is None:
+            json_type = [json_type, "null"]
+        properties[name] = {"type": json_type}
         if parameter.default is inspect.Parameter.empty:
             required.append(name)
         else:
             properties[name]["default"] = parameter.default
+        if name in _NUMERIC_BOUNDS:
+            minimum, maximum = _NUMERIC_BOUNDS[name]
+            if minimum is not None:
+                properties[name]["minimum"] = minimum
+            if maximum is not None:
+                properties[name]["maximum"] = maximum
     return {
         "type": "object",
         "properties": properties,
         "required": required,
+        "additionalProperties": False,
     }
+
+
+def _matches_json_type(value: object, expected: str) -> bool:
+    if expected == "null":
+        return value is None
+    if expected == "boolean":
+        return isinstance(value, bool)
+    if expected == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if expected == "string":
+        return isinstance(value, str)
+    if expected == "array":
+        return isinstance(value, list)
+    if expected == "object":
+        return isinstance(value, dict)
+    return False
+
+
+def _validate_arguments(
+    tool_name: str,
+    arguments: dict[str, Any],
+    schema: Mapping[str, Any],
+) -> None:
+    properties = schema["properties"]
+    unknown = arguments.keys() - properties.keys()
+    if unknown:
+        name = sorted(unknown)[0]
+        raise ValueError(
+            f"invalid arguments for tool {tool_name!r}: unknown argument {name!r}"
+        )
+    missing = set(schema["required"]) - arguments.keys()
+    if missing:
+        name = sorted(missing)[0]
+        raise ValueError(
+            f"invalid arguments for tool {tool_name!r}: missing required argument {name!r}"
+        )
+    for name, value in arguments.items():
+        rule = properties[name]
+        expected = rule["type"]
+        expected_types = [expected] if isinstance(expected, str) else expected
+        if not any(_matches_json_type(value, item) for item in expected_types):
+            label = " or ".join(expected_types)
+            raise ValueError(
+                f"invalid arguments for tool {tool_name!r}: {name!r} must be {label}"
+            )
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            if "minimum" in rule and value < rule["minimum"]:
+                raise ValueError(
+                    f"invalid arguments for tool {tool_name!r}: {name!r} is below minimum"
+                )
+            if "maximum" in rule and value > rule["maximum"]:
+                raise ValueError(
+                    f"invalid arguments for tool {tool_name!r}: {name!r} exceeds maximum"
+                )
 
 def _resource_pattern(template: str) -> re.Pattern[str]:
     parts: list[str] = []
@@ -142,8 +217,10 @@ class McpApp:
             raise ValueError("unknown MCP tool")
         if not isinstance(arguments, dict):
             raise ValueError("tool arguments must be an object")
+        tool = self._tools[name]
+        _validate_arguments(name, arguments, tool.description.inputSchema)
         try:
-            value = self._tools[name].function(**arguments)
+            value = tool.function(**arguments)
             if inspect.isawaitable(value):
                 awaitable = cast(
                     Coroutine[Any, Any, Any],

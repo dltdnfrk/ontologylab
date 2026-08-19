@@ -44,6 +44,7 @@ from ontologylab.normalization import (
 from ontologylab.registry import CASRegistryCache, MoARegistryCache, RegistryCache
 
 PROMPT_VERSION = "extract-v1"
+ENGINE_FAILURE_SUMMARY = "extraction engine failed"
 
 # Heuristic tokenizer: ~4 chars/token (no model-specific tokenizer dep).
 CHARS_PER_TOKEN = 4
@@ -67,6 +68,22 @@ class ExtractionResult:
     entities: list[ProposedEntity]
     relations: list[ProposedRelation]
     warnings: list[str] = field(default_factory=list)
+
+
+class ExtractionOutcome(str):
+    """Early-stop reason plus whether any handled chunk failed.
+
+    This remains a string so CLI callers keep their existing stop/cancel
+    semantics while the job layer can distinguish an exhausted/cancelled run
+    from one that reached the end with a durable failed chunk.
+    """
+
+    chunk_failed: bool
+
+    def __new__(cls, stopped_reason: str, *, chunk_failed: bool = False):
+        outcome = super().__new__(cls, stopped_reason)
+        outcome.chunk_failed = chunk_failed
+        return outcome
 
 
 def estimate_tokens(text: str) -> int:
@@ -664,8 +681,8 @@ async def run_extraction(
     on_stats: Callable[[dict[str, int]], None],
     should_abort: Callable[[], str] | None = None,
     decode_params: dict[str, Any] | None = None,
-) -> str:
-    """Extract every chunk of every document; return why it stopped, or "".
+) -> ExtractionOutcome:
+    """Extract every chunk and return its stop reason and failure outcome.
 
     The CLI and the server worker ran near-identical copies of this loop and
     a third caller (the research run) would have made three. They differ in
@@ -710,6 +727,7 @@ async def run_extraction(
 
     stopped_reason = ""
     abort_triggered = False
+    chunk_failed = False
     with ExtractionState(store.conn) as lifecycle:
         active_run_id: str | None = None
         try:
@@ -768,9 +786,10 @@ async def run_extraction(
                         )
                         on_progress(
                             f"[ontologylab] engine error on "
-                            f"{doc_id}#{chunk.index}: {exc}"
+                            f"{doc_id}#{chunk.index}: {ENGINE_FAILURE_SUMMARY}"
                         )
                         lifecycle.failed(plan.run_id, chunk.index, "engine_error")
+                        chunk_failed = True
                         continue
                     provenance.track_engine_call(
                         "extract", float(usage.get("elapsed") or 0.0), usage
@@ -793,6 +812,7 @@ async def run_extraction(
                         lifecycle.failed(
                             plan.run_id, chunk.index, "parse_rejected"
                         )
+                        chunk_failed = True
                         continue
                     for warning in result.warnings:
                         provenance.log(
@@ -840,4 +860,4 @@ async def run_extraction(
         finally:
             if active_run_id is not None:
                 lifecycle.finish(active_run_id)
-    return stopped_reason
+    return ExtractionOutcome(stopped_reason, chunk_failed=chunk_failed)

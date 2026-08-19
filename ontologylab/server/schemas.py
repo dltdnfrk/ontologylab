@@ -208,6 +208,17 @@ class ProposalAction(BaseModel):
     cascade: bool = False
 
 
+class InvalidateAction(BaseModel):
+    """Invalidate a verified edge addressed by the URL path.
+
+    The id lives in the path; requiring it again in the body made the
+    dashboard's {note}-only request a 422, so invalidation never landed.
+    """
+
+    by: str = DEFAULT_ACTOR
+    note: Optional[str] = None
+
+
 class CriticRunRequest(BaseModel):
     """Run the critic model over pending proposals (advisory scores only)."""
 

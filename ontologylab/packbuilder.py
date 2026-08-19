@@ -797,24 +797,103 @@ def _count(conn: sqlite3.Connection, table: str) -> int:
     return conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
 
 
-def list_packs(packs_dir: str | Path) -> list[dict[str, Any]]:
-    """Discover packs by directory scan + manifest.json (no packs table —
-    the filesystem is the single source of truth)."""
+def _pack_sqlite_unusable_reason(path: Path) -> str | None:
+    """None when ``path`` opens as a pack database, else why it does not.
+
+    A directory that merely contains bytes named pack.sqlite is not a pack:
+    the MCP server has to read nodes/edges/documents out of it. Probing the
+    same tables the reader needs is the cheapest honest answer, and it is what
+    stops the Connection screen from offering a serve command for a file that
+    cannot serve.
+    """
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    except sqlite3.Error as exc:
+        return f"pack.sqlite cannot be opened: {exc}"
+    try:
+        for table in ("nodes", "edges", "documents"):
+            conn.execute(f"SELECT COUNT(*) FROM {table}")
+    except sqlite3.Error as exc:
+        return f"pack.sqlite is not a usable pack database: {exc}"
+    finally:
+        conn.close()
+    return None
+
+
+def scan_packs(packs_dir: str | Path) -> tuple[
+    list[dict[str, Any]], list[dict[str, str]]
+]:
+    """Scan ``packs_dir`` and split it into usable packs and rejects.
+
+    Returns ``(packs, unusable)``. ``packs`` holds validated manifests in
+    directory order; ``unusable`` holds ``{"pack_dir", "reason"}`` for every
+    directory that carries a manifest.json but is not a servable pack, so an
+    operator can be told why a directory they created does not show up.
+    Directories with no manifest.json at all are not pack attempts and are
+    silently skipped, as before.
+    """
     packs: list[dict[str, Any]] = []
+    unusable: list[dict[str, str]] = []
     packs_path = Path(packs_dir)
     if not packs_path.is_dir():
-        return packs
+        return packs, unusable
     for entry in sorted(packs_path.iterdir()):
         manifest_path = entry / "manifest.json"
         if not (entry.is_dir() and manifest_path.is_file()):
             continue
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError) as exc:
+            unusable.append(
+                {"pack_dir": entry.name, "reason": f"manifest.json unreadable: {exc}"}
+            )
             continue
-        if (entry / "pack.sqlite").is_file():
-            packs.append(manifest)
-    return packs
+        if not isinstance(manifest, dict):
+            unusable.append(
+                {
+                    "pack_dir": entry.name,
+                    "reason": "manifest.json must be a JSON object, got "
+                    f"{type(manifest).__name__}",
+                }
+            )
+            continue
+        pack_id = manifest.get("pack_id")
+        if not isinstance(pack_id, str) or not pack_id:
+            unusable.append(
+                {
+                    "pack_dir": entry.name,
+                    "reason": "manifest.json has no usable 'pack_id'",
+                }
+            )
+            continue
+        try:
+            safe_pack_component(pack_id, kind="pack id")
+        except PackBuildError as exc:
+            unusable.append({"pack_dir": entry.name, "reason": str(exc)})
+            continue
+        sqlite_path = entry / "pack.sqlite"
+        if not sqlite_path.is_file():
+            unusable.append(
+                {"pack_dir": entry.name, "reason": "pack.sqlite is missing"}
+            )
+            continue
+        reason = _pack_sqlite_unusable_reason(sqlite_path)
+        if reason is not None:
+            unusable.append({"pack_dir": entry.name, "reason": reason})
+            continue
+        packs.append(manifest)
+    return packs, unusable
+
+
+def list_packs(packs_dir: str | Path) -> list[dict[str, Any]]:
+    """Discover usable packs by directory scan + manifest.json (no packs
+    table — the filesystem is the single source of truth).
+
+    Only validated packs are returned: every element is a manifest object
+    with a safe ``pack_id`` backed by a readable pack.sqlite. Callers that
+    must explain the skipped directories use :func:`scan_packs`.
+    """
+    return scan_packs(packs_dir)[0]
 
 
 def pack_sqlite_path(packs_dir: str | Path, pack_id: str) -> Path:

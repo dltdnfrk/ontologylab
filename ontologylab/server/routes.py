@@ -64,7 +64,11 @@ from ontologylab.kgstore import (
     XrefValidationError,
 )
 from ontologylab.mcp_server import serve_args
-from ontologylab.packbuilder import PackBuildError, build_pack, list_packs
+from ontologylab.packbuilder import (
+    PackBuildError,
+    build_pack,
+    scan_packs,
+)
 from ontologylab.proposals import (
     OntologyProposalError,
     build_ontology_proposals,
@@ -118,6 +122,7 @@ from ontologylab.server.schemas import (
     CriticRunRequest,
     EngineInfo,
     ExtractRequest,
+    InvalidateAction,
     JobStatus,
     MergeAction,
     MergeDismiss,
@@ -492,7 +497,7 @@ def approve_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any
 
 
 @router.post("/edges/{edge_id}/invalidate")
-def invalidate_edge(deps: AppDependency, edge_id: str, body: ProposalAction) -> dict[str, Any]:
+def invalidate_edge(deps: AppDependency, edge_id: str, body: InvalidateAction) -> dict[str, Any]:
     """W13: mark a verified edge as no-longer-current (kept as history)."""
     store = _open_store(deps)
     try:
@@ -2354,12 +2359,17 @@ def get_job(deps: AppDependency, job_id: str) -> JobStatus:
 
 @router.get("/packs")
 def get_packs(deps: AppDependency) -> dict[str, Any]:
-    packs = list_packs(deps.packs_dir)
+    packs, unusable = scan_packs(deps.packs_dir)
     # P2-A: embed the competency release receipt so the Packs screen can
     # surface it alongside the pack list. The evaluator creates its own
     # temporary store, so the live data dir is never touched.
     receipt = _competency_receipt()
-    return {"packs": packs, "count": len(packs), "competency": receipt}
+    return {
+        "packs": packs,
+        "count": len(packs),
+        "unusable": unusable,
+        "competency": receipt,
+    }
 
 
 @router.get("/packs/competency")
@@ -2511,10 +2521,14 @@ def packs_download_mcpb(deps: AppDependency, pack_id: str) -> Any:
 def mcp_status(deps: AppDependency) -> dict[str, Any]:
     packs_abs = str(Path(deps.packs_dir).resolve())
     entries: list[dict[str, Any]] = []
-    for manifest in list_packs(deps.packs_dir):
-        pack_id = manifest.get("pack_id")
-        if not pack_id:
-            continue
+    packs, unusable = scan_packs(deps.packs_dir)
+    # Every manifest here is already validated by scan_packs: a dict with a
+    # safe pack_id backed by a readable pack.sqlite. A serve command is only
+    # ever emitted for such a pack, so nothing copyable points at a pack that
+    # cannot actually serve, and a malformed directory is a structured
+    # 'unusable' entry instead of an unhandled 500.
+    for manifest in packs:
+        pack_id = manifest["pack_id"]
         entries.append(
             {
                 "pack_id": pack_id,
@@ -2529,4 +2543,9 @@ def mcp_status(deps: AppDependency) -> dict[str, Any]:
                 },
             }
         )
-    return {"packs_dir": packs_abs, "packs": entries, "count": len(entries)}
+    return {
+        "packs_dir": packs_abs,
+        "packs": entries,
+        "count": len(entries),
+        "unusable": unusable,
+    }

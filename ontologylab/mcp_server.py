@@ -629,8 +629,9 @@ class PackSession:
         schema_version_id: int | None = None,
     ) -> dict[str, Any]:
         if pack_id is not None and pack_id != self.pack_id:
-            # Ephemeral open for a non-active pack; does not switch session.
-            path = pack_sqlite_path(self.packs_dir, pack_id)
+            # Ephemeral verified open for a non-active pack; does not switch
+            # session state.
+            path, _, _ = _verified_pack(self.packs_dir, pack_id)
             store = KGStore.open(path, read_only=True)
             try:
                 return store.get_schema(schema_version_id=schema_version_id)
