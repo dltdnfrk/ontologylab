@@ -28,6 +28,7 @@ if TestClient is None:
 
 from ontologylab.kgstore import KGStore  # noqa: E402
 from ontologylab.mcp_server import PackSession  # noqa: E402
+from ontologylab.paths import DEFAULT_ENGINE  # noqa: E402
 from ontologylab.server.app import create_app  # noqa: E402
 
 SAMPLE_TEXT = (
@@ -139,6 +140,21 @@ def test_collect_duplicate_file_counts_duplicates(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_collect_file_error_does_not_leak_exception_text(tmp_path: Path) -> None:
+    client, _, _ = _make_client(tmp_path)
+    missing = tmp_path / "no-such-paper.txt"
+    resp = client.post("/api/collect", json={"files": [str(missing)]})
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["error_kind"] == "fetch_failed"
+    detail = body["detail"]
+    # The OS strerror stays off the wire (jobs.py's summarize_failure
+    # discipline); the file name and error kind are enough to act on.
+    assert "No such file or directory" not in detail
+    assert "no-such-paper" in detail
+    assert "FileNotFoundError" in detail
+
+
 def test_collect_non_allowlisted_url_rejected(tmp_path: Path) -> None:
     client, _, _ = _make_client(tmp_path)
     resp = client.post(
@@ -235,6 +251,29 @@ def test_collect_paper_query_with_canned_atom(tmp_path: Path, monkeypatch) -> No
 # ---------------------------------------------------------------------------
 # /api/extract + /api/jobs lifecycle
 # ---------------------------------------------------------------------------
+
+
+def test_extract_default_engine_is_settings_default_not_mock(tmp_path: Path) -> None:
+    """A body-less POST /api/extract must follow the settings default engine.
+
+    The API used to default `engine` to "mock" while CLI/settings default to
+    claude — an engine-less request ran a CamelCase scanner on real prose and
+    reported zero proposals as a result instead of a misconfiguration.
+    """
+    client, _, _ = _make_client(tmp_path)
+    resp = client.post("/api/extract", json={})
+    assert resp.status_code == 202
+    job_id = resp.json()["job_id"]
+    jobs = client.get("/api/jobs").json()["jobs"]
+    job = next(j for j in jobs if j["job_id"] == job_id)
+    assert job["engine"] == DEFAULT_ENGINE
+    client.post(f"/api/jobs/{job_id}/cancel")
+
+    # Same contract at the schema-binding seam for the other two engines:
+    # an omitted engine must bind the settings default, never "mock".
+    from ontologylab.server import schemas
+    assert schemas.ResearchRequest.model_fields["engine"].default == DEFAULT_ENGINE
+    assert schemas.CriticRunRequest.model_fields["engine"].default == DEFAULT_ENGINE
 
 
 def test_extract_job_lifecycle(tmp_path: Path) -> None:

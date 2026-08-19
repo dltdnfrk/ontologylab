@@ -272,6 +272,12 @@ class PackManifest:
     # knowledge-graph-v1, and methodology-v1 appears only when releases were
     # explicitly selected. Absent (None) on packs written before capabilities.
     capabilities: list[str] | None = None
+    # Receipt over the pack's PAYLOAD files (pack.sqlite + schema.json +
+    # provenance.jsonl), so a rewritten schema/provenance is caught too.
+    # manifest.json itself is the receipt root and cannot cover itself; its
+    # claims beyond content_hash/tree_hash remain claims. Absent (None) on
+    # packs written before the tree receipt.
+    tree_hash: str | None = None
 
 
 @runtime_checkable

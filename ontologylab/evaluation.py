@@ -180,6 +180,7 @@ def store_view(
             JOIN nodes s ON s.id = e.src_node_id
             JOIN nodes d ON d.id = e.dst_node_id
             WHERE e.status IN ({marks}) {edge_clause}
+              AND {store._edge_current_sql("e")}
             """,
             (*statuses, *edge_params),
         )

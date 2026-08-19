@@ -44,6 +44,12 @@ from ontologylab.extractor import (
     extraction_doc_ids,
     run_extraction,
 )
+
+# A research run where every source failed. Returned by `_research_async`
+# instead of "" so the terminal transition can call it what it is — storing
+# `complete` used to paint "리서치 완료!" over a run that produced nothing.
+RESEARCH_NO_SOURCES = "no-source-answered"
+NO_SOURCES_SUMMARY = "no source answered"
 from ontologylab.kgstore import KGStore, KGStoreError
 from ontologylab.paths import NetworkBlocked
 from ontologylab.provenance import Provenance
@@ -649,7 +655,10 @@ class JobRegistry:
                 # complete run look truncated, inviting the reviewer to pay
                 # for the same documents twice. `stopped_reason` is non-empty
                 # only when the loop really stopped early.
-                if stopped_reason:
+                if stopped_reason == RESEARCH_NO_SOURCES:
+                    job.status = "failed"
+                    job.error = NO_SOURCES_SUMMARY
+                elif stopped_reason:
                     job.status = "cancelled"
                 elif chunk_failed:
                     job.status = "failed"
@@ -853,7 +862,7 @@ class JobRegistry:
             if not batches and failures:
                 job.log("[ontologylab] no source answered; nothing to extract")
                 provenance.log("research.end", {"documents": 0, "created": 0})
-                return ""
+                return RESEARCH_NO_SOURCES
 
             raw_docs = collapse_duplicates(batches, SOURCE_ORDER)
             job.log(

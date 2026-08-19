@@ -49,7 +49,7 @@ class ResearchRequest(BaseModel):
     # them. It costs one extra request per open-access hit and a much
     # larger extraction budget, so it remains switchable.
     fulltext: bool = True
-    engine: str = "mock"
+    engine: str = DEFAULT_ENGINE
     model: Optional[str] = None
     max_engine_calls: int = Field(DEFAULT_MAX_ENGINE_CALLS, ge=1)
     time_budget: float = Field(DEFAULT_TIME_BUDGET_S, gt=0)
@@ -59,7 +59,10 @@ class ResearchRequest(BaseModel):
 class ExtractRequest(BaseModel):
     """Start a background extraction job (Extraction Jobs screen)."""
 
-    engine: str = "mock"
+    # Settings/CLI default (claude). Never "mock" here: an engine-less request
+    # used to run a CamelCase scanner on real prose and report zero proposals
+    # as if that were a result. Mock stays selectable by name for dev/tests.
+    engine: str = DEFAULT_ENGINE
     model: Optional[str] = None
     doc_ids: list[str] = Field(default_factory=list)
     max_engine_calls: int = Field(DEFAULT_MAX_ENGINE_CALLS, ge=1)
@@ -222,7 +225,7 @@ class InvalidateAction(BaseModel):
 class CriticRunRequest(BaseModel):
     """Run the critic model over pending proposals (advisory scores only)."""
 
-    engine: str = "mock"
+    engine: str = DEFAULT_ENGINE
     model: Optional[str] = None
     limit: int = Field(200, ge=1, le=1000)
     batch_size: int = Field(20, ge=1, le=100)

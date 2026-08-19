@@ -138,9 +138,11 @@ def test_e2e_mvp_loop(tmp_path: Path) -> None:
     )
     assert stats["nodes_new"] >= 3
 
-    # 3. approve all proposed (CLI-equivalent)
+    # 3. approve all proposed (CLI-equivalent); nodes first — an edge
+    # cascade promotes its endpoints, so approving a node after its edge
+    # would be an illegal verified→verified transition.
     pending = store.pending_review()
-    for item in pending:
+    for item in sorted(pending, key=lambda i: i["kind"] != "node"):
         store.approve(item["id"], cascade=True)
 
     nodes, edges = store.verified_subgraph()

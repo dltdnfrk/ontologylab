@@ -14,7 +14,7 @@ from uuid import uuid4
 import pytest
 
 from ontologylab.kgstore import KGStore, KGStoreError
-from ontologylab.mcp_server import PackSession, build_mcp_app
+from ontologylab.mcp_server import PackIntegrityError, PackSession, build_mcp_app
 from ontologylab.models import OntologyTerm, ProposedEntity, TermAlias, TermXref
 from ontologylab.ontology_schema import local_term_iri
 from ontologylab.packbuilder import PackBuildError, build_pack, list_packs
@@ -255,7 +255,9 @@ def test_resources_are_pack_specific_read_only_and_legacy_safe(tmp_path: Path) -
         conn.execute("DROP TABLE term_alias")
         conn.execute("DROP TABLE ontology_term")
     before = (legacy / "pack.sqlite").read_bytes()
-    with pytest.raises(KGStoreError, match="predates ontology term publication"):
+    # A bare sqlite copy with no receipt is unverifiable — resource reads
+    # refuse it before opening (1.2: every named-pack read verifies first).
+    with pytest.raises(PackIntegrityError, match="unverifiable"):
         session.resource_term("legacy", seed.new_term)
     assert (legacy / "pack.sqlite").read_bytes() == before
     session.close()

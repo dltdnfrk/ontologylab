@@ -6,6 +6,7 @@ import pytest
 
 from ontologylab.kgstore import (
     EndpointNotVerified,
+    InvalidTransition,
     KGStore,
     KGStoreError,
     normalize_name,
@@ -125,6 +126,76 @@ def test_edge_approval_blocked_until_endpoints_verified(store, doc):
     counts = store.counts()
     assert counts["edges_verified"] == 1
     assert counts["nodes_verified"] == 2
+
+
+def test_approve_and_reject_only_act_on_proposed_rows(store, doc):
+    """A decided row is not silently re-decided in place — undo is reopen().
+
+    _set_status used to be an unconditional UPDATE, so rejected → verified
+    and verified → rejected were both one accidental call away.
+    """
+    a, b = make_entity("ApiGateway"), make_entity("RateLimiter")
+    insert(store, doc, [a, b])
+    (row_a, row_b) = store.pending_review()
+    store.reject(row_b["id"], by="tester")
+
+    with pytest.raises(InvalidTransition):
+        store.approve(row_b["id"], by="tester")  # rejected → verified
+
+    store.approve(row_a["id"], by="tester")
+    with pytest.raises(InvalidTransition):
+        store.reject(row_a["id"], by="tester")  # verified → rejected
+    with pytest.raises(InvalidTransition):
+        store.approve(row_a["id"], by="tester")  # verified → re-verified
+
+    # The legal path is unchanged: reopen, then decide again.
+    store.reopen(row_b["id"], by="tester")
+    store.approve(row_b["id"], by="tester")
+    assert store.counts()["nodes_verified"] == 2
+
+
+def test_synthesized_endpoint_carries_a_review_visible_marker(store, doc):
+    """An endpoint the parser minted for a relation (never observed in the
+    text) must be marked where the reviewer can see it — not just counted
+    in job stats. The marker rides properties, so the queue and entity
+    panel both carry it."""
+    ghost = make_entity("GhostEndpoint")
+    ghost.synthesized = True
+    insert(store, doc, [ghost])
+    (row,) = store.pending_review()
+    assert row["properties"].get("synthesized_endpoint") == "true"
+
+
+def test_shared_alias_resolves_nothing_and_queues_merge(store, doc):
+    """A shared alias is an identity question, not a coin flip: LIMIT 1 used
+    to merge the mention into an arbitrary holder. Now the collision
+    resolves to a new node and the pair lands in the merge queue."""
+    a = make_entity("RateLimiter", aliases=["throttler"])
+    b = make_entity("TokenBucket", aliases=["throttler"])
+    insert(store, doc, [a, b])
+
+    stats = insert(store, doc, [make_entity("Throttler")])
+    assert stats["nodes_new"] == 1, "a shared alias must not resolve into either holder"
+    assert stats["nodes_merged"] == 0
+
+    pending = store.merge_candidates_pending()
+    assert len(pending) == 1
+    assert any("shared-alias" in r for r in pending[0]["reasons"])
+
+
+def test_cascade_never_promotes_a_rejected_endpoint(store, doc):
+    """cascade approves proposed endpoints — a REJECTED endpoint is a human
+    decision the cascade must not override."""
+    a, b = make_entity("ApiGateway"), make_entity("RateLimiter")
+    rel = make_relation(a, b)
+    insert(store, doc, [a, b], [rel])
+    (row_b,) = [r for r in store.pending_review() if r["label"] == "RateLimiter"]
+    store.reject(row_b["id"], by="tester")
+    edge_id = store.pending_review(kind="edge")[0]["id"]
+    with pytest.raises(InvalidTransition):
+        store.approve(edge_id, cascade=True)
+    assert store.counts()["nodes_verified"] == 0
+    assert store.counts()["edges_verified"] == 0
 
 
 def test_reopen_returns_a_decided_item_to_the_queue(store, doc):

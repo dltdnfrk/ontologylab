@@ -57,6 +57,7 @@ from ontologylab.connectors.resources import (
 from ontologylab.connectors.web_crawl import WebCrawlConnector
 from ontologylab.kgstore import (
     EndpointNotVerified,
+    InvalidTransition,
     KGStore,
     KGStoreError,
     OntologyTermValidationError,
@@ -486,7 +487,7 @@ def approve_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any
             body.id, by=body.by, note=body.note, cascade=body.cascade
         )
         return {"ok": True, **result}
-    except EndpointNotVerified as exc:
+    except (EndpointNotVerified, InvalidTransition) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except UnknownItem as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -517,6 +518,8 @@ def reject_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]
     try:
         result = store.reject(body.id, by=body.by, note=body.note)
         return {"ok": True, **result}
+    except InvalidTransition as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except UnknownItem as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except KGStoreError as exc:
@@ -1756,8 +1759,15 @@ def collect(deps: AppDependency, body: CollectRequest) -> dict[str, Any]:
         try:
             raw_text = path.read_text(encoding="utf-8")
         except (OSError, ValueError) as exc:
+            # The strerror stays off the wire (it can quote arbitrary OS
+            # paths/messages); the file name + error kind are actionable
+            # without it. Same discipline as jobs.summarize_failure.
             provenance.log("collect.fetch_failed", {"error": str(exc)})
-            return {"ok": False, "error_kind": "fetch_failed", "detail": str(exc)}
+            return {
+                "ok": False,
+                "error_kind": "fetch_failed",
+                "detail": f"could not read '{path.name}' ({type(exc).__name__})",
+            }
         raw_docs.append(
             RawDocument(
                 source_kind="upload",
@@ -2178,6 +2188,14 @@ def _run_intent(
         # rather than hand pydantic a None that becomes a 422 mid-turn.
         pack_name = (params.get("name") or "").strip() or "chat-pack"
         built = packs_build(deps=deps, body=PackBuildRequest(name=pack_name))
+        if built.get("ok") is False:
+            # A refused build (completeness gate, existing name, …) is not
+            # a pack. kind "pack" made the bubble claim success regardless.
+            trace.append(
+                Step("ontologylab", "build", "failed",
+                     str(built.get("error_code", "pack_build_error")))
+            )
+            return {"kind": "blocked", **built}
         trace.append(Step("ontologylab", "build", "ok",
                           str(built.get("pack_id", ""))))
         return {"kind": "pack", **built}

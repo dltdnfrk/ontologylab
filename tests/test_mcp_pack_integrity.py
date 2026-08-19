@@ -34,11 +34,24 @@ from ontologylab.models import ProposedEntity, ProposedRelation  # noqa: E402
 from ontologylab.packbuilder import build_pack, pack_sqlite_path  # noqa: E402
 
 
-# Public resource_* methods are the separate pack:// URI surface. These are
-# the PackSession entry points exposed as tools that can start from a named,
-# non-active pack. Signature coverage makes a newly-added named-pack tool fail
-# this test until its integrity behavior is included explicitly.
-_NAMED_PACK_READ_ENTRY_POINTS = ("load_pack", "get_schema")
+# Public entry points that open a NAMED, non-active pack. Every one must
+# recompute the pack's SHA-256 from CURRENT bytes before reading — the
+# introspection guard below fails when a newly-added named-pack tool is not
+# classified here. (resource_method / resource_method_trace are exempt: they
+# refuse any pack but the active one, which load_pack + _method_reader
+# already verify.)
+_NAMED_PACK_READ_ENTRY_POINTS = (
+    "load_pack",
+    "get_schema",
+    "resource_schema",
+    "resource_manifest",
+)
+# Same contract, but these need a second id argument.
+_NAMED_PACK_ID_ENTRY_POINTS = (
+    "resource_entity",
+    "resource_term",
+    "resource_xref",
+)
 
 
 def _build_fixture_pack(tmp_path: Path, name: str = "mcp-integrity") -> tuple[Path, str]:
@@ -98,10 +111,13 @@ def test_named_pack_read_surface_rejects_current_tampered_bytes(
         name
         for name, method in inspect.getmembers(PackSession, inspect.isfunction)
         if not name.startswith("_")
-        and not name.startswith("resource_")
         and "pack_id" in inspect.signature(method).parameters
     }
-    assert set(_NAMED_PACK_READ_ENTRY_POINTS) == public_named_pack_tools
+    assert (
+        set(_NAMED_PACK_READ_ENTRY_POINTS)
+        | set(_NAMED_PACK_ID_ENTRY_POINTS)
+        | {"resource_method", "resource_method_trace"}  # active-pack only
+    ) == public_named_pack_tools
 
     packs, good_id = _build_fixture_pack(tmp_path, name="mcp-surface-good")
     _, tampered_id = _build_fixture_pack(tmp_path, name="mcp-surface-tampered")
@@ -127,6 +143,27 @@ def test_named_pack_read_surface_rejects_current_tampered_bytes(
                 getattr(session, entry_point)(tampered_id)
             assert session.pack_id == before_id
             assert session.pack_hash == before_hash
+    finally:
+        session.close()
+
+
+def test_resource_reads_verify_tampered_pack(tmp_path: Path) -> None:
+    """pack:// resource reads used to open pack.sqlite WITHOUT the hash
+    check that load_pack enforces — a byte-flipped pack that load_pack
+    rejects was still served through resource_entity."""
+    packs, good_id = _build_fixture_pack(tmp_path, name="res-good")
+    _, bad_id = _build_fixture_pack(tmp_path, name="res-bad")
+    session = PackSession(packs)
+    session.load_pack(good_id)
+
+    _flip_one_byte(pack_sqlite_path(packs, bad_id))
+    try:
+        for entry_point in _NAMED_PACK_READ_ENTRY_POINTS[2:]:
+            with pytest.raises(mcp_server.PackIntegrityError):
+                getattr(session, entry_point)(bad_id)
+        for entry_point in _NAMED_PACK_ID_ENTRY_POINTS:
+            with pytest.raises(mcp_server.PackIntegrityError):
+                getattr(session, entry_point)(bad_id, "n_rl")
     finally:
         session.close()
 

@@ -93,7 +93,7 @@ EVIDENCE_MODULE_DIGESTS: Final = {
     "tests/factories.py": "b2ee5b19a316920e95b775be055d2e015617cfdc11f2c6effb5b9a4840411d89",
     "tests/test_agrochem_schema.py": "f1131a56975b6c85f5e809292f074e3aa2a1b015e386ef9db0e6f0de7b9ab7ca",
     "tests/test_cas_normalization.py": "ce2748cf82aed53f3fe18a8b4d48485d8c84facf408005939546cd6837aa4951",
-    "tests/test_mcp_two_tier.py": "8767d3a8d87087f2b860b61b6310bdddc13f7f1646c083b432dff6310654e313",
+    "tests/test_mcp_two_tier.py": "237c95e8c5da48e1a19f4d6cf3a2e07f494469e0a18b5d357a49073aa675acc6",
     "tests/test_normalization.py": "4e246aba9d334f89c2533d3042c45cae8c5c07834c4a512980ad92786bb1056d",
     "tests/test_registry.py": "ddfb3ef255f72f4717fbf487c1c3af1c3ac6f001cd77666e10f38c387b81c4ba",
     "tests/test_staleness.py": "4718c614d0f5df94fc20a20ad8cade9e11622978179c0c17a684a94f2a853adf",

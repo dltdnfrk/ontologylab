@@ -238,6 +238,9 @@ def test_legacy_pack_without_w7_w8_tables_loads(pack_session, tmp_path):
     legacy_manifest["content_hash"] = "sha256:" + hashlib.sha256(
         (legacy_dir / "pack.sqlite").read_bytes()
     ).hexdigest()
+    # A pre-tree-receipt pack has no tree_hash at all; keeping the
+    # build-time one would (correctly) reject these mutated bytes.
+    legacy_manifest.pop("tree_hash", None)
     manifest_path.write_text(
         json.dumps(legacy_manifest, indent=2), encoding="utf-8"
     )

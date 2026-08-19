@@ -209,6 +209,31 @@ def test_a_mutating_action_is_not_run_by_classification(client) -> None:
     assert "pack_id" not in body["result"]
 
 
+def test_a_failed_pack_build_is_blocked_not_a_success_bubble(client, monkeypatch) -> None:
+    """packs_build can refuse with {ok: false} (e.g. the completeness gate).
+
+    The chat branch used to stamp kind "pack" on that refusal, and the
+    bubble then always said a pack was made — a fake success.
+    """
+    _classify_as(monkeypatch, Intent("build_pack", params={}, reading="…"))
+    monkeypatch.setattr(
+        routes,
+        "packs_build",
+        lambda **_: {
+            "ok": False,
+            "detail": "extraction incomplete: 2 of 5 chunks finished",
+            "error_code": "incomplete_extraction",
+        },
+    )
+    body = client.post(
+        "/api/chat",
+        json={"message": "팩 만들어줘", "engine": "mock", "confirmed": True},
+    ).json()
+
+    assert body["result"]["kind"] == "blocked"
+    assert "extraction incomplete" in body["result"]["detail"]
+
+
 def test_an_unanswered_confirmation_is_not_a_turn(client) -> None:
     """A stored `confirm` turn would come back on every reload showing its
     button — a second, stale way to authorise the same change, sitting

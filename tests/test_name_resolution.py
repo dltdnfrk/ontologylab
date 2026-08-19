@@ -118,3 +118,14 @@ def test_spaced_mention_grounds_camelcase_name() -> None:
 def test_truly_absent_name_is_still_rejected() -> None:
     result = _parse("Tokenizer", "The rate-limiter throttles requests.")
     assert len(result.entities) == 0
+
+
+def test_substring_inside_another_word_does_not_ground() -> None:
+    """CAT must not ground inside 'concatenate' — grounding needs a token
+    boundary, not a substring hit. Strictness favors citation precision
+    over recall: a fabricated mid-word citation is worse than a miss."""
+    assert len(_parse("CAT", "The concatenate step merges the batches.").entities) == 0
+    # A real token-bounded mention still grounds.
+    assert len(_parse("CAT", "The CAT assay measures activity.").entities) == 1
+    # Skeleton path (punctuation-folded name) obeys the same boundary.
+    assert len(_parse("RateLimiter", "An XRateLimiterQ variant appeared.").entities) == 0

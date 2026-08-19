@@ -26,6 +26,35 @@ def _seed_verified_edge(store, doc):
     return edge_id
 
 
+def test_invalidation_reaches_counts_eval_and_doc_context(store, doc):
+    """Invalidated edges must leave every current-truth surface, not just
+    graph queries: counts(), evaluation triple harvest, and the document
+    review panel (marked, not silently presented as live)."""
+    edge_id = _seed_verified_edge(store, doc)
+
+    before = store.counts()
+    assert before["edges_verified"] == 1
+
+    from ontologylab.evaluation import Gold, evaluate_store
+    gold = Gold(
+        entities=frozenset(),
+        triples=frozenset({("apigateway", "uses", "ratelimiter")}),
+    )
+    hit = evaluate_store(store, gold)
+    assert hit.triple["recall"] == 1.0
+
+    store.invalidate_edge(edge_id, by="tester", reason="superseded")
+
+    after = store.counts()
+    assert after["edges_verified"] == 0, "counts() still tallies an invalidated edge"
+    miss = evaluate_store(store, gold)
+    assert miss.triple["recall"] == 0.0, "evaluation still scores an invalidated triple"
+
+    ctx = store.document_review_context(doc.id)
+    (edge_item,) = [i for i in ctx["items"] if i["kind"] == "edge"]
+    assert edge_item["invalidated"] is True, "document panel must mark, not hide"
+
+
 def test_new_edges_carry_valid_from(store, doc):
     edge_id = _seed_verified_edge(store, doc)
     row = store.conn.execute(

@@ -780,6 +780,7 @@
     try {
       var data = await api("/api/proposals?limit=" + reviewPageSize + "&order=" + reviewOrder);
       renderCounts(data.counts);
+      await loadProposalAdvisories();
       tbody.innerHTML = "";
       var items = data.items || [];
       if (!items.length) {
@@ -814,6 +815,35 @@
   var reviewHasMore = false;
   var reviewLoadingMore = false;
 
+  function calibratedConfidence(curve, raw) {
+    if (!curve || raw == null || !curve.boundaries.length) return null;
+    var result = curve.values[0];
+    for (var i = 0; i < curve.boundaries.length; i++) {
+      if (raw >= curve.boundaries[i]) result = curve.values[i];
+      else break;
+    }
+    return result;
+  }
+
+  function safeToReviewLast(triage, score) {
+    return !!(
+      triage && triage.available && score != null && score > triage.threshold
+    );
+  }
+
+  async function loadProposalAdvisories() {
+    // Fail-open both ways: endpoints missing/erroring and `available: false`
+    // both leave the queue rendering exactly as before.
+    try {
+      var tri = await api("/api/review/triage");
+      reviewTriage = tri && tri.available ? tri : null;
+    } catch (_) { reviewTriage = null; }
+    try {
+      var cal = await api("/api/review/calibration");
+      reviewCalibration = cal && cal.available ? cal.curve : null;
+    } catch (_) { reviewCalibration = null; }
+  }
+
   function appendReviewRow(item) {
     var tbody = $("#proposals-body");
     var tr = document.createElement("tr");
@@ -830,6 +860,12 @@
     // 조용히 깬다. Aside의 AI가 이 화면을 몰면 특히 그렇다.
     var label = itemLabel(item);
     var what = kindKo(item.kind) + " " + label;
+    var cal = calibratedConfidence(reviewCalibration, item.confidence);
+    var confText =
+      conf + (cal == null ? "" : " <small class='muted'>→" + cal.toFixed(2) + "</small>");
+    var safeBadge = safeToReviewLast(reviewTriage, item.critic_score)
+      ? " <small class='muted' title='conformal: 거절권 항목과 통계적으로 구분돼요'>· 안전권</small>"
+      : "";
     tr.innerHTML =
       "<td><input type='checkbox' class='row-check' data-id='" +
       escapeHtml(item.id || "") +
@@ -839,11 +875,12 @@
       "</td>" +
       "<td title='" + escapeHtml(item.id || "") + "'>" +
       itemLabelHtml(item) +
+      safeBadge +
       "</td>" +
       "<td class='conf-cell' style='--v:" +
       (item.confidence == null ? 0 : Number(item.confidence)) +
       "'>" +
-      conf +
+      confText +
       "</td>" +
       "<td class='actions'></td>";
     // 행을 클릭하면 근거 패널이 그 항목으로 옮겨간다 (결정은 버튼/키로만)
@@ -4827,6 +4864,11 @@
       return reading + "<p>팩 <code>" + escapeHtml(r.pack_id || "") +
         "</code> 을 만들었어요. <button type='button' class='btn-link'" +
         " data-goto='packs'>팩 보기 →</button></p>";
+    }
+    if (r.kind === "blocked") {
+      // packs_build의 ok:false — 만들어진 게 없으니 성공 말풍선은 거짓.
+      return reading + "<p class='err-msg'>팩을 만들지 못했어요 — " +
+        escapeHtml(r.detail || "알 수 없는 이유") + "</p>";
     }
     if (r.kind === "enrich") {
       return reading + "<p>외부 자료에서 <strong>" + (r.proposed || 0) +

@@ -144,13 +144,40 @@ def test_get_embedder_auto_resolution(monkeypatch):
     chosen = {}
 
     class FakeST:
-        def __init__(self, model_name="sentence-transformers/all-MiniLM-L6-v2"):
+        def __init__(self, model_name="sentence-transformers/all-MiniLM-L6-v2", *, allow_download=False):
             chosen["model"] = model_name
+            chosen["allow_download"] = allow_download
 
     monkeypatch.setattr(embeddings, "st_available", lambda: True)
     monkeypatch.setattr(embeddings, "SentenceTransformerEmbedder", FakeST)
     assert isinstance(embeddings.get_embedder("auto"), FakeST)
     assert chosen["model"].endswith("all-MiniLM-L6-v2")
+
+
+def test_get_embedder_auto_never_downloads(monkeypatch):
+    """auto는 캐시된 모델만 쓴다 — 쿼리 경로가 모델 다운로드로 이어지면 안 된다.
+
+    reranker는 이미 HF_HUB_OFFLINE 캐시-온리 + 폴백 계약을 갖고 있고
+    embedder만 없었다: uncached 머신의 검색이 홈을 전화할 수 있었다.
+    """
+    import os
+
+    sentence_transformers = pytest.importorskip("sentence_transformers")
+    import ontologylab.embeddings as embeddings
+
+    monkeypatch.setattr(embeddings, "st_available", lambda: True)
+    observed = {}
+
+    class UncachedModel:
+        def __init__(self, model_name):
+            observed["offline"] = os.environ.get("HF_HUB_OFFLINE")
+            raise RuntimeError("model not in cache")
+
+    monkeypatch.setattr(sentence_transformers, "SentenceTransformer", UncachedModel)
+    assert isinstance(embeddings.get_embedder("auto"), HashingEmbedder)
+    assert observed["offline"] == "1"
+    # guard는 이전 환경을 복원해야 한다
+    assert os.environ.get("HF_HUB_OFFLINE") is None
 
 
 def test_hybrid_search_three_signal_extra_lexical(store, doc):

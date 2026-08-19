@@ -197,6 +197,9 @@ def test_legacy_pack_without_communities_degrades(community_pack, tmp_path):
         (legacy_dir / "pack.sqlite").read_bytes()
     ).hexdigest()
     legacy_manifest["content_hash"] = legacy_hash
+    # Pre-tree-receipt pack: no tree_hash key, or the mutated bytes below
+    # would (correctly) fail the payload receipt.
+    legacy_manifest.pop("tree_hash", None)
     manifest_path.write_text(
         json.dumps(legacy_manifest, indent=2), encoding="utf-8"
     )

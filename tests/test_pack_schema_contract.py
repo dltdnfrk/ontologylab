@@ -239,6 +239,9 @@ def test_legacy_pack_without_contract_fields_still_loads(two_schema_pack):
     pack_dir = packs / manifest.pack_id
     manifest_doc = _read_json(pack_dir / "manifest.json")
     manifest_doc.pop("included_schema_version_ids", None)
+    # A pre-tree-receipt pack carries no tree_hash; keeping it while
+    # mutating schema.json below would (correctly) read as tamper.
+    manifest_doc.pop("tree_hash", None)
     (pack_dir / "manifest.json").write_text(
         json.dumps(manifest_doc, indent=2), encoding="utf-8"
     )

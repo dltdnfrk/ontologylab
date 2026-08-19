@@ -231,8 +231,15 @@ def _locate(chunk_text: str, surface: str) -> SourceSpan | None:
     Uses a regex IGNORECASE search on the ORIGINAL text — searching a
     casefolded copy would return offsets shifted by any length-changing
     casefold (ß→ss, ﬁ→fi), corrupting the stored citation span.
+
+    Token boundaries are required: without them 'CAT' grounds inside
+    'concatenate' and the citation asserts evidence that is not there.
     """
-    match = re.search(re.escape(surface), chunk_text, re.IGNORECASE)
+    match = re.search(
+        r"(?<![0-9A-Za-z])" + re.escape(surface) + r"(?![0-9A-Za-z])",
+        chunk_text,
+        re.IGNORECASE,
+    )
     if match is None:
         return _locate_skeleton(chunk_text, surface)
     return SourceSpan(start=match.start(), end=match.end())
@@ -264,7 +271,16 @@ def _locate_skeleton(chunk_text: str, surface: str) -> SourceSpan | None:
     pos = "".join(skeleton).find(target)
     if pos < 0:
         return None
-    return SourceSpan(start=offsets[pos], end=offsets[pos + len(target) - 1] + 1)
+    start = offsets[pos]
+    end = offsets[pos + len(target) - 1] + 1
+    # Same token-boundary rule as the regex path: the skeleton strips
+    # punctuation, so check the ORIGINAL text's neighbours instead —
+    # otherwise 'CAT' still grounds inside 'concatenate' via the skeleton.
+    if start > 0 and re.match(r"[0-9A-Za-z]", chunk_text[start - 1]):
+        return None
+    if end < len(chunk_text) and re.match(r"[0-9A-Za-z]", chunk_text[end]):
+        return None
+    return SourceSpan(start=start, end=end)
 
 
 def _span_cites(chunk_text: str, span: SourceSpan, surface: str) -> bool:

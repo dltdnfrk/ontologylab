@@ -1007,6 +1007,28 @@ def _preflight_proposal(store: KGStore, proposal: OntologyProposal) -> None:
             "schema_version_id",
             f"unknown schema version {proposal.schema_version_id!r}",
         )
+    # Re-validate the evidence at apply time: between preview and verify a
+    # reviewer can reject or invalidate a source row, and an apply that
+    # skips this check publishes a proposal whose basis no longer stands.
+    for source_id in proposal.source_candidate_ids:
+        row = store.conn.execute(
+            "SELECT status FROM nodes WHERE id = ?", (source_id,)
+        ).fetchone()
+        if row is None:
+            row = store.conn.execute(
+                "SELECT status FROM edges WHERE id = ?", (source_id,)
+            ).fetchone()
+        # Rows are never deleted, so a hit means the source is store-backed
+        # and its CURRENT status must still be reviewable. No hit means a
+        # preview-time synthetic candidate — nothing to revalidate against.
+        if row is not None and row["status"] not in _SOURCE_STATUSES:
+            raise _error(
+                "ontology_proposal_stale",
+                "source_candidate_ids",
+                f"source {source_id!r} changed or disappeared; preview the "
+                "proposal again",
+                status_code=409,
+            )
     matches = _matching_term_ids(
         store,
         schema_version_id=proposal.schema_version_id,
@@ -1091,72 +1113,76 @@ def verify_ontology_proposal(
     _preflight_proposal(store, proposal)
     reviewer, provenance, note = verification
     created = proposal.action == "create"
+    # One commit boundary around the whole apply: the term/alias/xref/
+    # lifecycle writes nest inside this transaction, so a mid-apply failure
+    # rolls back instead of leaving a half-built term.
     try:
-        if created:
-            term_id = store.create_ontology_term(
-                preferred_label=proposal.preferred_label,
-                language=proposal.language,
-                definition=proposal.definition,
-                schema_version_id=proposal.schema_version_id,
-                reviewer=reviewer,
-                provenance=provenance,
-            )
-        else:
-            term_id = proposal.target_term_id or ""
+      with store.atomic():
+          if created:
+              term_id = store.create_ontology_term(
+                  preferred_label=proposal.preferred_label,
+                  language=proposal.language,
+                  definition=proposal.definition,
+                  schema_version_id=proposal.schema_version_id,
+                  reviewer=reviewer,
+                  provenance=provenance,
+              )
+          else:
+              term_id = proposal.target_term_id or ""
 
-        existing_aliases = {
-            (_normalized_text(alias["label"]), _normalized_text(alias["language"]))
-            for alias in store.list_term_aliases(term_id)
-        }
-        existing_aliases.add(
-            (_normalized_text(proposal.preferred_label), _normalized_text(proposal.language))
-        )
-        for alias in proposal.aliases:
-            key = (_normalized_text(alias), _normalized_text(proposal.language))
-            if key in existing_aliases:
-                continue
-            store.add_term_alias(
-                term_id=term_id,
-                label=alias,
-                language=proposal.language,
-                reviewer=reviewer,
-                provenance=provenance,
-            )
-            existing_aliases.add(key)
+          existing_aliases = {
+              (_normalized_text(alias["label"]), _normalized_text(alias["language"]))
+              for alias in store.list_term_aliases(term_id)
+          }
+          existing_aliases.add(
+              (_normalized_text(proposal.preferred_label), _normalized_text(proposal.language))
+          )
+          for alias in proposal.aliases:
+              key = (_normalized_text(alias), _normalized_text(proposal.language))
+              if key in existing_aliases:
+                  continue
+              store.add_term_alias(
+                  term_id=term_id,
+                  label=alias,
+                  language=proposal.language,
+                  reviewer=reviewer,
+                  provenance=provenance,
+              )
+              existing_aliases.add(key)
 
-        existing_xrefs = {
-            _xref_key(row) for row in store.list_term_xrefs(term_id)
-        }
-        for xref in proposal.xrefs:
-            xref_data = asdict(xref)
-            if _xref_key(xref_data) in existing_xrefs:
-                continue
-            store.add_term_xref(
-                term_id=term_id,
-                reviewer=reviewer,
-                **xref_data,
-            )
-            existing_xrefs.add(_xref_key(xref_data))
+          existing_xrefs = {
+              _xref_key(row) for row in store.list_term_xrefs(term_id)
+          }
+          for xref in proposal.xrefs:
+              xref_data = asdict(xref)
+              if _xref_key(xref_data) in existing_xrefs:
+                  continue
+              store.add_term_xref(
+                  term_id=term_id,
+                  reviewer=reviewer,
+                  **xref_data,
+              )
+              existing_xrefs.add(_xref_key(xref_data))
 
-        current_term = store.get_ontology_term(term_id)
-        if (
-            proposal.lifecycle,
-            proposal.replacement_term_id,
-            proposal.change_reason,
-        ) != (
-            current_term["lifecycle"],
-            current_term["replacement_term_id"],
-            current_term["change_reason"],
-        ):
-            store.set_ontology_term_lifecycle(
-                term_id,
-                lifecycle=proposal.lifecycle,
-                replacement_term_id=proposal.replacement_term_id,
-                change_reason=proposal.change_reason,
-                reviewer=reviewer,
-                provenance=provenance,
-            )
-        term = store.get_ontology_term(term_id)
+          current_term = store.get_ontology_term(term_id)
+          if (
+              proposal.lifecycle,
+              proposal.replacement_term_id,
+              proposal.change_reason,
+          ) != (
+              current_term["lifecycle"],
+              current_term["replacement_term_id"],
+              current_term["change_reason"],
+          ):
+              store.set_ontology_term_lifecycle(
+                  term_id,
+                  lifecycle=proposal.lifecycle,
+                  replacement_term_id=proposal.replacement_term_id,
+                  change_reason=proposal.change_reason,
+                  reviewer=reviewer,
+                  provenance=provenance,
+              )
+          term = store.get_ontology_term(term_id)
     except OntologyTermValidationError as exc:
         raise _error(
             "ontology_proposal_invalid", exc.field, exc.message

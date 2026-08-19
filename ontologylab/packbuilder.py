@@ -667,13 +667,9 @@ def _build_pack_unlocked(
             else ["knowledge-graph-v1"]
         ),
     )
-    manifest_json = manifest.__dict__.copy()
-    if manifest.methodology is None:
-        manifest_json.pop("methodology")
-    (pack_dir / "manifest.json").write_text(
-        json.dumps(manifest_json, indent=2), encoding="utf-8"
-    )
-
+    # The receipt is computed over the finalized payload (schema.json and
+    # provenance.jsonl are written below; pack.sqlite is already staged),
+    # so the manifest — which carries the receipt — is written LAST.
     pack_provenance = pack_dir / "provenance.jsonl"
     if provenance_jsonl and Path(provenance_jsonl).is_file():
         shutil.copyfile(provenance_jsonl, pack_provenance)
@@ -717,6 +713,14 @@ def _build_pack_unlocked(
                 )
                 + "\n"
             )
+    manifest.tree_hash = _tree_hash(pack_dir)
+    manifest_json = manifest.__dict__.copy()
+    if manifest.methodology is None:
+        manifest_json.pop("methodology")
+    (pack_dir / "manifest.json").write_text(
+        json.dumps(manifest_json, indent=2), encoding="utf-8"
+    )
+
     if final_pack_dir.exists():
         staging_tmp.cleanup()
         raise PackBuildError(f"pack directory already exists: {final_pack_dir}")
@@ -871,6 +875,20 @@ def scan_packs(packs_dir: str | Path) -> tuple[
         except PackBuildError as exc:
             unusable.append({"pack_dir": entry.name, "reason": str(exc)})
             continue
+        if entry.name != pack_id:
+            # load_pack resolves the directory BY pack_id; a directory whose
+            # name disagrees with its manifest cannot be served from that
+            # id, so discovery must not advertise it as usable.
+            unusable.append(
+                {
+                    "pack_dir": entry.name,
+                    "reason": (
+                        f"directory name does not match manifest pack_id "
+                        f"{pack_id!r}"
+                    ),
+                }
+            )
+            continue
         sqlite_path = entry / "pack.sqlite"
         if not sqlite_path.is_file():
             unusable.append(
@@ -894,6 +912,28 @@ def list_packs(packs_dir: str | Path) -> list[dict[str, Any]]:
     must explain the skipped directories use :func:`scan_packs`.
     """
     return scan_packs(packs_dir)[0]
+
+
+# Payload files the tree receipt binds. manifest.json is the receipt root
+# and is deliberately not in this list (self-reference).
+TREE_HASH_FILES = ("pack.sqlite", "schema.json", "provenance.jsonl")
+
+
+def _tree_hash(pack_dir: Path) -> str:
+    """SHA-256 over (name, file-hash) pairs of the pack payload files.
+
+    A missing payload file hashes as empty, so deleting one changes the
+    tree hash and fails verification.
+    """
+    h = hashlib.sha256()
+    for name in TREE_HASH_FILES:
+        path = pack_dir / name
+        data = path.read_bytes() if path.is_file() else b""
+        h.update(name.encode())
+        h.update(b"\0")
+        h.update(hashlib.sha256(data).hexdigest().encode())
+        h.update(b"\n")
+    return "sha256:" + h.hexdigest()
 
 
 def pack_sqlite_path(packs_dir: str | Path, pack_id: str) -> Path:

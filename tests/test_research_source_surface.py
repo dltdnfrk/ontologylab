@@ -118,7 +118,10 @@ def test_all_sources_failed_reports_every_source_and_leaves_store_untouched(
     before = client.get("/api/proposals?limit=1").json()["counts"]
     job = _run(client)
 
-    assert job.status == "complete"  # no source answered is a clean end, not a crash
+    # Every source failed: that is a failed run, not a clean end. Storing
+    # `complete` painted "리서치 완료!" over a run that produced nothing.
+    assert job.status == "failed"
+    assert job.error == jobs_module.NO_SOURCES_SUMMARY
     assert set(job.sources) == {"arxiv", "crossref"}
     assert all(s["status"] == "failed" for s in job.sources.values())
 

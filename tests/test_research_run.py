@@ -403,7 +403,7 @@ def test_a_failing_source_does_not_leak_its_error_text_to_the_browser(
     assert secret in json.dumps(_provenance(tmp_path / "data"))
 
 
-def test_all_sources_failing_is_a_finished_job_not_a_crash(
+def test_all_sources_failing_is_a_failed_job_not_a_crash(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setattr(
@@ -416,8 +416,10 @@ def test_all_sources_failing_is_a_finished_job_not_a_crash(
 
     job = _run(client)
 
-    assert job.status == "complete"
-    assert job.error is None
+    # 전원 실패는 complete가 아니라 failed다 — complete는 "리서치 완료!"
+    # 배너를 그리고, 아무것도 못 가져온 런에 그 배너는 거짓이다.
+    assert job.status == "failed"
+    assert job.error == jobs_module.NO_SOURCES_SUMMARY
     assert any("no source answered" in line for line in job.progress)
 
 
@@ -471,7 +473,7 @@ def test_offline_refuses_once_not_five_times(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("ONTOLOGYLAB_OFFLINE", "1")
     client = _client(tmp_path)
 
-    body = client.post("/api/research", json={"topic": TOPIC}).json()
+    body = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()
 
     assert body["ok"] is False
     assert body["error_kind"] == "offline"
@@ -498,7 +500,7 @@ def test_the_offline_refusal_is_a_200_not_a_500(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("ONTOLOGYLAB_OFFLINE", "1")
     client = _client(tmp_path)
 
-    assert client.post("/api/research", json={"topic": TOPIC}).status_code == 200
+    assert client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).status_code == 200
 
 
 # --------------------------------------------------------------------------
@@ -519,8 +521,8 @@ def test_a_second_research_run_is_refused_while_one_is_going(
     monkeypatch.setattr(jobs_module, "fetch_sources", _held_fetch)
     client = _client(tmp_path)
 
-    first = client.post("/api/research", json={"topic": TOPIC}).json()
-    second = client.post("/api/research", json={"topic": TOPIC}).json()
+    first = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()
+    second = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()
     gate.set()
 
     assert first["ok"] is True
@@ -541,7 +543,7 @@ def test_a_new_run_is_allowed_once_the_previous_one_finishes(
     client = _client(tmp_path)
     _run(client)
 
-    second = client.post("/api/research", json={"topic": TOPIC}).json()
+    second = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()
 
     assert second["ok"] is True
     _await_terminal(client.app.state.jobs.get(second["job_id"]))
@@ -559,7 +561,7 @@ def test_an_extraction_job_does_not_block_a_research_run(
     client = _client(tmp_path)
     client.post("/api/extract", json={"engine": "mock"})
 
-    body = client.post("/api/research", json={"topic": TOPIC}).json()
+    body = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()
 
     assert body["ok"] is True
     _await_terminal(client.app.state.jobs.get(body["job_id"]))
@@ -587,7 +589,7 @@ def test_cancelling_during_collect_stops_before_anything_is_stored(
     monkeypatch.setattr(jobs_module, "fetch_sources", _held_fetch)
     client = _client(tmp_path)
 
-    job_id = client.post("/api/research", json={"topic": TOPIC}).json()["job_id"]
+    job_id = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()["job_id"]
     assert entered.wait(20)
     client.post(f"/api/jobs/{job_id}/cancel")
     release.set()
@@ -645,7 +647,7 @@ def test_cancelling_during_extraction_stops_spending_engine_calls(
     )
     client = _client(tmp_path)
 
-    job_id = client.post("/api/research", json={"topic": TOPIC}).json()["job_id"]
+    job_id = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()["job_id"]
     assert engine.entered.wait(20), "extraction never reached the engine"
     client.post(f"/api/jobs/{job_id}/cancel")
     engine.release.set()
@@ -730,7 +732,7 @@ def test_a_cancelled_research_run_is_not_reported_complete(
     monkeypatch.setattr(jobs_module, "fetch_sources", _held_fetch)
     client = _client(tmp_path)
 
-    job_id = client.post("/api/research", json={"topic": TOPIC}).json()["job_id"]
+    job_id = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()["job_id"]
     entered.wait(20)
     client.post(f"/api/jobs/{job_id}/cancel")
     release.set()
@@ -822,7 +824,7 @@ def test_a_totals_key_the_extractor_never_reports_does_not_kill_the_run(
     monkeypatch.setattr(jobs_module, "fetch_sources", _held_fetch)
     client = _client(tmp_path)
 
-    job_id = client.post("/api/research", json={"topic": TOPIC}).json()["job_id"]
+    job_id = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()["job_id"]
     job = client.app.state.jobs.get(job_id)
     assert entered.wait(20)
     with job._lock:

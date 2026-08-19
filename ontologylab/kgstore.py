@@ -25,6 +25,7 @@ rank is normalized to a 0..1 higher-is-better ``match_score`` (§5.4).
 
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import re
@@ -99,6 +100,16 @@ class XrefValidationError(KGStoreError):
 
 class EndpointNotVerified(KGStoreError):
     """Raised when approving an edge whose endpoints are not both verified."""
+
+
+class InvalidTransition(KGStoreError):
+    """Raised when a review action targets a row in the wrong state.
+
+    approve/reject act on `proposed` rows only; undoing a decision goes
+    through reopen(). Before this existed, _set_status was an unconditional
+    UPDATE and a rejected row could be verified in place (or vice versa)
+    with no trace of the reversal.
+    """
 
 
 class UnknownItem(KGStoreError):
@@ -573,9 +584,39 @@ class KGStore:
         self.conn = conn
         self.db_path = db_path
         self.read_only = read_only
+        self._tx_depth = 0
         self._edges_bitemporal_cache: bool | None = None
         self._edges_qualifiers_cache: bool | None = None
         self._vec_loaded: bool | None = None
+
+    @contextlib.contextmanager
+    def _write_tx(self):
+        """One commit/rollback boundary around a write.
+
+        Nests as a no-op inside :meth:`atomic` — an inner method's plain
+        ``with self.conn`` would otherwise commit the caller's multi-step
+        write halfway through (that is how a failed ontology apply used to
+        leave a half-built term).
+        """
+        if self._tx_depth > 0:
+            yield
+            return
+        self._tx_depth += 1
+        try:
+            with self.conn:
+                yield
+        finally:
+            self._tx_depth -= 1
+
+    @contextlib.contextmanager
+    def atomic(self):
+        """Group several store writes into a single commit/rollback."""
+        self._tx_depth += 1
+        try:
+            with self.conn:
+                yield
+        finally:
+            self._tx_depth -= 1
 
     def _vec_available(self) -> bool:
         """Whether sqlite-vec is loaded on this connection (probed once).
@@ -1428,7 +1469,7 @@ class KGStore:
             raise OntologyTermValidationError(
                 "schema_version_id", f"unknown schema version {schema_version_id!r}"
             )
-        with self.conn:
+        with self._write_tx():
             return self._insert_ontology_term_row(
                 self.conn,
                 preferred_label=clean_label,
@@ -1466,7 +1507,7 @@ class KGStore:
                 "alias_kind", f"unsupported value {alias_kind!r}"
             )
         alias_id = str(uuid.uuid4())
-        with self.conn:
+        with self._write_tx():
             self.conn.execute(
                 "INSERT INTO term_alias "
                 "(id, term_id, label, language, alias_kind, reviewer, provenance, "
@@ -1613,7 +1654,7 @@ class KGStore:
         )
         clean_reviewer = self._term_text("reviewer", reviewer)
         clean_provenance = self._term_text("provenance", provenance)
-        with self.conn:
+        with self._write_tx():
             self.conn.execute(
                 "UPDATE ontology_term SET lifecycle = ?, replacement_term_id = ?, "
                 "change_reason = ?, reviewer = ?, provenance = ?, updated_ts = ? "
@@ -1832,7 +1873,7 @@ class KGStore:
             change_reason=change_reason,
         )
         now = time.time()
-        with self.conn:
+        with self._write_tx():
             self.conn.execute(
                 "INSERT INTO term_xref "
                 "(id, term_id, authority, external_id, mapping_predicate, "
@@ -2093,6 +2134,9 @@ class KGStore:
             "moa_scheme",
             "moa_code",
             "normalization",
+            # Marks a parser-minted relation endpoint (never observed in the
+            # text) so the review surface can show it as synthesized.
+            "synthesized_endpoint",
         }
     )
 
@@ -2437,6 +2481,10 @@ class KGStore:
         schema = self._schema_definition(sv_id)
         entity_types: dict[str, str] = {}
         for ent in entity_rows:
+            if ent.synthesized:
+                # Persist the marker where review can see it (stats alone
+                # used to count it, invisibly to the queue).
+                ent.properties.setdefault("synthesized_endpoint", "true")
             self._validate_properties(
                 schema_version_id=sv_id,
                 entity_type=ent.entity_type,
@@ -2610,13 +2658,24 @@ class KGStore:
         row = cur.fetchone()
         if row is not None:
             return row
-        cur = self.conn.execute(
+        rows = self.conn.execute(
             "SELECT n.* FROM node_aliases a JOIN nodes n ON n.id = a.node_id "
             "WHERE a.normalized_alias = ? AND n.schema_version_id = ? "
-            "AND n.entity_type = ? AND n.status IN ('proposed','verified') LIMIT 1",
+            "AND n.entity_type = ? AND n.status IN ('proposed','verified')",
             (key, sv_id, entity_type),
-        )
-        return cur.fetchone()
+        ).fetchall()
+        if len(rows) > 1:
+            # Shared alias: LIMIT 1 used to merge into an arbitrary holder,
+            # letting an unreviewed alias steer identity. A collision is a
+            # merge-queue question for a human, not a coin flip.
+            self.record_merge_candidate(
+                rows[0]["id"],
+                rows[1]["id"],
+                score=1.0,
+                reasons=[f"shared-alias:{key}"],
+            )
+            return None
+        return rows[0] if rows else None
 
     def _merge_mention(self, existing: sqlite3.Row, ent: ProposedEntity) -> None:
         """Non-destructive merge of a re-mention into an existing node.
@@ -2737,21 +2796,39 @@ class KGStore:
         """
         self._assert_writable()
         kind, row = self._find_kind(item_id)
+        if row["status"] != "proposed":
+            raise InvalidTransition(
+                f"cannot approve a {row['status']!r} item; reopen it first"
+            )
         approved: list[str] = []
         if kind == "edge":
+            # Validate ALL endpoints before mutating ANY — checking while
+            # promoting left the first endpoint verified when the second
+            # one refused, half-applying the cascade.
             for endpoint_id in (row["src_node_id"], row["dst_node_id"]):
                 _, endpoint = self._find_kind(endpoint_id)
-                if endpoint["status"] != "verified":
-                    if cascade:
-                        self._set_status(
-                            "node", endpoint_id, "verified", by=by, note=note
-                        )
-                        approved.append(endpoint_id)
-                    else:
-                        raise EndpointNotVerified(
-                            f"edge {item_id} endpoint {endpoint_id} is "
-                            f"{endpoint['status']!r}; approve endpoints first"
-                        )
+                ep_status = endpoint["status"]
+                if ep_status == "verified":
+                    continue
+                if cascade and ep_status == "proposed":
+                    continue
+                if cascade:
+                    raise InvalidTransition(
+                        f"edge {item_id} endpoint {endpoint_id} is "
+                        f"{ep_status!r}; cascade only promotes "
+                        "proposed endpoints — reopen it first"
+                    )
+                raise EndpointNotVerified(
+                    f"edge {item_id} endpoint {endpoint_id} is "
+                    f"{ep_status!r}; approve endpoints first"
+                )
+            for endpoint_id in (row["src_node_id"], row["dst_node_id"]):
+                _, endpoint = self._find_kind(endpoint_id)
+                if endpoint["status"] == "proposed":
+                    self._set_status(
+                        "node", endpoint_id, "verified", by=by, note=note
+                    )
+                    approved.append(endpoint_id)
         self._set_status(kind, item_id, "verified", by=by, note=note)
         approved.append(item_id)
         self.conn.commit()
@@ -2762,7 +2839,11 @@ class KGStore:
     ) -> dict[str, Any]:
         """Flip one proposed row to rejected (kept for audit, never served)."""
         self._assert_writable()
-        kind, _ = self._find_kind(item_id)
+        kind, row = self._find_kind(item_id)
+        if row["status"] != "proposed":
+            raise InvalidTransition(
+                f"cannot reject a {row['status']!r} item; reopen it first"
+            )
         self._set_status(kind, item_id, "rejected", by=by, note=note)
         self.conn.commit()
         return {"kind": kind, "rejected_ids": [item_id]}
@@ -3984,8 +4065,12 @@ class KGStore:
             out[f"nodes_{status}"] = self.conn.execute(
                 "SELECT COUNT(*) AS n FROM nodes WHERE status = ?", (status,)
             ).fetchone()["n"]
+            # edges_{verified} is current-truth inventory: an invalidated
+            # edge is history, not stock.
             out[f"edges_{status}"] = self.conn.execute(
-                "SELECT COUNT(*) AS n FROM edges WHERE status = ?", (status,)
+                f"SELECT COUNT(*) AS n FROM edges WHERE status = ? "
+                f"AND {self._edge_current_sql()}",
+                (status,),
             ).fetchone()["n"]
         out["documents"] = self.conn.execute(
             "SELECT COUNT(*) AS n FROM documents"
@@ -4042,6 +4127,7 @@ class KGStore:
 
         items: list[dict[str, Any]] = []
         for row in rows:
+            invalidated: bool | None = None
             span = json.loads(row["source_span"]) if row["source_span"] else None
             qualifiers: dict[str, Any] = {}
             if row["kind"] == "node":
@@ -4055,12 +4141,15 @@ class KGStore:
                     nrow["name"], nrow["entity_type"], nrow["status"],
                 )
             else:
+                invalidated_column = (
+                    ", e.invalidated_ts" if self._edges_bitemporal() else ""
+                )
                 qualifier_column = (
                     ", e.qualifiers_json" if self._edges_have_qualifiers() else ""
                 )
                 erow = self.conn.execute(
                     "SELECT e.relation_type, e.status, s.name AS src, "
-                    f"d.name AS dst{qualifier_column} FROM edges e "
+                    f"d.name AS dst{qualifier_column}{invalidated_column} FROM edges e "
                     "JOIN nodes s ON s.id = e.src_node_id "
                     "JOIN nodes d ON d.id = e.dst_node_id WHERE e.id = ?",
                     (row["item_id"],),
@@ -4075,12 +4164,18 @@ class KGStore:
                     if "qualifiers_json" in erow.keys() and erow["qualifiers_json"]
                     else {}
                 )
+                # A superseded edge stays visible in the document's history
+                # but marked — presenting it as live would assert a fact the
+                # reviewer already withdrew.
+                if self._edges_bitemporal():
+                    invalidated = bool(erow["invalidated_ts"])
             items.append({
                 "kind": row["kind"],
                 "id": row["item_id"],
                 "label": label,
                 "type": kind_label,
                 "status": status,
+                "invalidated": invalidated,
                 "qualifiers": qualifiers if row["kind"] == "edge" else None,
                 # A span past the cap is reported as absent rather than as a
                 # position the caller would draw in the wrong place —
@@ -5166,6 +5261,7 @@ __all__ = [
     "KGStore",
     "KGStoreError",
     "EndpointNotVerified",
+    "InvalidTransition",
     "UnknownItem",
     "normalize_name",
     "span_excerpt",

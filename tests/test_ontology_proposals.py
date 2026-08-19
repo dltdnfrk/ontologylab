@@ -350,3 +350,70 @@ def test_spa_exposes_preview_and_human_verify_actions(tmp_path: Path) -> None:
     )[1].split("async function loadEntityPanel", 1)[0]
     assert "innerHTML" not in proposal_renderer
     assert "textContent" in proposal_renderer
+
+
+def test_verify_rejects_a_proposal_whose_source_was_since_rejected(
+    tmp_path: Path,
+) -> None:
+    """Preview hydrates sources; between preview and verify a reviewer can
+    reject the source row. Apply must re-check, not apply a stale proposal."""
+    client, db_path = _client(tmp_path)
+    with KGStore.open(db_path) as store:
+        doc, _ = store.insert_document(
+            source_kind="upload",
+            source_uri="file:///p.txt",
+            title="p",
+            raw_text="Leaf blight",
+            content_hash="stale-1",
+        )
+        store.insert_proposed(
+            [ProposedEntity(id="n_stale", entity_type="Component", name="Leaf blight")],
+            [],
+            source_doc_id=doc.id,
+            extractor_engine="mock",
+        )
+    preview = client.post(PREVIEW, json={"source_ids": ["n_stale"]})
+    assert preview.status_code == 200
+    proposal = preview.json()["proposals"][0]
+
+    with KGStore.open(db_path) as store:
+        store.reject("n_stale", by="tester")
+
+    resp = client.post(VERIFY, json={"proposal": proposal, "verification": REVIEW})
+    assert resp.status_code == 409
+
+
+def test_a_failed_apply_leaves_no_partial_term(tmp_path: Path, monkeypatch) -> None:
+    """create → alias → xref each committed separately, so a mid-apply xref
+    failure left a half-built term behind. The apply must be one transaction."""
+    import pytest
+
+    from ontologylab.kgstore import XrefValidationError
+    from ontologylab.proposals import verify_ontology_proposal
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    with KGStore.open(data_dir / "kg.sqlite") as store:
+        candidate = candidate_from_dict(_candidate("cand-1", type_name="Component"))
+        proposal = build_ontology_proposals(store, [candidate])[0]
+
+        def _boom(**kwargs):
+            raise XrefValidationError("external_id", "forced mid-apply failure")
+
+        before_terms = store.conn.execute(
+            "SELECT COUNT(*) AS n FROM ontology_term"
+        ).fetchone()["n"]
+        before_aliases = store.conn.execute(
+            "SELECT COUNT(*) AS n FROM term_alias"
+        ).fetchone()["n"]
+
+        monkeypatch.setattr(store, "add_term_xref", _boom)
+        with pytest.raises(Exception):
+            verify_ontology_proposal(
+                store, proposal, ("curator-7", "curation:p1-d", None)
+            )
+        terms = store.conn.execute("SELECT COUNT(*) AS n FROM ontology_term").fetchone()["n"]
+        aliases = store.conn.execute("SELECT COUNT(*) AS n FROM term_alias").fetchone()["n"]
+        assert terms == before_terms and aliases == before_aliases, (
+            "mid-apply failure left partial rows"
+        )

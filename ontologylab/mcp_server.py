@@ -37,6 +37,7 @@ from ontologylab.mcp_runtime import McpApp
 from ontologylab.engines import EngineError, engine_name_arg, get_engine
 from ontologylab.expansion import expand_query
 from ontologylab.packbuilder import (
+    _tree_hash,
     list_packs as discover_packs,
     pack_sqlite_path,
     safe_pack_component,
@@ -49,7 +50,7 @@ class NoActivePack(Exception):
     """Raised when a query tool is called before any pack is loaded."""
 
 
-class PackIntegrityError(Exception):
+class PackIntegrityError(KGStoreError):
     """Raised when a pack fails load-time integrity verification.
 
     Two shapes: the pack's bytes do not match the manifest's content_hash
@@ -353,6 +354,17 @@ def _verified_pack(
         raise PackIntegrityError(
             f"pack {pack_id!r} manifest identity is invalid"
         )
+    tree_hash = manifest.get("tree_hash")
+    if tree_hash is not None:
+        # New-style receipt: payload files (schema.json, provenance.jsonl,
+        # pack.sqlite) are bound too — a rewritten payload under a valid
+        # content_hash is tamper. Legacy manifests carry no tree_hash and
+        # keep verifying on content_hash alone.
+        if _tree_hash(database.parent) != tree_hash:
+            raise PackIntegrityError(
+                f"pack {pack_id!r} payload files do not match the tree "
+                "receipt"
+            )
     return database, content_hash, manifest
 
 
@@ -472,7 +484,7 @@ class PackSession:
             ephemeral = self.store is None or self.pack_id != latest["pack_id"]
             packed = (
                 KGStore.open(
-                    pack_sqlite_path(self.packs_dir, latest["pack_id"]),
+                    _verified_pack(self.packs_dir, latest["pack_id"])[0],
                     read_only=True,
                 )
                 if ephemeral
@@ -707,20 +719,20 @@ class PackSession:
 
     def _store_for(self, pack_id: str):
         """(store, ephemeral) for the named pack — active store when it
-        matches, else a read-only ephemeral open that the caller closes."""
+        matches, else a VERIFIED read-only ephemeral open that the caller
+        closes. The hash check is not optional here: load_pack's integrity
+        boundary means nothing if pack:// reads bypass it."""
         if pack_id == self.pack_id and self.store is not None:
             return self.store, False
-        path = pack_sqlite_path(self.packs_dir, pack_id)
+        path, _, _ = _verified_pack(self.packs_dir, pack_id)
         return KGStore.open(path, read_only=True), True
 
     def resource_manifest(self, pack_id: str) -> dict[str, Any]:
-        # Validate pack_id as a safe segment before joining it into a path —
-        # this reader bypasses pack_sqlite_path, so guard traversal here too.
-        safe_pack_component(pack_id, kind="pack id")
-        manifest_path = self.packs_dir / pack_id / "manifest.json"
-        if not manifest_path.is_file():
-            raise KGStoreError(f"pack {pack_id!r} has no manifest")
-        return json.loads(manifest_path.read_text(encoding="utf-8"))
+        # Serve the identity-checked manifest from the verified read, not a
+        # raw file read — a manifest is a claim, and this endpoint is where
+        # the claim is checked.
+        _, _, manifest = _verified_pack(self.packs_dir, pack_id)
+        return manifest
 
     def resource_schema(self, pack_id: str) -> dict[str, Any]:
         store, ephemeral = self._store_for(pack_id)

@@ -208,3 +208,21 @@ def test_truncated_but_valid_sqlite_without_pack_tables_rejected(
     conn.close()
 
     assert list_packs(packs_dir) == []
+
+
+def test_dir_name_mismatch_is_unusable(tmp_path: Path) -> None:
+    """A directory whose name disagrees with its manifest's pack_id is not
+    servable — load_pack would refuse it, so discovery must not advertise
+    it as usable (Packs screen vs MCP status disagreement)."""
+    packs_dir = tmp_path / "packs"
+    packs_dir.mkdir()
+    good_id = _good_pack(tmp_path, packs_dir)
+    (packs_dir / good_id).rename(packs_dir / "renamed-dir")
+
+    from ontologylab.packbuilder import scan_packs
+
+    packs, unusable = scan_packs(packs_dir)
+    assert packs == []
+    assert len(unusable) == 1
+    assert unusable[0]["pack_dir"] == "renamed-dir"
+    assert good_id in unusable[0]["reason"]

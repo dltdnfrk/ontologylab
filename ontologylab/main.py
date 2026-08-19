@@ -1354,7 +1354,9 @@ def cmd_embed(args: argparse.Namespace) -> int:
     from ontologylab.embeddings import get_embedder
 
     try:
-        embedder = get_embedder(args.embedder)
+        # embed는 명시적 배치 작업이므로 모델 다운로드를 허용한다. 검색/MCP
+        # 같은 쿼리 경로는 get_embedder 기본값(캐시-온리)이 그대로 지킨다.
+        embedder = get_embedder(args.embedder, allow_download=True)
     except RuntimeError as exc:
         print(f"[ontologylab] ERROR: {exc}", file=sys.stderr)
         return 2

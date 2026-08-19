@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
 import struct
 from typing import Iterable, Protocol, runtime_checkable
 
@@ -154,11 +155,18 @@ class HashingEmbedder:
 class SentenceTransformerEmbedder:
     """CPU sentence-transformers model, loaded once per process.
 
-    Requires `pip install 'ontologylab[embed]'` and a one-time model
-    download (network). Default model: all-MiniLM-L6-v2 (23M params).
+    Requires `pip install 'ontologylab[embed]'`. Loads are cached-only by
+    default (HF_HUB_OFFLINE=1): a search/MCP query path must never turn into
+    a model download. Downloading is an explicit act — pass
+    ``allow_download=True`` (the `ontologylab embed` CLI does).
     """
 
-    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2") -> None:
+    def __init__(
+        self,
+        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+        *,
+        allow_download: bool = False,
+    ) -> None:
         try:
             from sentence_transformers import SentenceTransformer
         except ImportError as exc:  # pragma: no cover - optional dep
@@ -167,8 +175,27 @@ class SentenceTransformerEmbedder:
                 "pip install 'ontologylab[embed]'"
             ) from exc
         self._model_name = model_name
-        self._model = SentenceTransformer(model_name)
-        self._dim = int(self._model.get_sentence_embedding_dimension())
+        if allow_download:
+            self._model = SentenceTransformer(model_name)
+        else:
+            # Cached-only: HF_HUB_OFFLINE makes an uncached model an
+            # exception instead of an unsanctioned download (same contract
+            # as the reranker).
+            prior = os.environ.get("HF_HUB_OFFLINE")
+            os.environ["HF_HUB_OFFLINE"] = "1"
+            try:
+                self._model = SentenceTransformer(model_name)
+            finally:
+                if prior is None:
+                    os.environ.pop("HF_HUB_OFFLINE", None)
+                else:
+                    os.environ["HF_HUB_OFFLINE"] = prior
+        dim = self._model.get_sentence_embedding_dimension()
+        if dim is None:
+            raise RuntimeError(
+                f"model {model_name!r} reports no embedding dimension"
+            )
+        self._dim = int(dim)
 
     def name(self) -> str:
         return self._model_name
@@ -189,23 +216,34 @@ def st_available() -> bool:
     return importlib.util.find_spec("sentence_transformers") is not None
 
 
-def get_embedder(name: str | None) -> Embedder | None:
+def get_embedder(name: str | None, *, allow_download: bool = False) -> Embedder | None:
     """Factory: None | 'auto' | 'hash' | a sentence-transformers model name.
 
     'auto' picks the real MiniLM model when sentence-transformers is
     installed and falls back to the offline hash embedder otherwise — the
     stored embedding_model still records whichever backend actually ran,
     so pack/query model matching stays honest either way.
+
+    Loads are cached-only (HF_HUB_OFFLINE) unless ``allow_download=True``,
+    which is for explicit batch acts (`ontologylab embed`) — a query path
+    must never turn into a model download.
     """
     if not name or name == "none":
         return None
     if name == "auto":
         if st_available():
-            return SentenceTransformerEmbedder()
+            try:
+                return SentenceTransformerEmbedder(allow_download=allow_download)
+            except Exception:
+                if allow_download:
+                    raise
+                # Uncached model (the offline-forced load failed): the
+                # lexical proxy is the honest answer, not a download.
+                return HashingEmbedder()
         return HashingEmbedder()
     if name in ("hash", "hash-v1"):
         return HashingEmbedder()
-    return SentenceTransformerEmbedder(name)
+    return SentenceTransformerEmbedder(name, allow_download=allow_download)
 
 
 # ---------------------------------------------------------------------------
