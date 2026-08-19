@@ -46,6 +46,11 @@ ontologylab = ["*.json"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# tests/conftest.py does `from tests.factories import ...`, which needs the
+# repo root on sys.path. The legacy setuptools editable install provided that
+# as a side effect of its .pth; a modern editable (uv sync) exposes only the
+# `ontologylab` package, so pytest must provide the root explicitly.
+pythonpath = ["."]
 
 # basedpyright (LSP) — the codebase parses untyped JSON by design and writes
 # `Any` liberally, so the strict defaults drown real errors in style noise.
