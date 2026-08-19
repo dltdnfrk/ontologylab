@@ -39,6 +39,7 @@ from typing import Any, Iterable, Optional
 
 from ontologylab import evidence
 from ontologylab import ontology_schema as default_schema
+from ontologylab.connectors.base import normalize_doi
 from ontologylab.paths import DEFAULT_ACTOR
 from ontologylab.models import Document, ProposedEntity, ProposedRelation
 
@@ -217,6 +218,7 @@ CREATE TABLE IF NOT EXISTS documents (
     fetched_ts    REAL NOT NULL,
     content_hash  TEXT NOT NULL,
     raw_text_path TEXT NOT NULL,
+    doi           TEXT,
     -- Which connector fetched this, and what kind of record it is. Neither
     -- is recoverable from source_uri: most rows resolve through doi.org,
     -- which names no source and implies no review.
@@ -752,19 +754,25 @@ class KGStore:
         never migrated: query paths degrade instead (see _edge_current_sql
         / _table_exists).
         """
-        # Documents predate `source` / `evidence_grade`; an existing store
+        # Documents predate `doi` / `source` / `evidence_grade`; an existing store
         # has rows without them. They read back as "" and normalize to
         # `unknown`, which is the honest answer for a document collected
         # before anyone recorded where it came from.
         document_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(documents)")
         }
+        if "doi" not in document_columns:
+            conn.execute("ALTER TABLE documents ADD COLUMN doi TEXT")
         for column in ("source", "evidence_grade"):
             if column not in document_columns:
                 conn.execute(
                     f"ALTER TABLE documents ADD COLUMN {column} "
                     f"TEXT NOT NULL DEFAULT ''"
                 )
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_doi "
+            "ON documents (doi) WHERE doi IS NOT NULL"
+        )
 
         edge_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(edges)")
@@ -1976,8 +1984,9 @@ class KGStore:
         content_hash: str,
         source: str = "",
         evidence_grade: str = "",
+        doi: str | None = None,
     ) -> tuple[Document, bool]:
-        """Insert a document (deduped by content hash); write raw text to disk.
+        """Insert a document (deduped by DOI, then content hash).
 
         Returns (document, created) — ``created`` False means an identical
         document already existed and was returned instead.
@@ -1991,10 +2000,16 @@ class KGStore:
         duplicate the caller already has would be data loss, not safety.
         """
         self._assert_writable()
-        cur = self.conn.execute(
-            "SELECT * FROM documents WHERE content_hash = ?", (content_hash,)
-        )
-        existing = cur.fetchone()
+        normalized_doi = normalize_doi(doi)
+        existing = None
+        if normalized_doi is not None:
+            existing = self.conn.execute(
+                "SELECT * FROM documents WHERE doi = ?", (normalized_doi,)
+            ).fetchone()
+        if existing is None:
+            existing = self.conn.execute(
+                "SELECT * FROM documents WHERE content_hash = ?", (content_hash,)
+            ).fetchone()
         if existing is not None:
             return self._row_to_document(existing), False
 
@@ -2014,13 +2029,14 @@ class KGStore:
             raw_text_path=rel_path,
             source=source,
             evidence_grade=evidence.normalize(evidence_grade),
+            doi=normalized_doi,
         )
         try:
             self.conn.execute(
                 "INSERT INTO documents "
                 "(id, source_kind, source_uri, title, fetched_ts, content_hash, "
-                "raw_text_path, source, evidence_grade) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "raw_text_path, source, evidence_grade, doi) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     doc.id,
                     doc.source_kind,
@@ -2031,20 +2047,24 @@ class KGStore:
                     doc.raw_text_path,
                     doc.source,
                     doc.evidence_grade,
+                    doc.doi,
                 ),
             )
         except sqlite3.IntegrityError:
-            # Another writer won the race on UNIQUE (content_hash). Return
-            # their row: the caller asked for this document to exist, and it
-            # does. The raw text just written is byte-identical (same hash),
-            # so the orphan file is inert and the existing row keeps pointing
-            # at its own copy.
+            # Another writer won the race on DOI or content hash.
             self.conn.rollback()
-            row = self.conn.execute(
-                "SELECT * FROM documents WHERE content_hash = ?", (content_hash,)
-            ).fetchone()
+            abs_path.unlink(missing_ok=True)
+            row = None
+            if normalized_doi is not None:
+                row = self.conn.execute(
+                    "SELECT * FROM documents WHERE doi = ?", (normalized_doi,)
+                ).fetchone()
             if row is None:
-                # The constraint fired for something other than the hash.
+                row = self.conn.execute(
+                    "SELECT * FROM documents WHERE content_hash = ?", (content_hash,)
+                ).fetchone()
+            if row is None:
+                # The constraint fired for something other than document identity.
                 raise
             return self._row_to_document(row), False
         # The document is a library output from its first moment: register it
@@ -2078,6 +2098,7 @@ class KGStore:
             evidence_grade=evidence.normalize(
                 row["evidence_grade"] if "evidence_grade" in row.keys() else ""
             ),
+            doi=row["doi"] if "doi" in row.keys() else None,
         )
 
     def get_document(self, doc_id: str) -> Document:

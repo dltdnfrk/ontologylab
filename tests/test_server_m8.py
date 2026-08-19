@@ -122,6 +122,7 @@ def test_collect_file_then_documents_lists_it(tmp_path: Path) -> None:
     assert doc["title"] == "notes"
     assert set(doc) == {
         "id", "source_kind", "source_uri", "title", "fetched_ts", "content_hash",
+        "doi", "source", "evidence_grade",
     }
 
 
@@ -175,6 +176,7 @@ CROSSREF_FIXTURE = """{
       {
         "DOI": "10.1145/1327452.1327492",
         "URL": "https://doi.org/10.1145/1327452.1327492",
+        "type": "journal-article",
         "title": ["MapReduce: simplified data processing on large clusters"],
         "abstract": "<jats:p>A programming model for large data sets.</jats:p>"
       }
@@ -200,7 +202,51 @@ def test_collect_crossref_allowlisted_query_ingests(
     assert resp.json() == {"ok": True, "documents": 1, "created": 1, "duplicates": 0}
     listed = client.get("/api/documents").json()
     assert listed["count"] == 1
-    assert listed["documents"][0]["source_kind"] == "paper_api"
+    document = listed["documents"][0]
+    assert document["source_kind"] == "paper_api"
+    assert document["doi"] == "10.1145/1327452.1327492"
+    assert document["source"] == "crossref"
+    assert document["evidence_grade"] == "peer_reviewed"
+
+
+def test_collect_same_doi_with_changed_abstract_is_duplicate(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # Given: one source returns two representations of the same DOI.
+    payloads = iter(
+        (
+            CROSSREF_FIXTURE,
+            CROSSREF_FIXTURE.replace(
+                "A programming model for large data sets.",
+                "A longer revised abstract with additional evidence.",
+            ),
+        )
+    )
+    monkeypatch.setattr(
+        "ontologylab.connectors.paper_api._http_get_text",
+        lambda url: next(payloads),
+    )
+    client, _, _ = _make_client(tmp_path)
+
+    # When: both representations are collected in separate requests.
+    first = client.post(
+        "/api/collect",
+        json={"paper_queries": ["databases"], "paper_source": "crossref"},
+    ).json()
+    second = client.post(
+        "/api/collect",
+        json={"paper_queries": ["databases"], "paper_source": "crossref"},
+    ).json()
+
+    # Then: persisted DOI identity prevents a second document row.
+    assert first["created"] == 1
+    assert second == {
+        "ok": True,
+        "documents": 1,
+        "created": 0,
+        "duplicates": 1,
+    }
+    assert client.get("/api/documents").json()["count"] == 1
 
 
 def test_collect_non_allowlisted_source_rejected(tmp_path: Path) -> None:

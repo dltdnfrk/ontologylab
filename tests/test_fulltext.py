@@ -234,7 +234,11 @@ def test_an_open_access_document_gains_its_body(monkeypatch) -> None:
 def test_identity_survives_enrichment(monkeypatch) -> None:
     """De-duplication keys on DOI, so a rewritten body must not move it."""
     monkeypatch.setattr(paper_api, "_http_get_text", lambda *a, **k: JATS)
-    document = _doc(fulltext_url=europepmc_fulltext_url("PMC999"))
+    document = _doc(
+        source="europepmc",
+        evidence_grade="peer_reviewed",
+        fulltext_url=europepmc_fulltext_url("PMC999"),
+    )
 
     [enriched], _ = enrich_with_fulltext([document])
 
@@ -242,6 +246,9 @@ def test_identity_survives_enrichment(monkeypatch) -> None:
     assert enriched.source_uri == document.source_uri
     assert enriched.dedupe_key == document.dedupe_key
     assert enriched.title == document.title
+    assert enriched.source == document.source
+    assert enriched.evidence_grade == document.evidence_grade
+    assert document.title is not None
     assert enriched.raw_text.startswith(document.title)
 
 
@@ -391,6 +398,8 @@ def _research(tmp_path, monkeypatch, *, fulltext: bool):
 
     document = _doc(
         raw_text="A paper\n\n" + ("A real abstract sentence. " * 40),
+        source="europepmc",
+        evidence_grade="peer_reviewed",
         fulltext_url=europepmc_fulltext_url("PMC999"),
     )
 
@@ -415,7 +424,7 @@ def _research(tmp_path, monkeypatch, *, fulltext: bool):
     store = KGStore.open(paths.kg_db_path(data_dir))
     try:
         [stored] = store.list_documents()
-        return job, store.document_raw_text(stored.id)
+        return job, stored, store.document_raw_text(stored.id)
     finally:
         store.close()
 
@@ -423,9 +432,12 @@ def _research(tmp_path, monkeypatch, *, fulltext: bool):
 def test_a_research_run_stores_the_full_text(tmp_path, monkeypatch) -> None:
     """The end of the wire. Everything above tests the parts; this is the
     only thing that fails if the worker stops calling them."""
-    job, text = _research(tmp_path, monkeypatch, fulltext=True)
+    job, stored, text = _research(tmp_path, monkeypatch, fulltext=True)
 
     assert job.status == "complete"
+    assert stored.source == "europepmc"
+    assert stored.evidence_grade == "peer_reviewed"
+    assert stored.doi == "10.1/a"
     assert "RecA protein" in text, "the stored document is still the abstract"
     assert any("full text for 1/1" in line for line in job.progress)
 
@@ -433,7 +445,7 @@ def test_a_research_run_stores_the_full_text(tmp_path, monkeypatch) -> None:
 def test_turning_it_off_stores_the_abstract(tmp_path, monkeypatch) -> None:
     """The control — without it, the assertion above could hold because the
     fixture's abstract happened to contain the body text."""
-    _job, text = _research(tmp_path, monkeypatch, fulltext=False)
+    _job, _stored, text = _research(tmp_path, monkeypatch, fulltext=False)
 
     assert "RecA protein" not in text
     assert "A real abstract sentence." in text

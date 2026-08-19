@@ -55,6 +55,7 @@ from ontologylab.connectors.resources import (
     RESOURCE_ORDER,
 )
 from ontologylab.connectors.web_crawl import WebCrawlConnector
+from ontologylab.ingestion import ingest_documents
 from ontologylab.kgstore import (
     EndpointNotVerified,
     InvalidTransition,
@@ -1463,6 +1464,9 @@ def get_documents(deps: AppDependency) -> dict[str, Any]:
                 "title": doc.title,
                 "fetched_ts": doc.fetched_ts,
                 "content_hash": doc.content_hash,
+                "doi": doc.doi,
+                "source": doc.source,
+                "evidence_grade": doc.evidence_grade,
             }
             for doc in store.list_documents()
         ]
@@ -1783,36 +1787,14 @@ def collect(deps: AppDependency, body: CollectRequest) -> dict[str, Any]:
 
     store = _open_store(deps)
     try:
-        created_count = 0
-        for raw in raw_docs:
-            doc, created = store.insert_document(
-                source_kind=raw.source_kind,
-                source_uri=raw.source_uri,
-                title=raw.title,
-                raw_text=raw.raw_text,
-                content_hash=raw.content_hash,
-            )
-            created_count += 1 if created else 0
-            provenance.log(
-                "collect.doc",
-                {
-                    "doc_id": doc.id,
-                    "source_uri": doc.source_uri,
-                    "created": created,
-                    "chars": len(raw.raw_text),
-                },
-            )
-        provenance.log(
-            "collect.end",
-            {"documents": len(raw_docs), "created": created_count},
-        )
+        result = ingest_documents(store, raw_docs, provenance)
     finally:
         store.close()
     return {
         "ok": True,
-        "documents": len(raw_docs),
-        "created": created_count,
-        "duplicates": len(raw_docs) - created_count,
+        "documents": result.document_count,
+        "created": result.created_count,
+        "duplicates": result.duplicate_count,
     }
 
 

@@ -245,30 +245,38 @@ def test_the_badge_is_drawn_beside_the_excerpt() -> None:
     assert "evidenceBadge(item)" in source_line
 
 
-def test_every_collect_path_passes_the_grade_through() -> None:
-    """A missed call site loses the grade silently.
+def test_shared_ingestion_preserves_identity_evidence_and_provenance(tmp_path) -> None:
+    """The application seam proves behavior, not which helper callers name."""
+    import json
 
-    One did: `_research_async` kept its old five-argument call while the
-    CLI path got the new one, so a research run stored 25 documents with
-    no source and no grade and nothing anywhere said so — the column was
-    simply empty. Checked by walking the AST rather than by reading, since
-    reading is what missed it.
-    """
-    import ast
-    from pathlib import Path
+    from ontologylab.connectors.base import RawDocument
+    from ontologylab.ingestion import ingest_documents
+    from ontologylab.kgstore import KGStore
+    from ontologylab.provenance import Provenance
 
-    for path in ("ontologylab/server/jobs.py", "ontologylab/main.py"):
-        tree = ast.parse(Path(path).read_text(encoding="utf-8"))
-        calls = [
-            node for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "insert_document"
-        ]
-        assert calls, f"{path}: no insert_document call found"
-        for call in calls:
-            supplied = {kw.arg for kw in call.keywords}
-            missing = {"source", "evidence_grade"} - supplied
-            assert not missing, (
-                f"{path}:{call.lineno} stores a document without {missing}"
-            )
+    store = KGStore.open(tmp_path / "kg.sqlite")
+    provenance = Provenance(str(tmp_path / "run"), seed=0)
+    raw = RawDocument(
+        source_kind="paper_api",
+        source_uri="https://doi.org/10.1/shared",
+        title="Shared seam",
+        raw_text="Evidence text.",
+        doi="10.1/shared",
+        source="crossref",
+        evidence_grade=evidence.PEER_REVIEWED,
+    )
+
+    result = ingest_documents(store, [raw], provenance)
+
+    [stored] = store.list_documents()
+    events = [
+        json.loads(line)
+        for line in provenance.jsonl_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert result.created_count == 1
+    assert stored.source == "crossref"
+    assert stored.evidence_grade == evidence.PEER_REVIEWED
+    assert stored.doi == "10.1/shared"
+    assert [event["step"] for event in events] == ["collect.doc", "collect.end"]
+    assert events[0]["payload"]["doc_id"] == stored.id
+    store.close()

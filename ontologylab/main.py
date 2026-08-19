@@ -57,6 +57,7 @@ from ontologylab.extractor import (
     extraction_doc_ids,
     run_extraction,
 )
+from ontologylab.ingestion import ingest_documents
 from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError
 from ontologylab.method_ir import (
     MethodIR, StatementOccurrence, canonical_json_bytes, parse_method,
@@ -489,6 +490,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
                 "source": args.paper_source,
                 "query": paper_query,
                 "limit": args.limit,
+                "data_dir": data_dir,
             },
         )
         if fetched is None:
@@ -512,35 +514,19 @@ def cmd_collect(args: argparse.Namespace) -> int:
 
     store = _open_store(args)
     try:
-        created_count = 0
-        for raw in raw_docs:
-            doc, created = store.insert_document(
-                source_kind=raw.source_kind,
-                source_uri=raw.source_uri,
-                title=raw.title,
-                raw_text=raw.raw_text,
-                content_hash=raw.content_hash,
-                source=raw.source,
-                evidence_grade=raw.evidence_grade,
+        result = ingest_documents(store, raw_docs, provenance)
+        for entry in result.entries:
+            state = "new" if entry.created else "duplicate"
+            print(
+                f"[ontologylab] {state} document {entry.document.id} "
+                f"<- {entry.document.source_uri}"
             )
-            created_count += 1 if created else 0
-            provenance.log(
-                "collect.doc",
-                {
-                    "doc_id": doc.id,
-                    "source_uri": doc.source_uri,
-                    "created": created,
-                    "chars": len(raw.raw_text),
-                },
-            )
-            state = "new" if created else "duplicate"
-            print(f"[ontologylab] {state} document {doc.id} <- {doc.source_uri}")
-        provenance.log(
-            "collect.end", {"documents": len(raw_docs), "created": created_count}
-        )
     finally:
         store.close()
-    print(f"[ontologylab] collected {len(raw_docs)} document(s) ({created_count} new)")
+    print(
+        f"[ontologylab] collected {result.document_count} document(s) "
+        f"({result.created_count} new)"
+    )
     return 0
 
 

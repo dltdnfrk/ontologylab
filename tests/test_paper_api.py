@@ -71,11 +71,13 @@ CROSSREF_FIXTURE = """{
       {
         "DOI": "10.1145/1327452.1327492",
         "URL": "https://doi.org/10.1145/1327452.1327492",
+        "type": "journal-article",
         "title": ["MapReduce: simplified data processing on large clusters"],
         "abstract": "<jats:p>MapReduce is a <jats:italic>programming model</jats:italic> for processing large data sets.</jats:p>"
       },
       {
         "DOI": "10.1109/tse.1976.233837",
+        "type": "journal-article",
         "title": ["A Complexity Measure"],
         "abstract": "Describes a graph-theoretic complexity measure for programs."
       },
@@ -97,6 +99,8 @@ def test_parse_crossref_extracts_items_and_strips_markup():
     assert "<jats:" not in first.raw_text
     assert "programming model for processing" in first.raw_text
     assert first.source_uri == "https://doi.org/10.1145/1327452.1327492"
+    assert first.source == "crossref"
+    assert first.evidence_grade == "peer_reviewed"
     # second item has no URL -> source_uri synthesized from DOI
     assert second.source_uri == "https://doi.org/10.1109/tse.1976.233837"
 
@@ -242,8 +246,50 @@ def test_cli_collect_crossref_source_inserts_documents(
         docs = store.list_documents()
         assert len(docs) == 2
         assert all(d.source_kind == "paper_api" for d in docs)
+        assert all(d.source == "crossref" for d in docs)
+        assert all(d.evidence_grade == "peer_reviewed" for d in docs)
+        assert {d.doi for d in docs} == {
+            "10.1145/1327452.1327492",
+            "10.1109/tse.1976.233837",
+        }
     finally:
         store.close()
+
+
+def test_cli_collect_passes_its_data_dir_to_paper_connector(
+    tmp_path, monkeypatch
+):
+    # Given: a connector that records the configuration context it receives.
+    seen: list[dict] = []
+
+    async def fake_fetch(self, source_spec):
+        seen.append(source_spec)
+        return []
+
+    monkeypatch.setattr(PaperApiConnector, "fetch", fake_fetch)
+    data_dir = tmp_path / "data"
+
+    # When: the CLI collects from a paper source.
+    code = run_cli(
+        "collect",
+        "--data-dir",
+        str(data_dir),
+        "--paper-source",
+        "crossref",
+        "--paper-query",
+        "databases",
+    )
+
+    # Then: keyed-source resolution sees the active workspace, not None.
+    assert code == 0
+    assert seen == [
+        {
+            "source": "crossref",
+            "query": "databases",
+            "limit": 5,
+            "data_dir": data_dir,
+        }
+    ]
 
 
 def test_check_source_implemented_still_guards_unimplemented():

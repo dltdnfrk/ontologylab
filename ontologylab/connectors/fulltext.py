@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
+from dataclasses import replace
 from typing import Any
 from xml.etree.ElementTree import ParseError
 
@@ -176,14 +177,9 @@ def enrich_with_fulltext(
         stats["fetched"] += 1
         title = document.title or ""
         enriched.append(
-            RawDocument(
-                source_kind=document.source_kind,
-                source_uri=document.source_uri,
-                title=document.title,
+            replace(
+                document,
                 raw_text=f"{title}\n\n{body}" if title else body,
-                doi=document.doi,
-                pdf_url=document.pdf_url,
-                fulltext_url=document.fulltext_url,
             )
         )
     return enriched, stats

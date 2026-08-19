@@ -1,5 +1,6 @@
 """KG store invariants: entity resolution, the human gate, read-only packs."""
 
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -410,3 +411,71 @@ def test_read_only_store_refuses_writes(tmp_path, store, doc):
             )
     finally:
         ro.close()
+
+
+def test_same_doi_with_changed_body_is_one_document(tmp_path):
+    # Given: the same paper arrives once as an abstract and later as full text.
+    store = KGStore.open(tmp_path / "kg.sqlite")
+    first, first_created = store.insert_document(
+        source_kind="paper_api",
+        source_uri="https://doi.org/10.1000/example",
+        title="Paper",
+        raw_text="Abstract only.",
+        content_hash="sha256:abstract",
+        doi="10.1000/example",
+    )
+
+    # When: the second representation has different bytes but the same DOI.
+    second, second_created = store.insert_document(
+        source_kind="paper_api",
+        source_uri="https://doi.org/10.1000/example",
+        title="Paper",
+        raw_text="Full text with substantially more evidence.",
+        content_hash="sha256:fulltext",
+        doi="10.1000/example",
+    )
+
+    # Then: DOI identity wins over representation bytes.
+    assert first_created is True
+    assert second_created is False
+    assert second.id == first.id
+    assert second.doi == "10.1000/example"
+    assert len(store.list_documents()) == 1
+    store.close()
+
+
+def test_existing_store_gains_doi_identity(tmp_path):
+    # Given: a database created before DOI persistence existed.
+    path = tmp_path / "kg.sqlite"
+    store = KGStore.open(path)
+    store.close()
+    conn = sqlite3.connect(path)
+    conn.execute("DROP INDEX idx_documents_doi")
+    conn.execute("ALTER TABLE documents DROP COLUMN doi")
+    conn.commit()
+    conn.close()
+
+    # When: the current store opens and migrates it.
+    migrated = KGStore.open(path)
+    first, _ = migrated.insert_document(
+        source_kind="paper_api",
+        source_uri="https://doi.org/10.1000/legacy",
+        title="Legacy",
+        raw_text="Old abstract.",
+        content_hash="sha256:legacy-a",
+        doi="https://doi.org/10.1000/LEGACY",
+    )
+    duplicate, created = migrated.insert_document(
+        source_kind="paper_api",
+        source_uri="https://doi.org/10.1000/legacy",
+        title="Legacy",
+        raw_text="Changed body.",
+        content_hash="sha256:legacy-b",
+        doi="10.1000/legacy",
+    )
+
+    # Then: migration added normalized DOI identity before either write.
+    assert created is False
+    assert duplicate.id == first.id
+    assert first.doi == "10.1000/legacy"
+    migrated.close()

@@ -32,6 +32,7 @@ class Document:
     # anyone reviewed the paper.
     source: str = ""
     evidence_grade: str = ""
+    doi: str | None = None
 
 
 @dataclass

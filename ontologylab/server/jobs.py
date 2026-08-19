@@ -44,6 +44,7 @@ from ontologylab.extractor import (
     extraction_doc_ids,
     run_extraction,
 )
+from ontologylab.ingestion import ingest_documents
 
 # A research run where every source failed. Returned by `_research_async`
 # instead of "" so the terminal transition can call it what it is — storing
@@ -890,32 +891,11 @@ class JobRegistry:
                 job.log("[ontologylab] cancelled before storing documents")
                 return job.cancel_reason()
 
-            doc_ids: list[str] = []
-            created_count = 0
-            for raw in raw_docs:
-                doc, created = store.insert_document(
-                    source_kind=raw.source_kind,
-                    source_uri=raw.source_uri,
-                    title=raw.title,
-                    raw_text=raw.raw_text,
-                    content_hash=raw.content_hash,
-                    source=raw.source,
-                    evidence_grade=raw.evidence_grade,
-                )
-                doc_ids.append(doc.id)
-                created_count += 1 if created else 0
-                provenance.log(
-                    "collect.doc",
-                    {"doc_id": doc.id, "source_uri": doc.source_uri,
-                     "created": created, "chars": len(raw.raw_text)},
-                )
-            provenance.log(
-                "collect.end",
-                {"documents": len(raw_docs), "created": created_count},
-            )
+            result = ingest_documents(store, raw_docs, provenance)
+            doc_ids = list(result.document_ids)
             job.log(
-                f"[ontologylab] stored {created_count} new document(s), "
-                f"{len(raw_docs) - created_count} already known"
+                f"[ontologylab] stored {result.created_count} new document(s), "
+                f"{result.duplicate_count} already known"
             )
 
             if not doc_ids:
@@ -980,7 +960,7 @@ class JobRegistry:
                 totals = dict(job.totals)
             provenance.log(
                 "research.end",
-                {"documents": len(raw_docs), "created": created_count,
+                {"documents": len(raw_docs), "created": result.created_count,
                  "totals": totals, "stopped": stopped_reason},
             )
             if stopped_reason:
