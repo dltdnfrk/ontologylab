@@ -1,0 +1,96 @@
+=== MUTATION CHECK: routes.py reverted to HEAD (expected failures) ===
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 2 items
+
+tests/test_bitemporal.py FF                                              [100%]
+
+=================================== FAILURES ===================================
+_____________________________ test_invalidate_api ______________________________
+
+client = <starlette.testclient.TestClient object at 0x10a387c50>
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-14571/test_invalidate_api0')
+
+    def test_invalidate_api(client, tmp_path):
+        from ontologylab.paths import kg_db_path
+    
+        store = KGStore.open(kg_db_path(tmp_path / "data"))
+        doc, _ = store.insert_document(
+            source_kind="upload", source_uri="file:///x", title="x",
+            raw_text="ApiGateway RateLimiter", content_hash="sha256:x",
+        )
+        edge_id = _seed_verified_edge(store, doc)
+        store.close()
+    
+        res = client.post(f"/api/edges/{edge_id}/invalidate",
+                          json={"note": "superseded"})
+>       assert res.status_code == 200 and res.json()["ok"] is True
+E       assert (422 == 200)
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_bitemporal.py:233: AssertionError
+_____________________ test_invalidate_api_body_needs_no_id _____________________
+
+client = <starlette.testclient.TestClient object at 0x10a3a1b20>
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-14571/test_invalidate_api_body_needs0')
+
+    def test_invalidate_api_body_needs_no_id(client, tmp_path):
+        """The dashboard sends only {note}; the id already lives in the URL path.
+    
+        Regression: the route used to bind ProposalAction, whose `id` field is
+        required, so the UI's {note}-only request always answered 422 and the
+        invalidation never landed. The id is never read from the body.
+        """
+        from ontologylab.paths import kg_db_path
+    
+        store = KGStore.open(kg_db_path(tmp_path / "data"))
+        doc, _ = store.insert_document(
+            source_kind="upload", source_uri="file:///x", title="x",
+            raw_text="ApiGateway RateLimiter", content_hash="sha256:x",
+        )
+        edge_id = _seed_verified_edge(store, doc)
+        store.close()
+    
+        res = client.post(f"/api/edges/{edge_id}/invalidate",
+                          json={"note": "superseded"})
+>       assert res.status_code == 200, res.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","id"],"msg":"Field required"}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_bitemporal.py:260: AssertionError
+=============================== warnings summary ===============================
+tests/test_bitemporal.py::test_invalidate_api
+  /Users/hyunjun/Documents/MUNI/ontologylab/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_bitemporal.py::test_invalidate_api - assert (422 == 200)
+FAILED tests/test_bitemporal.py::test_invalidate_api_body_needs_no_id - Asser...
+========================= 2 failed, 1 warning in 0.23s =========================
+
+=== RESTORE: diff -q ontologylab/server/routes.py /private/tmp/g002-routes.py ===
+Files are identical
+
+=== pytest after restore (expected passes) ===
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 2 items
+
+tests/test_bitemporal.py ..                                              [100%]
+
+=============================== warnings summary ===============================
+tests/test_bitemporal.py::test_invalidate_api
+  /Users/hyunjun/Documents/MUNI/ontologylab/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================= 2 passed, 1 warning in 0.23s =========================

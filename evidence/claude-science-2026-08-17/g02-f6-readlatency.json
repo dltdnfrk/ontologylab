@@ -1,0 +1,63 @@
+{
+  "gate": "F6-read-latency",
+  "reads": [
+    {
+      "path": "/api/merge/candidates",
+      "http": 503,
+      "elapsed_s": 30.954,
+      "error_kind": "busy",
+      "retry_after": "2"
+    },
+    {
+      "path": "/api/proposals",
+      "http": 503,
+      "elapsed_s": 31.021,
+      "error_kind": "busy",
+      "retry_after": "2"
+    },
+    {
+      "path": "/api/packs",
+      "http": 200,
+      "elapsed_s": 0.153,
+      "error_kind": null,
+      "retry_after": null
+    },
+    {
+      "path": "/api/health",
+      "http": 404,
+      "elapsed_s": 0.002,
+      "error_kind": null,
+      "retry_after": null
+    },
+    {
+      "path": "/api/jobs",
+      "http": 200,
+      "elapsed_s": 0.002,
+      "error_kind": null,
+      "retry_after": null
+    }
+  ],
+  "baseline_unlocked": {
+    "http": 200,
+    "elapsed_s": 0.028
+  },
+  "after_unlock": {
+    "http": 200,
+    "elapsed_s": 0.005
+  },
+  "finding": {
+    "reads_refused_under_write_lock": [
+      "/api/merge/candidates",
+      "/api/proposals"
+    ],
+    "reads_still_served": [
+      "/api/packs",
+      "/api/jobs"
+    ],
+    "any_read_waited_over_5s": [
+      "/api/merge/candidates",
+      "/api/proposals"
+    ],
+    "character": "slow-block"
+  }
+}

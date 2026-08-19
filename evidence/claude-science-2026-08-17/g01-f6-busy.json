@@ -1,0 +1,150 @@
+{
+  "gate": "F6",
+  "db": "/private/tmp/olab-cs-ev-eb405f34/data/kg.sqlite",
+  "steps": [
+    {
+      "control": "invalidate (무효화)",
+      "path": "/api/edges/c4a25e00e9d1436a8452367a061a9964/invalidate",
+      "http_status": 503,
+      "retry_after_header": "2",
+      "body": {
+        "ok": false,
+        "error_kind": "busy",
+        "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+      },
+      "durable_after": {
+        "edge_invalidated_ts": null,
+        "edge_invalidation_reason": null,
+        "edge_status": "verified",
+        "merge_candidate_status": "proposed",
+        "dismiss_candidate_status": "proposed"
+      },
+      "durable_unchanged": true,
+      "verdict": "PASS"
+    },
+    {
+      "control": "merge (유지)",
+      "path": "/api/merge/candidates/649da5bce4b242adb0cf5b737402a569/merge",
+      "http_status": 503,
+      "retry_after_header": "2",
+      "body": {
+        "ok": false,
+        "error_kind": "busy",
+        "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+      },
+      "durable_after": {
+        "edge_invalidated_ts": null,
+        "edge_invalidation_reason": null,
+        "edge_status": "verified",
+        "merge_candidate_status": "proposed",
+        "dismiss_candidate_status": "proposed"
+      },
+      "durable_unchanged": true,
+      "verdict": "PASS"
+    },
+    {
+      "control": "dismiss (중복 아님)",
+      "path": "/api/merge/candidates/eee391422ce14d669cac14deddd628b3/dismiss",
+      "http_status": 503,
+      "retry_after_header": "2",
+      "body": {
+        "ok": false,
+        "error_kind": "busy",
+        "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+      },
+      "durable_after": {
+        "edge_invalidated_ts": null,
+        "edge_invalidation_reason": null,
+        "edge_status": "verified",
+        "merge_candidate_status": "proposed",
+        "dismiss_candidate_status": "proposed"
+      },
+      "durable_unchanged": true,
+      "verdict": "PASS"
+    }
+  ],
+  "probes": [
+    {
+      "probe": "P1 read-under-write-lock stays available",
+      "http_status": 503,
+      "verdict": "FAIL"
+    },
+    {
+      "probe": "P2 503 body leaks no sqlite internals/path",
+      "leaks": [],
+      "verdict": "PASS"
+    },
+    {
+      "probe": "P3 five rapid repeat clicks under lock: no partial write",
+      "statuses": [
+        503,
+        503,
+        503,
+        503,
+        503
+      ],
+      "durable_unchanged": true,
+      "verdict": "PASS"
+    }
+  ],
+  "seed": {
+    "edge_id": "c4a25e00e9d1436a8452367a061a9964",
+    "merge_candidate": {
+      "id": "649da5bce4b242adb0cf5b737402a569",
+      "score": 0.9523809523809523,
+      "node_a": {
+        "id": "a75783fcd3324683880a01a395d35be2",
+        "name": "MergeAlpha"
+      },
+      "node_b": {
+        "id": "a81c45a09ee84ca49e40e87d76d1600b",
+        "name": "MergeAlphaa"
+      }
+    },
+    "dismiss_candidate": {
+      "id": "eee391422ce14d669cac14deddd628b3",
+      "score": 0.9473684210526315,
+      "node_a": {
+        "id": "528c36de5f124cf1a081bbde7767a4b4",
+        "name": "MergeBeta"
+      },
+      "node_b": {
+        "id": "63a08708d2644f15ae6d5863662e9ea9",
+        "name": "MergeBetaa"
+      }
+    }
+  },
+  "durable_before": {
+    "edge_invalidated_ts": null,
+    "edge_invalidation_reason": null,
+    "edge_status": "verified",
+    "merge_candidate_status": "proposed",
+    "dismiss_candidate_status": "proposed"
+  },
+  "preflight": {
+    "merge_candidates_http": 200
+  },
+  "lock_proof": {
+    "held": true,
+    "error": "database is locked"
+  },
+  "after_unlock": {
+    "http_status": 200,
+    "body": {
+      "ok": true,
+      "id": "c4a25e00e9d1436a8452367a061a9964",
+      "invalidated_ts": 1786973710.7929401,
+      "invalidated_by": "local-user",
+      "reason": "after unlock"
+    },
+    "durable": {
+      "edge_invalidated_ts": 1786973710.7929401,
+      "edge_invalidation_reason": "after unlock",
+      "edge_status": "verified",
+      "merge_candidate_status": "proposed",
+      "dismiss_candidate_status": "proposed"
+    },
+    "verdict": "PASS"
+  },
+  "overall": "FAIL"
+}

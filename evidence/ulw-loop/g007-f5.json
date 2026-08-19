@@ -1,0 +1,402 @@
+{
+  "task_id": "st_01a00b4d",
+  "goal": "G007 / F5 structured 422 rendering and [object Object] hunt",
+  "captured_at": "2026-08-17T01:13:57.421818+09:00",
+  "overall_verdict": "PASS",
+  "scenarios": {
+    "pack_build_name_traversal": {
+      "verdict": "PASS",
+      "checks": {
+        "actual_real_control_submitted": true,
+        "mutation_observer_armed_before_click": true,
+        "http_422": true,
+        "structured_detail_array": true,
+        "rendered_field": true,
+        "rendered_validation_message": true,
+        "object_object_result_box_zero": true,
+        "object_object_page_inner_text_zero": true,
+        "object_object_full_page_html_zero": true,
+        "terminal_not_loading": true
+      },
+      "capture": {
+        "route": "packs tab -> #pack-name -> actual #pack-build-submit",
+        "mutationObserverInstalledBeforeClick": true,
+        "terminalSentinel": "#ulw-g007-pack-terminal",
+        "submittedName": "../outside",
+        "network": [
+          {
+            "url": "/api/packs/build",
+            "method": "POST",
+            "requestBodyRaw": "{\"name\":\"../outside\",\"allow_incomplete_extraction\":false,\"override_intent\":null}",
+            "requestBody": {
+              "name": "../outside",
+              "allow_incomplete_extraction": false,
+              "override_intent": null
+            },
+            "httpStatus": 422,
+            "responseOk": false,
+            "responseBodyRaw": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\",\"name\"],\"msg\":\"Value error, invalid pack name '../outside': use only letters, digits, '.', '_', '-' (no path separators)\"}]}",
+            "body": {
+              "detail": [
+                {
+                  "type": "value_error",
+                  "loc": [
+                    "body",
+                    "name"
+                  ],
+                  "msg": "Value error, invalid pack name '../outside': use only letters, digits, '.', '_', '-' (no path separators)"
+                }
+              ]
+            }
+          }
+        ],
+        "resultBoxHidden": false,
+        "resultBoxText": "name: Value error, invalid pack name '../outside': use only letters, digits, '.', '_', '-' (no path separators)",
+        "resultBoxHtml": "name: Value error, invalid pack name '../outside': use only letters, digits, '.', '_', '-' (no path separators)",
+        "fieldFromEnvelope": "name",
+        "messageFromEnvelope": "Value error, invalid pack name '../outside': use only letters, digits, '.', '_', '-' (no path separators)",
+        "mentionsFieldName": true,
+        "mentionsValidationMessage": true,
+        "objectObjectOccurrences": {
+          "resultBoxText": 0,
+          "pageInnerText": 0,
+          "fullPageInnerHTML": 0
+        },
+        "loadingPlaceholderPresent": false
+      }
+    },
+    "extraction_seed_integer_overflow": {
+      "verdict": "PASS",
+      "checks": {
+        "actual_real_control_submitted": true,
+        "mutation_observer_armed_before_click": true,
+        "http_422": true,
+        "structured_detail_array": true,
+        "rendered_field": true,
+        "rendered_validation_message": true,
+        "object_object_result_box_zero": true,
+        "object_object_page_inner_text_zero": true,
+        "object_object_full_page_html_zero": true,
+        "terminal_not_loading": true
+      },
+      "capture": {
+        "route": "sources tab -> extraction details -> #extract-seed -> actual #extract-submit",
+        "mutationObserverInstalledBeforeClick": true,
+        "terminalSentinel": "#ulw-g007-extract-terminal",
+        "submittedSeed": "99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+        "submittedSeedLength": 308,
+        "network": [
+          {
+            "url": "/api/extract",
+            "method": "POST",
+            "requestBodyRaw": "{\"engine\":\"mock\",\"model\":null,\"doc_ids\":[],\"seed\":1e+308}",
+            "requestBody": {
+              "engine": "mock",
+              "model": null,
+              "doc_ids": [],
+              "seed": 1e+308
+            },
+            "httpStatus": 422,
+            "responseOk": false,
+            "responseBodyRaw": "{\"detail\":[{\"type\":\"int_parsing_size\",\"loc\":[\"body\",\"seed\"],\"msg\":\"Unable to parse input string as an integer, exceeded maximum size\"}]}",
+            "body": {
+              "detail": [
+                {
+                  "type": "int_parsing_size",
+                  "loc": [
+                    "body",
+                    "seed"
+                  ],
+                  "msg": "Unable to parse input string as an integer, exceeded maximum size"
+                }
+              ]
+            }
+          }
+        ],
+        "resultBoxHidden": false,
+        "resultBoxText": "seed: Unable to parse input string as an integer, exceeded maximum size",
+        "resultBoxHtml": "seed: Unable to parse input string as an integer, exceeded maximum size",
+        "fieldFromEnvelope": "seed",
+        "messageFromEnvelope": "Unable to parse input string as an integer, exceeded maximum size",
+        "mentionsFieldName": true,
+        "mentionsValidationMessage": true,
+        "objectObjectOccurrences": {
+          "resultBoxText": 0,
+          "pageInnerText": 0,
+          "fullPageInnerHTML": 0
+        },
+        "loadingPlaceholderPresent": false
+      },
+      "probe_note": "The actual unconstrained seed number input accepted 308 digits; production toInt serialized it as 1e+308, reaching ExtractRequest validation as a structured 422 on seed."
+    }
+  },
+  "method": {
+    "surface": "real OntologyLab dashboard driven through Aside CLI",
+    "server": {
+      "ready": true,
+      "attempt": 5,
+      "http_status": 200,
+      "url": "http://127.0.0.1:49607/",
+      "pid": 81607
+    },
+    "good_pack": {
+      "supported_seed_path": "KGStore.open(kg_db_path(data)) + tests.conftest.insert + tests.factories.make_entity/make_relation; explicit node/edge approvals",
+      "supported_build_path": "POST /api/packs/build",
+      "seed_stdout": "SEEDED document=bd951eb4f73a46c1ba78c5a4274ef386 nodes=c1c04f2d575a459285e40a72bfb1f990,ac94722981af426db4bf73874e7dc06f edge=7a4621b6252f4a27b5933dcc79f7216b",
+      "build_receipt": {
+        "build_request": {
+          "name": "good-pack",
+          "allow_incomplete_extraction": true,
+          "override_intent": "G007/G008 supported disposable QA fixture"
+        },
+        "build_http_status": 200,
+        "build_response": {
+          "ok": true,
+          "manifest": {
+            "pack_id": "good-pack-20260817-010435",
+            "created_ts": 1786896275.8942342,
+            "schema_version_id": 1,
+            "schema_label": "software-docs-v1",
+            "source_job_id": "build-pack-20260817-010435",
+            "counts": {
+              "documents": 1,
+              "nodes_verified": 2,
+              "edges_verified": 1,
+              "entity_types": 3,
+              "relation_types": 3,
+              "communities": 1,
+              "ontology_terms_reviewed": 6,
+              "term_aliases_reviewed": 0,
+              "term_xrefs_reviewed": 0
+            },
+            "search_tier": "fts5",
+            "embedding_model": null,
+            "ontologylab_version": "0.1.0",
+            "content_hash": "sha256:7d298cdd29cf764997d5762a27c4bce0f099e2ef85867c71aaccda77fc16eecb",
+            "basis_commit": "0108c370908ac1463e08c4063ec54e3dac37e2b3",
+            "staleness_policy": {
+              "pending_verified_count_threshold": 0,
+              "description": "pending_verified_count is a backward-compatible count-difference advisory, not semantic truth. Semantic additions, invalidations, and replacements are authoritative; any nonzero delta recommends rebuilding."
+            },
+            "extraction_completeness": {
+              "status": "incomplete",
+              "relevant_stream_count": 1,
+              "relevant_document_ids": [
+                "bd951eb4f73a46c1ba78c5a4274ef386"
+              ],
+              "unknown_streams": [
+                {
+                  "document_id": "bd951eb4f73a46c1ba78c5a4274ef386",
+                  "document_content_hash": "sha256:g007-g008-fixture",
+                  "schema_version_id": 1,
+                  "extractor_engine": "mock",
+                  "extractor_model": "",
+                  "prompt_version": "extract-v1",
+                  "decode_params": "null"
+                }
+              ],
+              "incomplete_streams": [],
+              "run_status_counts": {},
+              "chunk_status_counts": {},
+              "override": {
+                "used": true,
+                "operator_intent": "G007/G008 supported disposable QA fixture"
+              }
+            },
+            "semantic_fact_baseline": {
+              "version": 1,
+              "fingerprint_algorithm": "sha256-canonical-json-v1",
+              "source": "pack.sqlite"
+            },
+            "included_schema_version_ids": [
+              1
+            ],
+            "ontology_publication": {
+              "version": 1,
+              "review_boundary": "explicit-current-review-fields-v1",
+              "xref_verification": "complete-source-license-contract-v1",
+              "license_modes": [
+                "allow",
+                "identifier-only",
+                "deny-text"
+              ],
+              "external_descriptive_text": "not-in-term-xref-schema"
+            },
+            "methodology": null,
+            "capabilities": [
+              "knowledge-graph-v1"
+            ]
+          }
+        },
+        "good_pack_id": "good-pack-20260817-010435",
+        "fixture_dirs": [
+          "bad-a-no-packid",
+          "bad-b-array-manifest",
+          "bad-c-broken-sqlite"
+        ]
+      }
+    },
+    "malformed_fixture_scan_before_browser": {
+      "pack_ids": [
+        "good-pack-20260817-010435"
+      ],
+      "unusable": [
+        {
+          "pack_dir": "bad-a-no-packid",
+          "reason": "manifest.json has no usable 'pack_id'"
+        },
+        {
+          "pack_dir": "bad-b-array-manifest",
+          "reason": "manifest.json must be a JSON object, got list"
+        },
+        {
+          "pack_dir": "bad-c-broken-sqlite",
+          "reason": "pack.sqlite is not a usable pack database: file is not a database"
+        }
+      ]
+    },
+    "waits": "MutationObserver predicates created terminal sentinels before each real control click; assertions require active surface to contain no 불러오는 중… placeholder; no fixed sleep gated UI assertions."
+  },
+  "raw_aside_capture": {
+    "tag": "G007_LIVE",
+    "json": {
+      "scenario": "G007",
+      "packBuildValidation": {
+        "route": "packs tab -> #pack-name -> actual #pack-build-submit",
+        "mutationObserverInstalledBeforeClick": true,
+        "terminalSentinel": "#ulw-g007-pack-terminal",
+        "submittedName": "../outside",
+        "network": [
+          {
+            "url": "/api/packs/build",
+            "method": "POST",
+            "requestBodyRaw": "{\"name\":\"../outside\",\"allow_incomplete_extraction\":false,\"override_intent\":null}",
+            "requestBody": {
+              "name": "../outside",
+              "allow_incomplete_extraction": false,
+              "override_intent": null
+            },
+            "httpStatus": 422,
+            "responseOk": false,
+            "responseBodyRaw": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\",\"name\"],\"msg\":\"Value error, invalid pack name '../outside': use only letters, digits, '.', '_', '-' (no path separators)\"}]}",
+            "body": {
+              "detail": [
+                {
+                  "type": "value_error",
+                  "loc": [
+                    "body",
+                    "name"
+                  ],
+                  "msg": "Value error, invalid pack name '../outside': use only letters, digits, '.', '_', '-' (no path separators)"
+                }
+              ]
+            }
+          }
+        ],
+        "resultBoxHidden": false,
+        "resultBoxText": "name: Value error, invalid pack name '../outside': use only letters, digits, '.', '_', '-' (no path separators)",
+        "resultBoxHtml": "name: Value error, invalid pack name '../outside': use only letters, digits, '.', '_', '-' (no path separators)",
+        "fieldFromEnvelope": "name",
+        "messageFromEnvelope": "Value error, invalid pack name '../outside': use only letters, digits, '.', '_', '-' (no path separators)",
+        "mentionsFieldName": true,
+        "mentionsValidationMessage": true,
+        "objectObjectOccurrences": {
+          "resultBoxText": 0,
+          "pageInnerText": 0,
+          "fullPageInnerHTML": 0
+        },
+        "loadingPlaceholderPresent": false
+      },
+      "extractionValidation": {
+        "route": "sources tab -> extraction details -> #extract-seed -> actual #extract-submit",
+        "mutationObserverInstalledBeforeClick": true,
+        "terminalSentinel": "#ulw-g007-extract-terminal",
+        "submittedSeed": "99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+        "submittedSeedLength": 308,
+        "network": [
+          {
+            "url": "/api/extract",
+            "method": "POST",
+            "requestBodyRaw": "{\"engine\":\"mock\",\"model\":null,\"doc_ids\":[],\"seed\":1e+308}",
+            "requestBody": {
+              "engine": "mock",
+              "model": null,
+              "doc_ids": [],
+              "seed": 1e+308
+            },
+            "httpStatus": 422,
+            "responseOk": false,
+            "responseBodyRaw": "{\"detail\":[{\"type\":\"int_parsing_size\",\"loc\":[\"body\",\"seed\"],\"msg\":\"Unable to parse input string as an integer, exceeded maximum size\"}]}",
+            "body": {
+              "detail": [
+                {
+                  "type": "int_parsing_size",
+                  "loc": [
+                    "body",
+                    "seed"
+                  ],
+                  "msg": "Unable to parse input string as an integer, exceeded maximum size"
+                }
+              ]
+            }
+          }
+        ],
+        "resultBoxHidden": false,
+        "resultBoxText": "seed: Unable to parse input string as an integer, exceeded maximum size",
+        "resultBoxHtml": "seed: Unable to parse input string as an integer, exceeded maximum size",
+        "fieldFromEnvelope": "seed",
+        "messageFromEnvelope": "Unable to parse input string as an integer, exceeded maximum size",
+        "mentionsFieldName": true,
+        "mentionsValidationMessage": true,
+        "objectObjectOccurrences": {
+          "resultBoxText": 0,
+          "pageInnerText": 0,
+          "fullPageInnerHTML": 0
+        },
+        "loadingPlaceholderPresent": false
+      },
+      "asidePageClose": {
+        "closeCalled": true
+      }
+    },
+    "stdout_sha256": "sha256:caec01fccb28411896e3af157b8198f2ec856939bbd7eac0b7fd46e318560e58"
+  },
+  "defects": [],
+  "cleanup": {
+    "server": {
+      "pid": 81607,
+      "command_before": ".venv/bin/python -m ontologylab.serve --host 127.0.0.1 --port 49607 --data-dir /private/tmp/ulw-trial-2/data --packs-dir /private/tmp/ulw-trial-2/packs",
+      "signal": "TERM",
+      "kill_0_fails": true,
+      "port": 49607,
+      "listener_absent": true
+    },
+    "control": {
+      "pid": 95530,
+      "command_before": ".venv/bin/python /private/tmp/ulw-trial-2/delete_server.py /private/tmp/ulw-trial-2 81607 50122",
+      "signal": "TERM",
+      "kill_0_fails": true,
+      "port": 50122,
+      "listener_absent": true
+    },
+    "forced_kill_pids": [],
+    "protected_processes_untouched": {
+      "55560_alive": true,
+      "70970_alive": true,
+      "protected_port_8799_listening": true
+    },
+    "aside": {
+      "g007_before": "G007_TAB_BEFORE \"no-open-tabs\"\n\u001b[2m[ok | 76ms]\u001b[0m",
+      "g008_before": "G008_COMBINED_TAB_BEFORE \"no-open-tabs\"\n\u001b[2m[ok | 23ms]\u001b[0m",
+      "final_check": "FINAL_TAB_CHECK \"no-open-tabs\"\n\u001b[2m[ok | 26ms]\u001b[0m",
+      "g007_close_called": true,
+      "g008_close_called": true,
+      "all_tabs_closed": true
+    },
+    "trial_path": "/private/tmp/ulw-trial-2",
+    "trial_removed": true,
+    "protected_real_data_dir_never_used": "/Users/hyunjun/Library/Application Support/ontologylab",
+    "protected_port_8799_never_bound": true,
+    "no_git_commit": true
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "gate": "F4+F3",
+  "packs_dir": "/private/tmp/olab-cs-ev-d99efd2d/packs",
+  "f4": {
+    "initialize": {
+      "server": {
+        "name": "ontologylab",
+        "version": "1"
+      },
+      "protocol": "2024-11-05"
+    },
+    "baseline_query_ok": true,
+    "tamper": {
+      "pack_id": "cs-tampered-20260817-223613",
+      "same_byte_length": true,
+      "hash_before": "fa77e1e495ea6b7b",
+      "hash_after": "70de4ca31cf68747",
+      "hash_changed": true
+    },
+    "load_pack": {
+      "refused": true,
+      "mentions_integrity": true,
+      "response_excerpt": "{\"jsonrpc\": \"2.0\", \"id\": 3, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"pack 'cs-tampered-20260817-223613' failed integrity verification: pack.sqlite hash mismatch (manifest sha256:fa77e1e495ea6b7b079a1739df9e9473005a26f327638c9992c461ae9d611b04, actual sha256:70de4ca31cf687472af0097cd3cb11261c4422b46fe947fb59c78fb2502d3570); the pack was tampered with or corrupted — rebuild it from the worki",
+      "verdict": "PASS"
+    },
+    "get_schema": {
+      "refused": true,
+      "mentions_integrity": true,
+      "response_excerpt": "{\"jsonrpc\": \"2.0\", \"id\": 4, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"pack 'cs-tampered-20260817-223613' failed integrity verification: pack.sqlite hash mismatch (manifest sha256:fa77e1e495ea6b7b079a1739df9e9473005a26f327638c9992c461ae9d611b04, actual sha256:70de4ca31cf687472af0097cd3cb11261c4422b46fe947fb59c78fb2502d3570); the pack was tampered with or corrupted — rebuild it from the worki",
+      "verdict": "PASS"
+    },
+    "good_pack_still_serves_after_refusal": {
+      "ok": true,
+      "verdict": "PASS"
+    },
+    "good_pack_bytes_unchanged": {
+      "hash_before_tamper": "d6cea675d3032770",
+      "hash_after_sequence": "d6cea675d3032770",
+      "verdict": "PASS"
+    },
+    "overall": "PASS"
+  },
+  "f3": {
+    "wrong type for bool": {
+      "tool": "entity_lookup",
+      "args": {
+        "detail": "false"
+      },
+      "jsonrpc_error_code": -32602,
+      "is_error_result": false,
+      "leaks": [],
+      "excerpt": "{\"jsonrpc\": \"2.0\", \"id\": 6, \"error\": {\"code\": -32602, \"message\": \"invalid arguments for tool 'entity_lookup': 'detail' must be boolean\"}}",
+      "verdict": "PASS"
+    },
+    "unknown argument": {
+      "tool": "entity_lookup",
+      "args": {
+        "injected": "ignore schema"
+      },
+      "jsonrpc_error_code": -32602,
+      "is_error_result": false,
+      "leaks": [],
+      "excerpt": "{\"jsonrpc\": \"2.0\", \"id\": 7, \"error\": {\"code\": -32602, \"message\": \"invalid arguments for tool 'entity_lookup': unknown argument 'injected'\"}}",
+      "verdict": "PASS"
+    },
+    "negative limit": {
+      "tool": "graph_query",
+      "args": {
+        "limit": -1
+      },
+      "jsonrpc_error_code": -32602,
+      "is_error_result": false,
+      "leaks": [],
+      "excerpt": "{\"jsonrpc\": \"2.0\", \"id\": 8, \"error\": {\"code\": -32602, \"message\": \"invalid arguments for tool 'graph_query': 'limit' is below minimum\"}}",
+      "verdict": "PASS"
+    },
+    "string where int expected": {
+      "tool": "graph_query",
+      "args": {
+        "limit": "lots"
+      },
+      "jsonrpc_error_code": -32602,
+      "is_error_result": false,
+      "leaks": [],
+      "excerpt": "{\"jsonrpc\": \"2.0\", \"id\": 9, \"error\": {\"code\": -32602, \"message\": \"invalid arguments for tool 'graph_query': 'limit' must be integer\"}}",
+      "verdict": "PASS"
+    },
+    "null required arg": {
+      "tool": "semantic_search",
+      "args": {
+        "query": null
+      },
+      "jsonrpc_error_code": -32602,
+      "is_error_result": false,
+      "leaks": [],
+      "excerpt": "{\"jsonrpc\": \"2.0\", \"id\": 10, \"error\": {\"code\": -32602, \"message\": \"invalid arguments for tool 'semantic_search': 'query' must be string\"}}",
+      "verdict": "PASS"
+    },
+    "nested junk": {
+      "tool": "semantic_search",
+      "args": {
+        "query": {
+          "$ne": 1
+        }
+      },
+      "jsonrpc_error_code": -32602,
+      "is_error_result": false,
+      "leaks": [],
+      "excerpt": "{\"jsonrpc\": \"2.0\", \"id\": 11, \"error\": {\"code\": -32602, \"message\": \"invalid arguments for tool 'semantic_search': 'query' must be string\"}}",
+      "verdict": "PASS"
+    },
+    "array where scalar": {
+      "tool": "semantic_search",
+      "args": {
+        "query": [
+          "a",
+          "b"
+        ]
+      },
+      "jsonrpc_error_code": -32602,
+      "is_error_result": false,
+      "leaks": [],
+      "excerpt": "{\"jsonrpc\": \"2.0\", \"id\": 12, \"error\": {\"code\": -32602, \"message\": \"invalid arguments for tool 'semantic_search': 'query' must be string\"}}",
+      "verdict": "PASS"
+    },
+    "_still_responsive": {
+      "ping": {
+        "jsonrpc": "2.0",
+        "id": 13,
+        "result": {}
+      },
+      "verdict": "PASS"
+    },
+    "_valid_call_still_works": {
+      "ok": true,
+      "verdict": "PASS"
+    },
+    "overall": "PASS"
+  },
+  "overall": "PASS"
+}

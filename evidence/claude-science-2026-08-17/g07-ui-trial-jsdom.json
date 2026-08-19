@@ -1,0 +1,64 @@
+{
+  "results": [
+    {
+      "gate": "F5",
+      "name": "422 renders field + message, not [object Object]",
+      "verdict": "PASS",
+      "found_input": true,
+      "found_form": true,
+      "server_detail_shape": "array",
+      "rendered": "name: Value error, invalid pack name '../escape': use only letters, digits, '.', '_', '-' (no path separators)",
+      "is_object_object": false,
+      "names_field": true,
+      "names_reason": true
+    },
+    {
+      "gate": "F6",
+      "name": "invalidate: server refusal is a shaped {ok:false} 503 the UI can detect",
+      "verdict": "PASS",
+      "status": 503,
+      "retry_after": "2",
+      "body": {
+        "ok": false,
+        "error_kind": "busy",
+        "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+      }
+    },
+    {
+      "gate": "F6",
+      "name": "throwIfRefused throws on real 503, passes real 200, states retry seconds",
+      "verdict": "PASS",
+      "busy_threw": true,
+      "busy_msg": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment. — 2초 뒤에 다시 시도해주세요.",
+      "ok_threw": false,
+      "rendered_422": "name: Value error, invalid pack name '../escape': use only letters, digits, '.', '_', '-' (no path separators)"
+    },
+    {
+      "gate": "F5",
+      "name": "shared normalizer turns the real 422 array into field: message",
+      "verdict": "PASS",
+      "rendered_422": "name: Value error, invalid pack name '../escape': use only letters, digits, '.', '_', '-' (no path separators)"
+    },
+    {
+      "gate": "F7",
+      "name": "malformed pack is not served a run command",
+      "verdict": "PASS",
+      "server_usable_packs": [],
+      "server_unusable_count": 1,
+      "ui_mentions_malformed_id": false,
+      "ui_has_serve_command_for_it": false,
+      "settled": "\n  \n    \n      온톨로지랩\n    \n    \n    \n      >\n      이동 · 검색 · 리서치 주제\n      ⌘K\n    \n    \n      \n        \n        \n      \n      서버 연결 안 됨 ·\n        다시 시도\n    \n  \n\n "
+    },
+    {
+      "gate": "F1-UI",
+      "name": "partial extraction names survivors and does not claim 추출 완료",
+      "verdict": "PASS",
+      "partial_rendered": "실패 extraction engine failed — 그래도 여기까지 나온 제안은 남아 있어요. 개념 +2/~4 · 관계 +2/~1. 위 추출 양식으로 나머지를 다시 돌릴 수 있어요. 검토 →",
+      "total_rendered": "실패 extraction engine failed — 새로 나온 제안은 없어요. 위 추출 양식으로 다시 시도해주세요.",
+      "claims_complete": false,
+      "names_survivors": true,
+      "total_invents_results": false,
+      "total_says_none": true
+    }
+  ]
+}

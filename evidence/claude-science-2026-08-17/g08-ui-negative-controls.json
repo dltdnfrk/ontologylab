@@ -1,0 +1,23 @@
+{
+  "negative_controls": [
+    {
+      "control": "NC1 F5 old interpolation reproduces [object Object]",
+      "rendered": "빌드 실패: [object Object]",
+      "gate_would_fail": true,
+      "verdict": "CONTROL OK (gate discriminates)"
+    },
+    {
+      "control": "NC2 F6 old ok===undefined guard lets a real 503 pass silently",
+      "old_guard_threw": false,
+      "gate_would_fail": true,
+      "verdict": "CONTROL OK (gate discriminates)"
+    },
+    {
+      "control": "NC3 F1-UI removing the failed branch stops reporting survivors",
+      "patched": true,
+      "rendered": "(nothing rendered — survivors NOT reported)",
+      "gate_would_fail": true,
+      "verdict": "CONTROL OK (gate discriminates)"
+    }
+  ]
+}

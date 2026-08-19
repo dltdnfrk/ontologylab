@@ -1,0 +1,91 @@
+{
+  "gate": "F1+F2",
+  "f1": {
+    "engine_calls": 4,
+    "job_status": "failed",
+    "job_error": "extraction engine failed",
+    "durable_run_status": "failed",
+    "chunk_status_counts": {
+      "failed": 1,
+      "succeeded": 3
+    },
+    "failed_chunk_count": 1,
+    "progress_tail": [
+      "[ontologylab] engine error on 3c604ee9c34a4010bc8c691e83e06205#1: extraction engine failed",
+      "[ontologylab] 3c604ee9c34a4010bc8c691e83e06205#2: +0 nodes (+2 merged), +0 edges",
+      "[ontologylab] 3c604ee9c34a4010bc8c691e83e06205#3: +0 nodes (+2 merged), +1 edges",
+      "[ontologylab] extraction failed: extraction engine failed"
+    ],
+    "agrees": true,
+    "not_falsely_complete": true,
+    "verdict": "PASS"
+  },
+  "f2": {
+    "raw_engine_text_leak": {
+      "markers_found": [],
+      "job_snapshot_excerpt": "{\"job_id\": \"extract-20260817-223614\", \"kind\": \"extract\", \"status\": \"failed\", \"phase\": \"\", \"engine\": \"mock\", \"model\": null, \"started_ts\": 1786973774.386535, \"finished_ts\": 1786973774.4113228, \"totals\": {\"nodes_new\": 2, \"nodes_merged\": 4, \"edges_new\": 2, \"edges_merged\": 1}, \"sources\": [], \"progress\": [\"[ontologylab] 3c604ee9c34a4010bc8c691e83e06205#0: +2 nodes (+0 merged), +1 edges\", \"[ontologylab] ",
+      "verdict": "PASS"
+    },
+    "source_create_http": 200,
+    "source_create_body": "{\"ok\":false,\"error_kind\":\"failed\",\"detail\":\"the Keychain refused the write (exit 152)\"}",
+    "api_surfaces": {
+      "/api/sources": {
+        "http": 200,
+        "leaks_secret": false
+      },
+      "/api/settings": {
+        "http": 200,
+        "leaks_secret": false
+      },
+      "/api/providers": {
+        "http": 200,
+        "leaks_secret": false
+      },
+      "/api/jobs": {
+        "http": 200,
+        "leaks_secret": false
+      },
+      "/api/packs": {
+        "http": 200,
+        "leaks_secret": false
+      },
+      "/api/engines": {
+        "http": 500,
+        "leaks_secret": false
+      },
+      "/api/cost": {
+        "http": 200,
+        "leaks_secret": false
+      },
+      "/openapi.json": {
+        "http": 200,
+        "leaks_secret": false
+      }
+    },
+    "secret_in_api": {
+      "leaky_paths": [],
+      "echoed_in_create_response": false,
+      "verdict": "PASS"
+    },
+    "secret_in_kg_sqlite": {
+      "present": false,
+      "verdict": "PASS"
+    },
+    "provenance_records_use_not_value": {
+      "surfaces": {
+        "/api/jobs/extract-20260817-223614": {
+          "http": 200,
+          "mentions_engine": true,
+          "leaks_secret": false
+        },
+        "/api/documents": {
+          "http": 200,
+          "mentions_engine": false,
+          "leaks_secret": false
+        }
+      },
+      "verdict": "PASS"
+    }
+  },
+  "overall": "PASS"
+}

@@ -1,0 +1,50 @@
+{
+  "probes": [
+    {
+      "probe": "P4 body `id` cannot redirect a path-addressed invalidate",
+      "http": 200,
+      "path_edge_invalidated": true,
+      "other_edge_untouched": true,
+      "verdict": "PASS"
+    },
+    {
+      "probe": "P5 re-invalidating an already-invalid edge is a typed 4xx, not a fake success",
+      "http": 400,
+      "body": {
+        "detail": "edge 4a1bf8dedf684ca1ac34bdb5f639a1cb is already invalidated"
+      },
+      "reason_not_overwritten": true,
+      "verdict": "PASS"
+    },
+    {
+      "probe": "P6 a 200KB invalidation note is bounded or refused, never crashes",
+      "http": 200,
+      "stored_len": 200000,
+      "was_refused": false,
+      "stored_whole": true,
+      "verdict": "FAIL"
+    },
+    {
+      "probe": "P7 control chars in an audit reason are stored safely, not crashing or truncating the row",
+      "http": 200,
+      "nul_survived_as_data": true,
+      "row_still_readable": true,
+      "verdict": "PASS"
+    },
+    {
+      "probe": "P8 /api/engines survives an unreadable PATH candidate directory",
+      "http": 500,
+      "body_excerpt": "Internal Server Error",
+      "verdict": "FAIL",
+      "note": "500 here traces to engines.resolve_cli(): unguarded Path.is_file() on a fixed candidate dir raises PermissionError out of the route"
+    },
+    {
+      "probe": "P9 swapping in a VALID foreign pack.sqlite is still refused (receipt binds bytes, not shape)",
+      "refused": true,
+      "error": "PackIntegrityError: pack 'swap-b-20260817-223615' failed integrity verification: pack.sqlite hash mismatch (manifest sha256:3c2d8d9ffcd193968571ef278c2557d464e2ad4359e08ed3eb1c1d2bcd421151, actual sha",
+      "verdict": "PASS"
+    }
+  ],
+  "overall": "FAIL",
+  "new_probe_count": 6
+}

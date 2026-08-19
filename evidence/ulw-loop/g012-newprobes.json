@@ -1,0 +1,643 @@
+{
+  "task_id": "st_01a0097d",
+  "goal": "G012 / new hostile real-dashboard probes",
+  "captured_on": "2026-08-16",
+  "overall_verdict": "PASS",
+  "probes": {
+    "a_ui_double_invalidation": {
+      "verdict": "PASS",
+      "checks": {
+        "first_real_control_succeeded_200": true,
+        "second_same_handler_refused_400": true,
+        "visible_honest_error": true,
+        "no_crash": true,
+        "no_fake_success_or_panel_reload": true,
+        "terminal_not_loading": true,
+        "durable_timestamp_unchanged_by_second_click": true,
+        "durable_edge_remains_history_preserving_verified_row": true
+      },
+      "raw_capture": {
+        "route": "command palette entity -> actual 무효화 button; retained same real DOM control clicked again after honest panel rerender removed it",
+        "mutationObserverWaits": true,
+        "confirmCalls": 2,
+        "network": [
+          {
+            "url": "/api/edges/cc97aeb03bd74e188e73c1df4035030d/invalidate",
+            "method": "POST",
+            "requestBody": {
+              "note": "invalidated via dashboard"
+            },
+            "httpStatus": 200,
+            "responseOk": true,
+            "body": {
+              "ok": true,
+              "id": "cc97aeb03bd74e188e73c1df4035030d",
+              "invalidated_ts": 1786867622.712944,
+              "invalidated_by": "local-user",
+              "reason": "invalidated via dashboard"
+            }
+          },
+          {
+            "url": "/api/edges/cc97aeb03bd74e188e73c1df4035030d/invalidate",
+            "method": "POST",
+            "requestBody": {
+              "note": "invalidated via dashboard"
+            },
+            "httpStatus": 400,
+            "responseOk": false,
+            "body": {
+              "detail": "edge cc97aeb03bd74e188e73c1df4035030d is already invalidated"
+            }
+          }
+        ],
+        "initialPanel": {
+          "html": "<p><strong>DoubleAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G012 적대적 프로브</small><br><small>…&gt;&gt;&gt;DoubleAlpha&lt;&lt;&lt; uses DoubleBeta. PendingApproval awaits human review.…</small></div><h4>관계 (검토 대기 0건 · 승인 1건)</h4><div class=\"status-row\"><span><span class=\"badge st-verified\">승인됨</span> —[uses]→ DoubleBeta <small class=\"muted\">(상대: 승인됨)</small></span><span><button class=\"btn btn-danger\" title=\"승인을 취소하지 않고 '지금은 유효하지 않음'으로 표시합니다 (이력 보존)\">무효화</button></span></div><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"c4a34909ceaa41bcbcc7e633d24d05ec\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"c4a34909ceaa41bcbcc7e633d24d05ec\" role=\"status\" aria-live=\"polite\"></div></div>",
+          "text": "DoubleAlpha 승인됨 Component · 확신도 0.90멘션 (1)G012 적대적 프로브…>>>DoubleAlpha<<< uses DoubleBeta. PendingApproval awaits human review.…관계 (검토 대기 0건 · 승인 1건)승인됨 —[uses]→ DoubleBeta (상대: 승인됨)무효화온톨로지 제안 검토"
+        },
+        "afterFirst": {
+          "html": "<p><strong>DoubleAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G012 적대적 프로브</small><br><small>…&gt;&gt;&gt;DoubleAlpha&lt;&lt;&lt; uses DoubleBeta. PendingApproval awaits human review.…</small></div><h4>관계 (검토 대기 0건 · 승인 0건)</h4><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"c4a34909ceaa41bcbcc7e633d24d05ec\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"c4a34909ceaa41bcbcc7e633d24d05ec\" role=\"status\" aria-live=\"polite\"></div></div>",
+          "text": "DoubleAlpha 승인됨 Component · 확신도 0.90멘션 (1)G012 적대적 프로브…>>>DoubleAlpha<<< uses DoubleBeta. PendingApproval awaits human review.…관계 (검토 대기 0건 · 승인 0건)온톨로지 제안 검토",
+          "errorVisible": false
+        },
+        "secondBefore": {
+          "html": "<p><strong>DoubleAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G012 적대적 프로브</small><br><small>…&gt;&gt;&gt;DoubleAlpha&lt;&lt;&lt; uses DoubleBeta. PendingApproval awaits human review.…</small></div><h4>관계 (검토 대기 0건 · 승인 0건)</h4><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"c4a34909ceaa41bcbcc7e633d24d05ec\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"c4a34909ceaa41bcbcc7e633d24d05ec\" role=\"status\" aria-live=\"polite\"></div></div>",
+          "text": "DoubleAlpha 승인됨 Component · 확신도 0.90멘션 (1)G012 적대적 프로브…>>>DoubleAlpha<<< uses DoubleBeta. PendingApproval awaits human review.…관계 (검토 대기 0건 · 승인 0건)온톨로지 제안 검토"
+        },
+        "secondAfter": {
+          "html": "<p><strong>DoubleAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G012 적대적 프로브</small><br><small>…&gt;&gt;&gt;DoubleAlpha&lt;&lt;&lt; uses DoubleBeta. PendingApproval awaits human review.…</small></div><h4>관계 (검토 대기 0건 · 승인 0건)</h4><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"c4a34909ceaa41bcbcc7e633d24d05ec\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"c4a34909ceaa41bcbcc7e633d24d05ec\" role=\"status\" aria-live=\"polite\"></div></div>",
+          "text": "DoubleAlpha 승인됨 Component · 확신도 0.90멘션 (1)G012 적대적 프로브…>>>DoubleAlpha<<< uses DoubleBeta. PendingApproval awaits human review.…관계 (검토 대기 0건 · 승인 0건)온톨로지 제안 검토"
+        },
+        "secondErrorVisible": true,
+        "secondErrorText": "edge cc97aeb03bd74e188e73c1df4035030d is already invalidated",
+        "noCrash": true,
+        "noFakeSuccess": true,
+        "loadingPlaceholderPresent": false
+      },
+      "durable_agreement": {
+        "sqlite": {
+          "id": "cc97aeb03bd74e188e73c1df4035030d",
+          "status": "verified",
+          "invalidated_ts": 1786867622.712944,
+          "invalidated_by": "local-user",
+          "invalidation_reason": "invalidated via dashboard"
+        },
+        "first_success_receipt": {
+          "ok": true,
+          "id": "cc97aeb03bd74e188e73c1df4035030d",
+          "invalidated_ts": 1786867622.712944,
+          "invalidated_by": "local-user",
+          "reason": "invalidated via dashboard"
+        },
+        "explanation": "The second 400 did not alter invalidated_ts; UI retained 승인 0건 and showed the already-invalidated error."
+      },
+      "control_note": "After successful invalidation the honest rerender removes the button. The probe retained that exact real DOM button object and clicked its attached production handler a second time."
+    },
+    "b_busy_during_approve": {
+      "verdict": "PASS",
+      "checks": {
+        "real_approve_control_clicked": true,
+        "http_503_busy": true,
+        "retry_after_captured": true,
+        "visible_error": true,
+        "pending_row_stays_visible": true,
+        "no_fake_success_receipt": true,
+        "terminal_not_loading": true,
+        "durable_proposal_unchanged": true
+      },
+      "raw_capture": {
+        "terminal": "observed",
+        "observerDriven": true,
+        "controlAriaLabel": "승인: 개념 PendingApproval",
+        "network": [
+          {
+            "url": "/api/proposals/approve",
+            "method": "POST",
+            "requestBody": {
+              "id": "6a376f1ea3b943be833fc82c907fc3de",
+              "cascade": true
+            },
+            "httpStatus": 503,
+            "responseOk": false,
+            "retryAfter": "2",
+            "body": {
+              "ok": false,
+              "error_kind": "busy",
+              "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+            }
+          }
+        ],
+        "errorVisible": true,
+        "errorText": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment.",
+        "before": {
+          "rowHtml": "<td><input type=\"checkbox\" class=\"row-check\" data-id=\"6a376f1ea3b943be833fc82c907fc3de\" aria-label=\"선택: 개념 PendingApproval\"></td><td>개념</td><td title=\"6a376f1ea3b943be833fc82c907fc3de\"><strong>PendingApproval</strong></td><td class=\"conf-cell\" style=\"--v:0.9\">0.90</td><td class=\"actions\"><button class=\"btn btn-primary\" aria-label=\"승인: 개념 PendingApproval\">승인</button> <button class=\"btn btn-danger\" aria-label=\"거부: 개념 PendingApproval\">거부</button> <button class=\"btn\" title=\"이 개념의 모든 출처와 관계를 함께 보기\" aria-label=\"자세히: 개념 PendingApproval\">자세히</button></td>",
+          "tableHtml": "<tr class=\"row-focused\"><td><input type=\"checkbox\" class=\"row-check\" data-id=\"6a376f1ea3b943be833fc82c907fc3de\" aria-label=\"선택: 개념 PendingApproval\"></td><td>개념</td><td title=\"6a376f1ea3b943be833fc82c907fc3de\"><strong>PendingApproval</strong></td><td class=\"conf-cell\" style=\"--v:0.9\">0.90</td><td class=\"actions\"><button class=\"btn btn-primary\" aria-label=\"승인: 개념 PendingApproval\">승인</button> <button class=\"btn btn-danger\" aria-label=\"거부: 개념 PendingApproval\">거부</button> <button class=\"btn\" title=\"이 개념의 모든 출처와 관계를 함께 보기\" aria-label=\"자세히: 개념 PendingApproval\">자세히</button></td></tr>",
+          "lastActionHidden": true,
+          "lastActionText": ""
+        },
+        "after": {
+          "tableHtml": "<tr class=\"row-focused\"><td><input type=\"checkbox\" class=\"row-check\" data-id=\"6a376f1ea3b943be833fc82c907fc3de\" aria-label=\"선택: 개념 PendingApproval\"></td><td>개념</td><td title=\"6a376f1ea3b943be833fc82c907fc3de\"><strong>PendingApproval</strong></td><td class=\"conf-cell\" style=\"--v:0.9\">0.90</td><td class=\"actions\"><button class=\"btn btn-primary\" aria-label=\"승인: 개념 PendingApproval\">승인</button> <button class=\"btn btn-danger\" aria-label=\"거부: 개념 PendingApproval\">거부</button> <button class=\"btn\" title=\"이 개념의 모든 출처와 관계를 함께 보기\" aria-label=\"자세히: 개념 PendingApproval\">자세히</button></td></tr>",
+          "pendingRowPresent": true,
+          "lastActionHidden": true,
+          "lastActionText": ""
+        },
+        "noFakeSuccess": true,
+        "loadingPlaceholderPresent": false
+      },
+      "durable_agreement": {
+        "sqlite": {
+          "id": "6a376f1ea3b943be833fc82c907fc3de",
+          "status": "proposed",
+          "verified_ts": null,
+          "verified_by": null,
+          "review_note": null
+        },
+        "controller_while_lock_held": {
+          "status": "proposed",
+          "verified_ts": null,
+          "verified_by": null,
+          "review_note": null
+        },
+        "explanation": "UI kept PendingApproval in the queue with no approval receipt; SQLite stayed proposed with verified_ts NULL."
+      }
+    },
+    "d_reload_mid_busy_lock": {
+      "verdict": "PASS",
+      "checks": {
+        "lock_still_held_after_reload": true,
+        "real_reload_completed": true,
+        "terminal_job_badge_exact_st_complete": true,
+        "job_list_not_loading": true,
+        "jobs_error_absent": true,
+        "no_phantom_extract_success_banner": true,
+        "no_phantom_approval_receipt": true,
+        "durable_job_agrees_complete": true,
+        "durable_pending_approval_still_proposed": true,
+        "durable_edge_timestamp_stable": true
+      },
+      "raw_capture": {
+        "action": "real page reload while BEGIN IMMEDIATE remained held, then sources tab click",
+        "mutationObserverWait": true,
+        "jobRowHtml": "<td><code>g012-reload-</code></td><td>mock</td><td><span class=\"badge st-complete\">완료</span></td><td><small>개념 +1/~0 · 관계 +0/~0</small></td><td><small>2026. 8. 16. 오후 5:04:39</small></td><td><small>2026. 8. 16. 오후 5:04:40</small></td>",
+        "jobRowText": "g012-reload-mock완료개념 +1/~0 · 관계 +0/~02026. 8. 16. 오후 5:04:392026. 8. 16. 오후 5:04:40",
+        "terminalBadgeSelector": ".badge.st-complete",
+        "terminalBadgeClass": "badge st-complete",
+        "terminalBadgeText": "완료",
+        "jobListLoadingPlaceholderPresent": false,
+        "jobsErrorVisible": false,
+        "phantomExtractSuccessBannerPresent": false,
+        "extractResultHidden": true,
+        "phantomApprovalReceiptPresent": false,
+        "reviewLastActionHidden": true
+      },
+      "durable_agreement": {
+        "sqlite_job": {
+          "id": "g012-reload-truth",
+          "kind": "extract",
+          "status": "complete",
+          "error": null,
+          "totals_json": "{\"nodes_new\": 1, \"nodes_merged\": 0, \"edges_new\": 0, \"edges_merged\": 0}"
+        },
+        "controller_while_lock_held": {
+          "edge": {
+            "status": "verified",
+            "invalidated_ts": 1786867622.712944,
+            "invalidated_by": "local-user",
+            "invalidation_reason": "invalidated via dashboard"
+          },
+          "pending_node": {
+            "status": "proposed",
+            "verified_ts": null,
+            "verified_by": null,
+            "review_note": null
+          },
+          "job": {
+            "status": "complete",
+            "error": null,
+            "totals": {
+              "nodes_new": 1,
+              "nodes_merged": 0,
+              "edges_new": 0,
+              "edges_merged": 0
+            }
+          }
+        },
+        "explanation": "After a real reload under the still-verified lock, the job row showed exact st-complete state while no transient success/approval banner appeared; all durable rows agreed."
+      }
+    }
+  },
+  "method": {
+    "surface": "real OntologyLab dashboard driven through Aside CLI",
+    "waits": "MutationObserver exact terminal predicates installed before actions; busy approval used observer sentinel plus bounded Aside selector wait; no fixed sleep gated assertions",
+    "fixture": {
+      "db_path": "/private/tmp/ulw-trial-1/data/kg.sqlite",
+      "document_id": "e5088563fd024c67a405be464ba74458",
+      "edge_id": "cc97aeb03bd74e188e73c1df4035030d",
+      "edge_entity_id": "c4a34909ceaa41bcbcc7e633d24d05ec",
+      "edge_entity_name": "DoubleAlpha",
+      "pending_node_id": "6a376f1ea3b943be833fc82c907fc3de",
+      "pending_node_name": "PendingApproval",
+      "job_id": "g012-reload-truth",
+      "initial": {
+        "edge_status": "verified",
+        "edge_invalidated_ts": null,
+        "pending_status": "proposed",
+        "job_status": "complete"
+      }
+    },
+    "server": {
+      "ready": true,
+      "url": "http://127.0.0.1:64366/",
+      "http_status": 200,
+      "pid": 97457,
+      "control_port": 64374,
+      "control_pid": 97511
+    },
+    "lock_acquire": {
+      "httpStatus": 200,
+      "body": {
+        "ok": true,
+        "action": "BEGIN IMMEDIATE",
+        "held": true,
+        "contender_begin_immediate_succeeded": false,
+        "contender_error": "database is locked"
+      }
+    },
+    "lock_verified": {
+      "httpStatus": 200,
+      "body": {
+        "held_by_controller": true,
+        "held": true,
+        "contender_begin_immediate_succeeded": false,
+        "contender_error": "database is locked"
+      }
+    },
+    "lock_release": {
+      "httpStatus": 200,
+      "body": {
+        "ok": true,
+        "action": "ROLLBACK",
+        "held": false,
+        "contender_begin_immediate_succeeded": true,
+        "contender_error": null
+      }
+    }
+  },
+  "raw_aside_capture": {
+    "tag": "G012_LIVE",
+    "json": {
+      "scenario": "G012",
+      "raw": {
+        "doubleInvalidate": {
+          "route": "command palette entity -> actual 무효화 button; retained same real DOM control clicked again after honest panel rerender removed it",
+          "mutationObserverWaits": true,
+          "confirmCalls": 2,
+          "network": [
+            {
+              "url": "/api/edges/cc97aeb03bd74e188e73c1df4035030d/invalidate",
+              "method": "POST",
+              "requestBody": {
+                "note": "invalidated via dashboard"
+              },
+              "httpStatus": 200,
+              "responseOk": true,
+              "body": {
+                "ok": true,
+                "id": "cc97aeb03bd74e188e73c1df4035030d",
+                "invalidated_ts": 1786867622.712944,
+                "invalidated_by": "local-user",
+                "reason": "invalidated via dashboard"
+              }
+            },
+            {
+              "url": "/api/edges/cc97aeb03bd74e188e73c1df4035030d/invalidate",
+              "method": "POST",
+              "requestBody": {
+                "note": "invalidated via dashboard"
+              },
+              "httpStatus": 400,
+              "responseOk": false,
+              "body": {
+                "detail": "edge cc97aeb03bd74e188e73c1df4035030d is already invalidated"
+              }
+            }
+          ],
+          "initialPanel": {
+            "html": "<p><strong>DoubleAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G012 적대적 프로브</small><br><small>…&gt;&gt;&gt;DoubleAlpha&lt;&lt;&lt; uses DoubleBeta. PendingApproval awaits human review.…</small></div><h4>관계 (검토 대기 0건 · 승인 1건)</h4><div class=\"status-row\"><span><span class=\"badge st-verified\">승인됨</span> —[uses]→ DoubleBeta <small class=\"muted\">(상대: 승인됨)</small></span><span><button class=\"btn btn-danger\" title=\"승인을 취소하지 않고 '지금은 유효하지 않음'으로 표시합니다 (이력 보존)\">무효화</button></span></div><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"c4a34909ceaa41bcbcc7e633d24d05ec\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"c4a34909ceaa41bcbcc7e633d24d05ec\" role=\"status\" aria-live=\"polite\"></div></div>",
+            "text": "DoubleAlpha 승인됨 Component · 확신도 0.90멘션 (1)G012 적대적 프로브…>>>DoubleAlpha<<< uses DoubleBeta. PendingApproval awaits human review.…관계 (검토 대기 0건 · 승인 1건)승인됨 —[uses]→ DoubleBeta (상대: 승인됨)무효화온톨로지 제안 검토"
+          },
+          "afterFirst": {
+            "html": "<p><strong>DoubleAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G012 적대적 프로브</small><br><small>…&gt;&gt;&gt;DoubleAlpha&lt;&lt;&lt; uses DoubleBeta. PendingApproval awaits human review.…</small></div><h4>관계 (검토 대기 0건 · 승인 0건)</h4><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"c4a34909ceaa41bcbcc7e633d24d05ec\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"c4a34909ceaa41bcbcc7e633d24d05ec\" role=\"status\" aria-live=\"polite\"></div></div>",
+            "text": "DoubleAlpha 승인됨 Component · 확신도 0.90멘션 (1)G012 적대적 프로브…>>>DoubleAlpha<<< uses DoubleBeta. PendingApproval awaits human review.…관계 (검토 대기 0건 · 승인 0건)온톨로지 제안 검토",
+            "errorVisible": false
+          },
+          "secondBefore": {
+            "html": "<p><strong>DoubleAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G012 적대적 프로브</small><br><small>…&gt;&gt;&gt;DoubleAlpha&lt;&lt;&lt; uses DoubleBeta. PendingApproval awaits human review.…</small></div><h4>관계 (검토 대기 0건 · 승인 0건)</h4><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"c4a34909ceaa41bcbcc7e633d24d05ec\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"c4a34909ceaa41bcbcc7e633d24d05ec\" role=\"status\" aria-live=\"polite\"></div></div>",
+            "text": "DoubleAlpha 승인됨 Component · 확신도 0.90멘션 (1)G012 적대적 프로브…>>>DoubleAlpha<<< uses DoubleBeta. PendingApproval awaits human review.…관계 (검토 대기 0건 · 승인 0건)온톨로지 제안 검토"
+          },
+          "secondAfter": {
+            "html": "<p><strong>DoubleAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G012 적대적 프로브</small><br><small>…&gt;&gt;&gt;DoubleAlpha&lt;&lt;&lt; uses DoubleBeta. PendingApproval awaits human review.…</small></div><h4>관계 (검토 대기 0건 · 승인 0건)</h4><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"c4a34909ceaa41bcbcc7e633d24d05ec\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"c4a34909ceaa41bcbcc7e633d24d05ec\" role=\"status\" aria-live=\"polite\"></div></div>",
+            "text": "DoubleAlpha 승인됨 Component · 확신도 0.90멘션 (1)G012 적대적 프로브…>>>DoubleAlpha<<< uses DoubleBeta. PendingApproval awaits human review.…관계 (검토 대기 0건 · 승인 0건)온톨로지 제안 검토"
+          },
+          "secondErrorVisible": true,
+          "secondErrorText": "edge cc97aeb03bd74e188e73c1df4035030d is already invalidated",
+          "noCrash": true,
+          "noFakeSuccess": true,
+          "loadingPlaceholderPresent": false
+        },
+        "stateAfterDoubleInvalidate": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": false,
+            "durable": {
+              "edge": {
+                "status": "verified",
+                "invalidated_ts": 1786867622.712944,
+                "invalidated_by": "local-user",
+                "invalidation_reason": "invalidated via dashboard"
+              },
+              "pending_node": {
+                "status": "proposed",
+                "verified_ts": null,
+                "verified_by": null,
+                "review_note": null
+              },
+              "job": {
+                "status": "complete",
+                "error": null,
+                "totals": {
+                  "nodes_new": 1,
+                  "nodes_merged": 0,
+                  "edges_new": 0,
+                  "edges_merged": 0
+                }
+              }
+            }
+          }
+        },
+        "reviewPreload": {
+          "route": "review tab -> actual 승인: 개념 PendingApproval button",
+          "controlAriaLabel": "승인: 개념 PendingApproval",
+          "rowHtml": "<td><input type=\"checkbox\" class=\"row-check\" data-id=\"6a376f1ea3b943be833fc82c907fc3de\" aria-label=\"선택: 개념 PendingApproval\"></td><td>개념</td><td title=\"6a376f1ea3b943be833fc82c907fc3de\"><strong>PendingApproval</strong></td><td class=\"conf-cell\" style=\"--v:0.9\">0.90</td><td class=\"actions\"><button class=\"btn btn-primary\" aria-label=\"승인: 개념 PendingApproval\">승인</button> <button class=\"btn btn-danger\" aria-label=\"거부: 개념 PendingApproval\">거부</button> <button class=\"btn\" title=\"이 개념의 모든 출처와 관계를 함께 보기\" aria-label=\"자세히: 개념 PendingApproval\">자세히</button></td>",
+          "rowText": "개념PendingApproval0.90승인 거부 자세히",
+          "loadingPlaceholderPresent": false
+        },
+        "lockAcquire": {
+          "httpStatus": 200,
+          "body": {
+            "ok": true,
+            "action": "BEGIN IMMEDIATE",
+            "held": true,
+            "contender_begin_immediate_succeeded": false,
+            "contender_error": "database is locked"
+          }
+        },
+        "lockVerify": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": true,
+            "held": true,
+            "contender_begin_immediate_succeeded": false,
+            "contender_error": "database is locked"
+          }
+        },
+        "stateAtLock": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": true,
+            "durable": {
+              "edge": {
+                "status": "verified",
+                "invalidated_ts": 1786867622.712944,
+                "invalidated_by": "local-user",
+                "invalidation_reason": "invalidated via dashboard"
+              },
+              "pending_node": {
+                "status": "proposed",
+                "verified_ts": null,
+                "verified_by": null,
+                "review_note": null
+              },
+              "job": {
+                "status": "complete",
+                "error": null,
+                "totals": {
+                  "nodes_new": 1,
+                  "nodes_merged": 0,
+                  "edges_new": 0,
+                  "edges_merged": 0
+                }
+              }
+            }
+          }
+        },
+        "busyApproveArm": {
+          "armed": true,
+          "observerInstalledBeforeClick": true,
+          "clickedControl": "승인: 개념 PendingApproval"
+        },
+        "busyApprove": {
+          "terminal": "observed",
+          "observerDriven": true,
+          "controlAriaLabel": "승인: 개념 PendingApproval",
+          "network": [
+            {
+              "url": "/api/proposals/approve",
+              "method": "POST",
+              "requestBody": {
+                "id": "6a376f1ea3b943be833fc82c907fc3de",
+                "cascade": true
+              },
+              "httpStatus": 503,
+              "responseOk": false,
+              "retryAfter": "2",
+              "body": {
+                "ok": false,
+                "error_kind": "busy",
+                "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+              }
+            }
+          ],
+          "errorVisible": true,
+          "errorText": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment.",
+          "before": {
+            "rowHtml": "<td><input type=\"checkbox\" class=\"row-check\" data-id=\"6a376f1ea3b943be833fc82c907fc3de\" aria-label=\"선택: 개념 PendingApproval\"></td><td>개념</td><td title=\"6a376f1ea3b943be833fc82c907fc3de\"><strong>PendingApproval</strong></td><td class=\"conf-cell\" style=\"--v:0.9\">0.90</td><td class=\"actions\"><button class=\"btn btn-primary\" aria-label=\"승인: 개념 PendingApproval\">승인</button> <button class=\"btn btn-danger\" aria-label=\"거부: 개념 PendingApproval\">거부</button> <button class=\"btn\" title=\"이 개념의 모든 출처와 관계를 함께 보기\" aria-label=\"자세히: 개념 PendingApproval\">자세히</button></td>",
+            "tableHtml": "<tr class=\"row-focused\"><td><input type=\"checkbox\" class=\"row-check\" data-id=\"6a376f1ea3b943be833fc82c907fc3de\" aria-label=\"선택: 개념 PendingApproval\"></td><td>개념</td><td title=\"6a376f1ea3b943be833fc82c907fc3de\"><strong>PendingApproval</strong></td><td class=\"conf-cell\" style=\"--v:0.9\">0.90</td><td class=\"actions\"><button class=\"btn btn-primary\" aria-label=\"승인: 개념 PendingApproval\">승인</button> <button class=\"btn btn-danger\" aria-label=\"거부: 개념 PendingApproval\">거부</button> <button class=\"btn\" title=\"이 개념의 모든 출처와 관계를 함께 보기\" aria-label=\"자세히: 개념 PendingApproval\">자세히</button></td></tr>",
+            "lastActionHidden": true,
+            "lastActionText": ""
+          },
+          "after": {
+            "tableHtml": "<tr class=\"row-focused\"><td><input type=\"checkbox\" class=\"row-check\" data-id=\"6a376f1ea3b943be833fc82c907fc3de\" aria-label=\"선택: 개념 PendingApproval\"></td><td>개념</td><td title=\"6a376f1ea3b943be833fc82c907fc3de\"><strong>PendingApproval</strong></td><td class=\"conf-cell\" style=\"--v:0.9\">0.90</td><td class=\"actions\"><button class=\"btn btn-primary\" aria-label=\"승인: 개념 PendingApproval\">승인</button> <button class=\"btn btn-danger\" aria-label=\"거부: 개념 PendingApproval\">거부</button> <button class=\"btn\" title=\"이 개념의 모든 출처와 관계를 함께 보기\" aria-label=\"자세히: 개념 PendingApproval\">자세히</button></td></tr>",
+            "pendingRowPresent": true,
+            "lastActionHidden": true,
+            "lastActionText": ""
+          },
+          "noFakeSuccess": true,
+          "loadingPlaceholderPresent": false
+        },
+        "stateAfterBusyApprove": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": true,
+            "durable": {
+              "edge": {
+                "status": "verified",
+                "invalidated_ts": 1786867622.712944,
+                "invalidated_by": "local-user",
+                "invalidation_reason": "invalidated via dashboard"
+              },
+              "pending_node": {
+                "status": "proposed",
+                "verified_ts": null,
+                "verified_by": null,
+                "review_note": null
+              },
+              "job": {
+                "status": "complete",
+                "error": null,
+                "totals": {
+                  "nodes_new": 1,
+                  "nodes_merged": 0,
+                  "edges_new": 0,
+                  "edges_merged": 0
+                }
+              }
+            }
+          }
+        },
+        "reloadUnderLock": {
+          "action": "real page reload while BEGIN IMMEDIATE remained held, then sources tab click",
+          "mutationObserverWait": true,
+          "jobRowHtml": "<td><code>g012-reload-</code></td><td>mock</td><td><span class=\"badge st-complete\">완료</span></td><td><small>개념 +1/~0 · 관계 +0/~0</small></td><td><small>2026. 8. 16. 오후 5:04:39</small></td><td><small>2026. 8. 16. 오후 5:04:40</small></td>",
+          "jobRowText": "g012-reload-mock완료개념 +1/~0 · 관계 +0/~02026. 8. 16. 오후 5:04:392026. 8. 16. 오후 5:04:40",
+          "terminalBadgeSelector": ".badge.st-complete",
+          "terminalBadgeClass": "badge st-complete",
+          "terminalBadgeText": "완료",
+          "jobListLoadingPlaceholderPresent": false,
+          "jobsErrorVisible": false,
+          "phantomExtractSuccessBannerPresent": false,
+          "extractResultHidden": true,
+          "phantomApprovalReceiptPresent": false,
+          "reviewLastActionHidden": true
+        },
+        "lockVerifyAfterReload": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": true,
+            "held": true,
+            "contender_begin_immediate_succeeded": false,
+            "contender_error": "database is locked"
+          }
+        },
+        "stateAfterReloadUnderLock": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": true,
+            "durable": {
+              "edge": {
+                "status": "verified",
+                "invalidated_ts": 1786867622.712944,
+                "invalidated_by": "local-user",
+                "invalidation_reason": "invalidated via dashboard"
+              },
+              "pending_node": {
+                "status": "proposed",
+                "verified_ts": null,
+                "verified_by": null,
+                "review_note": null
+              },
+              "job": {
+                "status": "complete",
+                "error": null,
+                "totals": {
+                  "nodes_new": 1,
+                  "nodes_merged": 0,
+                  "edges_new": 0,
+                  "edges_merged": 0
+                }
+              }
+            }
+          }
+        },
+        "lockRelease": {
+          "httpStatus": 200,
+          "body": {
+            "ok": true,
+            "action": "ROLLBACK",
+            "held": false,
+            "contender_begin_immediate_succeeded": true,
+            "contender_error": null
+          }
+        },
+        "finalLockVerifyBeforeClose": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": false,
+            "held": false,
+            "contender_begin_immediate_succeeded": true,
+            "contender_error": null
+          }
+        },
+        "asideCloseReceipts": [
+          {
+            "closed": true
+          },
+          {
+            "closed": true
+          }
+        ]
+      }
+    }
+  },
+  "durable_crosscheck_raw": {
+    "edge": {
+      "id": "cc97aeb03bd74e188e73c1df4035030d",
+      "status": "verified",
+      "invalidated_ts": 1786867622.712944,
+      "invalidated_by": "local-user",
+      "invalidation_reason": "invalidated via dashboard"
+    },
+    "pending_node": {
+      "id": "6a376f1ea3b943be833fc82c907fc3de",
+      "status": "proposed",
+      "verified_ts": null,
+      "verified_by": null,
+      "review_note": null
+    },
+    "job": {
+      "id": "g012-reload-truth",
+      "kind": "extract",
+      "status": "complete",
+      "error": null,
+      "totals_json": "{\"nodes_new\": 1, \"nodes_merged\": 0, \"edges_new\": 0, \"edges_merged\": 0}"
+    }
+  },
+  "cleanup": {
+    "lock_final": {
+      "held_by_controller": false,
+      "held": false,
+      "contender_begin_immediate_succeeded": true,
+      "contender_error": null
+    },
+    "server": {
+      "pid": 97457,
+      "signal": "TERM",
+      "kill_0_fails": true
+    },
+    "lock_controller": {
+      "pid": 97511,
+      "signal": "TERM",
+      "kill_0_fails": true
+    },
+    "aside": {
+      "before": 0,
+      "after": 0,
+      "all_closed": true
+    },
+    "trial_path": "/private/tmp/ulw-trial-1",
+    "trial_removed": true,
+    "protected_processes_untouched": {
+      "55560_alive": true,
+      "70970_alive": true
+    }
+  }
+}

@@ -1,0 +1,153 @@
+G011 - F1/F2 HTTP boundary redaction and durable status agreement
+ARTIFACT_VERDICT=PASS
+ARTIFACT_DEFECT=none observed
+NOTE=The synthetic secret appears below only in the on-disk provenance excerpt, as required; its GET /api/jobs grep count is zero.
+
+SCENARIO=G011 F1/F2 HTTP extraction boundary redaction and status agreement
+UTC_STARTED=2026-08-16T16:28:00Z
+ROOT=/private/tmp/ulw-trial-3b
+DATA_DIR=/private/tmp/ulw-trial-3b/data
+PREPARE_COMMAND=.venv/bin/python - [writes the 4-chunk fixture outside data/]
+PREPARE_EXIT=0
+PREPARE_OUTPUT_BEGIN
+FIXTURE=/private/tmp/ulw-trial-3b/partial.txt
+FIXTURE_CHARS=36000
+CHUNK_COUNT=4
+CHUNK index=0 offset=0 chars=11997
+CHUNK index=1 offset=11404 chars=11999
+CHUNK index=2 offset=22815 chars=11997
+CHUNK index=3 offset=34219 chars=1781
+PREPARE_OUTPUT_END
+PROTECTED_BEFORE_BEGIN
+55560     1 /Users/hyunjun/Documents/MUNI/ontologylab/.venv/bin/python -m ontologylab.serve --host 127.0.0.1 --port 8799 --data-dir /Users/hyunjun/Library/Application Support/ontologylab/data --packs-dir /Users/hyunjun/Library/Application Support/ontologylab/packs
+70970     1 /opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -m uvicorn search_server:app --host 127.0.0.1 --port 8400
+PROTECTED_BEFORE_END
+SERVER_COMMAND=.venv/bin/python /private/tmp/ulw-g011-server.py
+SERVER_PID=44138
+EPHEMERAL_PORT=52122
+READY_CURL_COMMAND=curl GET http://127.0.0.1:52122/api/jobs
+READY_HTTP=200
+READY_TRIES=1
+READY_BODY_BEGIN
+{"jobs":[]}
+READY_BODY_END
+COLLECT_CURL_COMMAND=curl -X POST -H Content-Type:application/json --data-binary @/private/tmp/ulw-trial-3b/collect-request.json http://127.0.0.1:52122/api/collect
+COLLECT_REQUEST_BODY_BEGIN
+{"files":["/private/tmp/ulw-trial-3b/partial.txt"]}
+COLLECT_REQUEST_BODY_END
+COLLECT_HTTP=200
+COLLECT_RESPONSE_BODY_BEGIN
+{"ok":true,"documents":1,"created":1,"duplicates":0}
+COLLECT_RESPONSE_BODY_END
+DOCUMENTS_CURL_COMMAND=curl GET http://127.0.0.1:52122/api/documents
+DOCUMENTS_HTTP=200
+DOCUMENTS_RESPONSE_BODY_BEGIN
+{"documents":[{"id":"4a363ebfa04e407e86c843a96d93b093","source_kind":"upload","source_uri":"file:///private/tmp/ulw-trial-3b/partial.txt","title":"partial","fetched_ts":1786897680.9140449,"content_hash":"sha256:e8d0c67d93c173c42b00f4d263cb376949ebae4ecfcfc76a01ea2a95bd3a8ef4"}],"count":1}
+DOCUMENTS_RESPONSE_BODY_END
+EXTRACT_CURL_COMMAND=curl -X POST -H Content-Type:application/json --data-binary @/private/tmp/ulw-trial-3b/extract-request.json http://127.0.0.1:52122/api/extract
+EXTRACT_REQUEST_BODY_BEGIN
+{"engine":"mock","max_engine_calls":20,"time_budget":60.0,"seed":0}
+EXTRACT_REQUEST_BODY_END
+EXTRACT_HTTP=202
+EXTRACT_RESPONSE_BODY_BEGIN
+{"job_id":"extract-20260817-012800","status":"running"}
+EXTRACT_RESPONSE_BODY_END
+JOB_ID=extract-20260817-012800
+POLL_COMMAND=curl GET http://127.0.0.1:52122/api/jobs (bounded at 150)
+POLL_COUNT=1
+TERMINAL_STATUS=failed
+FINAL_JOBS_HTTP=200
+POLL_RECEIPT_BEGIN
+POLL=1 HTTP=200 STATUS=failed
+POLL_RECEIPT_END
+FINAL_GET_API_JOBS_BODY_BEGIN
+{"jobs":[{"job_id":"extract-20260817-012800","kind":"extract","status":"failed","phase":"","engine":"mock","model":null,"started_ts":1786897680.942813,"finished_ts":1786897680.9530602,"totals":{"nodes_new":2,"nodes_merged":4,"edges_new":2,"edges_merged":1},"sources":[],"progress":["[ontologylab] 4a363ebfa04e407e86c843a96d93b093#0: +2 nodes (+0 merged), +1 edges","[ontologylab] engine error on 4a363ebfa04e407e86c843a96d93b093#1: extraction engine failed","[ontologylab] 4a363ebfa04e407e86c843a96d93b093#2: +0 nodes (+2 merged), +0 edges","[ontologylab] 4a363ebfa04e407e86c843a96d93b093#3: +0 nodes (+2 merged), +1 edges","[ontologylab] extraction failed: extraction engine failed"],"steps":[],"error":"extraction engine failed"}]}
+FINAL_GET_API_JOBS_BODY_END
+API_JOB_STATUS=failed
+API_JOB_ERROR=extraction engine failed
+GREP_COMMAND_SECRET=grep -oF SYNTHETIC_SECRET jobs-final.json | wc -l
+GREP_SYNTHETIC_SECRET_COUNT=0
+GREP_COMMAND_DOMAIN=grep -oF example.invalid jobs-final.json | wc -l
+GREP_EXAMPLE_INVALID_COUNT=0
+GREP_SAFE_SUMMARY_COUNT=3
+SQLITE_COMMAND=sqlite3 -header -csv /private/tmp/ulw-trial-3b/data/kg.sqlite SELECT ... FROM extraction_runs
+SQLITE_EXTRACTION_RUNS_EXIT=0
+SQLITE_EXTRACTION_RUNS_BEGIN
+id,document_id,extractor_engine,status,created_ts,finished_ts
+70528a46d29e4f67955a79a2d3183a63,4a363ebfa04e407e86c843a96d93b093,mock,failed,1786897680.9472,1786897680.95168
+SQLITE_EXTRACTION_RUNS_END
+SQLITE_COMMAND=sqlite3 -header -csv /private/tmp/ulw-trial-3b/data/kg.sqlite SELECT ... FROM extraction_chunks
+SQLITE_EXTRACTION_CHUNKS_EXIT=0
+SQLITE_EXTRACTION_CHUNKS_BEGIN
+run_id,chunk_index,status,attempts,error_kind
+70528a46d29e4f67955a79a2d3183a63,0,succeeded,1,
+70528a46d29e4f67955a79a2d3183a63,1,failed,1,engine_error
+70528a46d29e4f67955a79a2d3183a63,2,succeeded,1,
+70528a46d29e4f67955a79a2d3183a63,3,succeeded,1,
+SQLITE_EXTRACTION_CHUNKS_END
+SQL_EXTRACTION_RUN_COUNT=1
+SQL_EXTRACTION_RUN_STATUS=failed
+SQL_CHUNK_COUNT=4
+SQL_ENGINE_ERROR_CHUNK_COUNT=1
+SQLITE_STDERR_BEGIN
+SQLITE_STDERR_END
+PROVENANCE_FILE=/private/tmp/ulw-trial-3b/data/jobs/extract-20260817-012800/provenance.jsonl
+PROVENANCE_GREP_COMMAND=grep -nF request failed url=https://example.invalid/?key=SYNTHETIC_SECRET /private/tmp/ulw-trial-3b/data/jobs/extract-20260817-012800/provenance.jsonl
+PROVENANCE_SYNTHETIC_SECRET_COUNT=1
+PROVENANCE_FULL_ERROR_COUNT=1
+PROVENANCE_EXCERPT_BEGIN
+4:{"ts": 1786897680.9495602, "seed": 0, "step": "extract.engine_error", "payload": {"doc_id": "4a363ebfa04e407e86c843a96d93b093", "chunk": 1, "error": "request failed url=https://example.invalid/?key=SYNTHETIC_SECRET"}}
+PROVENANCE_EXCERPT_END
+SERVER_STOP_MODE=SIGTERM
+SERVER_EXIT=143
+KILL_ZERO_AFTER_WAIT=1 (expected nonzero)
+ENGINE_STATE_BEGIN
+{"calls": 4, "failures": 1}
+ENGINE_STATE_END
+ENGINE_CALLS=4
+ENGINE_FAILURES=1
+SERVER_STDOUT_BEGIN
+INFO:     127.0.0.1:52123 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52124 - "POST /api/collect HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52125 - "GET /api/documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52126 - "POST /api/extract HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:52127 - "GET /api/jobs HTTP/1.1" 200 OK
+SERVER_STDOUT_END
+SERVER_STDERR_BEGIN
+INFO:     Started server process [44138]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [44138]
+SERVER_STDERR_END
+PROTECTED_AFTER_BEGIN
+55560     1 /Users/hyunjun/Documents/MUNI/ontologylab/.venv/bin/python -m ontologylab.serve --host 127.0.0.1 --port 8799 --data-dir /Users/hyunjun/Library/Application Support/ontologylab/data --packs-dir /Users/hyunjun/Library/Application Support/ontologylab/packs
+70970     1 /opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -m uvicorn search_server:app --host 127.0.0.1 --port 8400
+PROTECTED_AFTER_END
+VERDICT=PASS
+ASSERTION_FAILURE_COUNT=0
+UTC_FINISHED=2026-08-16T16:28:01Z
+RUN_SCRIPT_EXIT=0
+
+## Cleanup receipt
+
+```text
+CLEANUP_UTC=2026-08-16T16:29:19Z
+CLEANUP_COMMAND=rm -rf /private/tmp/ulw-trial-3 /private/tmp/ulw-trial-3b
+CLEANUP_COMMAND=rm -f task-owned /private/tmp/ulw-{seed,g009,g010,g011} helpers/captures (explicit paths)
+ULW_TRIAL_3_GLOB_AFTER=<none>
+TASK_HELPERS_AFTER=<none>
+G009_MCP_PID=26463 RECORDED_EXIT=0 KILL_ZERO_RC=1 ALIVE=NO_EXPECTED
+G010_MCP_PID=29426 RECORDED_EXIT=0 KILL_ZERO_RC=1 ALIVE=NO_EXPECTED
+G011_HTTP_PID=44138 RECORDED_EXIT=143 KILL_ZERO_RC=1 ALIVE=NO_EXPECTED
+
+PROTECTED_PID=55560 ALIVE=yes COMMAND=/Users/hyunjun/Documents/MUNI/ontologylab/.venv/bin/python -m ontologylab.serve --host 127.0.0.1 --port 8799 --data-dir /Users/hyunjun/Library/Application Support/ontologylab/data --packs-dir /Users/hyunjun/Library/Application Support/ontologylab/packs
+PROTECTED_PID=70970 ALIVE=yes COMMAND=/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python -m uvicorn search_server:app --host 127.0.0.1 --port 8400
+
+PORT_8799_ACTION=none; protected PID 55560 remained alive
+REAL_APPLICATION_SUPPORT_ACTION=none
+UNRELATED_PID_70970_ACTION=none; remained alive
+GIT_COMMIT_CREATED=no
+```

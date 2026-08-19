@@ -1,0 +1,193 @@
+{
+  "edge_id": "3fb16359eb014538bd3e6db825897c75",
+  "candidate_id": "f4d06d348620463ba3fc595fa6d13abf",
+  "responses": {
+    "invalidate_busy": {
+      "status": 503,
+      "headers": {
+        "retry-after": "2",
+        "content-type": "application/json"
+      },
+      "json": {
+        "ok": false,
+        "error_kind": "busy",
+        "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+      },
+      "text": "{\"ok\":false,\"error_kind\":\"busy\",\"detail\":\"The knowledge base is busy — an extraction job is writing to it. Try again in a moment.\"}"
+    },
+    "merge_busy": {
+      "status": 503,
+      "headers": {
+        "retry-after": "2",
+        "content-type": "application/json"
+      },
+      "json": {
+        "ok": false,
+        "error_kind": "busy",
+        "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+      },
+      "text": "{\"ok\":false,\"error_kind\":\"busy\",\"detail\":\"The knowledge base is busy — an extraction job is writing to it. Try again in a moment.\"}"
+    },
+    "dismiss_busy": {
+      "status": 503,
+      "headers": {
+        "retry-after": "2",
+        "content-type": "application/json"
+      },
+      "json": {
+        "ok": false,
+        "error_kind": "busy",
+        "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+      },
+      "text": "{\"ok\":false,\"error_kind\":\"busy\",\"detail\":\"The knowledge base is busy — an extraction job is writing to it. Try again in a moment.\"}"
+    },
+    "pack_build_422": {
+      "status": 422,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "json": {
+        "detail": [
+          {
+            "type": "value_error",
+            "loc": [
+              "body",
+              "name"
+            ],
+            "msg": "Value error, invalid pack name '../escape': use only letters, digits, '.', '_', '-' (no path separators)"
+          }
+        ]
+      },
+      "text": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\",\"name\"],\"msg\":\"Value error, invalid pack name '../escape': use only letters, digits, '.', '_', '-' (no path separators)\"}]}"
+    },
+    "pack_build_422_empty": {
+      "status": 422,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "json": {
+        "detail": [
+          {
+            "type": "missing",
+            "loc": [
+              "body",
+              "name"
+            ],
+            "msg": "Field required"
+          }
+        ]
+      },
+      "text": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"name\"],\"msg\":\"Field required\"}]}"
+    },
+    "term_lifecycle_422": {
+      "status": 422,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "json": {
+        "detail": [
+          {
+            "type": "literal_error",
+            "loc": [
+              "body",
+              "lifecycle"
+            ],
+            "msg": "Input should be 'active', 'deprecated' or 'replaced'"
+          }
+        ]
+      },
+      "text": "{\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"body\",\"lifecycle\"],\"msg\":\"Input should be 'active', 'deprecated' or 'replaced'\"}]}"
+    },
+    "invalidate_ok": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "json": {
+        "ok": true,
+        "id": "3fb16359eb014538bd3e6db825897c75",
+        "invalidated_ts": 1786973000.286052,
+        "invalidated_by": "local-user",
+        "reason": "via dashboard"
+      },
+      "text": "{\"ok\":true,\"id\":\"3fb16359eb014538bd3e6db825897c75\",\"invalidated_ts\":1786973000.286052,\"invalidated_by\":\"local-user\",\"reason\":\"via dashboard\"}"
+    },
+    "packs_with_malformed": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "json": {
+        "packs": [],
+        "count": 0,
+        "unusable": [
+          {
+            "pack_dir": "cs-malformed-pack",
+            "reason": "manifest.json unreadable: Expecting property name enclosed in double quotes: line 1 column 3 (char 2)"
+          }
+        ],
+        "competency": {
+          "questions": [
+            {
+              "question_id": "Q1",
+              "question": "Can every verified fact be traced to its exact source document, extraction stream, and approval record?",
+              "passed": true,
+              "expected_count": 5,
+              "actual_count": 5,
+              "missing": [],
+              "spurious": [],
+              "detail": {}
+            },
+            {
+              "question_id": "Q2",
+              "question": "Does the extractor produce the exact expected entities and relations from a known document?",
+              "passed": true,
+              "expected_count": 11,
+              "actual_count": 11,
+              "missing": [],
+              "spurious": [],
+              "detail": {
+                "parser_f1": 1.0
+              }
+            },
+            {
+              "question_id": "Q3",
+              "question": "Does a built pack return exact answers to user queries?",
+              "passed": true,
+              "expected_count": 5,
+              "actual_count": 5,
+              "missing": [],
+              "spurious": [],
+              "detail": {
+                "pack_id": "cq-release-pack-20260817-222320"
+              }
+            }
+          ],
+          "all_passed": true,
+          "passed_count": 3,
+          "total_count": 3,
+          "evaluated_at": 1786973000.393368
+        }
+      },
+      "text": "{\"packs\":[],\"count\":0,\"unusable\":[{\"pack_dir\":\"cs-malformed-pack\",\"reason\":\"manifest.json unreadable: Expecting property name enclosed in double quotes: line 1 column 3 (char 2)\"}],\"competency\":{\"questions\":[{\"question_id\":\"Q1\",\"question\":\"Can every verified fact be traced to its exact source document, extraction stream, and approval record?\",\"passed\":true,\"expected_count\":5,\"actual_count\":5,\"missing\":[],\"spurious\":[],\"detail\":{}},{\"question_id\":\"Q2\",\"question\":\"Does the extractor produce the exact expected entities and relations from a known document?\",\"passed\":true,\"expected_count\":11,\"actual_count\":11,\"missing\":[],\"spurious\":[],\"detail\":{\"parser_f1\":1.0}},{\"question_id\":\"Q3\",\"question\":\"Does a built pack return exact answers to user queries?\",\"passed\":true,\"expected_count\":5,\"actual_count\":5,\"missing\":[],\"spurious\":[],\"detail\":{\"pack_id\":\"cq-release-pack-20260817-222320\"}}],\"all_passed\":true,\"passed_count\":3,\"total_count\":3,\"evaluated_at\":1786973000.393368}}"
+    },
+    "mcp_status_with_malformed": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "json": {
+        "packs_dir": "/private/tmp/olab-cs-ui-09ffacd6/packs",
+        "packs": [],
+        "count": 0,
+        "unusable": [
+          {
+            "pack_dir": "cs-malformed-pack",
+            "reason": "manifest.json unreadable: Expecting property name enclosed in double quotes: line 1 column 3 (char 2)"
+          }
+        ]
+      },
+      "text": "{\"packs_dir\":\"/private/tmp/olab-cs-ui-09ffacd6/packs\",\"packs\":[],\"count\":0,\"unusable\":[{\"pack_dir\":\"cs-malformed-pack\",\"reason\":\"manifest.json unreadable: Expecting property name enclosed in double quotes: line 1 column 3 (char 2)\"}]}"
+    }
+  }
+}

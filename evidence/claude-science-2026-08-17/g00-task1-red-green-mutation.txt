@@ -1,0 +1,49 @@
+=== TASK 1 — path-addressed invalidate must accept {note}-only body ===
+repo: /Users/hyunjun/Documents/MUNI/ontologylab   base: 0108c370
+date: 2026-08-17 22:36:52 KST
+
+### 1. THE DEFECT AT BASE
+--- routes.py @0108c370 (binds ProposalAction, whose id is required) ---
+@router.post("/edges/{edge_id}/invalidate")
+def invalidate_edge(deps: AppDependency, edge_id: str, body: ProposalAction) -> dict[str, Any]:
+    """W13: mark a verified edge as no-longer-current (kept as history)."""
+--- schemas.py @0108c370: InvalidateAction occurrences ---
+0
+--- web/app.js @0108c370 already posts {note} only ---
+      var res = await apiSend(
+        "/api/edges/" + encodeURIComponent(edgeId) + "/invalidate",
+        { note: "invalidated via dashboard" }
+      );
+
+### 2. MUTATION CHECK (revert the fix -> must be 422 again)
+--- binding now: ---
+500:def invalidate_edge(deps: AppDependency, edge_id: str, body: ProposalAction) -> dict[str, Any]:
+--- pytest (expect FAIL with 422 / body.id required) ---
+tests/test_bitemporal.py:233: AssertionError
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","id"],"msg":"Field required"}]}
+E       assert 422 == 200
+tests/test_bitemporal.py:260: AssertionError
+
+### 3. GREEN (fix restored)
+--- binding now: ---
+500:def invalidate_edge(deps: AppDependency, edge_id: str, body: InvalidateAction) -> dict[str, Any]:
+
+### 4. SCOPE — ProposalAction still bound on proposals/* (untouched)
+482:def approve_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
+515:def reject_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
+529:def reopen_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
+--- InvalidateAction has NO id field ---
+class InvalidateAction(BaseModel):
+    """Invalidate a verified edge addressed by the URL path.
+
+    The id lives in the path; requiring it again in the body made the
+    dashboard's {note}-only request a 422, so invalidation never landed.
+    """
+
+    by: str = DEFAULT_ACTOR
+    note: Optional[str] = None
+
+
+class CriticRunRequest(BaseModel):
+--- web/app.js NOT modified in this session (mtime predates it) ---
+2026-08-15 09:01:29  web/app.js

@@ -1,0 +1,1388 @@
+{
+  "task_id": "st_01a0097d",
+  "goal": "G005 / F6 busy-write honesty at invalidateEdge, mergeAct, mergeDismiss",
+  "captured_on": "2026-08-16",
+  "overall_verdict": "PASS",
+  "method": {
+    "surface": "real OntologyLab dashboard driven through Aside CLI",
+    "controls": [
+      "무효화 button",
+      "MergeAlpha 유지 button",
+      "중복 아님 button"
+    ],
+    "lock": "separate sqlite3 connection, BEGIN IMMEDIATE; contender BEGIN IMMEDIATE verified database is locked",
+    "waits": "MutationObserver installed before every busy click; exact terminal visible error + retry-seconds + no loading; bounded sentinel timeout",
+    "server": {
+      "ready": true,
+      "url": "http://127.0.0.1:63101/",
+      "http_status": 200,
+      "pid": 61263,
+      "control_port": 63108,
+      "control_pid": 61296
+    },
+    "fixture": {
+      "db_path": "/private/tmp/ulw-trial-1/data/kg.sqlite",
+      "document_id": "e176fe57d5a542efae79fafc775ff812",
+      "edge_id": "a51cba0e7fb04a3b8a7dc142e389e591",
+      "edge_entity_id": "320aa1c5ff2a44b1848e925644b6c45e",
+      "edge_entity_name": "VerifiedAlpha",
+      "merge_candidate_id": "8fd90e512a224f47b0638b34b80ca534",
+      "merge_target_id": "33fe51da3cd845258c9235761f41d1c9",
+      "merge_source_id": "f803b32bd0fd4b1786f5de9acd866441",
+      "dismiss_candidate_id": "895fe0d29ca742118c40c7d60487ff24",
+      "initial": {
+        "edge_status": "verified",
+        "edge_invalidated_ts": null,
+        "merge_candidate_status": "proposed",
+        "dismiss_candidate_status": "proposed"
+      }
+    }
+  },
+  "lock_receipts": {
+    "acquired": {
+      "httpStatus": 200,
+      "body": {
+        "ok": true,
+        "action": "BEGIN IMMEDIATE",
+        "held": true,
+        "contender_begin_immediate_succeeded": false,
+        "contender_error": "database is locked"
+      }
+    },
+    "verified_held": {
+      "httpStatus": 200,
+      "body": {
+        "held_by_controller": true,
+        "held": true,
+        "contender_begin_immediate_succeeded": false,
+        "contender_error": "database is locked"
+      }
+    },
+    "released": {
+      "httpStatus": 200,
+      "body": {
+        "ok": true,
+        "action": "ROLLBACK",
+        "held": false,
+        "contender_begin_immediate_succeeded": true,
+        "contender_error": null
+      }
+    },
+    "final_verified_released": {
+      "httpStatus": 200,
+      "body": {
+        "held_by_controller": false,
+        "held": false,
+        "contender_begin_immediate_succeeded": true,
+        "contender_error": null
+      }
+    },
+    "note": "The immediate post-rollback contender sample was transiently busy while refused request connections unwound; the final contender sample succeeded and cleanup independently re-verified release."
+  },
+  "scenarios": {
+    "invalidateEdge_busy_then_unlocked_retry": {
+      "verdict": "PASS",
+      "busy": {
+        "checks": {
+          "httpStatus_503": true,
+          "response_error_kind_busy": true,
+          "retry_after_header_present": true,
+          "errorElementVisible": true,
+          "errorTextContainsRetrySeconds": true,
+          "panelOrCardsChanged_false": true,
+          "loading_placeholder_absent": true,
+          "one_real_control_post": true,
+          "durableRowUnchanged": true
+        },
+        "capture": {
+          "site": "invalidateEdge",
+          "terminal": "observed",
+          "observerDriven": true,
+          "control": "무효화",
+          "confirmCalls": 1,
+          "network": [
+            {
+              "url": "/api/edges/a51cba0e7fb04a3b8a7dc142e389e591/invalidate",
+              "method": "POST",
+              "requestBody": {
+                "note": "invalidated via dashboard"
+              },
+              "httpStatus": 503,
+              "responseOk": false,
+              "retryAfter": "2",
+              "body": {
+                "ok": false,
+                "error_kind": "busy",
+                "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+              }
+            }
+          ],
+          "postCount": 1,
+          "errorElementVisible": true,
+          "errorText": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment. — 2초 뒤에 다시 시도해주세요.",
+          "errorTextContainsRetrySeconds": true,
+          "loadingPlaceholderPresent": false,
+          "panelBefore": {
+            "html": "<p><strong>VerifiedAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G005 잠금 픽스처</small><br><small lang=\"ko\">…&gt;&gt;&gt;VerifiedAlpha&lt;&lt;&lt; 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…</small></div><h4>관계 (검토 대기 0건 · 승인 1건)</h4><div class=\"status-row\"><span lang=\"ko\"><span class=\"badge st-verified\">승인됨</span> —[uses]→ VerifiedBeta <small class=\"muted\">(상대: 승인됨)</small></span><span><button class=\"btn btn-danger\" title=\"승인을 취소하지 않고 '지금은 유효하지 않음'으로 표시합니다 (이력 보존)\">무효화</button></span></div><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"320aa1c5ff2a44b1848e925644b6c45e\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"320aa1c5ff2a44b1848e925644b6c45e\" role=\"status\" aria-live=\"polite\"></div></div>",
+            "text": "VerifiedAlpha 승인됨 Component · 확신도 0.90멘션 (1)G005 잠금 픽스처…>>>VerifiedAlpha<<< 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…관계 (검토 대기 0건 · 승인 1건)승인됨 —[uses]→ VerifiedBeta (상대: 승인됨)무효화온톨로지 제안 검토",
+            "invalidateButtons": 1
+          },
+          "panelAfter": {
+            "html": "<p><strong>VerifiedAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G005 잠금 픽스처</small><br><small lang=\"ko\">…&gt;&gt;&gt;VerifiedAlpha&lt;&lt;&lt; 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…</small></div><h4>관계 (검토 대기 0건 · 승인 1건)</h4><div class=\"status-row\"><span lang=\"ko\"><span class=\"badge st-verified\">승인됨</span> —[uses]→ VerifiedBeta <small class=\"muted\">(상대: 승인됨)</small></span><span><button class=\"btn btn-danger\" title=\"승인을 취소하지 않고 '지금은 유효하지 않음'으로 표시합니다 (이력 보존)\">무효화</button></span></div><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"320aa1c5ff2a44b1848e925644b6c45e\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"320aa1c5ff2a44b1848e925644b6c45e\" role=\"status\" aria-live=\"polite\"></div></div>",
+            "text": "VerifiedAlpha 승인됨 Component · 확신도 0.90멘션 (1)G005 잠금 픽스처…>>>VerifiedAlpha<<< 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…관계 (검토 대기 0건 · 승인 1건)승인됨 —[uses]→ VerifiedBeta (상대: 승인됨)무효화온톨로지 제안 검토",
+            "invalidateButtons": 1
+          },
+          "panelOrCardsChanged": false
+        },
+        "durable_after_refusal": {
+          "status": "verified",
+          "invalidated_ts": null,
+          "invalidated_by": null,
+          "invalidation_reason": null
+        }
+      },
+      "unlocked_retry": {
+        "checks": {
+          "one_post_200": true,
+          "succeededExactlyOnce": true,
+          "error_hidden": true,
+          "terminal_not_loading": true,
+          "panel_changed": true,
+          "verified_relation_count_dropped_1_to_0": true,
+          "invalidate_control_removed": true,
+          "durable_invalidated_once": true
+        },
+        "capture": {
+          "site": "invalidateEdge",
+          "control": "무효화",
+          "network": [
+            {
+              "url": "/api/edges/a51cba0e7fb04a3b8a7dc142e389e591/invalidate",
+              "method": "POST",
+              "requestBody": {
+                "note": "invalidated via dashboard"
+              },
+              "httpStatus": 200,
+              "responseOk": true,
+              "retryAfter": null,
+              "body": {
+                "ok": true,
+                "id": "a51cba0e7fb04a3b8a7dc142e389e591",
+                "invalidated_ts": 1786866964.307765,
+                "invalidated_by": "local-user",
+                "reason": "invalidated via dashboard"
+              }
+            }
+          ],
+          "postCount": 1,
+          "succeededExactlyOnce": true,
+          "errorElementVisible": false,
+          "loadingPlaceholderPresent": false,
+          "honestSuccess": false,
+          "panelBefore": {
+            "html": "<p><strong>VerifiedAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G005 잠금 픽스처</small><br><small lang=\"ko\">…&gt;&gt;&gt;VerifiedAlpha&lt;&lt;&lt; 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…</small></div><h4>관계 (검토 대기 0건 · 승인 1건)</h4><div class=\"status-row\"><span lang=\"ko\"><span class=\"badge st-verified\">승인됨</span> —[uses]→ VerifiedBeta <small class=\"muted\">(상대: 승인됨)</small></span><span><button class=\"btn btn-danger\" title=\"승인을 취소하지 않고 '지금은 유효하지 않음'으로 표시합니다 (이력 보존)\">무효화</button></span></div><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"320aa1c5ff2a44b1848e925644b6c45e\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"320aa1c5ff2a44b1848e925644b6c45e\" role=\"status\" aria-live=\"polite\"></div></div>",
+            "text": "VerifiedAlpha 승인됨 Component · 확신도 0.90멘션 (1)G005 잠금 픽스처…>>>VerifiedAlpha<<< 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…관계 (검토 대기 0건 · 승인 1건)승인됨 —[uses]→ VerifiedBeta (상대: 승인됨)무효화온톨로지 제안 검토"
+          },
+          "panelAfter": {
+            "html": "<p><strong>VerifiedAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G005 잠금 픽스처</small><br><small lang=\"ko\">…&gt;&gt;&gt;VerifiedAlpha&lt;&lt;&lt; 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…</small></div><h4>관계 (검토 대기 0건 · 승인 0건)</h4><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"320aa1c5ff2a44b1848e925644b6c45e\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"320aa1c5ff2a44b1848e925644b6c45e\" role=\"status\" aria-live=\"polite\"></div></div>",
+            "text": "VerifiedAlpha 승인됨 Component · 확신도 0.90멘션 (1)G005 잠금 픽스처…>>>VerifiedAlpha<<< 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…관계 (검토 대기 0건 · 승인 0건)온톨로지 제안 검토"
+          },
+          "panelOrCardsChanged": true
+        },
+        "durable_after_success": {
+          "status": "verified",
+          "invalidated_ts": 1786866964.307765,
+          "invalidated_by": "local-user",
+          "invalidation_reason": "invalidated via dashboard"
+        }
+      },
+      "capture_note": "raw capture's convenience honestSuccess=false is non-authoritative: the cited source sentence correctly retains 'VerifiedBeta'. The relation subpanel itself changed from 승인 1건 to 승인 0건, removed the 무효화 control, and SQLite has invalidated_ts."
+    },
+    "mergeAct_busy_then_unlocked_retry": {
+      "verdict": "PASS",
+      "busy": {
+        "checks": {
+          "httpStatus_503": true,
+          "response_error_kind_busy": true,
+          "retry_after_header_present": true,
+          "errorElementVisible": true,
+          "errorTextContainsRetrySeconds": true,
+          "panelOrCardsChanged_false": true,
+          "loading_placeholder_absent": true,
+          "one_real_control_post": true,
+          "no_success_reload_get": true,
+          "durableRowUnchanged": true
+        },
+        "capture": {
+          "site": "mergeAct",
+          "terminal": "observed",
+          "observerDriven": true,
+          "control": "◀ “MergeAlpha” 유지",
+          "network": [
+            {
+              "url": "/api/merge/candidates/8fd90e512a224f47b0638b34b80ca534/merge",
+              "method": "POST",
+              "requestBody": {
+                "target_id": "33fe51da3cd845258c9235761f41d1c9",
+                "source_id": "f803b32bd0fd4b1786f5de9acd866441"
+              },
+              "httpStatus": 503,
+              "responseOk": false,
+              "retryAfter": "2",
+              "body": {
+                "ok": false,
+                "error_kind": "busy",
+                "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+              }
+            }
+          ],
+          "postCount": 1,
+          "reloadGetCount": 0,
+          "errorElementVisible": true,
+          "errorText": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment. — 2초 뒤에 다시 시도해주세요.",
+          "errorTextContainsRetrySeconds": true,
+          "loadingPlaceholderPresent": false,
+          "panelBefore": {
+            "html": "<div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.93</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>MergeAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>33fe51da3cd8</code></small></td><td class=\"merge-node\"><strong>MergeAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>f803b32bd0fd</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “MergeAlpha” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“MergeAlfa” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div><div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.91</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>DismissAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>30b891d94493</code></small></td><td class=\"merge-node\"><strong>DismissAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>424c86d6c340</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “DismissAlfa” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“DismissAlpha” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div>",
+            "text": "점수 0.93name-similarityMergeAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —33fe51da3cd8MergeAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —f803b32bd0fd◀ “MergeAlpha” 유지 “MergeAlfa” 유지 ▶ 중복 아님 점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+            "cardCount": 2
+          },
+          "panelAfter": {
+            "html": "<div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.93</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>MergeAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>33fe51da3cd8</code></small></td><td class=\"merge-node\"><strong>MergeAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>f803b32bd0fd</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “MergeAlpha” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“MergeAlfa” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div><div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.91</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>DismissAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>30b891d94493</code></small></td><td class=\"merge-node\"><strong>DismissAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>424c86d6c340</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “DismissAlfa” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“DismissAlpha” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div>",
+            "text": "점수 0.93name-similarityMergeAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —33fe51da3cd8MergeAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —f803b32bd0fd◀ “MergeAlpha” 유지 “MergeAlfa” 유지 ▶ 중복 아님 점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+            "cardCount": 2
+          },
+          "panelOrCardsChanged": false
+        },
+        "durable_after_refusal": {
+          "status": "proposed",
+          "decided_ts": null,
+          "decided_by": null
+        }
+      },
+      "unlocked_retry": {
+        "checks": {
+          "one_post_200": true,
+          "succeededExactlyOnce": true,
+          "error_hidden": true,
+          "terminal_not_loading": true,
+          "candidate_card_removed": true,
+          "durable_candidate_merged": true,
+          "durable_source_tombstoned": true
+        },
+        "capture": {
+          "site": "mergeAct",
+          "control": "◀ “MergeAlpha” 유지",
+          "network": [
+            {
+              "url": "/api/merge/candidates/8fd90e512a224f47b0638b34b80ca534/merge",
+              "method": "POST",
+              "requestBody": {
+                "target_id": "33fe51da3cd845258c9235761f41d1c9",
+                "source_id": "f803b32bd0fd4b1786f5de9acd866441"
+              },
+              "httpStatus": 200,
+              "responseOk": true,
+              "retryAfter": null,
+              "body": {
+                "ok": true,
+                "target_id": "33fe51da3cd845258c9235761f41d1c9",
+                "source_id": "f803b32bd0fd4b1786f5de9acd866441",
+                "edges_repointed": 0,
+                "edges_deduplicated": 0,
+                "edges_self_loop_rejected": 0
+              }
+            },
+            {
+              "url": "/api/merge/candidates?limit=100",
+              "method": "GET",
+              "requestBody": null,
+              "httpStatus": 200,
+              "responseOk": true,
+              "retryAfter": null,
+              "body": {
+                "items": [
+                  {
+                    "id": "895fe0d29ca742118c40c7d60487ff24",
+                    "score": 0.91,
+                    "reasons": [
+                      "name-similarity"
+                    ],
+                    "created_ts": 1786866565.638719,
+                    "node_a": {
+                      "id": "30b891d9449340c89f03cef88b217275",
+                      "entity_type": "Component",
+                      "name": "DismissAlfa",
+                      "aliases": [],
+                      "properties": {},
+                      "status": "proposed",
+                      "confidence": 0.9,
+                      "source_doc_id": "e176fe57d5a542efae79fafc775ff812",
+                      "source_span": {
+                        "start": 0,
+                        "end": 11
+                      },
+                      "citation_count": 1
+                    },
+                    "node_b": {
+                      "id": "424c86d6c34047969059b4026fe483cb",
+                      "entity_type": "Component",
+                      "name": "DismissAlpha",
+                      "aliases": [],
+                      "properties": {},
+                      "status": "proposed",
+                      "confidence": 0.9,
+                      "source_doc_id": "e176fe57d5a542efae79fafc775ff812",
+                      "source_span": {
+                        "start": 0,
+                        "end": 12
+                      },
+                      "citation_count": 1
+                    }
+                  }
+                ],
+                "count": 1
+              }
+            },
+            {
+              "url": "/api/proposals?limit=50&order=confidence",
+              "method": "GET",
+              "requestBody": null,
+              "httpStatus": 200,
+              "responseOk": true,
+              "retryAfter": null,
+              "body": {
+                "items": [
+                  {
+                    "kind": "node",
+                    "id": "30b891d9449340c89f03cef88b217275",
+                    "type_name": "Component",
+                    "label": "DismissAlfa",
+                    "confidence": 0.9,
+                    "source_doc_id": "e176fe57d5a542efae79fafc775ff812",
+                    "created_ts": 1786866565.6383932,
+                    "critic_score": null,
+                    "critic_rationale": null,
+                    "critic_engine": null,
+                    "critic_disagreement": false,
+                    "properties": {},
+                    "source_span": {
+                      "start": 0,
+                      "end": 11
+                    },
+                    "doc_title": "G005 lock fixture",
+                    "doc_source": "",
+                    "evidence_grade": "unknown",
+                    "excerpt": ">>>VerifiedAlp<<<ha uses VerifiedBeta. MergeAlpha resembles MergeAlfa. DismissAlpha resembles DismissAlfa."
+                  },
+                  {
+                    "kind": "node",
+                    "id": "33fe51da3cd845258c9235761f41d1c9",
+                    "type_name": "Component",
+                    "label": "MergeAlpha",
+                    "confidence": 0.9,
+                    "source_doc_id": "e176fe57d5a542efae79fafc775ff812",
+                    "created_ts": 1786866565.6383932,
+                    "critic_score": null,
+                    "critic_rationale": null,
+                    "critic_engine": null,
+                    "critic_disagreement": false,
+                    "properties": {},
+                    "source_span": {
+                      "start": 0,
+                      "end": 10
+                    },
+                    "doc_title": "G005 lock fixture",
+                    "doc_source": "",
+                    "evidence_grade": "unknown",
+                    "excerpt": ">>>VerifiedAl<<<pha uses VerifiedBeta. MergeAlpha resembles MergeAlfa. DismissAlpha resembles DismissAlfa."
+                  },
+                  {
+                    "kind": "node",
+                    "id": "424c86d6c34047969059b4026fe483cb",
+                    "type_name": "Component",
+                    "label": "DismissAlpha",
+                    "confidence": 0.9,
+                    "source_doc_id": "e176fe57d5a542efae79fafc775ff812",
+                    "created_ts": 1786866565.6383932,
+                    "critic_score": null,
+                    "critic_rationale": null,
+                    "critic_engine": null,
+                    "critic_disagreement": false,
+                    "properties": {},
+                    "source_span": {
+                      "start": 0,
+                      "end": 12
+                    },
+                    "doc_title": "G005 lock fixture",
+                    "doc_source": "",
+                    "evidence_grade": "unknown",
+                    "excerpt": ">>>VerifiedAlph<<<a uses VerifiedBeta. MergeAlpha resembles MergeAlfa. DismissAlpha resembles DismissAlfa."
+                  }
+                ],
+                "counts": {
+                  "nodes_proposed": 3,
+                  "edges_proposed": 0,
+                  "nodes_verified": 2,
+                  "edges_verified": 1,
+                  "nodes_rejected": 1,
+                  "edges_rejected": 0,
+                  "documents": 1,
+                  "merge_candidates_pending": 1
+                },
+                "count": 3,
+                "has_more": false,
+                "next_cursor": null
+              }
+            }
+          ],
+          "postCount": 1,
+          "succeededExactlyOnce": true,
+          "errorElementVisible": false,
+          "loadingPlaceholderPresent": false,
+          "honestSuccess": true,
+          "panelBefore": {
+            "html": "<div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.93</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>MergeAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>33fe51da3cd8</code></small></td><td class=\"merge-node\"><strong>MergeAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>f803b32bd0fd</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “MergeAlpha” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“MergeAlfa” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div><div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.91</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>DismissAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>30b891d94493</code></small></td><td class=\"merge-node\"><strong>DismissAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>424c86d6c340</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “DismissAlfa” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“DismissAlpha” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div>",
+            "text": "점수 0.93name-similarityMergeAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —33fe51da3cd8MergeAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —f803b32bd0fd◀ “MergeAlpha” 유지 “MergeAlfa” 유지 ▶ 중복 아님 점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+            "cardCount": 2
+          },
+          "panelAfter": {
+            "html": "<div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.91</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>DismissAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>30b891d94493</code></small></td><td class=\"merge-node\"><strong>DismissAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>424c86d6c340</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “DismissAlfa” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“DismissAlpha” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div>",
+            "text": "점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+            "cardCount": 1
+          },
+          "panelOrCardsChanged": true
+        },
+        "durable_after_success": {
+          "edge": {
+            "status": "verified",
+            "invalidated_ts": 1786866964.307765,
+            "invalidated_by": "local-user",
+            "invalidation_reason": "invalidated via dashboard"
+          },
+          "merge_candidate": {
+            "status": "merged",
+            "decided_ts": 1786866964.327894,
+            "decided_by": "local-user"
+          },
+          "dismiss_candidate": {
+            "status": "proposed",
+            "decided_ts": null,
+            "decided_by": null
+          },
+          "merge_nodes": [
+            {
+              "id": "f803b32bd0fd4b1786f5de9acd866441",
+              "name": "MergeAlfa",
+              "status": "rejected",
+              "review_note": "merged-into:33fe51da3cd845258c9235761f41d1c9"
+            },
+            {
+              "id": "33fe51da3cd845258c9235761f41d1c9",
+              "name": "MergeAlpha",
+              "status": "proposed",
+              "review_note": null
+            }
+          ]
+        }
+      }
+    },
+    "mergeDismiss_busy_then_unlocked_retry": {
+      "verdict": "PASS",
+      "busy": {
+        "checks": {
+          "httpStatus_503": true,
+          "response_error_kind_busy": true,
+          "retry_after_header_present": true,
+          "errorElementVisible": true,
+          "errorTextContainsRetrySeconds": true,
+          "panelOrCardsChanged_false": true,
+          "loading_placeholder_absent": true,
+          "one_real_control_post": true,
+          "no_success_reload_get": true,
+          "durableRowUnchanged": true
+        },
+        "capture": {
+          "site": "mergeDismiss",
+          "terminal": "observed",
+          "observerDriven": true,
+          "control": "중복 아님",
+          "network": [
+            {
+              "url": "/api/merge/candidates/895fe0d29ca742118c40c7d60487ff24/dismiss",
+              "method": "POST",
+              "requestBody": {},
+              "httpStatus": 503,
+              "responseOk": false,
+              "retryAfter": "2",
+              "body": {
+                "ok": false,
+                "error_kind": "busy",
+                "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+              }
+            }
+          ],
+          "postCount": 1,
+          "reloadGetCount": 0,
+          "errorElementVisible": true,
+          "errorText": "지식 베이스가 사용 중입니다 — 추출 작업이 데이터를 기록하고 있습니다. 잠시 후 다시 시도해주세요. — 2초 뒤에 다시 시도해주세요.",
+          "errorTextContainsRetrySeconds": true,
+          "loadingPlaceholderPresent": false,
+          "panelBefore": {
+            "html": "<div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.93</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>MergeAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>33fe51da3cd8</code></small></td><td class=\"merge-node\"><strong>MergeAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>f803b32bd0fd</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “MergeAlpha” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“MergeAlfa” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div><div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.91</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>DismissAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>30b891d94493</code></small></td><td class=\"merge-node\"><strong>DismissAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>424c86d6c340</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “DismissAlfa” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“DismissAlpha” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div>",
+            "text": "점수 0.93name-similarityMergeAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —33fe51da3cd8MergeAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —f803b32bd0fd◀ “MergeAlpha” 유지 “MergeAlfa” 유지 ▶ 중복 아님 점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+            "cardCount": 2
+          },
+          "panelAfter": {
+            "html": "<div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.93</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>MergeAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>33fe51da3cd8</code></small></td><td class=\"merge-node\"><strong>MergeAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>f803b32bd0fd</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “MergeAlpha” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“MergeAlfa” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div><div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.91</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>DismissAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>30b891d94493</code></small></td><td class=\"merge-node\"><strong>DismissAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>424c86d6c340</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “DismissAlfa” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“DismissAlpha” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div>",
+            "text": "점수 0.93name-similarityMergeAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —33fe51da3cd8MergeAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —f803b32bd0fd◀ “MergeAlpha” 유지 “MergeAlfa” 유지 ▶ 중복 아님 점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+            "cardCount": 2
+          },
+          "panelOrCardsChanged": false
+        },
+        "durable_after_refusal": {
+          "status": "proposed",
+          "decided_ts": null,
+          "decided_by": null
+        }
+      },
+      "unlocked_retry": {
+        "checks": {
+          "one_post_200": true,
+          "succeededExactlyOnce": true,
+          "error_hidden": true,
+          "terminal_not_loading": true,
+          "candidate_card_removed": true,
+          "durable_candidate_dismissed": true
+        },
+        "capture": {
+          "site": "mergeDismiss",
+          "control": "중복 아님",
+          "network": [
+            {
+              "url": "/api/merge/candidates/895fe0d29ca742118c40c7d60487ff24/dismiss",
+              "method": "POST",
+              "requestBody": {},
+              "httpStatus": 200,
+              "responseOk": true,
+              "retryAfter": null,
+              "body": {
+                "ok": true,
+                "id": "895fe0d29ca742118c40c7d60487ff24",
+                "status": "dismissed"
+              }
+            },
+            {
+              "url": "/api/merge/candidates?limit=100",
+              "method": "GET",
+              "requestBody": null,
+              "httpStatus": 200,
+              "responseOk": true,
+              "retryAfter": null,
+              "body": {
+                "items": [],
+                "count": 0
+              }
+            }
+          ],
+          "postCount": 1,
+          "succeededExactlyOnce": true,
+          "errorElementVisible": false,
+          "loadingPlaceholderPresent": false,
+          "honestSuccess": true,
+          "panelBefore": {
+            "html": "<div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.91</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>DismissAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>30b891d94493</code></small></td><td class=\"merge-node\"><strong>DismissAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>424c86d6c340</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “DismissAlfa” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“DismissAlpha” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div>",
+            "text": "점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+            "cardCount": 1
+          },
+          "panelAfter": {
+            "html": "",
+            "text": "",
+            "cardCount": 0
+          },
+          "panelOrCardsChanged": true
+        },
+        "durable_after_success": {
+          "status": "dismissed",
+          "decided_ts": 1786866964.3484,
+          "decided_by": "local-user"
+        }
+      }
+    }
+  },
+  "raw_aside_capture": {
+    "tag": "G005_LIVE",
+    "json": {
+      "scenario": "G005",
+      "raw": {
+        "entityPreload": {
+          "route": "command-palette entity result -> entity review panel",
+          "activeTab": "review",
+          "entityResultText": "승인됨VerifiedAlphaComponent",
+          "controlText": "무효화",
+          "panelText": "VerifiedAlpha 승인됨 Component · 확신도 0.90멘션 (1)G005 잠금 픽스처…>>>VerifiedAlpha<<< 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…관계 (검토 대기 0건 · 승인 1건)승인됨 —[uses]→ VerifiedBeta (상대: 승인됨)무효화온톨로지 제안 검토",
+          "loadingPlaceholderPresent": false
+        },
+        "mergePreload": {
+          "route": "merge tab button -> merge cards",
+          "activeTab": "merge",
+          "cardCount": 2,
+          "cardsText": "점수 0.93name-similarityMergeAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —33fe51da3cd8MergeAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —f803b32bd0fd◀ “MergeAlpha” 유지 “MergeAlfa” 유지 ▶ 중복 아님 점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+          "loadingPlaceholderPresent": false
+        },
+        "lockAcquire": {
+          "httpStatus": 200,
+          "body": {
+            "ok": true,
+            "action": "BEGIN IMMEDIATE",
+            "held": true,
+            "contender_begin_immediate_succeeded": false,
+            "contender_error": "database is locked"
+          }
+        },
+        "lockVerify": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": true,
+            "held": true,
+            "contender_begin_immediate_succeeded": false,
+            "contender_error": "database is locked"
+          }
+        },
+        "stateAtLock": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": true,
+            "durable": {
+              "edge": {
+                "status": "verified",
+                "invalidated_ts": null,
+                "invalidated_by": null,
+                "invalidation_reason": null
+              },
+              "merge_candidate": {
+                "status": "proposed",
+                "decided_ts": null,
+                "decided_by": null
+              },
+              "dismiss_candidate": {
+                "status": "proposed",
+                "decided_ts": null,
+                "decided_by": null
+              },
+              "merge_nodes": [
+                {
+                  "id": "f803b32bd0fd4b1786f5de9acd866441",
+                  "name": "MergeAlfa",
+                  "status": "proposed",
+                  "review_note": null
+                },
+                {
+                  "id": "33fe51da3cd845258c9235761f41d1c9",
+                  "name": "MergeAlpha",
+                  "status": "proposed",
+                  "review_note": null
+                }
+              ]
+            }
+          }
+        },
+        "invalidateBusyArm": {
+          "armed": true,
+          "clickedControl": "무효화",
+          "observerInstalledBeforeClick": true
+        },
+        "invalidateBusy": {
+          "site": "invalidateEdge",
+          "terminal": "observed",
+          "observerDriven": true,
+          "control": "무효화",
+          "confirmCalls": 1,
+          "network": [
+            {
+              "url": "/api/edges/a51cba0e7fb04a3b8a7dc142e389e591/invalidate",
+              "method": "POST",
+              "requestBody": {
+                "note": "invalidated via dashboard"
+              },
+              "httpStatus": 503,
+              "responseOk": false,
+              "retryAfter": "2",
+              "body": {
+                "ok": false,
+                "error_kind": "busy",
+                "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+              }
+            }
+          ],
+          "postCount": 1,
+          "errorElementVisible": true,
+          "errorText": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment. — 2초 뒤에 다시 시도해주세요.",
+          "errorTextContainsRetrySeconds": true,
+          "loadingPlaceholderPresent": false,
+          "panelBefore": {
+            "html": "<p><strong>VerifiedAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G005 잠금 픽스처</small><br><small lang=\"ko\">…&gt;&gt;&gt;VerifiedAlpha&lt;&lt;&lt; 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…</small></div><h4>관계 (검토 대기 0건 · 승인 1건)</h4><div class=\"status-row\"><span lang=\"ko\"><span class=\"badge st-verified\">승인됨</span> —[uses]→ VerifiedBeta <small class=\"muted\">(상대: 승인됨)</small></span><span><button class=\"btn btn-danger\" title=\"승인을 취소하지 않고 '지금은 유효하지 않음'으로 표시합니다 (이력 보존)\">무효화</button></span></div><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"320aa1c5ff2a44b1848e925644b6c45e\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"320aa1c5ff2a44b1848e925644b6c45e\" role=\"status\" aria-live=\"polite\"></div></div>",
+            "text": "VerifiedAlpha 승인됨 Component · 확신도 0.90멘션 (1)G005 잠금 픽스처…>>>VerifiedAlpha<<< 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…관계 (검토 대기 0건 · 승인 1건)승인됨 —[uses]→ VerifiedBeta (상대: 승인됨)무효화온톨로지 제안 검토",
+            "invalidateButtons": 1
+          },
+          "panelAfter": {
+            "html": "<p><strong>VerifiedAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G005 잠금 픽스처</small><br><small lang=\"ko\">…&gt;&gt;&gt;VerifiedAlpha&lt;&lt;&lt; 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…</small></div><h4>관계 (검토 대기 0건 · 승인 1건)</h4><div class=\"status-row\"><span lang=\"ko\"><span class=\"badge st-verified\">승인됨</span> —[uses]→ VerifiedBeta <small class=\"muted\">(상대: 승인됨)</small></span><span><button class=\"btn btn-danger\" title=\"승인을 취소하지 않고 '지금은 유효하지 않음'으로 표시합니다 (이력 보존)\">무효화</button></span></div><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"320aa1c5ff2a44b1848e925644b6c45e\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"320aa1c5ff2a44b1848e925644b6c45e\" role=\"status\" aria-live=\"polite\"></div></div>",
+            "text": "VerifiedAlpha 승인됨 Component · 확신도 0.90멘션 (1)G005 잠금 픽스처…>>>VerifiedAlpha<<< 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…관계 (검토 대기 0건 · 승인 1건)승인됨 —[uses]→ VerifiedBeta (상대: 승인됨)무효화온톨로지 제안 검토",
+            "invalidateButtons": 1
+          },
+          "panelOrCardsChanged": false
+        },
+        "stateAfterInvalidateBusy": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": true,
+            "durable": {
+              "edge": {
+                "status": "verified",
+                "invalidated_ts": null,
+                "invalidated_by": null,
+                "invalidation_reason": null
+              },
+              "merge_candidate": {
+                "status": "proposed",
+                "decided_ts": null,
+                "decided_by": null
+              },
+              "dismiss_candidate": {
+                "status": "proposed",
+                "decided_ts": null,
+                "decided_by": null
+              },
+              "merge_nodes": [
+                {
+                  "id": "f803b32bd0fd4b1786f5de9acd866441",
+                  "name": "MergeAlfa",
+                  "status": "proposed",
+                  "review_note": null
+                },
+                {
+                  "id": "33fe51da3cd845258c9235761f41d1c9",
+                  "name": "MergeAlpha",
+                  "status": "proposed",
+                  "review_note": null
+                }
+              ]
+            }
+          }
+        },
+        "mergeBusyArm": {
+          "armed": true,
+          "clickedControl": "◀ “MergeAlpha” 유지",
+          "observerInstalledBeforeClick": true
+        },
+        "mergeBusy": {
+          "site": "mergeAct",
+          "terminal": "observed",
+          "observerDriven": true,
+          "control": "◀ “MergeAlpha” 유지",
+          "network": [
+            {
+              "url": "/api/merge/candidates/8fd90e512a224f47b0638b34b80ca534/merge",
+              "method": "POST",
+              "requestBody": {
+                "target_id": "33fe51da3cd845258c9235761f41d1c9",
+                "source_id": "f803b32bd0fd4b1786f5de9acd866441"
+              },
+              "httpStatus": 503,
+              "responseOk": false,
+              "retryAfter": "2",
+              "body": {
+                "ok": false,
+                "error_kind": "busy",
+                "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+              }
+            }
+          ],
+          "postCount": 1,
+          "reloadGetCount": 0,
+          "errorElementVisible": true,
+          "errorText": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment. — 2초 뒤에 다시 시도해주세요.",
+          "errorTextContainsRetrySeconds": true,
+          "loadingPlaceholderPresent": false,
+          "panelBefore": {
+            "html": "<div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.93</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>MergeAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>33fe51da3cd8</code></small></td><td class=\"merge-node\"><strong>MergeAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>f803b32bd0fd</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “MergeAlpha” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“MergeAlfa” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div><div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.91</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>DismissAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>30b891d94493</code></small></td><td class=\"merge-node\"><strong>DismissAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>424c86d6c340</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “DismissAlfa” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“DismissAlpha” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div>",
+            "text": "점수 0.93name-similarityMergeAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —33fe51da3cd8MergeAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —f803b32bd0fd◀ “MergeAlpha” 유지 “MergeAlfa” 유지 ▶ 중복 아님 점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+            "cardCount": 2
+          },
+          "panelAfter": {
+            "html": "<div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.93</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>MergeAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>33fe51da3cd8</code></small></td><td class=\"merge-node\"><strong>MergeAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>f803b32bd0fd</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “MergeAlpha” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“MergeAlfa” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div><div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.91</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>DismissAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>30b891d94493</code></small></td><td class=\"merge-node\"><strong>DismissAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>424c86d6c340</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “DismissAlfa” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“DismissAlpha” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div>",
+            "text": "점수 0.93name-similarityMergeAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —33fe51da3cd8MergeAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —f803b32bd0fd◀ “MergeAlpha” 유지 “MergeAlfa” 유지 ▶ 중복 아님 점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+            "cardCount": 2
+          },
+          "panelOrCardsChanged": false
+        },
+        "stateAfterMergeBusy": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": true,
+            "durable": {
+              "edge": {
+                "status": "verified",
+                "invalidated_ts": null,
+                "invalidated_by": null,
+                "invalidation_reason": null
+              },
+              "merge_candidate": {
+                "status": "proposed",
+                "decided_ts": null,
+                "decided_by": null
+              },
+              "dismiss_candidate": {
+                "status": "proposed",
+                "decided_ts": null,
+                "decided_by": null
+              },
+              "merge_nodes": [
+                {
+                  "id": "f803b32bd0fd4b1786f5de9acd866441",
+                  "name": "MergeAlfa",
+                  "status": "proposed",
+                  "review_note": null
+                },
+                {
+                  "id": "33fe51da3cd845258c9235761f41d1c9",
+                  "name": "MergeAlpha",
+                  "status": "proposed",
+                  "review_note": null
+                }
+              ]
+            }
+          }
+        },
+        "dismissBusyArm": {
+          "armed": true,
+          "clickedControl": "중복 아님",
+          "observerInstalledBeforeClick": true
+        },
+        "dismissBusy": {
+          "site": "mergeDismiss",
+          "terminal": "observed",
+          "observerDriven": true,
+          "control": "중복 아님",
+          "network": [
+            {
+              "url": "/api/merge/candidates/895fe0d29ca742118c40c7d60487ff24/dismiss",
+              "method": "POST",
+              "requestBody": {},
+              "httpStatus": 503,
+              "responseOk": false,
+              "retryAfter": "2",
+              "body": {
+                "ok": false,
+                "error_kind": "busy",
+                "detail": "The knowledge base is busy — an extraction job is writing to it. Try again in a moment."
+              }
+            }
+          ],
+          "postCount": 1,
+          "reloadGetCount": 0,
+          "errorElementVisible": true,
+          "errorText": "지식 베이스가 사용 중입니다 — 추출 작업이 데이터를 기록하고 있습니다. 잠시 후 다시 시도해주세요. — 2초 뒤에 다시 시도해주세요.",
+          "errorTextContainsRetrySeconds": true,
+          "loadingPlaceholderPresent": false,
+          "panelBefore": {
+            "html": "<div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.93</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>MergeAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>33fe51da3cd8</code></small></td><td class=\"merge-node\"><strong>MergeAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>f803b32bd0fd</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “MergeAlpha” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“MergeAlfa” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div><div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.91</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>DismissAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>30b891d94493</code></small></td><td class=\"merge-node\"><strong>DismissAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>424c86d6c340</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “DismissAlfa” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“DismissAlpha” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div>",
+            "text": "점수 0.93name-similarityMergeAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —33fe51da3cd8MergeAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —f803b32bd0fd◀ “MergeAlpha” 유지 “MergeAlfa” 유지 ▶ 중복 아님 점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+            "cardCount": 2
+          },
+          "panelAfter": {
+            "html": "<div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.93</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>MergeAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>33fe51da3cd8</code></small></td><td class=\"merge-node\"><strong>MergeAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>f803b32bd0fd</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “MergeAlpha” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“MergeAlfa” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div><div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.91</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>DismissAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>30b891d94493</code></small></td><td class=\"merge-node\"><strong>DismissAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>424c86d6c340</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “DismissAlfa” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“DismissAlpha” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div>",
+            "text": "점수 0.93name-similarityMergeAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —33fe51da3cd8MergeAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —f803b32bd0fd◀ “MergeAlpha” 유지 “MergeAlfa” 유지 ▶ 중복 아님 점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+            "cardCount": 2
+          },
+          "panelOrCardsChanged": false
+        },
+        "stateAfterDismissBusy": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": true,
+            "durable": {
+              "edge": {
+                "status": "verified",
+                "invalidated_ts": null,
+                "invalidated_by": null,
+                "invalidation_reason": null
+              },
+              "merge_candidate": {
+                "status": "proposed",
+                "decided_ts": null,
+                "decided_by": null
+              },
+              "dismiss_candidate": {
+                "status": "proposed",
+                "decided_ts": null,
+                "decided_by": null
+              },
+              "merge_nodes": [
+                {
+                  "id": "f803b32bd0fd4b1786f5de9acd866441",
+                  "name": "MergeAlfa",
+                  "status": "proposed",
+                  "review_note": null
+                },
+                {
+                  "id": "33fe51da3cd845258c9235761f41d1c9",
+                  "name": "MergeAlpha",
+                  "status": "proposed",
+                  "review_note": null
+                }
+              ]
+            }
+          }
+        },
+        "lockRelease": {
+          "httpStatus": 200,
+          "body": {
+            "ok": true,
+            "action": "ROLLBACK",
+            "held": false,
+            "contender_begin_immediate_succeeded": true,
+            "contender_error": null
+          }
+        },
+        "lockVerifyAfterRelease": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": false,
+            "held": true,
+            "contender_begin_immediate_succeeded": false,
+            "contender_error": "database is locked"
+          }
+        },
+        "invalidateSuccess": {
+          "site": "invalidateEdge",
+          "control": "무효화",
+          "network": [
+            {
+              "url": "/api/edges/a51cba0e7fb04a3b8a7dc142e389e591/invalidate",
+              "method": "POST",
+              "requestBody": {
+                "note": "invalidated via dashboard"
+              },
+              "httpStatus": 200,
+              "responseOk": true,
+              "retryAfter": null,
+              "body": {
+                "ok": true,
+                "id": "a51cba0e7fb04a3b8a7dc142e389e591",
+                "invalidated_ts": 1786866964.307765,
+                "invalidated_by": "local-user",
+                "reason": "invalidated via dashboard"
+              }
+            }
+          ],
+          "postCount": 1,
+          "succeededExactlyOnce": true,
+          "errorElementVisible": false,
+          "loadingPlaceholderPresent": false,
+          "honestSuccess": false,
+          "panelBefore": {
+            "html": "<p><strong>VerifiedAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G005 잠금 픽스처</small><br><small lang=\"ko\">…&gt;&gt;&gt;VerifiedAlpha&lt;&lt;&lt; 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…</small></div><h4>관계 (검토 대기 0건 · 승인 1건)</h4><div class=\"status-row\"><span lang=\"ko\"><span class=\"badge st-verified\">승인됨</span> —[uses]→ VerifiedBeta <small class=\"muted\">(상대: 승인됨)</small></span><span><button class=\"btn btn-danger\" title=\"승인을 취소하지 않고 '지금은 유효하지 않음'으로 표시합니다 (이력 보존)\">무효화</button></span></div><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"320aa1c5ff2a44b1848e925644b6c45e\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"320aa1c5ff2a44b1848e925644b6c45e\" role=\"status\" aria-live=\"polite\"></div></div>",
+            "text": "VerifiedAlpha 승인됨 Component · 확신도 0.90멘션 (1)G005 잠금 픽스처…>>>VerifiedAlpha<<< 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…관계 (검토 대기 0건 · 승인 1건)승인됨 —[uses]→ VerifiedBeta (상대: 승인됨)무효화온톨로지 제안 검토"
+          },
+          "panelAfter": {
+            "html": "<p><strong>VerifiedAlpha</strong> <span class=\"badge st-verified\">승인됨</span> <small class=\"muted\">Component · 확신도 0.90</small></p><h4>멘션 (1)</h4><div class=\"status-box\"><small class=\"muted\" lang=\"ko\">G005 잠금 픽스처</small><br><small lang=\"ko\">…&gt;&gt;&gt;VerifiedAlpha&lt;&lt;&lt; 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…</small></div><h4>관계 (검토 대기 0건 · 승인 0건)</h4><div class=\"status-box\"><button type=\"button\" class=\"btn\" data-ontology-proposal-preview=\"320aa1c5ff2a44b1848e925644b6c45e\" aria-label=\"추출 항목을 온톨로지 제안으로 검토\">온톨로지 제안 검토</button><div data-ontology-proposal-result=\"320aa1c5ff2a44b1848e925644b6c45e\" role=\"status\" aria-live=\"polite\"></div></div>",
+            "text": "VerifiedAlpha 승인됨 Component · 확신도 0.90멘션 (1)G005 잠금 픽스처…>>>VerifiedAlpha<<< 는 VerifiedBeta 를 사용합니다. MergeAlpha 는 MergeAlfa 와 유사합니다. DismissAlpha 는 DismissAlfa 와 유사합니다.…관계 (검토 대기 0건 · 승인 0건)온톨로지 제안 검토"
+          },
+          "panelOrCardsChanged": true
+        },
+        "stateAfterInvalidateSuccess": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": false,
+            "durable": {
+              "edge": {
+                "status": "verified",
+                "invalidated_ts": 1786866964.307765,
+                "invalidated_by": "local-user",
+                "invalidation_reason": "invalidated via dashboard"
+              },
+              "merge_candidate": {
+                "status": "proposed",
+                "decided_ts": null,
+                "decided_by": null
+              },
+              "dismiss_candidate": {
+                "status": "proposed",
+                "decided_ts": null,
+                "decided_by": null
+              },
+              "merge_nodes": [
+                {
+                  "id": "f803b32bd0fd4b1786f5de9acd866441",
+                  "name": "MergeAlfa",
+                  "status": "proposed",
+                  "review_note": null
+                },
+                {
+                  "id": "33fe51da3cd845258c9235761f41d1c9",
+                  "name": "MergeAlpha",
+                  "status": "proposed",
+                  "review_note": null
+                }
+              ]
+            }
+          }
+        },
+        "mergeSuccess": {
+          "site": "mergeAct",
+          "control": "◀ “MergeAlpha” 유지",
+          "network": [
+            {
+              "url": "/api/merge/candidates/8fd90e512a224f47b0638b34b80ca534/merge",
+              "method": "POST",
+              "requestBody": {
+                "target_id": "33fe51da3cd845258c9235761f41d1c9",
+                "source_id": "f803b32bd0fd4b1786f5de9acd866441"
+              },
+              "httpStatus": 200,
+              "responseOk": true,
+              "retryAfter": null,
+              "body": {
+                "ok": true,
+                "target_id": "33fe51da3cd845258c9235761f41d1c9",
+                "source_id": "f803b32bd0fd4b1786f5de9acd866441",
+                "edges_repointed": 0,
+                "edges_deduplicated": 0,
+                "edges_self_loop_rejected": 0
+              }
+            },
+            {
+              "url": "/api/merge/candidates?limit=100",
+              "method": "GET",
+              "requestBody": null,
+              "httpStatus": 200,
+              "responseOk": true,
+              "retryAfter": null,
+              "body": {
+                "items": [
+                  {
+                    "id": "895fe0d29ca742118c40c7d60487ff24",
+                    "score": 0.91,
+                    "reasons": [
+                      "name-similarity"
+                    ],
+                    "created_ts": 1786866565.638719,
+                    "node_a": {
+                      "id": "30b891d9449340c89f03cef88b217275",
+                      "entity_type": "Component",
+                      "name": "DismissAlfa",
+                      "aliases": [],
+                      "properties": {},
+                      "status": "proposed",
+                      "confidence": 0.9,
+                      "source_doc_id": "e176fe57d5a542efae79fafc775ff812",
+                      "source_span": {
+                        "start": 0,
+                        "end": 11
+                      },
+                      "citation_count": 1
+                    },
+                    "node_b": {
+                      "id": "424c86d6c34047969059b4026fe483cb",
+                      "entity_type": "Component",
+                      "name": "DismissAlpha",
+                      "aliases": [],
+                      "properties": {},
+                      "status": "proposed",
+                      "confidence": 0.9,
+                      "source_doc_id": "e176fe57d5a542efae79fafc775ff812",
+                      "source_span": {
+                        "start": 0,
+                        "end": 12
+                      },
+                      "citation_count": 1
+                    }
+                  }
+                ],
+                "count": 1
+              }
+            },
+            {
+              "url": "/api/proposals?limit=50&order=confidence",
+              "method": "GET",
+              "requestBody": null,
+              "httpStatus": 200,
+              "responseOk": true,
+              "retryAfter": null,
+              "body": {
+                "items": [
+                  {
+                    "kind": "node",
+                    "id": "30b891d9449340c89f03cef88b217275",
+                    "type_name": "Component",
+                    "label": "DismissAlfa",
+                    "confidence": 0.9,
+                    "source_doc_id": "e176fe57d5a542efae79fafc775ff812",
+                    "created_ts": 1786866565.6383932,
+                    "critic_score": null,
+                    "critic_rationale": null,
+                    "critic_engine": null,
+                    "critic_disagreement": false,
+                    "properties": {},
+                    "source_span": {
+                      "start": 0,
+                      "end": 11
+                    },
+                    "doc_title": "G005 lock fixture",
+                    "doc_source": "",
+                    "evidence_grade": "unknown",
+                    "excerpt": ">>>VerifiedAlp<<<ha uses VerifiedBeta. MergeAlpha resembles MergeAlfa. DismissAlpha resembles DismissAlfa."
+                  },
+                  {
+                    "kind": "node",
+                    "id": "33fe51da3cd845258c9235761f41d1c9",
+                    "type_name": "Component",
+                    "label": "MergeAlpha",
+                    "confidence": 0.9,
+                    "source_doc_id": "e176fe57d5a542efae79fafc775ff812",
+                    "created_ts": 1786866565.6383932,
+                    "critic_score": null,
+                    "critic_rationale": null,
+                    "critic_engine": null,
+                    "critic_disagreement": false,
+                    "properties": {},
+                    "source_span": {
+                      "start": 0,
+                      "end": 10
+                    },
+                    "doc_title": "G005 lock fixture",
+                    "doc_source": "",
+                    "evidence_grade": "unknown",
+                    "excerpt": ">>>VerifiedAl<<<pha uses VerifiedBeta. MergeAlpha resembles MergeAlfa. DismissAlpha resembles DismissAlfa."
+                  },
+                  {
+                    "kind": "node",
+                    "id": "424c86d6c34047969059b4026fe483cb",
+                    "type_name": "Component",
+                    "label": "DismissAlpha",
+                    "confidence": 0.9,
+                    "source_doc_id": "e176fe57d5a542efae79fafc775ff812",
+                    "created_ts": 1786866565.6383932,
+                    "critic_score": null,
+                    "critic_rationale": null,
+                    "critic_engine": null,
+                    "critic_disagreement": false,
+                    "properties": {},
+                    "source_span": {
+                      "start": 0,
+                      "end": 12
+                    },
+                    "doc_title": "G005 lock fixture",
+                    "doc_source": "",
+                    "evidence_grade": "unknown",
+                    "excerpt": ">>>VerifiedAlph<<<a uses VerifiedBeta. MergeAlpha resembles MergeAlfa. DismissAlpha resembles DismissAlfa."
+                  }
+                ],
+                "counts": {
+                  "nodes_proposed": 3,
+                  "edges_proposed": 0,
+                  "nodes_verified": 2,
+                  "edges_verified": 1,
+                  "nodes_rejected": 1,
+                  "edges_rejected": 0,
+                  "documents": 1,
+                  "merge_candidates_pending": 1
+                },
+                "count": 3,
+                "has_more": false,
+                "next_cursor": null
+              }
+            }
+          ],
+          "postCount": 1,
+          "succeededExactlyOnce": true,
+          "errorElementVisible": false,
+          "loadingPlaceholderPresent": false,
+          "honestSuccess": true,
+          "panelBefore": {
+            "html": "<div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.93</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>MergeAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>33fe51da3cd8</code></small></td><td class=\"merge-node\"><strong>MergeAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>f803b32bd0fd</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “MergeAlpha” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“MergeAlfa” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div><div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.91</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>DismissAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>30b891d94493</code></small></td><td class=\"merge-node\"><strong>DismissAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>424c86d6c340</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “DismissAlfa” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“DismissAlpha” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div>",
+            "text": "점수 0.93name-similarityMergeAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —33fe51da3cd8MergeAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —f803b32bd0fd◀ “MergeAlpha” 유지 “MergeAlfa” 유지 ▶ 중복 아님 점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+            "cardCount": 2
+          },
+          "panelAfter": {
+            "html": "<div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.91</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>DismissAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>30b891d94493</code></small></td><td class=\"merge-node\"><strong>DismissAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>424c86d6c340</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “DismissAlfa” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“DismissAlpha” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div>",
+            "text": "점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+            "cardCount": 1
+          },
+          "panelOrCardsChanged": true
+        },
+        "stateAfterMergeSuccess": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": false,
+            "durable": {
+              "edge": {
+                "status": "verified",
+                "invalidated_ts": 1786866964.307765,
+                "invalidated_by": "local-user",
+                "invalidation_reason": "invalidated via dashboard"
+              },
+              "merge_candidate": {
+                "status": "merged",
+                "decided_ts": 1786866964.327894,
+                "decided_by": "local-user"
+              },
+              "dismiss_candidate": {
+                "status": "proposed",
+                "decided_ts": null,
+                "decided_by": null
+              },
+              "merge_nodes": [
+                {
+                  "id": "f803b32bd0fd4b1786f5de9acd866441",
+                  "name": "MergeAlfa",
+                  "status": "rejected",
+                  "review_note": "merged-into:33fe51da3cd845258c9235761f41d1c9"
+                },
+                {
+                  "id": "33fe51da3cd845258c9235761f41d1c9",
+                  "name": "MergeAlpha",
+                  "status": "proposed",
+                  "review_note": null
+                }
+              ]
+            }
+          }
+        },
+        "dismissSuccess": {
+          "site": "mergeDismiss",
+          "control": "중복 아님",
+          "network": [
+            {
+              "url": "/api/merge/candidates/895fe0d29ca742118c40c7d60487ff24/dismiss",
+              "method": "POST",
+              "requestBody": {},
+              "httpStatus": 200,
+              "responseOk": true,
+              "retryAfter": null,
+              "body": {
+                "ok": true,
+                "id": "895fe0d29ca742118c40c7d60487ff24",
+                "status": "dismissed"
+              }
+            },
+            {
+              "url": "/api/merge/candidates?limit=100",
+              "method": "GET",
+              "requestBody": null,
+              "httpStatus": 200,
+              "responseOk": true,
+              "retryAfter": null,
+              "body": {
+                "items": [],
+                "count": 0
+              }
+            }
+          ],
+          "postCount": 1,
+          "succeededExactlyOnce": true,
+          "errorElementVisible": false,
+          "loadingPlaceholderPresent": false,
+          "honestSuccess": true,
+          "panelBefore": {
+            "html": "<div class=\"mcp-card merge-card\"><div class=\"row space-between\"><strong>점수 0.91</strong><span><span class=\"badge\">name-similarity</span></span></div><div class=\"table-wrap\"><table class=\"merge-table\"><tbody><tr><td class=\"merge-node\"><strong>DismissAlfa</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>30b891d94493</code></small></td><td class=\"merge-node\"><strong>DismissAlpha</strong> <span class=\"badge st-proposed\">검토 대기</span><br><small class=\"muted\">타입: Component · 확신도: 0.90 · 인용: 1</small><br><small>별칭: —</small><br><small>속성: —</small><br><small class=\"muted\"><code>424c86d6c340</code></small></td></tr></tbody></table></div><div class=\"form-actions merge-actions\"><button type=\"button\" class=\"btn btn-primary\">◀ “DismissAlfa” 유지</button> <button type=\"button\" class=\"btn btn-primary\">“DismissAlpha” 유지 ▶</button> <button type=\"button\" class=\"btn \">중복 아님</button> </div></div>",
+            "text": "점수 0.91name-similarityDismissAlfa 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —30b891d94493DismissAlpha 검토 대기타입: Component · 확신도: 0.90 · 인용: 1별칭: —속성: —424c86d6c340◀ “DismissAlfa” 유지 “DismissAlpha” 유지 ▶ 중복 아님 ",
+            "cardCount": 1
+          },
+          "panelAfter": {
+            "html": "",
+            "text": "",
+            "cardCount": 0
+          },
+          "panelOrCardsChanged": true
+        },
+        "stateAfterDismissSuccess": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": false,
+            "durable": {
+              "edge": {
+                "status": "verified",
+                "invalidated_ts": 1786866964.307765,
+                "invalidated_by": "local-user",
+                "invalidation_reason": "invalidated via dashboard"
+              },
+              "merge_candidate": {
+                "status": "merged",
+                "decided_ts": 1786866964.327894,
+                "decided_by": "local-user"
+              },
+              "dismiss_candidate": {
+                "status": "dismissed",
+                "decided_ts": 1786866964.3484,
+                "decided_by": "local-user"
+              },
+              "merge_nodes": [
+                {
+                  "id": "f803b32bd0fd4b1786f5de9acd866441",
+                  "name": "MergeAlfa",
+                  "status": "rejected",
+                  "review_note": "merged-into:33fe51da3cd845258c9235761f41d1c9"
+                },
+                {
+                  "id": "33fe51da3cd845258c9235761f41d1c9",
+                  "name": "MergeAlpha",
+                  "status": "proposed",
+                  "review_note": null
+                }
+              ]
+            }
+          }
+        },
+        "finalLockVerifyBeforeClose": {
+          "httpStatus": 200,
+          "body": {
+            "held_by_controller": false,
+            "held": false,
+            "contender_begin_immediate_succeeded": true,
+            "contender_error": null
+          }
+        },
+        "asideCloseReceipts": [
+          {
+            "closed": true
+          },
+          {
+            "closed": true
+          }
+        ],
+        "asidePagesOpened": 2
+      }
+    }
+  },
+  "cleanup": {
+    "lock_final": {
+      "held_by_controller": false,
+      "held": false,
+      "contender_begin_immediate_succeeded": true,
+      "contender_error": null
+    },
+    "server": {
+      "pid": 61263,
+      "signal": "TERM",
+      "kill_0_fails": true
+    },
+    "lock_controller": {
+      "pid": 72379,
+      "signal": "TERM",
+      "kill_0_fails": true
+    },
+    "aside": {
+      "before": 0,
+      "after": 0,
+      "all_closed": true
+    },
+    "trial_path": "/private/tmp/ulw-trial-1",
+    "trial_removed": true,
+    "protected_processes_untouched": {
+      "55560_alive": true,
+      "70970_alive": true
+    }
+  }
+}

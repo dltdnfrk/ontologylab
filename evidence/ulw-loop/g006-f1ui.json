@@ -1,0 +1,308 @@
+{
+  "task_id": "st_01a0097d",
+  "goal": "G006 / F1-UI honest partial extraction failure with survivors",
+  "captured_on": "2026-08-16",
+  "overall_verdict": "PASS",
+  "scenarios": {
+    "four_chunks_chunk_1_engine_failure": {
+      "verdict": "PASS",
+      "checks": {
+        "real_form_post_accepted": true,
+        "terminal_badge_st_failed": true,
+        "terminal_badge_text_failed": true,
+        "result_visible": true,
+        "survivor_copy_present": true,
+        "concept_and_relation_counts_present": true,
+        "review_affordance_present": true,
+        "retry_affordance_present": true,
+        "false_complete_absent": true,
+        "terminal_not_loading": true,
+        "job_status_failed": true,
+        "job_error_redacted_summary": true,
+        "durable_extraction_run_failed": true,
+        "only_chunk_1_engine_error": true,
+        "surviving_node_proposals_exist": true,
+        "surviving_edge_proposals_exist": true,
+        "engine_failed_exactly_call_1_of_4": true,
+        "ui_db_agree_failed": true
+      },
+      "terminal_badge_class_keyed_on": "badge st-failed",
+      "ui_capture": {
+        "route": "sources tab -> extraction details summary -> actual 추출 실행 button",
+        "mutationObserverInstalledBeforeClick": true,
+        "network": [
+          {
+            "url": "/api/extract",
+            "method": "POST",
+            "requestBody": {
+              "engine": "mock",
+              "model": null,
+              "doc_ids": [],
+              "seed": 7
+            },
+            "httpStatus": 202,
+            "responseOk": true,
+            "body": {
+              "job_id": "extract-20260816-170015",
+              "status": "running"
+            }
+          }
+        ],
+        "jobId": "extract-20260816-170015",
+        "terminalBadgeSelector": ".badge.st-failed",
+        "terminalBadgeClass": "badge st-failed",
+        "terminalBadgeText": "실패",
+        "rowHtml": "<td><code>extract-2026</code></td><td>mock</td><td><span class=\"badge st-failed\">실패</span></td><td><small>개념 +2/~4 · 관계 +2/~1</small></td><td><small>2026. 8. 16. 오후 5:00:15</small></td><td><small>2026. 8. 16. 오후 5:00:18</small></td>",
+        "rowText": "extract-2026mock실패개념 +2/~4 · 관계 +2/~12026. 8. 16. 오후 5:00:152026. 8. 16. 오후 5:00:18",
+        "resultHtml": "<span class=\"badge st-failed\">실패</span> extraction engine failed — 그래도 여기까지 나온 제안은 남아 있어요. 개념 +2/~4 · 관계 +2/~1. 위 추출 양식으로 나머지를 다시 돌릴 수 있어요. <button type=\"button\" class=\"btn btn-primary\" data-goto=\"review\">검토 →</button>",
+        "resultText": "실패 extraction engine failed — 그래도 여기까지 나온 제안은 남아 있어요. 개념 +2/~4 · 관계 +2/~1. 위 추출 양식으로 나머지를 다시 돌릴 수 있어요. 검토 →",
+        "resultVisible": true,
+        "survivorCopyPresent": true,
+        "conceptAndRelationCountsPresent": true,
+        "reviewAffordancePresent": true,
+        "retryAffordancePresent": true,
+        "falseCompleteAbsent": true,
+        "loadingPlaceholderPresent": false,
+        "jobApi": {
+          "httpStatus": 200,
+          "body": {
+            "job_id": "extract-20260816-170015",
+            "kind": "extract",
+            "status": "failed",
+            "phase": "",
+            "engine": "mock",
+            "model": null,
+            "started_ts": 1786867215.577326,
+            "finished_ts": 1786867218.600034,
+            "totals": {
+              "nodes_new": 2,
+              "nodes_merged": 4,
+              "edges_new": 2,
+              "edges_merged": 1
+            },
+            "progress": [
+              "[ontologylab] 61544fbb7bd2476cbc37624910d95b4a#0: +2 nodes (+0 merged), +1 edges",
+              "[ontologylab] engine error on 61544fbb7bd2476cbc37624910d95b4a#1: extraction engine failed",
+              "[ontologylab] 61544fbb7bd2476cbc37624910d95b4a#2: +0 nodes (+2 merged), +0 edges",
+              "[ontologylab] 61544fbb7bd2476cbc37624910d95b4a#3: +0 nodes (+2 merged), +1 edges",
+              "[ontologylab] extraction failed: extraction engine failed"
+            ],
+            "steps": [],
+            "sources": [],
+            "error": "extraction engine failed"
+          }
+        }
+      },
+      "durable_crosscheck": {
+        "extraction_runs": [
+          {
+            "id": "e06365eb6e29437ea1fcda73efca3536",
+            "document_id": "61544fbb7bd2476cbc37624910d95b4a",
+            "extractor_engine": "mock",
+            "extractor_model": "",
+            "status": "failed",
+            "finished_ts": 1786867218.5964942
+          }
+        ],
+        "chunks": [
+          {
+            "run_id": "e06365eb6e29437ea1fcda73efca3536",
+            "chunk_index": 0,
+            "status": "succeeded",
+            "attempts": 1,
+            "error_kind": null,
+            "stats_json": "{\"edges_merged\": 0, \"edges_new\": 1, \"id_map\": {\"b5fb9fc3967e476aafd2e0d8f83a80b4\": \"b5fb9fc3967e476aafd2e0d8f83a80b4\", \"d8cec995afcf44dcbf0e34ae7e0b0e94\": \"d8cec995afcf44dcbf0e34ae7e0b0e94\"}, \"nodes_merged\": 0, \"nodes_new\": 2, \"synthesized_endpoints\": 0}"
+          },
+          {
+            "run_id": "e06365eb6e29437ea1fcda73efca3536",
+            "chunk_index": 1,
+            "status": "failed",
+            "attempts": 1,
+            "error_kind": "engine_error",
+            "stats_json": null
+          },
+          {
+            "run_id": "e06365eb6e29437ea1fcda73efca3536",
+            "chunk_index": 2,
+            "status": "succeeded",
+            "attempts": 1,
+            "error_kind": null,
+            "stats_json": "{\"edges_merged\": 1, \"edges_new\": 0, \"id_map\": {\"5e398a314ad04366bdc9aff3c2cc533d\": \"d8cec995afcf44dcbf0e34ae7e0b0e94\", \"8714d702a1864b3f8d7bcbe2a43181ac\": \"b5fb9fc3967e476aafd2e0d8f83a80b4\"}, \"nodes_merged\": 2, \"nodes_new\": 0, \"synthesized_endpoints\": 0}"
+          },
+          {
+            "run_id": "e06365eb6e29437ea1fcda73efca3536",
+            "chunk_index": 3,
+            "status": "succeeded",
+            "attempts": 1,
+            "error_kind": null,
+            "stats_json": "{\"edges_merged\": 0, \"edges_new\": 1, \"id_map\": {\"b6407bc21a05462292d0e15f8840fbeb\": \"d8cec995afcf44dcbf0e34ae7e0b0e94\", \"f59e54bf94474611b5a913ce231e50d6\": \"b5fb9fc3967e476aafd2e0d8f83a80b4\"}, \"nodes_merged\": 2, \"nodes_new\": 0, \"synthesized_endpoints\": 0}"
+          }
+        ],
+        "proposals": {
+          "nodes_total": 2,
+          "nodes_proposed": 2,
+          "edges_total": 2,
+          "edges_proposed": 2,
+          "citations": 9
+        },
+        "job_runs": [
+          {
+            "id": "extract-20260816-170015",
+            "kind": "extract",
+            "status": "failed",
+            "error": "extraction engine failed",
+            "totals_json": "{\"nodes_new\": 2, \"nodes_merged\": 4, \"edges_new\": 2, \"edges_merged\": 1}"
+          }
+        ],
+        "engine_audit": [
+          {
+            "call_index": 0,
+            "fails": false,
+            "delay_s": 0.75
+          },
+          {
+            "call_index": 1,
+            "fails": true,
+            "delay_s": 0.75
+          },
+          {
+            "call_index": 2,
+            "fails": false,
+            "delay_s": 0.75
+          },
+          {
+            "call_index": 3,
+            "fails": false,
+            "delay_s": 0.75
+          }
+        ]
+      }
+    }
+  },
+  "method": {
+    "surface": "real OntologyLab dashboard driven through Aside CLI; actual 추출 실행 button",
+    "wait": "MutationObserver installed before click; exact .badge.st-failed plus survivor/count/review/retry copy, no loading placeholder",
+    "fixture": {
+      "db_path": "/private/tmp/ulw-trial-1/data/kg.sqlite",
+      "document_id": "61544fbb7bd2476cbc37624910d95b4a",
+      "text_chars": 36000,
+      "chunk_count": 4,
+      "chunk_lengths": [
+        11997,
+        11999,
+        11997,
+        1781
+      ]
+    },
+    "server": {
+      "ready": true,
+      "url": "http://127.0.0.1:64060/",
+      "http_status": 200,
+      "pid": 84290,
+      "engine_fixture": "SlowFailSecondChunk",
+      "per_call_delay_s": 0.75,
+      "failure_call_index": 1
+    },
+    "engine_injection": "Disposable /private/tmp server wrapper patched ontologylab.server.jobs.get_engine to a MockEngine wrapper. It delayed each generate by 0.75s and raised EngineError only on zero-based call index 1.",
+    "delay_note": "0.75s per engine call was used only to make the already-produced running -> terminal SSE transition observable. No fixed sleep gated any assertion."
+  },
+  "raw_aside_capture": {
+    "tag": "G006_LIVE",
+    "json": {
+      "scenario": "G006",
+      "ui": {
+        "route": "sources tab -> extraction details summary -> actual 추출 실행 button",
+        "mutationObserverInstalledBeforeClick": true,
+        "network": [
+          {
+            "url": "/api/extract",
+            "method": "POST",
+            "requestBody": {
+              "engine": "mock",
+              "model": null,
+              "doc_ids": [],
+              "seed": 7
+            },
+            "httpStatus": 202,
+            "responseOk": true,
+            "body": {
+              "job_id": "extract-20260816-170015",
+              "status": "running"
+            }
+          }
+        ],
+        "jobId": "extract-20260816-170015",
+        "terminalBadgeSelector": ".badge.st-failed",
+        "terminalBadgeClass": "badge st-failed",
+        "terminalBadgeText": "실패",
+        "rowHtml": "<td><code>extract-2026</code></td><td>mock</td><td><span class=\"badge st-failed\">실패</span></td><td><small>개념 +2/~4 · 관계 +2/~1</small></td><td><small>2026. 8. 16. 오후 5:00:15</small></td><td><small>2026. 8. 16. 오후 5:00:18</small></td>",
+        "rowText": "extract-2026mock실패개념 +2/~4 · 관계 +2/~12026. 8. 16. 오후 5:00:152026. 8. 16. 오후 5:00:18",
+        "resultHtml": "<span class=\"badge st-failed\">실패</span> extraction engine failed — 그래도 여기까지 나온 제안은 남아 있어요. 개념 +2/~4 · 관계 +2/~1. 위 추출 양식으로 나머지를 다시 돌릴 수 있어요. <button type=\"button\" class=\"btn btn-primary\" data-goto=\"review\">검토 →</button>",
+        "resultText": "실패 extraction engine failed — 그래도 여기까지 나온 제안은 남아 있어요. 개념 +2/~4 · 관계 +2/~1. 위 추출 양식으로 나머지를 다시 돌릴 수 있어요. 검토 →",
+        "resultVisible": true,
+        "survivorCopyPresent": true,
+        "conceptAndRelationCountsPresent": true,
+        "reviewAffordancePresent": true,
+        "retryAffordancePresent": true,
+        "falseCompleteAbsent": true,
+        "loadingPlaceholderPresent": false,
+        "jobApi": {
+          "httpStatus": 200,
+          "body": {
+            "job_id": "extract-20260816-170015",
+            "kind": "extract",
+            "status": "failed",
+            "phase": "",
+            "engine": "mock",
+            "model": null,
+            "started_ts": 1786867215.577326,
+            "finished_ts": 1786867218.600034,
+            "totals": {
+              "nodes_new": 2,
+              "nodes_merged": 4,
+              "edges_new": 2,
+              "edges_merged": 1
+            },
+            "progress": [
+              "[ontologylab] 61544fbb7bd2476cbc37624910d95b4a#0: +2 nodes (+0 merged), +1 edges",
+              "[ontologylab] engine error on 61544fbb7bd2476cbc37624910d95b4a#1: extraction engine failed",
+              "[ontologylab] 61544fbb7bd2476cbc37624910d95b4a#2: +0 nodes (+2 merged), +0 edges",
+              "[ontologylab] 61544fbb7bd2476cbc37624910d95b4a#3: +0 nodes (+2 merged), +1 edges",
+              "[ontologylab] extraction failed: extraction engine failed"
+            ],
+            "steps": [],
+            "sources": [],
+            "error": "extraction engine failed"
+          }
+        }
+      },
+      "asidePageClose": {
+        "closed": true
+      }
+    }
+  },
+  "cleanup": {
+    "lock": {
+      "used_during_scenario": false,
+      "released_and_verified": true,
+      "contender_begin_immediate_succeeded": true,
+      "rolled_back": true
+    },
+    "server": {
+      "pid": 84290,
+      "signal": "TERM",
+      "kill_0_fails": true
+    },
+    "aside": {
+      "before": 0,
+      "after": 0,
+      "all_closed": true
+    },
+    "trial_path": "/private/tmp/ulw-trial-1",
+    "trial_removed": true,
+    "protected_processes_untouched": {
+      "55560_alive": true,
+      "70970_alive": true
+    }
+  }
+}

@@ -1,0 +1,19 @@
+# G004 curl proof — 2026-08-16T07:14:43Z server_pid=78950
+## C001: {note}-only body
+HTTP/1.1 200 OK
+date: Sun, 16 Aug 2026 07:14:43 GMT
+server: uvicorn
+content-length: 138
+content-type: application/json
+
+{"ok":true,"id":"34ee5772b0bd49f795eb8b73eb2cf927","invalidated_ts":1786864483.830118,"invalidated_by":"local-user","reason":"superseded"}
+## sqlite read-back
+{'invalidated_ts': 1786864483.830118, 'invalidation_reason': 'superseded', 'invalidated_by': 'local-user'}
+
+## C002 edge battery
+-- double invalidation (expect 400):
+400
+-- unknown id (expect 404):
+404
+-- redundant id tolerated (expect 200):
+200

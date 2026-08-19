@@ -1,0 +1,1443 @@
+{
+  "task_id": "st_01a00b4d",
+  "goal": "G008 / F7-UI malformed-pack discovery, command isolation, and stale clearing",
+  "captured_at": "2026-08-17T01:13:57.421818+09:00",
+  "overall_verdict": "PASS",
+  "scenarios": {
+    "packs_screen": {
+      "verdict": "PASS",
+      "checks": {
+        "real_packs_control_driven": true,
+        "mutation_observer_armed_before_click": true,
+        "api_packs_http_200": true,
+        "server_reports_exact_three_unusable": true,
+        "ui_advisory_visible": true,
+        "ui_advisory_lists_exact_three_dirs": true,
+        "every_ui_advisory_item_has_reason": true,
+        "three_distinct_ui_reasons": true,
+        "three_distinct_server_reasons": true,
+        "phantom_pack_rows_empty": true,
+        "only_good_pack_row": true,
+        "diff_a_only_good_pack": true,
+        "diff_b_only_good_pack": true,
+        "no_blank_diff_options": true,
+        "no_unusable_diff_options": true,
+        "terminal_not_loading": true
+      },
+      "capture": {
+        "route": "actual Packs navigation control",
+        "mutationObserverInstalledBeforeClick": true,
+        "terminalSentinel": "#ulw-g008-pre-packs-terminal",
+        "api": {
+          "url": "/api/packs",
+          "method": "GET",
+          "httpStatus": 200,
+          "responseOk": true,
+          "responseBodyRaw": "{\"packs\":[{\"pack_id\":\"good-pack-20260817-010435\",\"created_ts\":1786896275.8942342,\"schema_version_id\":1,\"schema_label\":\"software-docs-v1\",\"source_job_id\":\"build-pack-20260817-010435\",\"counts\":{\"documents\":1,\"nodes_verified\":2,\"edges_verified\":1,\"entity_types\":3,\"relation_types\":3,\"communities\":1,\"ontology_terms_reviewed\":6,\"term_aliases_reviewed\":0,\"term_xrefs_reviewed\":0},\"search_tier\":\"fts5\",\"embedding_model\":null,\"ontologylab_version\":\"0.1.0\",\"content_hash\":\"sha256:7d298cdd29cf764997d5762a27c4bce0f099e2ef85867c71aaccda77fc16eecb\",\"basis_commit\":\"0108c370908ac1463e08c4063ec54e3dac37e2b3\",\"staleness_policy\":{\"pending_verified_count_threshold\":0,\"description\":\"pending_verified_count is a backward-compatible count-difference advisory, not semantic truth. Semantic additions, invalidations, and replacements are authoritative; any nonzero delta recommends rebuilding.\"},\"extraction_completeness\":{\"status\":\"incomplete\",\"relevant_stream_count\":1,\"relevant_document_ids\":[\"bd951eb4f73a46c1ba78c5a4274ef386\"],\"unknown_streams\":[{\"document_id\":\"bd951eb4f73a46c1ba78c5a4274ef386\",\"document_content_hash\":\"sha256:g007-g008-fixture\",\"schema_version_id\":1,\"extractor_engine\":\"mock\",\"extractor_model\":\"\",\"prompt_version\":\"extract-v1\",\"decode_params\":\"null\"}],\"incomplete_streams\":[],\"run_status_counts\":{},\"chunk_status_counts\":{},\"override\":{\"used\":true,\"operator_intent\":\"G007/G008 supported disposable QA fixture\"}},\"semantic_fact_baseline\":{\"version\":1,\"fingerprint_algorithm\":\"sha256-canonical-json-v1\",\"source\":\"pack.sqlite\"},\"included_schema_version_ids\":[1],\"ontology_publication\":{\"version\":1,\"review_boundary\":\"explicit-current-review-fields-v1\",\"xref_verification\":\"complete-source-license-contract-v1\",\"license_modes\":[\"allow\",\"identifier-only\",\"deny-text\"],\"external_descriptive_text\":\"not-in-term-xref-schema\"},\"capabilities\":[\"knowledge-graph-v1\"]}],\"count\":1,\"unusable\":[{\"pack_dir\":\"bad-a-no-packid\",\"reason\":\"manifest.json has no usable 'pack_id'\"},{\"pack_dir\":\"bad-b-array-manifest\",\"reason\":\"manifest.json must be a JSON object, got list\"},{\"pack_dir\":\"bad-c-broken-sqlite\",\"reason\":\"pack.sqlite is not a usable pack database: file is not a database\"}],\"competency\":{\"questions\":[{\"question_id\":\"Q1\",\"question\":\"Can every verified fact be traced to its exact source document, extraction stream, and approval record?\",\"passed\":true,\"expected_count\":5,\"actual_count\":5,\"missing\":[],\"spurious\":[],\"detail\":{}},{\"question_id\":\"Q2\",\"question\":\"Does the extractor produce the exact expected entities and relations from a known document?\",\"passed\":true,\"expected_count\":11,\"actual_count\":11,\"missing\":[],\"spurious\":[],\"detail\":{\"parser_f1\":1.0}},{\"question_id\":\"Q3\",\"question\":\"Does a built pack return exact answers to user queries?\",\"passed\":true,\"expected_count\":5,\"actual_count\":5,\"missing\":[],\"spurious\":[],\"detail\":{\"pack_id\":\"cq-release-pack-20260817-011123\"}}],\"all_passed\":true,\"passed_count\":3,\"total_count\":3,\"evaluated_at\":1786896683.62332}}",
+          "body": {
+            "packs": [
+              {
+                "pack_id": "good-pack-20260817-010435",
+                "created_ts": 1786896275.8942342,
+                "schema_version_id": 1,
+                "schema_label": "software-docs-v1",
+                "source_job_id": "build-pack-20260817-010435",
+                "counts": {
+                  "documents": 1,
+                  "nodes_verified": 2,
+                  "edges_verified": 1,
+                  "entity_types": 3,
+                  "relation_types": 3,
+                  "communities": 1,
+                  "ontology_terms_reviewed": 6,
+                  "term_aliases_reviewed": 0,
+                  "term_xrefs_reviewed": 0
+                },
+                "search_tier": "fts5",
+                "embedding_model": null,
+                "ontologylab_version": "0.1.0",
+                "content_hash": "sha256:7d298cdd29cf764997d5762a27c4bce0f099e2ef85867c71aaccda77fc16eecb",
+                "basis_commit": "0108c370908ac1463e08c4063ec54e3dac37e2b3",
+                "staleness_policy": {
+                  "pending_verified_count_threshold": 0,
+                  "description": "pending_verified_count is a backward-compatible count-difference advisory, not semantic truth. Semantic additions, invalidations, and replacements are authoritative; any nonzero delta recommends rebuilding."
+                },
+                "extraction_completeness": {
+                  "status": "incomplete",
+                  "relevant_stream_count": 1,
+                  "relevant_document_ids": [
+                    "bd951eb4f73a46c1ba78c5a4274ef386"
+                  ],
+                  "unknown_streams": [
+                    {
+                      "document_id": "bd951eb4f73a46c1ba78c5a4274ef386",
+                      "document_content_hash": "sha256:g007-g008-fixture",
+                      "schema_version_id": 1,
+                      "extractor_engine": "mock",
+                      "extractor_model": "",
+                      "prompt_version": "extract-v1",
+                      "decode_params": "null"
+                    }
+                  ],
+                  "incomplete_streams": [],
+                  "run_status_counts": {},
+                  "chunk_status_counts": {},
+                  "override": {
+                    "used": true,
+                    "operator_intent": "G007/G008 supported disposable QA fixture"
+                  }
+                },
+                "semantic_fact_baseline": {
+                  "version": 1,
+                  "fingerprint_algorithm": "sha256-canonical-json-v1",
+                  "source": "pack.sqlite"
+                },
+                "included_schema_version_ids": [
+                  1
+                ],
+                "ontology_publication": {
+                  "version": 1,
+                  "review_boundary": "explicit-current-review-fields-v1",
+                  "xref_verification": "complete-source-license-contract-v1",
+                  "license_modes": [
+                    "allow",
+                    "identifier-only",
+                    "deny-text"
+                  ],
+                  "external_descriptive_text": "not-in-term-xref-schema"
+                },
+                "capabilities": [
+                  "knowledge-graph-v1"
+                ]
+              }
+            ],
+            "count": 1,
+            "unusable": [
+              {
+                "pack_dir": "bad-a-no-packid",
+                "reason": "manifest.json has no usable 'pack_id'"
+              },
+              {
+                "pack_dir": "bad-b-array-manifest",
+                "reason": "manifest.json must be a JSON object, got list"
+              },
+              {
+                "pack_dir": "bad-c-broken-sqlite",
+                "reason": "pack.sqlite is not a usable pack database: file is not a database"
+              }
+            ],
+            "competency": {
+              "questions": [
+                {
+                  "question_id": "Q1",
+                  "question": "Can every verified fact be traced to its exact source document, extraction stream, and approval record?",
+                  "passed": true,
+                  "expected_count": 5,
+                  "actual_count": 5,
+                  "missing": [],
+                  "spurious": [],
+                  "detail": {}
+                },
+                {
+                  "question_id": "Q2",
+                  "question": "Does the extractor produce the exact expected entities and relations from a known document?",
+                  "passed": true,
+                  "expected_count": 11,
+                  "actual_count": 11,
+                  "missing": [],
+                  "spurious": [],
+                  "detail": {
+                    "parser_f1": 1
+                  }
+                },
+                {
+                  "question_id": "Q3",
+                  "question": "Does a built pack return exact answers to user queries?",
+                  "passed": true,
+                  "expected_count": 5,
+                  "actual_count": 5,
+                  "missing": [],
+                  "spurious": [],
+                  "detail": {
+                    "pack_id": "cq-release-pack-20260817-011123"
+                  }
+                }
+              ],
+              "all_passed": true,
+              "passed_count": 3,
+              "total_count": 3,
+              "evaluated_at": 1786896683.62332
+            }
+          }
+        },
+        "apiRequestCount": 2,
+        "loadingPlaceholderPresent": false,
+        "advisoryExists": true,
+        "advisoryHidden": false,
+        "advisoryHeadline": "열 수 없는 팩 폴더 3개",
+        "advisoryItems": [
+          {
+            "pack_dir": "bad-a-no-packid",
+            "reason": "manifest.json has no usable 'pack_id'",
+            "text": "bad-a-no-packid — manifest.json has no usable 'pack_id'"
+          },
+          {
+            "pack_dir": "bad-b-array-manifest",
+            "reason": "manifest.json은 JSON 객체여야 하는데 list가 들어왔습니다",
+            "text": "bad-b-array-manifest — manifest.json은 JSON 객체여야 하는데 list가 들어왔습니다"
+          },
+          {
+            "pack_dir": "bad-c-broken-sqlite",
+            "reason": "pack.sqlite는 사용 가능한 팩 데이터베이스가 아닙니다: 파일이 데이터베이스가 아님",
+            "text": "bad-c-broken-sqlite — pack.sqlite는 사용 가능한 팩 데이터베이스가 아닙니다: 파일이 데이터베이스가 아님"
+          }
+        ],
+        "advisoryText": "열 수 없는 팩 폴더 3개\n\n아래 폴더는 팩으로 읽힐 수 없어서 목록과 비교에서 빠졌어요. 다시 빌드하거나 폴더를 치우면 이 안내도 사라져요.\n\nbad-a-no-packid — manifest.json has no usable 'pack_id'\nbad-b-array-manifest — manifest.json은 JSON 객체여야 하는데 list가 들어왔습니다\nbad-c-broken-sqlite — pack.sqlite는 사용 가능한 팩 데이터베이스가 아닙니다: 파일이 데이터베이스가 아님",
+        "distinctReasons": [
+          "manifest.json has no usable 'pack_id'",
+          "manifest.json은 JSON 객체여야 하는데 list가 들어왔습니다",
+          "pack.sqlite는 사용 가능한 팩 데이터베이스가 아닙니다: 파일이 데이터베이스가 아님"
+        ],
+        "packRows": [
+          {
+            "packId": "good-pack-20260817-010435",
+            "text": "good-pack-20260817-010435\t2026. 8. 17. 오전 1:04:35\t1\t2\t1\tfts5\tsha256:7d298\t.mcpb",
+            "html": "<td><code>good-pack-20260817-010435</code></td><td><small>2026. 8. 17. 오전 1:04:35</small></td><td class=\"num\">1</td><td class=\"num\">2</td><td class=\"num\">1</td><td>fts5</td><td><code title=\"sha256:7d298cdd29cf764997d5762a27c4bce0f099e2ef85867c71aaccda77fc16eecb\">sha256:7d298</code></td><td><button type=\"button\" class=\"btn mcpb-btn\" data-pack=\"good-pack-20260817-010435\">.mcpb</button></td>"
+          }
+        ],
+        "packRowIds": [
+          "good-pack-20260817-010435"
+        ],
+        "phantomPackRows": [],
+        "diffAOptions": [
+          {
+            "value": "good-pack-20260817-010435",
+            "text": "good-pack-20260817-010435"
+          }
+        ],
+        "diffBOptions": [
+          {
+            "value": "good-pack-20260817-010435",
+            "text": "good-pack-20260817-010435"
+          }
+        ],
+        "blankDiffOptions": [],
+        "unusableDiffOptions": []
+      }
+    },
+    "connection_screen": {
+      "verdict": "PASS",
+      "checks": {
+        "real_connection_control_driven": true,
+        "mutation_observer_armed_before_click": true,
+        "mcp_status_http_200_not_500": true,
+        "mcp_error_hidden": true,
+        "only_good_pack_card": true,
+        "exactly_one_serve_command_for_good_pack": true,
+        "no_unusable_serve_command_on_screen": true,
+        "server_reports_exact_three_unusable": true,
+        "unusable_entries_have_no_serve_command_key": true,
+        "ui_advisory_lists_exact_three_dirs": true,
+        "advisory_has_no_copy_affordance": true,
+        "terminal_not_loading": true
+      },
+      "capture": {
+        "route": "actual Connection navigation control",
+        "mutationObserverInstalledBeforeClick": true,
+        "terminalSentinel": "#ulw-g008-pre-mcp-terminal",
+        "api": {
+          "url": "/api/mcp/status",
+          "method": "GET",
+          "httpStatus": 200,
+          "responseOk": true,
+          "responseBodyRaw": "{\"packs_dir\":\"/private/tmp/ulw-trial-2/packs\",\"packs\":[{\"pack_id\":\"good-pack-20260817-010435\",\"counts\":{\"documents\":1,\"nodes_verified\":2,\"edges_verified\":1,\"entity_types\":3,\"relation_types\":3,\"communities\":1,\"ontology_terms_reviewed\":6,\"term_aliases_reviewed\":0,\"term_xrefs_reviewed\":0},\"created_ts\":1786896275.8942342,\"serve_command\":\"python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435\",\"stdio_config\":{\"command\":\"python\",\"args\":[\"-m\",\"ontologylab.mcp_server\",\"--packs-dir\",\"/private/tmp/ulw-trial-2/packs\",\"--pack\",\"good-pack-20260817-010435\"]}}],\"count\":1,\"unusable\":[{\"pack_dir\":\"bad-a-no-packid\",\"reason\":\"manifest.json has no usable 'pack_id'\"},{\"pack_dir\":\"bad-b-array-manifest\",\"reason\":\"manifest.json must be a JSON object, got list\"},{\"pack_dir\":\"bad-c-broken-sqlite\",\"reason\":\"pack.sqlite is not a usable pack database: file is not a database\"}]}",
+          "body": {
+            "packs_dir": "/private/tmp/ulw-trial-2/packs",
+            "packs": [
+              {
+                "pack_id": "good-pack-20260817-010435",
+                "counts": {
+                  "documents": 1,
+                  "nodes_verified": 2,
+                  "edges_verified": 1,
+                  "entity_types": 3,
+                  "relation_types": 3,
+                  "communities": 1,
+                  "ontology_terms_reviewed": 6,
+                  "term_aliases_reviewed": 0,
+                  "term_xrefs_reviewed": 0
+                },
+                "created_ts": 1786896275.8942342,
+                "serve_command": "python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435",
+                "stdio_config": {
+                  "command": "python",
+                  "args": [
+                    "-m",
+                    "ontologylab.mcp_server",
+                    "--packs-dir",
+                    "/private/tmp/ulw-trial-2/packs",
+                    "--pack",
+                    "good-pack-20260817-010435"
+                  ]
+                }
+              }
+            ],
+            "count": 1,
+            "unusable": [
+              {
+                "pack_dir": "bad-a-no-packid",
+                "reason": "manifest.json has no usable 'pack_id'"
+              },
+              {
+                "pack_dir": "bad-b-array-manifest",
+                "reason": "manifest.json must be a JSON object, got list"
+              },
+              {
+                "pack_dir": "bad-c-broken-sqlite",
+                "reason": "pack.sqlite is not a usable pack database: file is not a database"
+              }
+            ]
+          }
+        },
+        "mcpStatusHttp": 200,
+        "loadingPlaceholderPresent": false,
+        "errorHidden": true,
+        "cards": [
+          {
+            "packId": "good-pack-20260817-010435",
+            "serveCommand": "python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435",
+            "copyButtonText": "연결 설정 복사 (JSON)",
+            "text": "good-pack-20260817-010435\n2026. 8. 17. 오전 1:04:35\n\n문서 1 · 개념 2 · 관계 1\n\npython -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435\n연결 설정 복사 (JSON)",
+            "html": "<div class=\"row space-between\"><strong><code>good-pack-20260817-010435</code></strong><span class=\"muted\">2026. 8. 17. 오전 1:04:35</span></div><p class=\"muted\">문서 1 · 개념 2 · 관계 1</p><pre class=\"code-block\">python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435</pre><button type=\"button\" class=\"btn\">연결 설정 복사 (JSON)</button>"
+          }
+        ],
+        "cardPackIds": [
+          "good-pack-20260817-010435"
+        ],
+        "serveCommands": [
+          "python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435"
+        ],
+        "serveCommandsMentioningUnusable": [],
+        "advisoryExists": true,
+        "advisoryHidden": false,
+        "advisoryItems": [
+          {
+            "pack_dir": "bad-a-no-packid",
+            "reason": "manifest.json has no usable 'pack_id'",
+            "text": "bad-a-no-packid — manifest.json has no usable 'pack_id'"
+          },
+          {
+            "pack_dir": "bad-b-array-manifest",
+            "reason": "manifest.json은 JSON 객체여야 하는데 list가 들어왔습니다",
+            "text": "bad-b-array-manifest — manifest.json은 JSON 객체여야 하는데 list가 들어왔습니다"
+          },
+          {
+            "pack_dir": "bad-c-broken-sqlite",
+            "reason": "pack.sqlite는 사용 가능한 팩 데이터베이스가 아닙니다: 파일이 데이터베이스가 아님",
+            "text": "bad-c-broken-sqlite — pack.sqlite는 사용 가능한 팩 데이터베이스가 아닙니다: 파일이 데이터베이스가 아님"
+          }
+        ],
+        "advisoryText": "열 수 없는 팩 폴더 3개\n\n아래 폴더는 팩으로 읽힐 수 없어서 목록과 비교에서 빠졌어요. 다시 빌드하거나 폴더를 치우면 이 안내도 사라져요.\n\nbad-a-no-packid — manifest.json has no usable 'pack_id'\nbad-b-array-manifest — manifest.json은 JSON 객체여야 하는데 list가 들어왔습니다\nbad-c-broken-sqlite — pack.sqlite는 사용 가능한 팩 데이터베이스가 아닙니다: 파일이 데이터베이스가 아님",
+        "advisoryCopyAffordances": [],
+        "advisoryButtonsWithCopyText": [],
+        "serverPackIds": [
+          "good-pack-20260817-010435"
+        ],
+        "serverServeCommands": [
+          "python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435"
+        ],
+        "serverUnusable": [
+          {
+            "pack_dir": "bad-a-no-packid",
+            "reason": "manifest.json has no usable 'pack_id'"
+          },
+          {
+            "pack_dir": "bad-b-array-manifest",
+            "reason": "manifest.json must be a JSON object, got list"
+          },
+          {
+            "pack_dir": "bad-c-broken-sqlite",
+            "reason": "pack.sqlite is not a usable pack database: file is not a database"
+          }
+        ],
+        "serverUnusableWithServeCommand": []
+      }
+    },
+    "stale_state_same_pid_reload": {
+      "verdict": "PASS",
+      "checks": {
+        "delete_control_http_200": true,
+        "all_three_fixtures_deleted": true,
+        "same_main_server_pid": true,
+        "main_server_alive_during_delete": true,
+        "same_page_reloaded": true,
+        "post_reload_packs_http_200": true,
+        "post_reload_mcp_http_200": true,
+        "post_reload_server_unusable_empty_both": true,
+        "packs_advisory_hidden_and_empty": true,
+        "mcp_advisory_hidden_and_empty": true,
+        "no_stale_bad_text_anywhere": true,
+        "good_pack_row_survives": true,
+        "good_pack_card_survives": true,
+        "terminal_not_loading": true
+      },
+      "deletion_receipt": {
+        "httpStatus": 200,
+        "responseOk": true,
+        "body": {
+          "ok": true,
+          "control_pid": 95530,
+          "main_server_pid": 81607,
+          "main_server_alive_after_delete": true,
+          "removed": [
+            {
+              "pack_dir": "bad-a-no-packid",
+              "existed_before": true,
+              "exists_after": false
+            },
+            {
+              "pack_dir": "bad-b-array-manifest",
+              "existed_before": true,
+              "exists_after": false
+            },
+            {
+              "pack_dir": "bad-c-broken-sqlite",
+              "existed_before": true,
+              "exists_after": false
+            }
+          ],
+          "pack_dirs_after": [
+            "good-pack-20260817-010435"
+          ]
+        }
+      },
+      "reload_receipt": {
+        "performed": true,
+        "samePageBefore": {
+          "href": "http://127.0.0.1:49607/",
+          "navigationStart": 1786896682964.3
+        },
+        "samePageAfter": {
+          "href": "http://127.0.0.1:49607/",
+          "navigationStart": 1786896684127.7
+        },
+        "navigationStartChanged": true
+      },
+      "capture": {
+        "packs": {
+          "route": "same page after fixture deletion and reload -> actual Packs navigation control",
+          "mutationObserverInstalledBeforeClick": true,
+          "terminalSentinel": "#ulw-g008-stale-packs-terminal",
+          "api": {
+            "url": "/api/packs",
+            "method": "GET",
+            "httpStatus": 200,
+            "responseOk": true,
+            "responseBodyRaw": "{\"packs\":[{\"pack_id\":\"good-pack-20260817-010435\",\"created_ts\":1786896275.8942342,\"schema_version_id\":1,\"schema_label\":\"software-docs-v1\",\"source_job_id\":\"build-pack-20260817-010435\",\"counts\":{\"documents\":1,\"nodes_verified\":2,\"edges_verified\":1,\"entity_types\":3,\"relation_types\":3,\"communities\":1,\"ontology_terms_reviewed\":6,\"term_aliases_reviewed\":0,\"term_xrefs_reviewed\":0},\"search_tier\":\"fts5\",\"embedding_model\":null,\"ontologylab_version\":\"0.1.0\",\"content_hash\":\"sha256:7d298cdd29cf764997d5762a27c4bce0f099e2ef85867c71aaccda77fc16eecb\",\"basis_commit\":\"0108c370908ac1463e08c4063ec54e3dac37e2b3\",\"staleness_policy\":{\"pending_verified_count_threshold\":0,\"description\":\"pending_verified_count is a backward-compatible count-difference advisory, not semantic truth. Semantic additions, invalidations, and replacements are authoritative; any nonzero delta recommends rebuilding.\"},\"extraction_completeness\":{\"status\":\"incomplete\",\"relevant_stream_count\":1,\"relevant_document_ids\":[\"bd951eb4f73a46c1ba78c5a4274ef386\"],\"unknown_streams\":[{\"document_id\":\"bd951eb4f73a46c1ba78c5a4274ef386\",\"document_content_hash\":\"sha256:g007-g008-fixture\",\"schema_version_id\":1,\"extractor_engine\":\"mock\",\"extractor_model\":\"\",\"prompt_version\":\"extract-v1\",\"decode_params\":\"null\"}],\"incomplete_streams\":[],\"run_status_counts\":{},\"chunk_status_counts\":{},\"override\":{\"used\":true,\"operator_intent\":\"G007/G008 supported disposable QA fixture\"}},\"semantic_fact_baseline\":{\"version\":1,\"fingerprint_algorithm\":\"sha256-canonical-json-v1\",\"source\":\"pack.sqlite\"},\"included_schema_version_ids\":[1],\"ontology_publication\":{\"version\":1,\"review_boundary\":\"explicit-current-review-fields-v1\",\"xref_verification\":\"complete-source-license-contract-v1\",\"license_modes\":[\"allow\",\"identifier-only\",\"deny-text\"],\"external_descriptive_text\":\"not-in-term-xref-schema\"},\"capabilities\":[\"knowledge-graph-v1\"]}],\"count\":1,\"unusable\":[],\"competency\":{\"questions\":[{\"question_id\":\"Q1\",\"question\":\"Can every verified fact be traced to its exact source document, extraction stream, and approval record?\",\"passed\":true,\"expected_count\":5,\"actual_count\":5,\"missing\":[],\"spurious\":[],\"detail\":{}},{\"question_id\":\"Q2\",\"question\":\"Does the extractor produce the exact expected entities and relations from a known document?\",\"passed\":true,\"expected_count\":11,\"actual_count\":11,\"missing\":[],\"spurious\":[],\"detail\":{\"parser_f1\":1.0}},{\"question_id\":\"Q3\",\"question\":\"Does a built pack return exact answers to user queries?\",\"passed\":true,\"expected_count\":5,\"actual_count\":5,\"missing\":[],\"spurious\":[],\"detail\":{\"pack_id\":\"cq-release-pack-20260817-011124\"}}],\"all_passed\":true,\"passed_count\":3,\"total_count\":3,\"evaluated_at\":1786896684.340416}}",
+            "body": {
+              "packs": [
+                {
+                  "pack_id": "good-pack-20260817-010435",
+                  "created_ts": 1786896275.8942342,
+                  "schema_version_id": 1,
+                  "schema_label": "software-docs-v1",
+                  "source_job_id": "build-pack-20260817-010435",
+                  "counts": {
+                    "documents": 1,
+                    "nodes_verified": 2,
+                    "edges_verified": 1,
+                    "entity_types": 3,
+                    "relation_types": 3,
+                    "communities": 1,
+                    "ontology_terms_reviewed": 6,
+                    "term_aliases_reviewed": 0,
+                    "term_xrefs_reviewed": 0
+                  },
+                  "search_tier": "fts5",
+                  "embedding_model": null,
+                  "ontologylab_version": "0.1.0",
+                  "content_hash": "sha256:7d298cdd29cf764997d5762a27c4bce0f099e2ef85867c71aaccda77fc16eecb",
+                  "basis_commit": "0108c370908ac1463e08c4063ec54e3dac37e2b3",
+                  "staleness_policy": {
+                    "pending_verified_count_threshold": 0,
+                    "description": "pending_verified_count is a backward-compatible count-difference advisory, not semantic truth. Semantic additions, invalidations, and replacements are authoritative; any nonzero delta recommends rebuilding."
+                  },
+                  "extraction_completeness": {
+                    "status": "incomplete",
+                    "relevant_stream_count": 1,
+                    "relevant_document_ids": [
+                      "bd951eb4f73a46c1ba78c5a4274ef386"
+                    ],
+                    "unknown_streams": [
+                      {
+                        "document_id": "bd951eb4f73a46c1ba78c5a4274ef386",
+                        "document_content_hash": "sha256:g007-g008-fixture",
+                        "schema_version_id": 1,
+                        "extractor_engine": "mock",
+                        "extractor_model": "",
+                        "prompt_version": "extract-v1",
+                        "decode_params": "null"
+                      }
+                    ],
+                    "incomplete_streams": [],
+                    "run_status_counts": {},
+                    "chunk_status_counts": {},
+                    "override": {
+                      "used": true,
+                      "operator_intent": "G007/G008 supported disposable QA fixture"
+                    }
+                  },
+                  "semantic_fact_baseline": {
+                    "version": 1,
+                    "fingerprint_algorithm": "sha256-canonical-json-v1",
+                    "source": "pack.sqlite"
+                  },
+                  "included_schema_version_ids": [
+                    1
+                  ],
+                  "ontology_publication": {
+                    "version": 1,
+                    "review_boundary": "explicit-current-review-fields-v1",
+                    "xref_verification": "complete-source-license-contract-v1",
+                    "license_modes": [
+                      "allow",
+                      "identifier-only",
+                      "deny-text"
+                    ],
+                    "external_descriptive_text": "not-in-term-xref-schema"
+                  },
+                  "capabilities": [
+                    "knowledge-graph-v1"
+                  ]
+                }
+              ],
+              "count": 1,
+              "unusable": [],
+              "competency": {
+                "questions": [
+                  {
+                    "question_id": "Q1",
+                    "question": "Can every verified fact be traced to its exact source document, extraction stream, and approval record?",
+                    "passed": true,
+                    "expected_count": 5,
+                    "actual_count": 5,
+                    "missing": [],
+                    "spurious": [],
+                    "detail": {}
+                  },
+                  {
+                    "question_id": "Q2",
+                    "question": "Does the extractor produce the exact expected entities and relations from a known document?",
+                    "passed": true,
+                    "expected_count": 11,
+                    "actual_count": 11,
+                    "missing": [],
+                    "spurious": [],
+                    "detail": {
+                      "parser_f1": 1
+                    }
+                  },
+                  {
+                    "question_id": "Q3",
+                    "question": "Does a built pack return exact answers to user queries?",
+                    "passed": true,
+                    "expected_count": 5,
+                    "actual_count": 5,
+                    "missing": [],
+                    "spurious": [],
+                    "detail": {
+                      "pack_id": "cq-release-pack-20260817-011124"
+                    }
+                  }
+                ],
+                "all_passed": true,
+                "passed_count": 3,
+                "total_count": 3,
+                "evaluated_at": 1786896684.340416
+              }
+            }
+          },
+          "loadingPlaceholderPresent": false,
+          "advisoryExists": true,
+          "advisoryHidden": true,
+          "advisoryText": "",
+          "advisoryLiCount": 0,
+          "packRows": [
+            {
+              "packId": "good-pack-20260817-010435",
+              "text": "good-pack-20260817-010435\t2026. 8. 17. 오전 1:04:35\t1\t2\t1\tfts5\tsha256:7d298\t.mcpb"
+            }
+          ],
+          "packRowIds": [
+            "good-pack-20260817-010435"
+          ]
+        },
+        "mcp": {
+          "route": "same page after fixture deletion and reload -> actual Connection navigation control",
+          "mutationObserverInstalledBeforeClick": true,
+          "terminalSentinel": "#ulw-g008-stale-mcp-terminal",
+          "api": {
+            "url": "/api/mcp/status",
+            "method": "GET",
+            "httpStatus": 200,
+            "responseOk": true,
+            "responseBodyRaw": "{\"packs_dir\":\"/private/tmp/ulw-trial-2/packs\",\"packs\":[{\"pack_id\":\"good-pack-20260817-010435\",\"counts\":{\"documents\":1,\"nodes_verified\":2,\"edges_verified\":1,\"entity_types\":3,\"relation_types\":3,\"communities\":1,\"ontology_terms_reviewed\":6,\"term_aliases_reviewed\":0,\"term_xrefs_reviewed\":0},\"created_ts\":1786896275.8942342,\"serve_command\":\"python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435\",\"stdio_config\":{\"command\":\"python\",\"args\":[\"-m\",\"ontologylab.mcp_server\",\"--packs-dir\",\"/private/tmp/ulw-trial-2/packs\",\"--pack\",\"good-pack-20260817-010435\"]}}],\"count\":1,\"unusable\":[]}",
+            "body": {
+              "packs_dir": "/private/tmp/ulw-trial-2/packs",
+              "packs": [
+                {
+                  "pack_id": "good-pack-20260817-010435",
+                  "counts": {
+                    "documents": 1,
+                    "nodes_verified": 2,
+                    "edges_verified": 1,
+                    "entity_types": 3,
+                    "relation_types": 3,
+                    "communities": 1,
+                    "ontology_terms_reviewed": 6,
+                    "term_aliases_reviewed": 0,
+                    "term_xrefs_reviewed": 0
+                  },
+                  "created_ts": 1786896275.8942342,
+                  "serve_command": "python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435",
+                  "stdio_config": {
+                    "command": "python",
+                    "args": [
+                      "-m",
+                      "ontologylab.mcp_server",
+                      "--packs-dir",
+                      "/private/tmp/ulw-trial-2/packs",
+                      "--pack",
+                      "good-pack-20260817-010435"
+                    ]
+                  }
+                }
+              ],
+              "count": 1,
+              "unusable": []
+            }
+          },
+          "mcpStatusHttp": 200,
+          "loadingPlaceholderPresent": false,
+          "advisoryExists": true,
+          "advisoryHidden": true,
+          "advisoryText": "",
+          "advisoryLiCount": 0,
+          "cards": [
+            {
+              "packId": "good-pack-20260817-010435",
+              "serveCommand": "python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435",
+              "text": "good-pack-20260817-010435\n2026. 8. 17. 오전 1:04:35\n\n문서 1 · 개념 2 · 관계 1\n\npython -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435\n연결 설정 복사 (JSON)"
+            }
+          ],
+          "cardPackIds": [
+            "good-pack-20260817-010435"
+          ],
+          "packsAdvisoryNow": {
+            "exists": true,
+            "hidden": true,
+            "text": "",
+            "liCount": 0
+          },
+          "staleBadTextAnywhere": [],
+          "staleBadOccurrences": {
+            "bad-a-no-packid": {
+              "pageInnerText": 0,
+              "fullPageInnerHTML": 0
+            },
+            "bad-b-array-manifest": {
+              "pageInnerText": 0,
+              "fullPageInnerHTML": 0
+            },
+            "bad-c-broken-sqlite": {
+              "pageInnerText": 0,
+              "fullPageInnerHTML": 0
+            }
+          }
+        }
+      }
+    }
+  },
+  "method": {
+    "surface": "real OntologyLab dashboard driven through Aside CLI",
+    "server": {
+      "ready": true,
+      "attempt": 5,
+      "http_status": 200,
+      "url": "http://127.0.0.1:49607/",
+      "pid": 81607
+    },
+    "good_pack": {
+      "supported_seed_path": "KGStore.open(kg_db_path(data)) + tests.conftest.insert + tests.factories.make_entity/make_relation; explicit node/edge approvals",
+      "supported_build_path": "POST /api/packs/build",
+      "seed_stdout": "SEEDED document=bd951eb4f73a46c1ba78c5a4274ef386 nodes=c1c04f2d575a459285e40a72bfb1f990,ac94722981af426db4bf73874e7dc06f edge=7a4621b6252f4a27b5933dcc79f7216b",
+      "build_receipt": {
+        "build_request": {
+          "name": "good-pack",
+          "allow_incomplete_extraction": true,
+          "override_intent": "G007/G008 supported disposable QA fixture"
+        },
+        "build_http_status": 200,
+        "build_response": {
+          "ok": true,
+          "manifest": {
+            "pack_id": "good-pack-20260817-010435",
+            "created_ts": 1786896275.8942342,
+            "schema_version_id": 1,
+            "schema_label": "software-docs-v1",
+            "source_job_id": "build-pack-20260817-010435",
+            "counts": {
+              "documents": 1,
+              "nodes_verified": 2,
+              "edges_verified": 1,
+              "entity_types": 3,
+              "relation_types": 3,
+              "communities": 1,
+              "ontology_terms_reviewed": 6,
+              "term_aliases_reviewed": 0,
+              "term_xrefs_reviewed": 0
+            },
+            "search_tier": "fts5",
+            "embedding_model": null,
+            "ontologylab_version": "0.1.0",
+            "content_hash": "sha256:7d298cdd29cf764997d5762a27c4bce0f099e2ef85867c71aaccda77fc16eecb",
+            "basis_commit": "0108c370908ac1463e08c4063ec54e3dac37e2b3",
+            "staleness_policy": {
+              "pending_verified_count_threshold": 0,
+              "description": "pending_verified_count is a backward-compatible count-difference advisory, not semantic truth. Semantic additions, invalidations, and replacements are authoritative; any nonzero delta recommends rebuilding."
+            },
+            "extraction_completeness": {
+              "status": "incomplete",
+              "relevant_stream_count": 1,
+              "relevant_document_ids": [
+                "bd951eb4f73a46c1ba78c5a4274ef386"
+              ],
+              "unknown_streams": [
+                {
+                  "document_id": "bd951eb4f73a46c1ba78c5a4274ef386",
+                  "document_content_hash": "sha256:g007-g008-fixture",
+                  "schema_version_id": 1,
+                  "extractor_engine": "mock",
+                  "extractor_model": "",
+                  "prompt_version": "extract-v1",
+                  "decode_params": "null"
+                }
+              ],
+              "incomplete_streams": [],
+              "run_status_counts": {},
+              "chunk_status_counts": {},
+              "override": {
+                "used": true,
+                "operator_intent": "G007/G008 supported disposable QA fixture"
+              }
+            },
+            "semantic_fact_baseline": {
+              "version": 1,
+              "fingerprint_algorithm": "sha256-canonical-json-v1",
+              "source": "pack.sqlite"
+            },
+            "included_schema_version_ids": [
+              1
+            ],
+            "ontology_publication": {
+              "version": 1,
+              "review_boundary": "explicit-current-review-fields-v1",
+              "xref_verification": "complete-source-license-contract-v1",
+              "license_modes": [
+                "allow",
+                "identifier-only",
+                "deny-text"
+              ],
+              "external_descriptive_text": "not-in-term-xref-schema"
+            },
+            "methodology": null,
+            "capabilities": [
+              "knowledge-graph-v1"
+            ]
+          }
+        },
+        "good_pack_id": "good-pack-20260817-010435",
+        "fixture_dirs": [
+          "bad-a-no-packid",
+          "bad-b-array-manifest",
+          "bad-c-broken-sqlite"
+        ]
+      }
+    },
+    "malformed_fixture_scan_before_browser": {
+      "pack_ids": [
+        "good-pack-20260817-010435"
+      ],
+      "unusable": [
+        {
+          "pack_dir": "bad-a-no-packid",
+          "reason": "manifest.json has no usable 'pack_id'"
+        },
+        {
+          "pack_dir": "bad-b-array-manifest",
+          "reason": "manifest.json must be a JSON object, got list"
+        },
+        {
+          "pack_dir": "bad-c-broken-sqlite",
+          "reason": "pack.sqlite is not a usable pack database: file is not a database"
+        }
+      ]
+    },
+    "waits": "MutationObserver predicates created terminal sentinels before each real control click; assertions require active surface to contain no 불러오는 중… placeholder; no fixed sleep gated UI assertions.",
+    "fixture_deletion": {
+      "mechanism": "Aside page made one CORS POST to a disposable loopback control server that deleted only the three named /private/tmp fixtures; the same Aside command then reloaded the same page.",
+      "control_server_readiness": {
+        "ready": true,
+        "attempt": 2,
+        "port": 50122,
+        "pid": 95530
+      }
+    }
+  },
+  "raw_aside_capture": {
+    "tag": "G008_LIVE",
+    "json": {
+      "scenario": "G008",
+      "preDelete": {
+        "packs": {
+          "route": "actual Packs navigation control",
+          "mutationObserverInstalledBeforeClick": true,
+          "terminalSentinel": "#ulw-g008-pre-packs-terminal",
+          "api": {
+            "url": "/api/packs",
+            "method": "GET",
+            "httpStatus": 200,
+            "responseOk": true,
+            "responseBodyRaw": "{\"packs\":[{\"pack_id\":\"good-pack-20260817-010435\",\"created_ts\":1786896275.8942342,\"schema_version_id\":1,\"schema_label\":\"software-docs-v1\",\"source_job_id\":\"build-pack-20260817-010435\",\"counts\":{\"documents\":1,\"nodes_verified\":2,\"edges_verified\":1,\"entity_types\":3,\"relation_types\":3,\"communities\":1,\"ontology_terms_reviewed\":6,\"term_aliases_reviewed\":0,\"term_xrefs_reviewed\":0},\"search_tier\":\"fts5\",\"embedding_model\":null,\"ontologylab_version\":\"0.1.0\",\"content_hash\":\"sha256:7d298cdd29cf764997d5762a27c4bce0f099e2ef85867c71aaccda77fc16eecb\",\"basis_commit\":\"0108c370908ac1463e08c4063ec54e3dac37e2b3\",\"staleness_policy\":{\"pending_verified_count_threshold\":0,\"description\":\"pending_verified_count is a backward-compatible count-difference advisory, not semantic truth. Semantic additions, invalidations, and replacements are authoritative; any nonzero delta recommends rebuilding.\"},\"extraction_completeness\":{\"status\":\"incomplete\",\"relevant_stream_count\":1,\"relevant_document_ids\":[\"bd951eb4f73a46c1ba78c5a4274ef386\"],\"unknown_streams\":[{\"document_id\":\"bd951eb4f73a46c1ba78c5a4274ef386\",\"document_content_hash\":\"sha256:g007-g008-fixture\",\"schema_version_id\":1,\"extractor_engine\":\"mock\",\"extractor_model\":\"\",\"prompt_version\":\"extract-v1\",\"decode_params\":\"null\"}],\"incomplete_streams\":[],\"run_status_counts\":{},\"chunk_status_counts\":{},\"override\":{\"used\":true,\"operator_intent\":\"G007/G008 supported disposable QA fixture\"}},\"semantic_fact_baseline\":{\"version\":1,\"fingerprint_algorithm\":\"sha256-canonical-json-v1\",\"source\":\"pack.sqlite\"},\"included_schema_version_ids\":[1],\"ontology_publication\":{\"version\":1,\"review_boundary\":\"explicit-current-review-fields-v1\",\"xref_verification\":\"complete-source-license-contract-v1\",\"license_modes\":[\"allow\",\"identifier-only\",\"deny-text\"],\"external_descriptive_text\":\"not-in-term-xref-schema\"},\"capabilities\":[\"knowledge-graph-v1\"]}],\"count\":1,\"unusable\":[{\"pack_dir\":\"bad-a-no-packid\",\"reason\":\"manifest.json has no usable 'pack_id'\"},{\"pack_dir\":\"bad-b-array-manifest\",\"reason\":\"manifest.json must be a JSON object, got list\"},{\"pack_dir\":\"bad-c-broken-sqlite\",\"reason\":\"pack.sqlite is not a usable pack database: file is not a database\"}],\"competency\":{\"questions\":[{\"question_id\":\"Q1\",\"question\":\"Can every verified fact be traced to its exact source document, extraction stream, and approval record?\",\"passed\":true,\"expected_count\":5,\"actual_count\":5,\"missing\":[],\"spurious\":[],\"detail\":{}},{\"question_id\":\"Q2\",\"question\":\"Does the extractor produce the exact expected entities and relations from a known document?\",\"passed\":true,\"expected_count\":11,\"actual_count\":11,\"missing\":[],\"spurious\":[],\"detail\":{\"parser_f1\":1.0}},{\"question_id\":\"Q3\",\"question\":\"Does a built pack return exact answers to user queries?\",\"passed\":true,\"expected_count\":5,\"actual_count\":5,\"missing\":[],\"spurious\":[],\"detail\":{\"pack_id\":\"cq-release-pack-20260817-011123\"}}],\"all_passed\":true,\"passed_count\":3,\"total_count\":3,\"evaluated_at\":1786896683.62332}}",
+            "body": {
+              "packs": [
+                {
+                  "pack_id": "good-pack-20260817-010435",
+                  "created_ts": 1786896275.8942342,
+                  "schema_version_id": 1,
+                  "schema_label": "software-docs-v1",
+                  "source_job_id": "build-pack-20260817-010435",
+                  "counts": {
+                    "documents": 1,
+                    "nodes_verified": 2,
+                    "edges_verified": 1,
+                    "entity_types": 3,
+                    "relation_types": 3,
+                    "communities": 1,
+                    "ontology_terms_reviewed": 6,
+                    "term_aliases_reviewed": 0,
+                    "term_xrefs_reviewed": 0
+                  },
+                  "search_tier": "fts5",
+                  "embedding_model": null,
+                  "ontologylab_version": "0.1.0",
+                  "content_hash": "sha256:7d298cdd29cf764997d5762a27c4bce0f099e2ef85867c71aaccda77fc16eecb",
+                  "basis_commit": "0108c370908ac1463e08c4063ec54e3dac37e2b3",
+                  "staleness_policy": {
+                    "pending_verified_count_threshold": 0,
+                    "description": "pending_verified_count is a backward-compatible count-difference advisory, not semantic truth. Semantic additions, invalidations, and replacements are authoritative; any nonzero delta recommends rebuilding."
+                  },
+                  "extraction_completeness": {
+                    "status": "incomplete",
+                    "relevant_stream_count": 1,
+                    "relevant_document_ids": [
+                      "bd951eb4f73a46c1ba78c5a4274ef386"
+                    ],
+                    "unknown_streams": [
+                      {
+                        "document_id": "bd951eb4f73a46c1ba78c5a4274ef386",
+                        "document_content_hash": "sha256:g007-g008-fixture",
+                        "schema_version_id": 1,
+                        "extractor_engine": "mock",
+                        "extractor_model": "",
+                        "prompt_version": "extract-v1",
+                        "decode_params": "null"
+                      }
+                    ],
+                    "incomplete_streams": [],
+                    "run_status_counts": {},
+                    "chunk_status_counts": {},
+                    "override": {
+                      "used": true,
+                      "operator_intent": "G007/G008 supported disposable QA fixture"
+                    }
+                  },
+                  "semantic_fact_baseline": {
+                    "version": 1,
+                    "fingerprint_algorithm": "sha256-canonical-json-v1",
+                    "source": "pack.sqlite"
+                  },
+                  "included_schema_version_ids": [
+                    1
+                  ],
+                  "ontology_publication": {
+                    "version": 1,
+                    "review_boundary": "explicit-current-review-fields-v1",
+                    "xref_verification": "complete-source-license-contract-v1",
+                    "license_modes": [
+                      "allow",
+                      "identifier-only",
+                      "deny-text"
+                    ],
+                    "external_descriptive_text": "not-in-term-xref-schema"
+                  },
+                  "capabilities": [
+                    "knowledge-graph-v1"
+                  ]
+                }
+              ],
+              "count": 1,
+              "unusable": [
+                {
+                  "pack_dir": "bad-a-no-packid",
+                  "reason": "manifest.json has no usable 'pack_id'"
+                },
+                {
+                  "pack_dir": "bad-b-array-manifest",
+                  "reason": "manifest.json must be a JSON object, got list"
+                },
+                {
+                  "pack_dir": "bad-c-broken-sqlite",
+                  "reason": "pack.sqlite is not a usable pack database: file is not a database"
+                }
+              ],
+              "competency": {
+                "questions": [
+                  {
+                    "question_id": "Q1",
+                    "question": "Can every verified fact be traced to its exact source document, extraction stream, and approval record?",
+                    "passed": true,
+                    "expected_count": 5,
+                    "actual_count": 5,
+                    "missing": [],
+                    "spurious": [],
+                    "detail": {}
+                  },
+                  {
+                    "question_id": "Q2",
+                    "question": "Does the extractor produce the exact expected entities and relations from a known document?",
+                    "passed": true,
+                    "expected_count": 11,
+                    "actual_count": 11,
+                    "missing": [],
+                    "spurious": [],
+                    "detail": {
+                      "parser_f1": 1
+                    }
+                  },
+                  {
+                    "question_id": "Q3",
+                    "question": "Does a built pack return exact answers to user queries?",
+                    "passed": true,
+                    "expected_count": 5,
+                    "actual_count": 5,
+                    "missing": [],
+                    "spurious": [],
+                    "detail": {
+                      "pack_id": "cq-release-pack-20260817-011123"
+                    }
+                  }
+                ],
+                "all_passed": true,
+                "passed_count": 3,
+                "total_count": 3,
+                "evaluated_at": 1786896683.62332
+              }
+            }
+          },
+          "apiRequestCount": 2,
+          "loadingPlaceholderPresent": false,
+          "advisoryExists": true,
+          "advisoryHidden": false,
+          "advisoryHeadline": "열 수 없는 팩 폴더 3개",
+          "advisoryItems": [
+            {
+              "pack_dir": "bad-a-no-packid",
+              "reason": "manifest.json has no usable 'pack_id'",
+              "text": "bad-a-no-packid — manifest.json has no usable 'pack_id'"
+            },
+            {
+              "pack_dir": "bad-b-array-manifest",
+              "reason": "manifest.json은 JSON 객체여야 하는데 list가 들어왔습니다",
+              "text": "bad-b-array-manifest — manifest.json은 JSON 객체여야 하는데 list가 들어왔습니다"
+            },
+            {
+              "pack_dir": "bad-c-broken-sqlite",
+              "reason": "pack.sqlite는 사용 가능한 팩 데이터베이스가 아닙니다: 파일이 데이터베이스가 아님",
+              "text": "bad-c-broken-sqlite — pack.sqlite는 사용 가능한 팩 데이터베이스가 아닙니다: 파일이 데이터베이스가 아님"
+            }
+          ],
+          "advisoryText": "열 수 없는 팩 폴더 3개\n\n아래 폴더는 팩으로 읽힐 수 없어서 목록과 비교에서 빠졌어요. 다시 빌드하거나 폴더를 치우면 이 안내도 사라져요.\n\nbad-a-no-packid — manifest.json has no usable 'pack_id'\nbad-b-array-manifest — manifest.json은 JSON 객체여야 하는데 list가 들어왔습니다\nbad-c-broken-sqlite — pack.sqlite는 사용 가능한 팩 데이터베이스가 아닙니다: 파일이 데이터베이스가 아님",
+          "distinctReasons": [
+            "manifest.json has no usable 'pack_id'",
+            "manifest.json은 JSON 객체여야 하는데 list가 들어왔습니다",
+            "pack.sqlite는 사용 가능한 팩 데이터베이스가 아닙니다: 파일이 데이터베이스가 아님"
+          ],
+          "packRows": [
+            {
+              "packId": "good-pack-20260817-010435",
+              "text": "good-pack-20260817-010435\t2026. 8. 17. 오전 1:04:35\t1\t2\t1\tfts5\tsha256:7d298\t.mcpb",
+              "html": "<td><code>good-pack-20260817-010435</code></td><td><small>2026. 8. 17. 오전 1:04:35</small></td><td class=\"num\">1</td><td class=\"num\">2</td><td class=\"num\">1</td><td>fts5</td><td><code title=\"sha256:7d298cdd29cf764997d5762a27c4bce0f099e2ef85867c71aaccda77fc16eecb\">sha256:7d298</code></td><td><button type=\"button\" class=\"btn mcpb-btn\" data-pack=\"good-pack-20260817-010435\">.mcpb</button></td>"
+            }
+          ],
+          "packRowIds": [
+            "good-pack-20260817-010435"
+          ],
+          "phantomPackRows": [],
+          "diffAOptions": [
+            {
+              "value": "good-pack-20260817-010435",
+              "text": "good-pack-20260817-010435"
+            }
+          ],
+          "diffBOptions": [
+            {
+              "value": "good-pack-20260817-010435",
+              "text": "good-pack-20260817-010435"
+            }
+          ],
+          "blankDiffOptions": [],
+          "unusableDiffOptions": []
+        },
+        "mcp": {
+          "route": "actual Connection navigation control",
+          "mutationObserverInstalledBeforeClick": true,
+          "terminalSentinel": "#ulw-g008-pre-mcp-terminal",
+          "api": {
+            "url": "/api/mcp/status",
+            "method": "GET",
+            "httpStatus": 200,
+            "responseOk": true,
+            "responseBodyRaw": "{\"packs_dir\":\"/private/tmp/ulw-trial-2/packs\",\"packs\":[{\"pack_id\":\"good-pack-20260817-010435\",\"counts\":{\"documents\":1,\"nodes_verified\":2,\"edges_verified\":1,\"entity_types\":3,\"relation_types\":3,\"communities\":1,\"ontology_terms_reviewed\":6,\"term_aliases_reviewed\":0,\"term_xrefs_reviewed\":0},\"created_ts\":1786896275.8942342,\"serve_command\":\"python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435\",\"stdio_config\":{\"command\":\"python\",\"args\":[\"-m\",\"ontologylab.mcp_server\",\"--packs-dir\",\"/private/tmp/ulw-trial-2/packs\",\"--pack\",\"good-pack-20260817-010435\"]}}],\"count\":1,\"unusable\":[{\"pack_dir\":\"bad-a-no-packid\",\"reason\":\"manifest.json has no usable 'pack_id'\"},{\"pack_dir\":\"bad-b-array-manifest\",\"reason\":\"manifest.json must be a JSON object, got list\"},{\"pack_dir\":\"bad-c-broken-sqlite\",\"reason\":\"pack.sqlite is not a usable pack database: file is not a database\"}]}",
+            "body": {
+              "packs_dir": "/private/tmp/ulw-trial-2/packs",
+              "packs": [
+                {
+                  "pack_id": "good-pack-20260817-010435",
+                  "counts": {
+                    "documents": 1,
+                    "nodes_verified": 2,
+                    "edges_verified": 1,
+                    "entity_types": 3,
+                    "relation_types": 3,
+                    "communities": 1,
+                    "ontology_terms_reviewed": 6,
+                    "term_aliases_reviewed": 0,
+                    "term_xrefs_reviewed": 0
+                  },
+                  "created_ts": 1786896275.8942342,
+                  "serve_command": "python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435",
+                  "stdio_config": {
+                    "command": "python",
+                    "args": [
+                      "-m",
+                      "ontologylab.mcp_server",
+                      "--packs-dir",
+                      "/private/tmp/ulw-trial-2/packs",
+                      "--pack",
+                      "good-pack-20260817-010435"
+                    ]
+                  }
+                }
+              ],
+              "count": 1,
+              "unusable": [
+                {
+                  "pack_dir": "bad-a-no-packid",
+                  "reason": "manifest.json has no usable 'pack_id'"
+                },
+                {
+                  "pack_dir": "bad-b-array-manifest",
+                  "reason": "manifest.json must be a JSON object, got list"
+                },
+                {
+                  "pack_dir": "bad-c-broken-sqlite",
+                  "reason": "pack.sqlite is not a usable pack database: file is not a database"
+                }
+              ]
+            }
+          },
+          "mcpStatusHttp": 200,
+          "loadingPlaceholderPresent": false,
+          "errorHidden": true,
+          "cards": [
+            {
+              "packId": "good-pack-20260817-010435",
+              "serveCommand": "python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435",
+              "copyButtonText": "연결 설정 복사 (JSON)",
+              "text": "good-pack-20260817-010435\n2026. 8. 17. 오전 1:04:35\n\n문서 1 · 개념 2 · 관계 1\n\npython -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435\n연결 설정 복사 (JSON)",
+              "html": "<div class=\"row space-between\"><strong><code>good-pack-20260817-010435</code></strong><span class=\"muted\">2026. 8. 17. 오전 1:04:35</span></div><p class=\"muted\">문서 1 · 개념 2 · 관계 1</p><pre class=\"code-block\">python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435</pre><button type=\"button\" class=\"btn\">연결 설정 복사 (JSON)</button>"
+            }
+          ],
+          "cardPackIds": [
+            "good-pack-20260817-010435"
+          ],
+          "serveCommands": [
+            "python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435"
+          ],
+          "serveCommandsMentioningUnusable": [],
+          "advisoryExists": true,
+          "advisoryHidden": false,
+          "advisoryItems": [
+            {
+              "pack_dir": "bad-a-no-packid",
+              "reason": "manifest.json has no usable 'pack_id'",
+              "text": "bad-a-no-packid — manifest.json has no usable 'pack_id'"
+            },
+            {
+              "pack_dir": "bad-b-array-manifest",
+              "reason": "manifest.json은 JSON 객체여야 하는데 list가 들어왔습니다",
+              "text": "bad-b-array-manifest — manifest.json은 JSON 객체여야 하는데 list가 들어왔습니다"
+            },
+            {
+              "pack_dir": "bad-c-broken-sqlite",
+              "reason": "pack.sqlite는 사용 가능한 팩 데이터베이스가 아닙니다: 파일이 데이터베이스가 아님",
+              "text": "bad-c-broken-sqlite — pack.sqlite는 사용 가능한 팩 데이터베이스가 아닙니다: 파일이 데이터베이스가 아님"
+            }
+          ],
+          "advisoryText": "열 수 없는 팩 폴더 3개\n\n아래 폴더는 팩으로 읽힐 수 없어서 목록과 비교에서 빠졌어요. 다시 빌드하거나 폴더를 치우면 이 안내도 사라져요.\n\nbad-a-no-packid — manifest.json has no usable 'pack_id'\nbad-b-array-manifest — manifest.json은 JSON 객체여야 하는데 list가 들어왔습니다\nbad-c-broken-sqlite — pack.sqlite는 사용 가능한 팩 데이터베이스가 아닙니다: 파일이 데이터베이스가 아님",
+          "advisoryCopyAffordances": [],
+          "advisoryButtonsWithCopyText": [],
+          "serverPackIds": [
+            "good-pack-20260817-010435"
+          ],
+          "serverServeCommands": [
+            "python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435"
+          ],
+          "serverUnusable": [
+            {
+              "pack_dir": "bad-a-no-packid",
+              "reason": "manifest.json has no usable 'pack_id'"
+            },
+            {
+              "pack_dir": "bad-b-array-manifest",
+              "reason": "manifest.json must be a JSON object, got list"
+            },
+            {
+              "pack_dir": "bad-c-broken-sqlite",
+              "reason": "pack.sqlite is not a usable pack database: file is not a database"
+            }
+          ],
+          "serverUnusableWithServeCommand": []
+        }
+      },
+      "deletion": {
+        "httpStatus": 200,
+        "responseOk": true,
+        "body": {
+          "ok": true,
+          "control_pid": 95530,
+          "main_server_pid": 81607,
+          "main_server_alive_after_delete": true,
+          "removed": [
+            {
+              "pack_dir": "bad-a-no-packid",
+              "existed_before": true,
+              "exists_after": false
+            },
+            {
+              "pack_dir": "bad-b-array-manifest",
+              "existed_before": true,
+              "exists_after": false
+            },
+            {
+              "pack_dir": "bad-c-broken-sqlite",
+              "existed_before": true,
+              "exists_after": false
+            }
+          ],
+          "pack_dirs_after": [
+            "good-pack-20260817-010435"
+          ]
+        }
+      },
+      "reload": {
+        "performed": true,
+        "samePageBefore": {
+          "href": "http://127.0.0.1:49607/",
+          "navigationStart": 1786896682964.3
+        },
+        "samePageAfter": {
+          "href": "http://127.0.0.1:49607/",
+          "navigationStart": 1786896684127.7
+        },
+        "navigationStartChanged": true
+      },
+      "staleAfterDelete": {
+        "packs": {
+          "route": "same page after fixture deletion and reload -> actual Packs navigation control",
+          "mutationObserverInstalledBeforeClick": true,
+          "terminalSentinel": "#ulw-g008-stale-packs-terminal",
+          "api": {
+            "url": "/api/packs",
+            "method": "GET",
+            "httpStatus": 200,
+            "responseOk": true,
+            "responseBodyRaw": "{\"packs\":[{\"pack_id\":\"good-pack-20260817-010435\",\"created_ts\":1786896275.8942342,\"schema_version_id\":1,\"schema_label\":\"software-docs-v1\",\"source_job_id\":\"build-pack-20260817-010435\",\"counts\":{\"documents\":1,\"nodes_verified\":2,\"edges_verified\":1,\"entity_types\":3,\"relation_types\":3,\"communities\":1,\"ontology_terms_reviewed\":6,\"term_aliases_reviewed\":0,\"term_xrefs_reviewed\":0},\"search_tier\":\"fts5\",\"embedding_model\":null,\"ontologylab_version\":\"0.1.0\",\"content_hash\":\"sha256:7d298cdd29cf764997d5762a27c4bce0f099e2ef85867c71aaccda77fc16eecb\",\"basis_commit\":\"0108c370908ac1463e08c4063ec54e3dac37e2b3\",\"staleness_policy\":{\"pending_verified_count_threshold\":0,\"description\":\"pending_verified_count is a backward-compatible count-difference advisory, not semantic truth. Semantic additions, invalidations, and replacements are authoritative; any nonzero delta recommends rebuilding.\"},\"extraction_completeness\":{\"status\":\"incomplete\",\"relevant_stream_count\":1,\"relevant_document_ids\":[\"bd951eb4f73a46c1ba78c5a4274ef386\"],\"unknown_streams\":[{\"document_id\":\"bd951eb4f73a46c1ba78c5a4274ef386\",\"document_content_hash\":\"sha256:g007-g008-fixture\",\"schema_version_id\":1,\"extractor_engine\":\"mock\",\"extractor_model\":\"\",\"prompt_version\":\"extract-v1\",\"decode_params\":\"null\"}],\"incomplete_streams\":[],\"run_status_counts\":{},\"chunk_status_counts\":{},\"override\":{\"used\":true,\"operator_intent\":\"G007/G008 supported disposable QA fixture\"}},\"semantic_fact_baseline\":{\"version\":1,\"fingerprint_algorithm\":\"sha256-canonical-json-v1\",\"source\":\"pack.sqlite\"},\"included_schema_version_ids\":[1],\"ontology_publication\":{\"version\":1,\"review_boundary\":\"explicit-current-review-fields-v1\",\"xref_verification\":\"complete-source-license-contract-v1\",\"license_modes\":[\"allow\",\"identifier-only\",\"deny-text\"],\"external_descriptive_text\":\"not-in-term-xref-schema\"},\"capabilities\":[\"knowledge-graph-v1\"]}],\"count\":1,\"unusable\":[],\"competency\":{\"questions\":[{\"question_id\":\"Q1\",\"question\":\"Can every verified fact be traced to its exact source document, extraction stream, and approval record?\",\"passed\":true,\"expected_count\":5,\"actual_count\":5,\"missing\":[],\"spurious\":[],\"detail\":{}},{\"question_id\":\"Q2\",\"question\":\"Does the extractor produce the exact expected entities and relations from a known document?\",\"passed\":true,\"expected_count\":11,\"actual_count\":11,\"missing\":[],\"spurious\":[],\"detail\":{\"parser_f1\":1.0}},{\"question_id\":\"Q3\",\"question\":\"Does a built pack return exact answers to user queries?\",\"passed\":true,\"expected_count\":5,\"actual_count\":5,\"missing\":[],\"spurious\":[],\"detail\":{\"pack_id\":\"cq-release-pack-20260817-011124\"}}],\"all_passed\":true,\"passed_count\":3,\"total_count\":3,\"evaluated_at\":1786896684.340416}}",
+            "body": {
+              "packs": [
+                {
+                  "pack_id": "good-pack-20260817-010435",
+                  "created_ts": 1786896275.8942342,
+                  "schema_version_id": 1,
+                  "schema_label": "software-docs-v1",
+                  "source_job_id": "build-pack-20260817-010435",
+                  "counts": {
+                    "documents": 1,
+                    "nodes_verified": 2,
+                    "edges_verified": 1,
+                    "entity_types": 3,
+                    "relation_types": 3,
+                    "communities": 1,
+                    "ontology_terms_reviewed": 6,
+                    "term_aliases_reviewed": 0,
+                    "term_xrefs_reviewed": 0
+                  },
+                  "search_tier": "fts5",
+                  "embedding_model": null,
+                  "ontologylab_version": "0.1.0",
+                  "content_hash": "sha256:7d298cdd29cf764997d5762a27c4bce0f099e2ef85867c71aaccda77fc16eecb",
+                  "basis_commit": "0108c370908ac1463e08c4063ec54e3dac37e2b3",
+                  "staleness_policy": {
+                    "pending_verified_count_threshold": 0,
+                    "description": "pending_verified_count is a backward-compatible count-difference advisory, not semantic truth. Semantic additions, invalidations, and replacements are authoritative; any nonzero delta recommends rebuilding."
+                  },
+                  "extraction_completeness": {
+                    "status": "incomplete",
+                    "relevant_stream_count": 1,
+                    "relevant_document_ids": [
+                      "bd951eb4f73a46c1ba78c5a4274ef386"
+                    ],
+                    "unknown_streams": [
+                      {
+                        "document_id": "bd951eb4f73a46c1ba78c5a4274ef386",
+                        "document_content_hash": "sha256:g007-g008-fixture",
+                        "schema_version_id": 1,
+                        "extractor_engine": "mock",
+                        "extractor_model": "",
+                        "prompt_version": "extract-v1",
+                        "decode_params": "null"
+                      }
+                    ],
+                    "incomplete_streams": [],
+                    "run_status_counts": {},
+                    "chunk_status_counts": {},
+                    "override": {
+                      "used": true,
+                      "operator_intent": "G007/G008 supported disposable QA fixture"
+                    }
+                  },
+                  "semantic_fact_baseline": {
+                    "version": 1,
+                    "fingerprint_algorithm": "sha256-canonical-json-v1",
+                    "source": "pack.sqlite"
+                  },
+                  "included_schema_version_ids": [
+                    1
+                  ],
+                  "ontology_publication": {
+                    "version": 1,
+                    "review_boundary": "explicit-current-review-fields-v1",
+                    "xref_verification": "complete-source-license-contract-v1",
+                    "license_modes": [
+                      "allow",
+                      "identifier-only",
+                      "deny-text"
+                    ],
+                    "external_descriptive_text": "not-in-term-xref-schema"
+                  },
+                  "capabilities": [
+                    "knowledge-graph-v1"
+                  ]
+                }
+              ],
+              "count": 1,
+              "unusable": [],
+              "competency": {
+                "questions": [
+                  {
+                    "question_id": "Q1",
+                    "question": "Can every verified fact be traced to its exact source document, extraction stream, and approval record?",
+                    "passed": true,
+                    "expected_count": 5,
+                    "actual_count": 5,
+                    "missing": [],
+                    "spurious": [],
+                    "detail": {}
+                  },
+                  {
+                    "question_id": "Q2",
+                    "question": "Does the extractor produce the exact expected entities and relations from a known document?",
+                    "passed": true,
+                    "expected_count": 11,
+                    "actual_count": 11,
+                    "missing": [],
+                    "spurious": [],
+                    "detail": {
+                      "parser_f1": 1
+                    }
+                  },
+                  {
+                    "question_id": "Q3",
+                    "question": "Does a built pack return exact answers to user queries?",
+                    "passed": true,
+                    "expected_count": 5,
+                    "actual_count": 5,
+                    "missing": [],
+                    "spurious": [],
+                    "detail": {
+                      "pack_id": "cq-release-pack-20260817-011124"
+                    }
+                  }
+                ],
+                "all_passed": true,
+                "passed_count": 3,
+                "total_count": 3,
+                "evaluated_at": 1786896684.340416
+              }
+            }
+          },
+          "loadingPlaceholderPresent": false,
+          "advisoryExists": true,
+          "advisoryHidden": true,
+          "advisoryText": "",
+          "advisoryLiCount": 0,
+          "packRows": [
+            {
+              "packId": "good-pack-20260817-010435",
+              "text": "good-pack-20260817-010435\t2026. 8. 17. 오전 1:04:35\t1\t2\t1\tfts5\tsha256:7d298\t.mcpb"
+            }
+          ],
+          "packRowIds": [
+            "good-pack-20260817-010435"
+          ]
+        },
+        "mcp": {
+          "route": "same page after fixture deletion and reload -> actual Connection navigation control",
+          "mutationObserverInstalledBeforeClick": true,
+          "terminalSentinel": "#ulw-g008-stale-mcp-terminal",
+          "api": {
+            "url": "/api/mcp/status",
+            "method": "GET",
+            "httpStatus": 200,
+            "responseOk": true,
+            "responseBodyRaw": "{\"packs_dir\":\"/private/tmp/ulw-trial-2/packs\",\"packs\":[{\"pack_id\":\"good-pack-20260817-010435\",\"counts\":{\"documents\":1,\"nodes_verified\":2,\"edges_verified\":1,\"entity_types\":3,\"relation_types\":3,\"communities\":1,\"ontology_terms_reviewed\":6,\"term_aliases_reviewed\":0,\"term_xrefs_reviewed\":0},\"created_ts\":1786896275.8942342,\"serve_command\":\"python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435\",\"stdio_config\":{\"command\":\"python\",\"args\":[\"-m\",\"ontologylab.mcp_server\",\"--packs-dir\",\"/private/tmp/ulw-trial-2/packs\",\"--pack\",\"good-pack-20260817-010435\"]}}],\"count\":1,\"unusable\":[]}",
+            "body": {
+              "packs_dir": "/private/tmp/ulw-trial-2/packs",
+              "packs": [
+                {
+                  "pack_id": "good-pack-20260817-010435",
+                  "counts": {
+                    "documents": 1,
+                    "nodes_verified": 2,
+                    "edges_verified": 1,
+                    "entity_types": 3,
+                    "relation_types": 3,
+                    "communities": 1,
+                    "ontology_terms_reviewed": 6,
+                    "term_aliases_reviewed": 0,
+                    "term_xrefs_reviewed": 0
+                  },
+                  "created_ts": 1786896275.8942342,
+                  "serve_command": "python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435",
+                  "stdio_config": {
+                    "command": "python",
+                    "args": [
+                      "-m",
+                      "ontologylab.mcp_server",
+                      "--packs-dir",
+                      "/private/tmp/ulw-trial-2/packs",
+                      "--pack",
+                      "good-pack-20260817-010435"
+                    ]
+                  }
+                }
+              ],
+              "count": 1,
+              "unusable": []
+            }
+          },
+          "mcpStatusHttp": 200,
+          "loadingPlaceholderPresent": false,
+          "advisoryExists": true,
+          "advisoryHidden": true,
+          "advisoryText": "",
+          "advisoryLiCount": 0,
+          "cards": [
+            {
+              "packId": "good-pack-20260817-010435",
+              "serveCommand": "python -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435",
+              "text": "good-pack-20260817-010435\n2026. 8. 17. 오전 1:04:35\n\n문서 1 · 개념 2 · 관계 1\n\npython -m ontologylab.mcp_server --packs-dir /private/tmp/ulw-trial-2/packs --pack good-pack-20260817-010435\n연결 설정 복사 (JSON)"
+            }
+          ],
+          "cardPackIds": [
+            "good-pack-20260817-010435"
+          ],
+          "packsAdvisoryNow": {
+            "exists": true,
+            "hidden": true,
+            "text": "",
+            "liCount": 0
+          },
+          "staleBadTextAnywhere": [],
+          "staleBadOccurrences": {
+            "bad-a-no-packid": {
+              "pageInnerText": 0,
+              "fullPageInnerHTML": 0
+            },
+            "bad-b-array-manifest": {
+              "pageInnerText": 0,
+              "fullPageInnerHTML": 0
+            },
+            "bad-c-broken-sqlite": {
+              "pageInnerText": 0,
+              "fullPageInnerHTML": 0
+            }
+          }
+        }
+      },
+      "asidePageClose": {
+        "closeCalled": true
+      }
+    },
+    "stdout_sha256": "sha256:dd95e3744c795e6dd08738a8ebaa23d9c3e76b29c5b6204b5aa47ef9b5f3457d"
+  },
+  "defects": [],
+  "cleanup": {
+    "server": {
+      "pid": 81607,
+      "command_before": ".venv/bin/python -m ontologylab.serve --host 127.0.0.1 --port 49607 --data-dir /private/tmp/ulw-trial-2/data --packs-dir /private/tmp/ulw-trial-2/packs",
+      "signal": "TERM",
+      "kill_0_fails": true,
+      "port": 49607,
+      "listener_absent": true
+    },
+    "control": {
+      "pid": 95530,
+      "command_before": ".venv/bin/python /private/tmp/ulw-trial-2/delete_server.py /private/tmp/ulw-trial-2 81607 50122",
+      "signal": "TERM",
+      "kill_0_fails": true,
+      "port": 50122,
+      "listener_absent": true
+    },
+    "forced_kill_pids": [],
+    "protected_processes_untouched": {
+      "55560_alive": true,
+      "70970_alive": true,
+      "protected_port_8799_listening": true
+    },
+    "aside": {
+      "g007_before": "G007_TAB_BEFORE \"no-open-tabs\"\n\u001b[2m[ok | 76ms]\u001b[0m",
+      "g008_before": "G008_COMBINED_TAB_BEFORE \"no-open-tabs\"\n\u001b[2m[ok | 23ms]\u001b[0m",
+      "final_check": "FINAL_TAB_CHECK \"no-open-tabs\"\n\u001b[2m[ok | 26ms]\u001b[0m",
+      "g007_close_called": true,
+      "g008_close_called": true,
+      "all_tabs_closed": true
+    },
+    "trial_path": "/private/tmp/ulw-trial-2",
+    "trial_removed": true,
+    "protected_real_data_dir_never_used": "/Users/hyunjun/Library/Application Support/ontologylab",
+    "protected_port_8799_never_bound": true,
+    "no_git_commit": true
+  }
+}

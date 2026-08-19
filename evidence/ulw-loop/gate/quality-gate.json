@@ -1,0 +1,156 @@
+{
+  "codeReview": {
+    "by": "lazycodex-code-reviewer",
+    "recommendation": "APPROVE",
+    "codeQualityStatus": "CLEAR",
+    "reportPath": ".omo/evidence/ulw/session/G011-c7-f1-f2-backend-engine-error-carryi/a0/code-review.md",
+    "evidence": "Independent review of the InvalidateAction delta (schemas.py, routes.py, test_bitemporal.py): ProposalAction left intact, path-addressed invalidate binds by/note only, tests pin the real {note}-only contract. RECOMMENDATION APPROVE, CODE_QUALITY_STATUS CLEAR.",
+    "blockers": []
+  },
+  "manualQa": {
+    "by": "lazycodex-qa-executor",
+    "status": "passed",
+    "evidence": "Hands-on re-verification reproduced the RED->GREEN mutation (revert routes.py -> 422 -> byte-identical restore -> 7 passed), focused suites 63 passed, and a live curl {note}-only invalidate returned HTTP 200. Adversarial Aside/MCP/HTTP artifacts cover F1-F7 plus three new probes.",
+    "surfaceEvidence": [
+      {
+        "id": "surface-cli-suite",
+        "criterionRef": "G003-C002",
+        "surface": "cli",
+        "invocation": ".venv/bin/python -m pytest",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-cli-fullsuite"]
+      },
+      {
+        "id": "surface-cli-mutation",
+        "criterionRef": "G002-C002",
+        "surface": "cli",
+        "invocation": "git checkout HEAD -- ontologylab/server/routes.py && pytest tests/test_bitemporal.py -k invalidate",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-cli-mutation"]
+      },
+      {
+        "id": "surface-http-invalidate",
+        "criterionRef": "G004-C001",
+        "surface": "http",
+        "invocation": "curl -si -X POST /api/edges/<id>/invalidate -d '{\"note\":\"superseded\"}'",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-http-curl"]
+      },
+      {
+        "id": "surface-http-redaction",
+        "criterionRef": "G011-C001",
+        "surface": "http",
+        "invocation": "GET /api/jobs after stub engine injected SYNTHETIC_SECRET",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-http-jobs"]
+      },
+      {
+        "id": "surface-data-durable",
+        "criterionRef": "G005-C001",
+        "surface": "data",
+        "invocation": "sqlite read-back of edges/extraction_runs after locked writes and partial extraction",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-data-f6"]
+      }
+    ],
+    "adversarialCases": [
+      {
+        "id": "adv-malformed-input",
+        "criterionRef": "G010-C001",
+        "scenario": "MCP tools/call with negative limits, wrong types, and unknown extra arguments",
+        "expectedBehavior": "JSON-RPC -32602 with no Python signature text",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-cli-mcp-args"]
+      },
+      {
+        "id": "adv-stale-state",
+        "criterionRef": "G008-C002",
+        "scenario": "Delete malformed pack fixtures without restarting the server",
+        "expectedBehavior": "Advisory clears on same PID; good pack survives",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-data-packs"]
+      },
+      {
+        "id": "adv-dirty-worktree",
+        "criterionRef": "G003-C003",
+        "scenario": "Confirm this run only touched schemas.py, routes.py, and test_bitemporal.py",
+        "expectedBehavior": "Pre-existing dirty files and graphify-out remain undisturbed",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-cli-fullsuite"]
+      },
+      {
+        "id": "adv-misleading-success",
+        "criterionRef": "G005-C001",
+        "scenario": "Click invalidate/merge/dismiss under a held BEGIN IMMEDIATE lock",
+        "expectedBehavior": "HTTP 503 + visible retry, no silent reload, durable rows unchanged",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-data-f6"]
+      }
+    ],
+    "artifactRefs": [
+      {
+        "id": "artifact-cli-fullsuite",
+        "kind": "cli-transcript",
+        "description": "Full pytest run: 2288 passed, 6 skipped, 0 failed.",
+        "path": ".omo/evidence/ulw/session/G011-c7-f1-f2-backend-engine-error-carryi/a0/g003-fullsuite.log"
+      },
+      {
+        "id": "artifact-cli-mutation",
+        "kind": "log",
+        "description": "Mutation check: revert routes.py -> 422, restore byte-identical -> green.",
+        "path": ".omo/evidence/ulw/session/G011-c7-f1-f2-backend-engine-error-carryi/a0/g002-mutation.txt"
+      },
+      {
+        "id": "artifact-http-curl",
+        "kind": "http-dump",
+        "description": "Live {note}-only invalidate: HTTP 200 plus sqlite invalidated_ts.",
+        "path": ".omo/evidence/ulw/session/G011-c7-f1-f2-backend-engine-error-carryi/a0/g004-curl.txt"
+      },
+      {
+        "id": "artifact-http-jobs",
+        "kind": "http-dump",
+        "description": "Jobs API redacts SYNTHETIC_SECRET; provenance retains the full error.",
+        "path": ".omo/evidence/ulw/session/G011-c7-f1-f2-backend-engine-error-carryi/a0/g011-f1f2.txt"
+      },
+      {
+        "id": "artifact-data-f6",
+        "kind": "data-diff",
+        "description": "F6 three-site lock probe with durable row agreement.",
+        "path": ".omo/evidence/ulw/session/G011-c7-f1-f2-backend-engine-error-carryi/a0/g005-f6.json"
+      },
+      {
+        "id": "artifact-cli-mcp-args",
+        "kind": "cli-transcript",
+        "description": "MCP malformed-args battery: seven -32602 responses, no signature leak.",
+        "path": ".omo/evidence/ulw/session/G011-c7-f1-f2-backend-engine-error-carryi/a0/g010-f3.md"
+      },
+      {
+        "id": "artifact-data-packs",
+        "kind": "data-diff",
+        "description": "F7-UI malformed-pack advisory and same-PID stale clearing.",
+        "path": ".omo/evidence/ulw/session/G011-c7-f1-f2-backend-engine-error-carryi/a0/g008-f7ui.json"
+      }
+    ]
+  },
+  "gateReview": {
+    "by": "lazycodex-gate-reviewer",
+    "recommendation": "APPROVE",
+    "reportPath": ".omo/evidence/ulw/session/G011-c7-f1-f2-backend-engine-error-carryi/a0/gate-review.md",
+    "evidence": "Adversarial audit of both prior reports plus the 12 goal artifacts: VERDICT PASS, QUALITY_GATE passed. Residual empty /private/tmp/ulw-qa* dirs are not live fixtures and do not block close.",
+    "blockers": []
+  },
+  "iteration": {
+    "fullRerun": true,
+    "status": "passed",
+    "rerunCommands": [".venv/bin/python -m pytest"],
+    "evidence": "Full suite on the final tree: 2288 passed, 6 skipped, 0 failed in 960.84s."
+  },
+  "criteriaCoverage": {
+    "totalCriteria": 36,
+    "passCount": 36,
+    "originalIntent": "Fix invalidateEdge so a {note}-only body succeeds, then adversarially re-attack every F1-F7 fix on real surfaces plus at least three new hostile probes.",
+    "desiredOutcome": "Path-addressed invalidate works; all 12 ulw-loop goals have recorded PASS evidence; quality gate is clean.",
+    "userOutcomeReview": "The dashboard can invalidate a verified edge; busy writes, partial extraction, validation errors, pack discovery, MCP schema, and pack integrity were re-probed live and did not lie.",
+    "adversarialClassesCovered": ["malformed_input", "stale_state", "dirty_worktree", "misleading_success_output"]
+  }
+}
