@@ -18,7 +18,6 @@ from ontologylab.kgstore import KGStore
 from ontologylab.packbuilder import (
     PackBuildError,
     pack_sqlite_path,
-    safe_pack_component,
 )
 
 # Manifest fields worth surfacing when they differ between two packs.
@@ -40,17 +39,29 @@ _EDGE_FIELDS = (
 )
 
 
-def _load_manifest(packs_dir: Path, pack_id: str) -> dict[str, Any]:
-    safe_pack_component(pack_id, kind="pack id")
+def _verified(packs_dir: Path, pack_id: str) -> tuple[Path, dict[str, Any]]:
+    """Open one pack through the shared verified opener (C-046).
+
+    A missing pack stays the existing typed not-found (`PackBuildError`);
+    an existing pack must then prove its ``pack.sqlite`` bytes match the
+    manifest receipt (and the tree receipt when present) via the same
+    ``_verified_pack`` the MCP server uses, so a tampered pack or a forged
+    manifest fails typed (`PackIntegrityError`) before any row or the
+    ``identical`` verdict is derived from it.
+    """
+    from ontologylab.mcp_server import _verified_pack
+
+    pack_sqlite_path(packs_dir, pack_id)  # typed not-found for absent packs
     manifest_path = packs_dir / pack_id / "manifest.json"
     if not manifest_path.is_file():
         raise PackBuildError(f"pack {pack_id!r} has no manifest under {packs_dir}")
-    return json.loads(manifest_path.read_text(encoding="utf-8"))
+    database, _content_hash, manifest = _verified_pack(packs_dir, pack_id)
+    return database, manifest
 
 
-def _snapshot(packs_dir: Path, pack_id: str) -> tuple[dict, dict]:
-    """(nodes_by_id, edges_by_id) of one pack, as comparable dicts."""
-    store = KGStore.open(pack_sqlite_path(packs_dir, pack_id), read_only=True)
+def _snapshot(database: Path) -> tuple[dict, dict]:
+    """(nodes_by_id, edges_by_id) of one verified pack, as comparable dicts."""
+    store = KGStore.open(database, read_only=True)
     try:
         nodes, edges = store.verified_subgraph()
     finally:
@@ -106,8 +117,8 @@ def diff_packs(
 ) -> dict[str, Any]:
     """Diff pack A -> pack B (manifests + verified node/edge sets)."""
     packs_dir = Path(packs_dir)
-    manifest_a = _load_manifest(packs_dir, pack_a_id)
-    manifest_b = _load_manifest(packs_dir, pack_b_id)
+    database_a, manifest_a = _verified(packs_dir, pack_a_id)
+    database_b, manifest_b = _verified(packs_dir, pack_b_id)
 
     manifest_changes: dict[str, dict[str, Any]] = {}
     for field in _MANIFEST_FIELDS:
@@ -117,8 +128,8 @@ def diff_packs(
                 "b": manifest_b.get(field),
             }
 
-    nodes_a, edges_a = _snapshot(packs_dir, pack_a_id)
-    nodes_b, edges_b = _snapshot(packs_dir, pack_b_id)
+    nodes_a, edges_a = _snapshot(database_a)
+    nodes_b, edges_b = _snapshot(database_b)
 
     # Edge labels read better with endpoint names than raw ids.
     names = {n_id: n["name"] for n_id, n in {**nodes_a, **nodes_b}.items()}

@@ -78,6 +78,30 @@ class SchemaValidationError(KGStoreError):
 
 
 @dataclass(frozen=True, slots=True)
+class DocumentIdentityConflict(KGStoreError):
+    """Same bytes under two different explicit DOIs: merge refused.
+
+    Content-hash equality caches bytes but cannot establish work identity
+    (Wave 2.1 D05). Until the v2 schema can hold both rows, the insert
+    refuses with this typed conflict instead of silently returning the
+    other DOI's document.
+    """
+
+    existing_doc_id: str
+    existing_doi: str
+    incoming_doi: str
+    content_hash: str
+
+    def __str__(self) -> str:
+        return (
+            f"document {self.existing_doc_id} already holds these bytes "
+            f"(content_hash {self.content_hash}) under DOI "
+            f"{self.existing_doi!r}; refusing to merge DOI "
+            f"{self.incoming_doi!r}"
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class OntologyTermValidationError(KGStoreError):
     """A rejected ontology-term field at the store boundary."""
 
@@ -2010,6 +2034,21 @@ class KGStore:
             existing = self.conn.execute(
                 "SELECT * FROM documents WHERE content_hash = ?", (content_hash,)
             ).fetchone()
+            if (
+                existing is not None
+                and normalized_doi is not None
+                and existing["doi"] is not None
+                and existing["doi"] != normalized_doi
+            ):
+                # Same bytes under a different explicit DOI: content-hash
+                # equality cannot establish work identity (D05), so refuse
+                # the merge instead of returning the other DOI's document.
+                raise DocumentIdentityConflict(
+                    existing_doc_id=existing["id"],
+                    existing_doi=existing["doi"],
+                    incoming_doi=normalized_doi,
+                    content_hash=content_hash,
+                )
         if existing is not None:
             return self._row_to_document(existing), False
 
@@ -2066,6 +2105,19 @@ class KGStore:
             if row is None:
                 # The constraint fired for something other than document identity.
                 raise
+            if (
+                normalized_doi is not None
+                and row["doi"] is not None
+                and row["doi"] != normalized_doi
+            ):
+                # The race winner holds the same bytes under a different
+                # explicit DOI: same refusal as the fast path.
+                raise DocumentIdentityConflict(
+                    existing_doc_id=row["id"],
+                    existing_doi=row["doi"],
+                    incoming_doi=normalized_doi,
+                    content_hash=content_hash,
+                ) from None
             return self._row_to_document(row), False
         # The document is a library output from its first moment: register it
         # in the same transaction so a stored document can never exist

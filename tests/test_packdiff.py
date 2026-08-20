@@ -6,7 +6,10 @@ from pathlib import Path
 
 import pytest
 
+import json
+
 from ontologylab.kgstore import KGStore
+from ontologylab.mcp_server import PackIntegrityError
 from ontologylab.packbuilder import PackBuildError, build_pack as _build_pack
 from ontologylab.packdiff import diff_packs
 from tests.conftest import insert, make_entity, make_relation
@@ -81,6 +84,55 @@ def test_diff_unknown_pack(evolving_workspace):
     _store, _doc, packs, manifest_a = evolving_workspace
     with pytest.raises(PackBuildError):
         diff_packs(packs, manifest_a.pack_id, "no-such-pack")
+
+
+def test_diff_refuses_a_tampered_pack(evolving_workspace):
+    """C-046: a pack whose bytes no longer match its manifest receipt must
+    fail typed before any comparison result exists."""
+    store, _doc, packs, manifest_a = evolving_workspace
+    manifest_b = build_pack(store.db_path, packs, name="v2")
+    sqlite_b = packs / manifest_b.pack_id / "pack.sqlite"
+    blob = bytearray(sqlite_b.read_bytes())
+    blob[-1] ^= 0xFF
+    sqlite_b.write_bytes(bytes(blob))
+    with pytest.raises(PackIntegrityError):
+        diff_packs(packs, manifest_a.pack_id, manifest_b.pack_id)
+
+
+def test_diff_refuses_a_forged_identical_claim(evolving_workspace):
+    """C-046: a forged manifest content_hash must not control the diff's
+    identical verdict; verification fails before any comparison."""
+    store, _doc, packs, manifest_a = evolving_workspace
+    manifest_b = build_pack(store.db_path, packs, name="v2")
+    manifest_path = packs / manifest_b.pack_id / "manifest.json"
+    forged = json.loads(manifest_path.read_text(encoding="utf-8"))
+    forged["content_hash"] = "sha256:" + "0" * 64
+    manifest_path.write_text(json.dumps(forged), encoding="utf-8")
+    with pytest.raises(PackIntegrityError):
+        diff_packs(packs, manifest_a.pack_id, manifest_b.pack_id)
+
+
+def test_api_pack_diff_refuses_a_tampered_pack(evolving_workspace, tmp_path):
+    """The HTTP diff surface must report tamper as a typed error status,
+    never a 200 comparison."""
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from ontologylab.server.app import create_app
+
+    store, _doc, packs, manifest_a = evolving_workspace
+    manifest_b = build_pack(store.db_path, packs, name="v2")
+    sqlite_b = packs / manifest_b.pack_id / "pack.sqlite"
+    blob = bytearray(sqlite_b.read_bytes())
+    blob[-1] ^= 0xFF
+    sqlite_b.write_bytes(bytes(blob))
+    app = create_app(data_dir=tmp_path / "data", packs_dir=packs)
+    with TestClient(app) as client:
+        res = client.get(
+            f"/api/packs/{manifest_a.pack_id}/diff/{manifest_b.pack_id}"
+        )
+        assert res.status_code == 409
+        assert manifest_b.pack_id in res.json()["detail"]
 
 
 def test_cli_pack_diff(evolving_workspace, capsys):

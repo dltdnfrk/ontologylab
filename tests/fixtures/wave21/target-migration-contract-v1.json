@@ -1,0 +1,18 @@
+{
+  "contract_version": 1,
+  "created_for": "Wave 2.1 Step 2: measured target-migration harness contract (prepare only)",
+  "recipe_anchor": {
+    "recipe_id": "wave21-perf-v1",
+    "manifest_sha256": "019a986f878bcba5b2ba8c67a1451d8fc19af021988e28bdd9f7e2287f82f0b1"
+  },
+  "operation": {
+    "id": "target_v2_migration",
+    "kind": "target",
+    "measured_at_step": 5,
+    "description": "First measured baseline of the v2 authority migration over the frozen 10,000-row recipe copy; Step 10 compares the release candidate against the Step 5 baseline."
+  },
+  "required_metrics": ["n", "mean_ms", "p95_ms", "max_ms"],
+  "required_receipt_fields": ["dataset_documents", "environment", "receipt_sha256"],
+  "forbidden_now": true,
+  "notes": "Step 1 baselines cover existing operations only; running target_v2_migration before Step 5 violates the frozen manifest's forbidden list."
+}

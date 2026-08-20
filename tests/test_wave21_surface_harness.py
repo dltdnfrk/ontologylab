@@ -24,13 +24,11 @@ facts rather than prose (`tests/wave21/surface.py`):
   job directory on every call. `test_collect_sample_...` proves this by
   diffing `data_dir/jobs/` before and after each call, on the real running
   server.
-* Pack DOI-loss -- `packbuilder._PACK_COPY_COLUMNS["documents"]` does not
-  include `doi`, so a document's `doi`, present and correct in `KGStore`,
-  reads back as `NULL` from the real, built `pack.sqlite` every time. Two
-  paired tests pin this the same way `tests/wave21/identity.py` (G002)
-  pins its RED gaps: an `xfail(strict=True)` target-invariant test (doi
-  should survive the build) and a plain, passing characterization test of
-  the actual current behavior.
+* Pack DOI-loss -- fixed in Wave 2.1 Step 2:
+  `packbuilder._PACK_COPY_COLUMNS["documents"]` now carries `doi`, so the
+  target-invariant test (`test_real_pack_build_should_preserve_doi`) is
+  plain GREEN and the old currently-drops characterization test is
+  retired.
 
 Helper functions used below live in `tests/wave21/surface.py`; nothing here
 imports from, or is imported by, `tests/wave21/identity.py` (G002).
@@ -40,8 +38,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-
-import pytest
 
 from tests.wave21.surface import (
     build_fixture_pack,
@@ -275,38 +271,15 @@ def test_real_pack_build_writes_pack_sqlite_and_manifest(tmp_path: Path) -> None
     assert receipt.kg_doi == "10.1234/g003.real-pack-build"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Target invariant, not current product behavior: a document's doi, "
-        "verified and present in KGStore, should survive a real pack "
-        "build unchanged. packbuilder._PACK_COPY_COLUMNS['documents'] does "
-        "not include 'doi', so it is currently dropped on every build "
-        "(see test_real_pack_build_currently_drops_doi for the pinned "
-        "current behavior). This asserts the target so a future fix to "
-        "the copy-column list flips it to GREEN, not a defect reproduction."
-    ),
-)
 def test_real_pack_build_should_preserve_doi(tmp_path: Path) -> None:
+    """Delivered Wave 2.1 Step 2 invariant: a verified document's doi
+    survives a real pack build unchanged now that
+    `packbuilder._PACK_COPY_COLUMNS["documents"]` carries `doi`."""
     receipt = build_pack_and_capture_doi(
         tmp_path, doi="10.1234/g003.doi-should-survive",
     )
     assert receipt.preserved
     assert receipt.pack_doi == receipt.kg_doi
-
-
-def test_real_pack_build_currently_drops_doi(tmp_path: Path) -> None:
-    """Characterization of CURRENT behavior, not release evidence: a real,
-    verified document's `doi` is present and correct in `KGStore` but reads
-    back `NULL` from the real, built `pack.sqlite` -- `doi` is simply
-    absent from `packbuilder._PACK_COPY_COLUMNS['documents']`.
-    """
-    receipt = build_pack_and_capture_doi(
-        tmp_path, doi="10.1234/g003.doi-currently-dropped",
-    )
-    assert receipt.kg_doi == "10.1234/g003.doi-currently-dropped"
-    assert receipt.pack_doi is None
-    assert receipt.preserved is False
 
 
 # ---------------------------------------------------------------------------

@@ -37,6 +37,39 @@ def test_recipe_generator_matches_frozen_collision_ratios() -> None:
     )
 
 
+def test_target_migration_contract_is_anchored_and_not_yet_measured() -> None:
+    """Step 2 prepares the measured target-migration harness CONTRACT only:
+    it anchors the frozen wave21-perf-v1 manifest by hash and names Step 5
+    as the measuring owner, while the manifest keeps the operation
+    forbidden now."""
+    contract_path = (
+        MANIFEST_PATH.parent / "target-migration-contract-v1.json"
+    )
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    manifest = load_manifest()
+
+    anchor = contract["recipe_anchor"]
+    assert anchor["recipe_id"] == manifest["recipe_id"] == "wave21-perf-v1"
+    assert anchor["manifest_sha256"] == manifest_sha256(MANIFEST_PATH)
+
+    operation = contract["operation"]
+    assert operation["id"] == "target_v2_migration"
+    assert operation["measured_at_step"] == 5
+    assert contract["forbidden_now"] is True
+    assert set(contract["required_metrics"]) == {
+        "n", "mean_ms", "p95_ms", "max_ms",
+    }
+    assert set(contract["required_receipt_fields"]) >= {
+        "dataset_documents", "environment", "receipt_sha256",
+    }
+    # The manifest itself still forbids the operation: preparing the
+    # contract must not sneak the measurement into Step 2.
+    assert "target_v2_migration" in manifest["forbidden"]
+    assert "target_v2_migration" not in {
+        item["id"] for item in manifest["operations"]
+    }
+
+
 def test_manifest_validates_and_has_stable_hash() -> None:
     manifest = load_manifest()
     digest = manifest_sha256()

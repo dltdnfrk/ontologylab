@@ -18,6 +18,7 @@ import json
 from ontologylab.connectors.base import (
     RawDocument,
     collapse_duplicates,
+    doi_from_citation_text,
     normalize_doi,
 )
 from ontologylab.connectors.paper_api import (
@@ -56,15 +57,45 @@ def test_case_is_folded_because_dois_are_case_insensitive() -> None:
     assert normalize_doi("10.1234/NIPO.Demo.2026") == DOI
 
 
-def test_trailing_citation_punctuation_is_dropped() -> None:
+def test_identifier_fields_preserve_registered_terminal_parentheses() -> None:
+    """Registered DOIs may end in ')' (Wiley chapter DOIs); identifier-field
+    normalization must not apply citation punctuation stripping (C-029)."""
+    for registered in (
+        "10.1002/0471221929.ch26(vii)",
+        "10.1002/0470846410.ch12(ii)",
+        "10.1002/0470846410.ch138a(ii)",
+    ):
+        assert normalize_doi(registered) == registered
+
+
+def test_identifier_fields_keep_citation_punctuation_out_of_scope() -> None:
+    """Structured API fields carry the identifier itself; peeling stray
+    punctuation is the citation-prose parser's job, not this one's."""
     for suffix in (".", ",", ";", ")"):
-        assert normalize_doi(DOI + suffix) == DOI, suffix
+        assert normalize_doi(DOI + suffix) == DOI + suffix
+
+
+def test_citation_prose_peels_punctuation_only_outside_the_doi() -> None:
+    """'.', ',', ';' are sentence punctuation; a trailing ')' is peeled only
+    while unbalanced, so registered terminal-paren DOIs survive intact."""
+    assert doi_from_citation_text(f"doi:{DOI}.") == DOI
+    assert doi_from_citation_text(f"{DOI};") == DOI
+    assert doi_from_citation_text(f"https://doi.org/{DOI}).") == DOI
+    registered = "10.1002/0471221929.ch26(vii)"
+    assert doi_from_citation_text(registered + ".") == registered
+    assert doi_from_citation_text(registered) == registered
+    assert doi_from_citation_text("not a doi.") is None
 
 
 def test_a_value_that_is_not_a_doi_is_refused() -> None:
     # A non-DOI must not become a de-duplication key: two unrelated papers
     # would then collide under it.
-    for junk in ("", "   ", "not-a-doi", "https://arxiv.org/abs/2401.00001", None, 42):
+    # Shape gate: resolver prefix + "10.", a "/" separating prefix from
+    # suffix, and no whitespace or control characters inside the identifier.
+    for junk in (
+        "", "   ", "not-a-doi", "https://arxiv.org/abs/2401.00001",
+        None, 42, "10.1234", "10.1234/nipo demo", "10.1234/nipo\x07demo",
+    ):
         assert normalize_doi(junk) is None, junk
 
 
@@ -177,7 +208,7 @@ def test_the_same_doi_written_four_ways_is_one_identity() -> None:
     the identity path was invisible to this test. The parsers normalize; this
     asserts that they have to.
     """
-    forms = (DOI, f"https://doi.org/{DOI}", DOI.upper(), f"doi:{DOI}.")
+    forms = (DOI, f"https://doi.org/{DOI}", DOI.upper(), f"doi:{DOI}")
     assert len({_doc("x", normalize_doi(form)).dedupe_key for form in forms}) == 1
     # And the raw shapes must NOT already agree — otherwise the line above
     # would hold with normalization deleted.

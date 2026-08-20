@@ -18,23 +18,23 @@ and `.omo/mass-ulw/20260820-ingestion-integration/{02-current-code,
    characterization of that existing contract, not a defect: Step 2
    (Work/Representation) is the step permitted to change it.
 
-2. Different DOI / same bytes — a currently RED gap (C-029/C-031 family):
-   two distinct, real, registered DOIs whose bodies happen to be
-   byte-identical collide on the store's `UNIQUE(content_hash)` fallback,
-   which the direct-service path exposes as a hard `IntegrityError` on the
-   caller rather than two independently-identified documents.
+2. Different DOI / same bytes — Step 2 typed contract: the content-hash
+   fallback refuses to merge two different explicit DOIs with a typed
+   `DocumentIdentityConflict` (recorded per-document at the ingest seam);
+   materializing both as two documents stays pinned xfail for the v2
+   schema step.
 
-3. Populated legacy resolver DOI — a currently RED gap: `_migrate` adds the
-   nullable `doi` column to a pre-existing store without backfilling it from
-   already-stored resolver-shaped `source_uri` values, so a row written
-   before migration keeps `doi IS NULL` after migration and a same-DOI
-   reinsert is not recognized as the same paper.
+3. Populated legacy resolver DOI — a currently RED gap owned by Step 5
+   (C-023): `_migrate` adds the nullable `doi` column without backfilling
+   it, so a pre-migration row keeps `doi IS NULL` and a same-DOI reinsert
+   is not recognized. Step 2 pins the backfill POLICY as the read-only
+   planner in `ontologylab.doi_backfill`; execution waits for Step 5's
+   cursor/ledger/collision machinery.
 
-4. Registered terminal-parenthesis DOI — a currently RED gap (C-029):
-   `normalize_doi`'s citation-punctuation `rstrip(".,;)")` also strips the
-   trailing `)` off registered identifiers that legitimately end in one
-   (e.g. `10.1002/0471221929.ch26(vii)`), silently mutating the DOI that
-   gets persisted.
+4. Registered terminal-parenthesis DOI — fixed in Step 2 (C-029):
+   identifier-field normalization preserves the registered terminal `)`
+   (e.g. `10.1002/0471221929.ch26(vii)`), so the round-trip test is plain
+   GREEN and the old defect-characterization pair is retired.
 
 Each RED case is asserted as a named defect receipt (`xfail(strict=True)`,
 reason references the audit-report code), never presented as GREEN, per the
@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import pytest
 
-from ontologylab.kgstore import KGStore
+from ontologylab.kgstore import DocumentIdentityConflict, KGStore
 from tests.wave21.identity import (
     insert_different_doi_same_bytes,
     insert_same_doi_new_bytes,
@@ -106,20 +106,20 @@ def test_same_doi_new_bytes_is_one_row_and_keeps_the_first_bytes(tmp_path) -> No
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "Target invariant for Step 2 (04-domain-architecture.md 'Different "
-        "DOI, same bytes'), not current product behavior: two distinct, "
-        "real DOIs must be two distinct documents even when their bodies "
-        "are byte-identical, but the content_hash fallback in "
-        "insert_document currently merges them (C-029/C-031). This asserts "
-        "the target so a Step-2 fix flips it to GREEN, not a defect "
-        "reproduction."
+        "Target invariant for the v2 schema step (04-domain-architecture.md "
+        "'Different DOI, same bytes'), not current product behavior: two "
+        "distinct, real DOIs must materialize as two documents even when "
+        "their bodies are byte-identical, which the v1 UNIQUE(content_hash) "
+        "constraint cannot hold. Step 2 delivers the typed "
+        "DocumentIdentityConflict refusal instead of the old silent merge; "
+        "this stays pinned until the v2 schema lands."
     ),
 )
 def test_different_doi_same_bytes_should_yield_two_documents(tmp_path) -> None:
-    """Target invariant for Step 2: two distinct, real DOIs are two distinct
-    documents even when their bodies are byte-identical — content hash must
-    never merge Work identity (`04-domain-architecture.md` "Different DOI,
-    same bytes").
+    """Target invariant for the v2 schema step: two distinct, real DOIs are
+    two distinct documents even when their bodies are byte-identical —
+    content hash must never merge Work identity (`04-domain-architecture.md`
+    "Different DOI, same bytes").
     """
     store = KGStore.open(tmp_path / "kg.sqlite")
     try:
@@ -138,34 +138,125 @@ def test_different_doi_same_bytes_should_yield_two_documents(tmp_path) -> None:
     assert second.document_count == 2
 
 
-def test_different_doi_same_bytes_currently_collapses_to_one_document(
-    tmp_path,
-) -> None:
-    """Characterization of CURRENT behavior (C-029/C-031), not release
-    evidence: insert_document's DOI lookup misses (different DOI), then its
-    content_hash fallback SELECT matches the first row and returns it as a
-    dedupe hit instead of inserting a second document
-    (kgstore.py:2009-2014,2062-2069).
+def test_different_doi_same_bytes_raises_a_typed_conflict(tmp_path) -> None:
+    """Step 2 service contract: content-hash equality must not merge two
+    different explicit DOIs. Until the v2 schema can hold both rows, the
+    insert refuses with a typed DocumentIdentityConflict and writes nothing.
     """
     store = KGStore.open(tmp_path / "kg.sqlite")
     try:
-        first, second = insert_different_doi_same_bytes(
-            store,
-            first_doi="10.1000/wave21.collide.a",
-            second_doi="10.1000/wave21.collide.b",
-            shared_text="Identical body shared by two distinct registered works.",
+        first, _created = store.insert_document(
+            source_kind="paper_api",
+            source_uri="https://doi.org/10.1000/wave21.collide.a",
+            title="Paper A",
+            raw_text="Identical body shared by two distinct registered works.",
+            content_hash="sha256:collide-1",
+            doi="10.1000/wave21.collide.a",
         )
+        with pytest.raises(DocumentIdentityConflict) as raised:
+            store.insert_document(
+                source_kind="paper_api",
+                source_uri="https://doi.org/10.1000/wave21.collide.b",
+                title="Paper B",
+                raw_text="Identical body shared by two distinct registered works.",
+                content_hash="sha256:collide-1",
+                doi="10.1000/wave21.collide.b",
+            )
+        assert raised.value.existing_doc_id == first.id
+        assert raised.value.existing_doi == "10.1000/wave21.collide.a"
+        assert raised.value.incoming_doi == "10.1000/wave21.collide.b"
+        assert raised.value.content_hash == "sha256:collide-1"
+        assert len(store.list_documents()) == 1
+        # A refused insert leaves no orphan raw-text directory behind.
+        assert len(list((tmp_path / "documents").iterdir())) == 1
     finally:
         store.close()
 
-    # This is the CURRENT (defective) outcome: the content-hash fallback
-    # treats the second, differently-DOI'd paper as the same document.
-    assert second.created is False
-    assert second.doc_id == first.doc_id
-    assert second.document_count == 1
-    # The strongest possible statement of the defect: the row that comes
-    # back under the second DOI does not even carry that DOI.
-    assert second.doi_column == first.doi_column == "10.1000/wave21.collide.a"
+
+def test_conflict_truth_table_preserves_existing_dedupe(tmp_path) -> None:
+    """Over-fire guard: the conflict fires only for two DIFFERENT explicit
+    DOIs. Same-DOI reinsert still dedupes; an explicit DOI over a NULL-doi
+    hash row still merges (legacy-compatible); no-DOI inserts keep plain
+    hash dedupe."""
+    store = KGStore.open(tmp_path / "kg.sqlite")
+    try:
+        a1, created1 = store.insert_document(
+            source_kind="paper_api", source_uri="https://doi.org/10.1000/tt.a",
+            title="A", raw_text="body tt a", content_hash="sha256:tt-a",
+            doi="10.1000/tt.a",
+        )
+        a2, created2 = store.insert_document(
+            source_kind="paper_api", source_uri="https://doi.org/10.1000/tt.a",
+            title="A", raw_text="body tt a", content_hash="sha256:tt-a",
+            doi="10.1000/tt.a",
+        )
+        assert created1 is True and created2 is False and a2.id == a1.id
+
+        b1, _ = store.insert_document(
+            source_kind="upload", source_uri="file:///b.txt", title="B",
+            raw_text="body tt b", content_hash="sha256:tt-b",
+        )
+        b2, created_b2 = store.insert_document(
+            source_kind="paper_api", source_uri="https://doi.org/10.1000/tt.b",
+            title="B", raw_text="body tt b", content_hash="sha256:tt-b",
+            doi="10.1000/tt.b",
+        )
+        assert created_b2 is False and b2.id == b1.id
+
+        c1, _ = store.insert_document(
+            source_kind="upload", source_uri="file:///c1.txt", title="C",
+            raw_text="body tt c", content_hash="sha256:tt-c",
+        )
+        c2, created_c2 = store.insert_document(
+            source_kind="upload", source_uri="file:///c2.txt", title="C",
+            raw_text="body tt c", content_hash="sha256:tt-c",
+        )
+        assert created_c2 is False and c2.id == c1.id
+    finally:
+        store.close()
+
+
+def test_ingest_batch_survives_and_records_the_typed_conflict(tmp_path) -> None:
+    """Step 2 seam contract: a conflicting document must not kill the batch;
+    ingest_documents records one typed conflict entry and persists the rest.
+    """
+    from ontologylab.connectors.base import RawDocument
+    from ontologylab.ingestion import ingest_documents
+    from ontologylab.provenance import Provenance
+
+    store = KGStore.open(tmp_path / "kg.sqlite")
+    try:
+        shared = "Identical body shared by two distinct registered works."
+        docs = [
+            RawDocument(
+                source_kind="paper_api",
+                source_uri="https://doi.org/10.1000/seam.a",
+                title="A", raw_text=shared, doi="10.1000/seam.a",
+            ),
+            RawDocument(
+                source_kind="paper_api",
+                source_uri="https://doi.org/10.1000/seam.b",
+                title="B", raw_text=shared, doi="10.1000/seam.b",
+            ),
+            RawDocument(
+                source_kind="paper_api",
+                source_uri="https://doi.org/10.1000/seam.c",
+                title="C", raw_text="A different body entirely.",
+                doi="10.1000/seam.c",
+            ),
+        ]
+        result = ingest_documents(
+            store, docs, Provenance(str(tmp_path / "jobs"), seed=1)
+        )
+        assert result.document_count == 2
+        assert result.created_count == 2
+        assert len(result.conflicts) == 1
+        conflict = result.conflicts[0]
+        assert conflict.incoming_doi == "10.1000/seam.b"
+        assert conflict.existing_doi == "10.1000/seam.a"
+        assert len(store.list_documents()) == 2
+    finally:
+        store.close()
 
 
 # ---------------------------------------------------------------------------
@@ -176,21 +267,23 @@ def test_different_doi_same_bytes_currently_collapses_to_one_document(
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "Target invariant for Step 2, not current product behavior: "
+        "Target invariant for Step 5 (C-023), not current product behavior: "
         "migrating a populated legacy store must backfill doi from the "
         "resolver-shaped source_uri already on disk, so a same-paper "
         "reinsert by DOI dedupes against the pre-existing row. _migrate "
-        "currently only adds the nullable column (03-audit-evidence.md). "
-        "This asserts the target so a Step-2 backfill fix flips it to "
-        "GREEN, not a defect reproduction."
+        "only adds the nullable column; executing the backfill needs Step "
+        "5's cursor/ledger/collision machinery. Step 2 pins the policy as "
+        "the read-only planner in ontologylab.doi_backfill; this stays "
+        "pinned until Step 5 executes it."
     ),
 )
 def test_populated_legacy_row_should_be_recognized_after_migration(
     tmp_path,
 ) -> None:
-    """Target invariant for Step 2: migrating a populated legacy store must
-    backfill `doi` from the resolver-shaped `source_uri` already on disk, so
-    a same-paper reinsert by DOI dedupes against the pre-existing row.
+    """Target invariant for Step 5 (C-023): migrating a populated legacy
+    store must backfill `doi` from the resolver-shaped `source_uri` already
+    on disk, so a same-paper reinsert by DOI dedupes against the
+    pre-existing row. Step 2 pinned only the policy planner.
     """
     db_path = tmp_path / "kg.sqlite"
     seed_premigration_documents_row(
@@ -254,26 +347,13 @@ def test_populated_legacy_row_currently_stays_null_and_duplicates(
 
 
 @pytest.mark.parametrize("doi", REGISTERED_TERMINAL_PAREN_DOIS)
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Target invariant for Step 2 (07-synthesis-blueprint.md 'C-029 DOI "
-        "syntax'), not current product behavior: identifier-field "
-        "normalization must not apply citation-prose punctuation stripping "
-        "to a registered DOI, so these three real, registered identifiers "
-        "must persist byte-for-byte. normalize_doi's rstrip('.,;)') "
-        "currently strips the trailing ')' unconditionally (C-029). This "
-        "asserts the target so a Step-2 identifier-field fix flips it to "
-        "GREEN, not a defect reproduction."
-    ),
-)
 def test_registered_terminal_paren_doi_should_round_trip_exactly(
     tmp_path, doi
 ) -> None:
-    """Target invariant for Step 2: identifier-field normalization must not
-    apply citation-prose punctuation stripping to a registered DOI, so these
-    three real, registered identifiers persist byte-for-byte
-    (`07-synthesis-blueprint.md` "C-029 DOI syntax").
+    """Delivered Step 2 invariant (C-029): identifier-field normalization
+    applies no citation-prose punctuation stripping, so these three real,
+    registered identifiers persist byte-for-byte through insert and
+    read-back (`07-synthesis-blueprint.md` "C-029 DOI syntax").
     """
     store = KGStore.open(tmp_path / "kg.sqlite")
     try:
@@ -285,30 +365,6 @@ def test_registered_terminal_paren_doi_should_round_trip_exactly(
 
     assert receipt.round_trips is True
     assert receipt.stored_doi == doi
-
-
-@pytest.mark.parametrize("doi", REGISTERED_TERMINAL_PAREN_DOIS)
-def test_registered_terminal_paren_doi_currently_loses_the_paren(
-    tmp_path, doi
-) -> None:
-    """Characterization of CURRENT behavior (C-029/O-171), not release
-    evidence: normalize_doi's citation-prose rstrip('.,;)') strips the
-    trailing ')' off registered identifiers that legitimately end in one
-    (connectors/base.py normalize_doi), so the stored doi column silently
-    loses a character of the registered identity.
-    """
-    store = KGStore.open(tmp_path / "kg.sqlite")
-    try:
-        receipt = terminal_paren_round_trip(
-            store, doi=doi, raw_text=f"Chapter body for {doi}."
-        )
-    finally:
-        store.close()
-
-    # This is the CURRENT (defective) outcome: the registered ')' is gone.
-    assert receipt.round_trips is False
-    assert receipt.stored_doi == doi[:-1]
-    assert receipt.normalized_doi == doi[:-1]
 
 
 # ---------------------------------------------------------------------------

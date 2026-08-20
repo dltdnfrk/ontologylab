@@ -58,6 +58,43 @@ def _populate(store: KGStore) -> None:
     # n3 + e2 stay proposed — must not enter the pack
 
 
+def test_pack_documents_projection_preserves_doi(tmp_path: Path) -> None:
+    """Step 2 (Wave 2.1): a document's doi, present in the live store, must
+    survive the pack build instead of reading back NULL."""
+    kg = tmp_path / "kg.sqlite"
+    packs = tmp_path / "packs"
+    store = KGStore.open(kg)
+    registered = "10.1002/0471221929.ch26(vii)"
+    doc, _ = store.insert_document(
+        source_kind="paper_api",
+        source_uri=f"https://doi.org/{registered}",
+        title="chapter",
+        raw_text="RateLimiter uses TokenBucket for throttling",
+        content_hash="pack-doi-1",
+        doi=registered,
+    )
+    store.insert_proposed(
+        [ProposedEntity(id="n1", entity_type="Component", name="RateLimiter")],
+        [],
+        source_doc_id=doc.id,
+        extractor_engine="mock",
+    )
+    store.approve("n1")
+    store.close()
+
+    manifest = build_pack(
+        kg, packs, name="doi-proj", allow_incomplete_extraction=True,
+        incomplete_extraction_intent="synthetic doi projection fixture",
+    )
+    pack_sqlite = packs / manifest.pack_id / "pack.sqlite"
+    conn = sqlite3.connect(f"file:{pack_sqlite}?mode=ro", uri=True)
+    try:
+        (packed_doi,) = conn.execute("SELECT doi FROM documents").fetchone()
+    finally:
+        conn.close()
+    assert packed_doi == registered
+
+
 def test_build_pack_verified_only_and_fts(tmp_path: Path) -> None:
     kg = tmp_path / "kg.sqlite"
     packs = tmp_path / "packs"

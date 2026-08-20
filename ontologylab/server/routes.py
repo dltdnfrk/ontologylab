@@ -2467,10 +2467,15 @@ def packs_build(deps: AppDependency, body: PackBuildRequest) -> dict[str, Any]:
 @router.get("/packs/{pack_a_id}/diff/{pack_b_id}")
 def packs_diff(deps: AppDependency, pack_a_id: str, pack_b_id: str) -> dict[str, Any]:
     """W14: manifest + node/edge deltas between two built packs."""
+    from ontologylab.mcp_server import PackIntegrityError
     from ontologylab.packdiff import diff_packs
 
     try:
         return diff_packs(deps.packs_dir, pack_a_id, pack_b_id)
+    except PackIntegrityError as exc:
+        # Tamper/forgery is not "not found": surface it as a typed conflict
+        # so the client knows the pack exists but failed verification.
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except PackBuildError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

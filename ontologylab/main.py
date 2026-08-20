@@ -1175,12 +1175,13 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
 
 
 def cmd_pack_diff(args: argparse.Namespace) -> int:
+    from ontologylab.mcp_server import PackIntegrityError
     from ontologylab.packbuilder import PackBuildError
     from ontologylab.packdiff import diff_packs
 
     try:
         diff = diff_packs(args.packs_dir, args.a, args.b)
-    except PackBuildError as exc:
+    except (PackBuildError, PackIntegrityError) as exc:
         print(f"[ontologylab] error: {exc}", file=sys.stderr)
         return 2
     print(f"[ontologylab] {args.a} -> {args.b}")

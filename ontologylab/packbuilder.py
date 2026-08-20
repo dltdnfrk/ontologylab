@@ -96,7 +96,7 @@ _PACK_COPY_COLUMNS: dict[str, tuple[str, ...]] = {
     ),
     "documents": (
         "id", "source_kind", "source_uri", "title", "fetched_ts",
-        "content_hash", "raw_text_path", "source", "evidence_grade",
+        "content_hash", "raw_text_path", "doi", "source", "evidence_grade",
     ),
     "nodes": (
         "id", "schema_version_id", "entity_type", "name", "normalized_name",

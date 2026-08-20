@@ -21,34 +21,69 @@ from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 
+_RESOLVER_PREFIXES = ("https://doi.org/", "http://doi.org/",
+                      "https://dx.doi.org/", "http://dx.doi.org/", "doi:")
+
+
+def _strip_resolver_prefix(value: str) -> str:
+    for prefix in _RESOLVER_PREFIXES:
+        if value.lower().startswith(prefix):
+            return value[len(prefix):].strip()
+    return value
+
+
 def normalize_doi(raw: Any) -> str | None:
-    """Reduce a DOI to its bare, comparable form, or None if there isn't one.
+    """Reduce a structured DOI *field* to its bare, comparable form.
 
     The five paper sources hand back four different shapes for the same
     identifier — Crossref and Europe PMC give a bare ``10.x/y``, OpenAlex
     gives ``https://doi.org/10.x/y``, Semantic Scholar nests it under
-    ``externalIds``. Cross-source de-duplication compares these, so they have
-    to be reduced to one form first: strip any resolver prefix, casefold
-    (DOIs are case-insensitive), and drop trailing punctuation a citation
-    string tends to carry.
+    ``externalIds``. Cross-source de-duplication compares these, so they
+    have to be reduced to one form first: strip any resolver prefix and
+    casefold (DOIs are case-insensitive).
 
-    arXiv is deliberately absent from that list: its entries have no DOI, so
-    it must fall back to ``source_uri`` rather than inventing a key.
+    This is identifier-field semantics: the value IS the identifier, so no
+    citation punctuation is peeled — registered DOIs legitimately end in
+    ``)`` (e.g. ``10.1002/0471221929.ch26(vii)``) and stripping it corrupts
+    the stored identity (C-029). Peeling the punctuation citation prose
+    carries is `doi_from_citation_text`'s job. A value that does not look
+    like a DOI (no ``10.`` prefix, no ``/`` between prefix and suffix, or
+    whitespace/control characters inside) is refused rather than turned
+    into a colliding de-duplication key.
+
+    arXiv is deliberately absent from the resolver list: its entries have
+    no DOI, so it must fall back to ``source_uri`` rather than inventing a
+    key.
     """
     if not isinstance(raw, str):
         return None
-    value = raw.strip()
-    for prefix in ("https://doi.org/", "http://doi.org/",
-                   "https://dx.doi.org/", "http://dx.doi.org/", "doi:"):
-        if value.lower().startswith(prefix):
-            value = value[len(prefix):]
-            break
-    value = value.strip().rstrip(".,;)")
-    if not value.startswith("10."):
-        # Not a DOI. Returning None keeps a malformed value out of the
-        # de-duplication key rather than making it collide with others.
+    value = _strip_resolver_prefix(raw.strip())
+    if not value.startswith("10.") or "/" not in value:
+        return None
+    if not value.isprintable() or any(ch.isspace() for ch in value):
         return None
     return value.casefold()
+
+
+def doi_from_citation_text(text: Any) -> str | None:
+    """Recover a DOI from a citation-prose fragment, or None.
+
+    Prose carries sentence punctuation the identifier does not own: ``.``,
+    ``,`` and ``;`` at the end are citation artifacts and are peeled. A
+    trailing ``)`` is peeled only while the candidate holds more ``)`` than
+    ``(`` — the one case where the parenthesis is provably not part of the
+    DOI — so registered terminal-paren identifiers survive intact.
+    """
+    if not isinstance(text, str):
+        return None
+    candidate = _strip_resolver_prefix(text.strip())
+    while candidate and candidate[-1] in ".,;":
+        candidate = candidate[:-1]
+    while candidate.endswith(")") and candidate.count(")") > candidate.count("("):
+        candidate = candidate[:-1]
+        while candidate and candidate[-1] in ".,;":
+            candidate = candidate[:-1]
+    return normalize_doi(candidate)
 
 
 @dataclass
