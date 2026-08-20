@@ -1,0 +1,53 @@
+{
+  "manifest_version": 1,
+  "recipe_id": "wave21-perf-v1",
+  "seed": 20260820,
+  "baseline_commit": "bed13a80b1bdbb9d605b0bc34c42771576ca310e",
+  "created_for": "OntologyLab Wave 2.1 Step 1 existing-operation baselines",
+  "dataset": {
+    "documents": 10000,
+    "legacy_doi_resolver_rows": 500,
+    "doi_collision_ratio": 0.05,
+    "same_bytes_different_doi_ratio": 0.05,
+    "title_words": [8, 16],
+    "abstract_words": [40, 120],
+    "fulltext_words": [400, 1200],
+    "content_pattern": "deterministic lorem-like token stream generated from seed"
+  },
+  "operations": [
+    {
+      "id": "fixture_create_open_noop",
+      "kind": "existing",
+      "n": 3,
+      "description": "Create a 10,000-row populated pre-DOI fixture, open KGStore to upgrade it, reopen through the no-op migration path, and close."
+    },
+    {
+      "id": "legacy_noop_migration_open",
+      "kind": "existing",
+      "n": 5,
+      "description": "Open and close an already-upgraded 10,000-row legacy fixture through the no-op migration path."
+    },
+    {
+      "id": "current_ingest_create_and_duplicate",
+      "kind": "existing",
+      "n": 3,
+      "description": "Run current ingest_documents over all 10,000 recipe observations twice to measure create then duplicate resolution."
+    },
+    {
+      "id": "current_pack_build",
+      "kind": "existing",
+      "n": 3,
+      "description": "Build a current pack from the 10,000-row populated legacy baseline after one real mock extraction lifecycle."
+    }
+  ],
+  "metrics": ["n", "mean_ms", "p95_ms", "max_ms"],
+  "forbidden": [
+    "target_v2_migration",
+    "external_network",
+    "live_application_support_data",
+    "port_8799",
+    "fixed_sleep",
+    "polling_loop"
+  ],
+  "canonicalization": "RFC 8785-like key order; UTF-8 JSON without whitespace differences; SHA-256 over exact bytes."
+}
