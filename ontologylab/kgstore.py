@@ -741,9 +741,10 @@ class KGStore:
             conn.execute("BEGIN IMMEDIATE")
             _execute_sql_script(conn, _SCHEMA)
             cls._migrate(conn)
-            from ontologylab import extraction_state
+            from ontologylab import authority, extraction_state
 
             _execute_sql_script(conn, extraction_state._SCHEMA)
+            _execute_sql_script(conn, authority._SCHEMA)
             for table, column in (
                 ("extraction_runs", "owner_token"),
                 ("extraction_chunks", "owner_token"),
@@ -793,6 +794,15 @@ class KGStore:
                     f"ALTER TABLE documents ADD COLUMN {column} "
                     f"TEXT NOT NULL DEFAULT ''"
                 )
+        # Wave 2.1 Step 3 (3A): Representation linkage/state are additive;
+        # pre-existing rows stay unlinked (NULL work_id) and ready.
+        if "work_id" not in document_columns:
+            conn.execute("ALTER TABLE documents ADD COLUMN work_id TEXT")
+        if "representation_state" not in document_columns:
+            conn.execute(
+                "ALTER TABLE documents ADD COLUMN representation_state "
+                "TEXT NOT NULL DEFAULT 'ready'"
+            )
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_doi "
             "ON documents (doi) WHERE doi IS NOT NULL"

@@ -1452,6 +1452,21 @@ def forget_source_key(deps: AppDependency, source_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+@router.get("/works/{work_id}")
+def get_work(deps: AppDependency, work_id: str) -> dict[str, Any]:
+    """Wave 2.1 Step 3 (3C): additive Work serializer; old /api/documents
+    keeps its shape. The preferred Representation is computed on read."""
+    from ontologylab.work_view import WorkNotFound, work_snapshot
+
+    store = _open_store(deps)
+    try:
+        return work_snapshot(store.conn, work_id)
+    except WorkNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
 @router.get("/documents")
 def get_documents(deps: AppDependency) -> dict[str, Any]:
     store = _open_store(deps)
