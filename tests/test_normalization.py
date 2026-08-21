@@ -232,10 +232,12 @@ def test_extraction_normalizes_before_storage_and_review_exposes_properties(
     finally:
         store.close()
 
+    # 4C/D11: a model-minted alias can never establish registry identity;
+    # the refusal is flagged for review and the wrong model code is dropped.
     assert rows["grey mould pathogen"]["properties"] == {
-        "eppo_code": "BOTRCI",
-        "eppo_matched_surface": "Botryotinia fuckeliana",
         "eppo_code_dropped": "WRONG",
+        "eppo_unattested_match_refused": "Botryotinia fuckeliana",
+        "normalization": "no_eppo_match",
     }
     assert rows["mystery weed"]["properties"] == {
         "normalization": "no_eppo_match"

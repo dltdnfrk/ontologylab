@@ -112,7 +112,8 @@ def test_same_doi_new_bytes_is_one_row_and_keeps_the_first_bytes(tmp_path) -> No
         "their bodies are byte-identical, which the v1 UNIQUE(content_hash) "
         "constraint cannot hold. Step 2 delivers the typed "
         "DocumentIdentityConflict refusal instead of the old silent merge; "
-        "this stays pinned until the v2 schema lands."
+        "this stays pinned until Step 9's constraint rebuild (the v2 schema "
+        "step)."
     ),
 )
 def test_different_doi_same_bytes_should_yield_two_documents(tmp_path) -> None:

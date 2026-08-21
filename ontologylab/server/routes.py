@@ -143,6 +143,10 @@ from ontologylab.server.schemas import (
     TermRename,
     TermXrefCreate,
     TermXrefReview,
+    ReconcileAttachRequest,
+    ReconcileCompensateRequest,
+    ReconcileResolveCollisionRequest,
+    ReconcileRetractRequest,
     TranslationRequest,
 )
 
@@ -1450,6 +1454,149 @@ def forget_source_key(deps: AppDependency, source_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Documents / collect (Sources screen)
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Wave 2.1 Step 4: reconciliation surfaces (shared typed seam with the CLI)
+# ---------------------------------------------------------------------------
+
+
+def _reconcile_status(exc: Exception) -> int:
+    """Map the typed domain conflicts to the house status codes."""
+    from ontologylab.authority_repo import (
+        IdentifierOwnedConflict,
+        SecondDoiAttachConflict,
+    )
+    from ontologylab.identity_decisions import (
+        DecisionInputInvalid,
+        IdentifierAlreadyRetracted,
+        UnknownIdentifier,
+    )
+    from ontologylab.work_redirects import (
+        RedirectAlreadyActive,
+        RedirectCycleError,
+    )
+    from ontologylab.work_view import WorkNotFound
+
+    if isinstance(
+        exc,
+        (
+            IdentifierOwnedConflict,
+            SecondDoiAttachConflict,
+            IdentifierAlreadyRetracted,
+            RedirectAlreadyActive,
+            RedirectCycleError,
+        ),
+    ):
+        return 409
+    if isinstance(exc, (UnknownIdentifier, WorkNotFound)):
+        return 404
+    if isinstance(exc, DecisionInputInvalid):
+        return 400
+    raise exc
+
+
+@router.get("/reconcile")
+def reconcile_list(deps: AppDependency) -> dict[str, Any]:
+    from ontologylab.reconciliation import list_state
+
+    store = _open_store(deps)
+    try:
+        return list_state(store.conn)
+    finally:
+        store.close()
+
+
+@router.get("/reconcile/works/{work_id}")
+def reconcile_inspect(deps: AppDependency, work_id: str) -> dict[str, Any]:
+    from ontologylab.reconciliation import inspect_work
+
+    store = _open_store(deps)
+    try:
+        return inspect_work(store.conn, work_id)
+    except Exception as exc:
+        raise HTTPException(status_code=_reconcile_status(exc), detail=f"{type(exc).__name__}: {exc}") from exc
+    finally:
+        store.close()
+
+
+@router.post("/reconcile/attach")
+def reconcile_attach(deps: AppDependency, body: ReconcileAttachRequest) -> dict[str, Any]:
+    from ontologylab.reconciliation import attach
+
+    store = _open_store(deps)
+    try:
+        result = attach(
+            store.conn, work_id=body.work_id, scheme=body.scheme,
+            normalized_value=body.normalized_value,
+            idempotency_key=body.idempotency_key, actor=body.actor,
+            reason=body.reason,
+        )
+        store.conn.commit()
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=_reconcile_status(exc), detail=f"{type(exc).__name__}: {exc}") from exc
+    finally:
+        store.close()
+
+
+@router.post("/reconcile/retract")
+def reconcile_retract(deps: AppDependency, body: ReconcileRetractRequest) -> dict[str, Any]:
+    from ontologylab.reconciliation import retract
+
+    store = _open_store(deps)
+    try:
+        result = retract(
+            store.conn, identifier_id=body.identifier_id,
+            actor=body.actor, reason=body.reason,
+        )
+        store.conn.commit()
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=_reconcile_status(exc), detail=f"{type(exc).__name__}: {exc}") from exc
+    finally:
+        store.close()
+
+
+@router.post("/reconcile/compensate")
+def reconcile_compensate(deps: AppDependency, body: ReconcileCompensateRequest) -> dict[str, Any]:
+    from ontologylab.reconciliation import compensate
+
+    store = _open_store(deps)
+    try:
+        result = compensate(
+            store.conn, source_work_id=body.source_work_id,
+            target_work_id=body.target_work_id,
+            supersedes_id=body.supersedes_id, actor=body.actor,
+            reason=body.reason,
+        )
+        store.conn.commit()
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=_reconcile_status(exc), detail=f"{type(exc).__name__}: {exc}") from exc
+    finally:
+        store.close()
+
+
+@router.post("/reconcile/resolve-collision")
+def reconcile_resolve_collision(
+    deps: AppDependency, body: ReconcileResolveCollisionRequest
+) -> dict[str, Any]:
+    from ontologylab.reconciliation import resolve_collision
+
+    store = _open_store(deps)
+    try:
+        result = resolve_collision(
+            store.conn, scheme=body.scheme,
+            normalized_value=body.normalized_value,
+            work_ids=body.work_ids, actor=body.actor, reason=body.reason,
+        )
+        store.conn.commit()
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=_reconcile_status(exc), detail=f"{type(exc).__name__}: {exc}") from exc
+    finally:
+        store.close()
 
 
 @router.get("/works/{work_id}")

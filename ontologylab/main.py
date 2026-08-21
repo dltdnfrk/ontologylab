@@ -314,6 +314,39 @@ def cmd_method(args: argparse.Namespace) -> int:
 
 
 def _add_method_parser(sub: argparse._SubParsersAction) -> None:
+    p_reconcile = sub.add_parser(
+        "reconcile", help="Identity reconciliation (Wave 2.1 Step 4)."
+    )
+    rec_sub = p_reconcile.add_subparsers(dest="reconcile_command", required=True)
+    for name in (
+        "list", "inspect", "attach", "retract", "compensate", "resolve-collision"
+    ):
+        child = rec_sub.add_parser(name)
+        _add_data_dir(child)
+    rec_sub.choices["inspect"].add_argument("--work-id", required=True)
+    rec_sub.choices["attach"].add_argument("--work-id", required=True)
+    rec_sub.choices["attach"].add_argument("--scheme", required=True)
+    rec_sub.choices["attach"].add_argument("--value", required=True)
+    rec_sub.choices["attach"].add_argument("--key", required=True)
+    rec_sub.choices["attach"].add_argument("--actor", required=True)
+    rec_sub.choices["attach"].add_argument("--reason", required=True)
+    rec_sub.choices["retract"].add_argument("--identifier-id", required=True)
+    rec_sub.choices["retract"].add_argument("--actor", required=True)
+    rec_sub.choices["retract"].add_argument("--reason", required=True)
+    rec_sub.choices["compensate"].add_argument("--source", required=True)
+    rec_sub.choices["compensate"].add_argument("--target", required=True)
+    rec_sub.choices["compensate"].add_argument("--supersedes-id", required=True)
+    rec_sub.choices["compensate"].add_argument("--actor", required=True)
+    rec_sub.choices["compensate"].add_argument("--reason", required=True)
+    rec_sub.choices["resolve-collision"].add_argument("--scheme", required=True)
+    rec_sub.choices["resolve-collision"].add_argument("--value", required=True)
+    rec_sub.choices["resolve-collision"].add_argument(
+        "--work-ids", nargs="+", required=True
+    )
+    rec_sub.choices["resolve-collision"].add_argument("--actor", required=True)
+    rec_sub.choices["resolve-collision"].add_argument("--reason", required=True)
+    p_reconcile.set_defaults(func=cmd_reconcile)
+
     method = sub.add_parser("method", help="Human-operated Method workspace commands.")
     nested = method.add_subparsers(dest="method_command", required=True)
 
@@ -1172,6 +1205,93 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
     print("[ontologylab] serve it: python "
           + " ".join(serve_args(args.packs_dir, manifest.pack_id)))
     return 0
+
+
+def cmd_reconcile(args: argparse.Namespace) -> int:
+    """Wave 2.1 Step 4: identity reconciliation, one seam with the HTTP API."""
+    from ontologylab.authority_repo import AuthorityError
+
+    store = _open_store(args)
+    try:
+        if args.reconcile_command == "list":
+            from ontologylab.reconciliation import list_state
+
+            state = list_state(store.conn)
+            print(f"[ontologylab] works={state['works']} "
+                  f"identifiers={len(state['identifiers'])} "
+                  f"pending={len(state['pending_identifiers'])} "
+                  f"decisions={state['identifier_decisions']} "
+                  f"redirects={state['redirect_decisions']} "
+                  f"merge_candidates={state['pending_merge_candidates']}")
+            return 0
+        if args.reconcile_command == "inspect":
+            from ontologylab.reconciliation import inspect_work
+
+            body = inspect_work(store.conn, args.work_id)
+            for row in body["identifiers"]:
+                print(f"identifier id={row['id']} {row['scheme']}:"
+                      f"{row['normalized_value']} status={row['status']}")
+            for row in body["decisions"]:
+                print(f"decision id={row['id']} action={row['action']} "
+                      f"actor={row['actor']}")
+            print(f"preferred_representation_id="
+                  f"{body['preferred_representation_id']}")
+            return 0
+        if args.reconcile_command == "attach":
+            from ontologylab.reconciliation import attach
+
+            result = attach(
+                store.conn, work_id=args.work_id, scheme=args.scheme,
+                normalized_value=args.value, idempotency_key=args.key,
+                actor=args.actor, reason=args.reason,
+            )
+            store.conn.commit()
+            print(f"[ontologylab] attached identifier_id={result['identifier_id']} "
+                  f"observation_id={result['observation_id']} "
+                  f"decision_id={result['decision_id']}")
+            return 0
+        if args.reconcile_command == "retract":
+            from ontologylab.reconciliation import retract
+
+            result = retract(
+                store.conn, identifier_id=args.identifier_id,
+                actor=args.actor, reason=args.reason,
+            )
+            store.conn.commit()
+            print(f"[ontologylab] retracted identifier_id={result['identifier_id']} "
+                  f"decision_id={result['decision_id']}")
+            return 0
+        if args.reconcile_command == "compensate":
+            from ontologylab.reconciliation import compensate
+
+            result = compensate(
+                store.conn, source_work_id=args.source,
+                target_work_id=args.target, supersedes_id=args.supersedes_id,
+                actor=args.actor, reason=args.reason,
+            )
+            store.conn.commit()
+            print(f"[ontologylab] compensated decision_id={result['decision_id']}")
+            return 0
+        if args.reconcile_command == "resolve-collision":
+            from ontologylab.reconciliation import resolve_collision
+
+            result = resolve_collision(
+                store.conn, scheme=args.scheme, normalized_value=args.value,
+                work_ids=args.work_ids, actor=args.actor, reason=args.reason,
+            )
+            store.conn.commit()
+            for pending in result["pending_identifier_ids"]:
+                print(f"[ontologylab] pending {pending}")
+            for decision in result["decision_ids"]:
+                print(f"[ontologylab] decision {decision}")
+            return 0
+        raise AssertionError(f"unhandled reconcile command {args.reconcile_command}")
+    except AuthorityError as exc:
+        print(f"[ontologylab] error: {type(exc).__name__}: {exc}",
+              file=sys.stderr)
+        return 2
+    finally:
+        store.close()
 
 
 def cmd_pack_diff(args: argparse.Namespace) -> int:

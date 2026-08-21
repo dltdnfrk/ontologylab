@@ -2186,7 +2186,9 @@ class KGStore:
     # than extractor-defined attributes. They predate user-installable schemas
     # and are part of every schema's store contract; arbitrary resource names
     # remain off-schema and fail closed.
-    _ANNOTATION_PROPERTY_BLOCKS = frozenset({"uniprot", "mygene"})
+    _ANNOTATION_PROPERTY_BLOCKS = frozenset(
+        {"uniprot", "mygene", "alias_authority"}
+    )
     # ``tier`` was accepted by the original default Component store contract
     # and is exercised by the merge API. Keep that historical write valid
     # without changing persisted schemas or exported pack schema bytes.
@@ -2217,6 +2219,8 @@ class KGStore:
             "moa_scheme",
             "moa_code",
             "normalization",
+            "eppo_unattested_match_refused",
+            "cas_unattested_match_refused",
             # Marks a parser-minted relation endpoint (never observed in the
             # text) so the review surface can show it as synthesized.
             "synthesized_endpoint",
@@ -2647,6 +2651,24 @@ class KGStore:
                 for alias in ent.aliases:
                     self._add_alias(node_id, alias)
                 stats["nodes_new"] += 1
+                # 4C/C-033: a distinct node already carrying the same
+                # canonical registry identity is a mandatory human-decided
+                # review candidate - never an automatic merge.
+                for key in ("cas_number", "eppo_code"):
+                    value = ent.properties.get(key)
+                    if not value:
+                        continue
+                    holder = self.conn.execute(
+                        "SELECT id FROM nodes WHERE entity_type = ? AND "
+                        "status IN ('proposed','verified') AND id != ? AND "
+                        "json_extract(properties_json, ?) = ? LIMIT 1",
+                        (ent.entity_type, node_id, f"$.{key}", value),
+                    ).fetchone()
+                    if holder is not None:
+                        self.record_merge_candidate(
+                            holder["id"], node_id, score=1.0,
+                            reasons=[f"same-{key}:{value}"],
+                        )
             if ent.synthesized:
                 stats["synthesized_endpoints"] += 1
             id_map[ent.id] = node_id

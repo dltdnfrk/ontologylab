@@ -16,6 +16,7 @@ V2_AUTHORITY_TABLES: frozenset[str] = frozenset({
     "identifier_assertions",
     "work_redirect_decisions",
     "document_observations",
+    "identifier_decisions",
     "provenance_outbox",
     "v2_migration_ledger",
 })
@@ -99,6 +100,28 @@ CREATE TABLE IF NOT EXISTS work_redirect_decisions (
     reason         TEXT NOT NULL,
     created_ts     REAL NOT NULL
 );
+
+-- Append-only audit of identity decisions (4A): every attach/retract/
+-- collision resolution carries actor/reason/time; no hard delete exists.
+CREATE TABLE IF NOT EXISTS identifier_decisions (
+    id            TEXT PRIMARY KEY,
+    identifier_id TEXT NOT NULL REFERENCES work_identifiers(id),
+    action        TEXT NOT NULL
+                      CHECK (action IN ('attach','retract','resolve_collision')),
+    actor         TEXT NOT NULL,
+    reason        TEXT NOT NULL,
+    created_ts    REAL NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS trg_identifier_decisions_no_update
+BEFORE UPDATE ON identifier_decisions
+BEGIN
+    SELECT RAISE(ABORT, 'identifier_decisions is append-only');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_identifier_decisions_no_delete
+BEFORE DELETE ON identifier_decisions
+BEGIN
+    SELECT RAISE(ABORT, 'identifier_decisions is append-only');
+END;
 
 -- The SQLite outbox is provenance truth; JSONL is a deterministic
 -- projection keyed by event_id (D12).

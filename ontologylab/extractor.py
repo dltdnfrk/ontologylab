@@ -482,6 +482,15 @@ def parse_and_validate_extraction(
                 continue
             properties[prop_key] = value
 
+        if aliases:
+            # 4C/D11: parser-minted aliases are model_unattested; they can
+            # never mint registry identity downstream, and any model-supplied
+            # alias_authority property was already dropped as off-schema.
+            properties.setdefault(
+                "alias_authority",
+                {alias: "model_unattested" for alias in aliases},
+            )
+
         key = (normalize_name(name), etype)
         if key in by_key:
             # duplicate mention within one response: merge aliases, keep first
@@ -492,6 +501,10 @@ def parse_and_validate_extraction(
                     for a in existing.aliases
                 ):
                     existing.aliases.append(alias)
+            existing.properties.setdefault(
+                "alias_authority",
+                {alias: "model_unattested" for alias in existing.aliases},
+            )
             continue
 
         entity = ProposedEntity(
@@ -684,6 +697,22 @@ def extraction_doc_ids(store: Any) -> list[str]:
     ]
 
 
+def stamp_alias_authority(entity):
+    """Expose the 4C classification as a pure boundary function (D11).
+
+    Parser-minted aliases default to model_unattested; an existing
+    classification (registry_supplied, human_asserted) is never overridden.
+    The run_extraction parse path applies this inline; this function is the
+    testable seam for the same rule.
+    """
+    if entity.aliases:
+        entity.properties.setdefault(
+            "alias_authority",
+            {alias: "model_unattested" for alias in entity.aliases},
+        )
+    return entity
+
+
 async def run_extraction(
     store: Any,
     engine: Any,
@@ -847,6 +876,12 @@ async def run_extraction(
                                 normalize_proposal(
                                     entity, cas_registry, moa_registry
                                 )
+                        # 4C: alias_authority is parse-time metadata for the
+                        # normalization boundary - strip it before storage so
+                        # persisted properties keep their pre-4C shape (the
+                        # durable record is the resolution flags).
+                        for entity in result.entities:
+                            entity.properties.pop("alias_authority", None)
                         stats = store.insert_proposed(
                             result.entities,
                             result.relations,

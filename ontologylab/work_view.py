@@ -1,9 +1,11 @@
 """On-read Work serializer (Wave 2.1 Step 3, 3C).
 
 Pure projection: the preferred Representation is COMPUTED per call from the
-fixed preferred-representation-v1 policy and never stored; canonicalization
-after redirect decisions happens here on read, never by rewriting the
-original Work's rows or FKs (D09).
+fixed preferred-representation-v1 policy and never stored. Identifiers and
+Observations stay on their original Work forever (D09 forbids FK rewrites);
+current/as-of canonicalization over redirect decisions is the separate
+``canonical_work`` projection in ``ontologylab.work_redirects``, not this
+serializer.
 """
 
 from __future__ import annotations

@@ -50,33 +50,12 @@ class SecondDoiAttachConflict(AuthorityError):
 
 
 @dataclass(frozen=True, slots=True)
-class RedirectCycleError(AuthorityError):
-    """The redirect would create a cycle in the active projection."""
-
-    source_work_id: str
-    target_work_id: str
-
-    def __str__(self) -> str:
-        return (
-            f"redirect {self.source_work_id} -> {self.target_work_id} "
-            f"would create a cycle in the active redirect projection"
-        )
-
-
-@dataclass(frozen=True, slots=True)
 class AttachResult:
     """Outcome of one attach: ids plus whether anything was newly written."""
 
     identifier_id: str
     observation_id: str
     created: bool
-
-
-@dataclass(frozen=True, slots=True)
-class RedirectResult:
-    """Outcome of one redirect decision."""
-
-    decision_id: str
 
 
 _OWNER_INDEX = "idx_work_identifiers_accepted_owner"
@@ -277,60 +256,3 @@ def _insert_observation(
     return observation_id
 
 
-def _active_redirect_chain(conn: sqlite3.Connection, start: str) -> set[str]:
-    """Works reachable from start through non-superseded merge decisions."""
-    superseded = {
-        row[0]
-        for row in conn.execute(
-            "SELECT supersedes_id FROM work_redirect_decisions "
-            "WHERE supersedes_id IS NOT NULL"
-        )
-    }
-    reachable = {start}
-    frontier = [start]
-    while frontier:
-        current = frontier.pop()
-        for row in conn.execute(
-            "SELECT id, target_work_id FROM work_redirect_decisions "
-            "WHERE source_work_id = ? AND action = 'merge'",
-            (current,),
-        ):
-            if row[0] in superseded:
-                continue
-            if row[1] not in reachable:
-                reachable.add(row[1])
-                frontier.append(row[1])
-    return reachable
-
-
-def record_redirect(
-    conn: sqlite3.Connection,
-    *,
-    source_work_id: str,
-    target_work_id: str,
-    action: str,
-    actor: str,
-    reason: str,
-    supersedes_id: str | None = None,
-) -> RedirectResult:
-    """Append one redirect/compensation decision; cycles are refused.
-
-    Compensation supersedes a prior merge without rewriting any FK (D09):
-    the active projection simply stops following superseded merges, so the
-    cycle check runs over that projection.
-    """
-    if action == "merge":
-        chain = _active_redirect_chain(conn, target_work_id)
-        if source_work_id in chain:
-            raise RedirectCycleError(
-                source_work_id=source_work_id, target_work_id=target_work_id,
-            )
-    decision_id = _new_id("wrd")
-    conn.execute(
-        "INSERT INTO work_redirect_decisions (id, source_work_id, "
-        "target_work_id, action, supersedes_id, actor, reason, created_ts) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, julianday('now'))",
-        (decision_id, source_work_id, target_work_id, action,
-         supersedes_id, actor, reason),
-    )
-    return RedirectResult(decision_id=decision_id)

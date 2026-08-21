@@ -202,6 +202,45 @@ class ProviderTestResult(BaseModel):
     error: Optional[str] = None
 
 
+class ReconcileAttachRequest(BaseModel):
+    """Attach an identifier to a Work with an audited decision."""
+
+    work_id: str
+    scheme: str
+    normalized_value: str
+    idempotency_key: str
+    actor: str = DEFAULT_ACTOR
+    reason: str = ""
+
+
+class ReconcileRetractRequest(BaseModel):
+    """Write-once retraction of one identifier."""
+
+    identifier_id: str
+    actor: str = DEFAULT_ACTOR
+    reason: str = ""
+
+
+class ReconcileCompensateRequest(BaseModel):
+    """Compensate (supersede) a prior redirect decision."""
+
+    source_work_id: str
+    target_work_id: str
+    supersedes_id: str
+    actor: str = DEFAULT_ACTOR
+    reason: str = ""
+
+
+class ReconcileResolveCollisionRequest(BaseModel):
+    """Quarantine an ambiguous identifier as deterministic pending records."""
+
+    scheme: str
+    normalized_value: str
+    work_ids: list[str]
+    actor: str = DEFAULT_ACTOR
+    reason: str = ""
+
+
 class ProposalAction(BaseModel):
     """Approve or reject a single proposed node/edge."""
 

@@ -66,7 +66,7 @@ TEST_EVIDENCE_DIGESTS: Final = {
     "tests/test_registry.py::test_csv_import_resolves_scientific_synonym_and_common_case_insensitively": "0ce6de484d535417956cb912e9c02e7f92678e6d0d4f4fdd9376369c62fa538f",
     "tests/test_agrochem_schema.py::test_organisms_and_actives_carry_their_registry_identifier": "5cb9fcfa261837e8668a0c8de2af08609fb3a7bc0c5a98aeb8bf9a484526988f",
     "tests/test_normalization.py::test_unresolved_organism_is_kept_flagged_and_model_code_is_dropped": "e796e76ec19ced125b07c9376ab1aab12785ea95cd40c30dee032a99d45ee40e",
-    "tests/test_normalization.py::test_extraction_normalizes_before_storage_and_review_exposes_properties": "2b0c63e02f2ec11aeb4b4af4ae6a08b70aaba4ea67f8b75e05afb9ed933ca2dd",
+    "tests/test_normalization.py::test_extraction_normalizes_before_storage_and_review_exposes_properties": "1340a259db1243400aad11db28758164b68b54a25e108e83434d99802b04ad8e",
     "tests/test_cas_normalization.py::test_alias_resolution_cache_authority_and_moa_follow_canonical_cas": "5426ba3764035bda5cc22050c74b7353eff60ac47a08fb42bef8288a826afb9d",
     "tests/test_cas_normalization.py::test_unknown_active_is_flagged_without_moa_and_model_cas_is_dropped": "5f4919c76a1300590de379f4e46f0fa34624a25ba0d5abbdb23de1f4748a8547",
     "tests/test_mcp_two_tier.py::test_get_entity_full_record": "d88dc1a163345101f58ab9615f923c69e5998b8a899dbaf041bccb327774b7a6",
@@ -94,7 +94,7 @@ EVIDENCE_MODULE_DIGESTS: Final = {
     "tests/test_agrochem_schema.py": "f1131a56975b6c85f5e809292f074e3aa2a1b015e386ef9db0e6f0de7b9ab7ca",
     "tests/test_cas_normalization.py": "ce2748cf82aed53f3fe18a8b4d48485d8c84facf408005939546cd6837aa4951",
     "tests/test_mcp_two_tier.py": "237c95e8c5da48e1a19f4d6cf3a2e07f494469e0a18b5d357a49073aa675acc6",
-    "tests/test_normalization.py": "4e246aba9d334f89c2533d3042c45cae8c5c07834c4a512980ad92786bb1056d",
+    "tests/test_normalization.py": "32b89a8c35aa47fc632a4932d64e46eac548492411a5a26248eb5d61ba7ce260",
     "tests/test_registry.py": "ddfb3ef255f72f4717fbf487c1c3af1c3ac6f001cd77666e10f38c387b81c4ba",
     "tests/test_staleness.py": "4718c614d0f5df94fc20a20ad8cade9e11622978179c0c17a684a94f2a853adf",
 }

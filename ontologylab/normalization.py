@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ontologylab.alias_authority import authorized_surfaces
 from ontologylab.models import ProposedEntity
 from ontologylab.registry import CASRegistryCache, MoARegistryCache, RegistryCache
 
@@ -15,8 +16,9 @@ def _normalize_organism(
 ) -> ProposedEntity:
     properties = proposal.properties
     model_code = properties.pop("eppo_code", _MISSING)
+    plan = authorized_surfaces(proposal)
 
-    for surface in (proposal.name, *proposal.aliases):
+    for surface in plan.authorized:
         code, status = cache.resolve_with_status(surface)
         if status == "cache_absent":
             # An absent optional cache switches the feature off. Per-entity
@@ -24,6 +26,7 @@ def _normalize_organism(
             properties.pop("normalization", None)
             properties.pop("eppo_matched_surface", None)
             properties.pop("eppo_code_dropped", None)
+            properties.pop("eppo_unattested_match_refused", None)
             return proposal
         if status != "resolved":
             continue
@@ -33,11 +36,22 @@ def _normalize_organism(
         properties["eppo_code"] = code
         properties["eppo_matched_surface"] = surface
         properties.pop("normalization", None)
+        properties.pop("eppo_unattested_match_refused", None)
         if model_code is not _MISSING and model_code != code:
             properties["eppo_code_dropped"] = model_code
         else:
             properties.pop("eppo_code_dropped", None)
         return proposal
+
+    # D11: a model_unattested alias that would resolve establishes nothing;
+    # it is flagged for human review instead of minting registry identity.
+    for surface in plan.unattested:
+        _, status = cache.resolve_with_status(surface)
+        if status == "resolved":
+            properties["eppo_unattested_match_refused"] = surface
+            break
+    else:
+        properties.pop("eppo_unattested_match_refused", None)
 
     if model_code is not _MISSING:
         properties["eppo_code_dropped"] = model_code
@@ -58,13 +72,15 @@ def _normalize_active(
     # MoA is derived from canonical CAS identity, never from generated fields.
     properties.pop("moa_scheme", None)
     properties.pop("moa_code", None)
+    plan = authorized_surfaces(proposal)
 
-    for surface in (proposal.name, *proposal.aliases):
+    for surface in plan.authorized:
         cas_number, status = cache.resolve_with_status(surface)
         if status == "cache_absent":
             properties.pop("normalization", None)
             properties.pop("cas_matched_surface", None)
             properties.pop("cas_number_dropped", None)
+            properties.pop("cas_unattested_match_refused", None)
             return proposal
         if status != "resolved":
             continue
@@ -72,6 +88,7 @@ def _normalize_active(
         properties["cas_number"] = cas_number
         properties["cas_matched_surface"] = surface
         properties.pop("normalization", None)
+        properties.pop("cas_unattested_match_refused", None)
         if model_cas is not _MISSING and model_cas != cas_number:
             properties["cas_number_dropped"] = model_cas
         else:
@@ -81,6 +98,14 @@ def _normalize_active(
             if moa is not None:
                 properties["moa_scheme"], properties["moa_code"] = moa
         return proposal
+
+    for surface in plan.unattested:
+        _, status = cache.resolve_with_status(surface)
+        if status == "resolved":
+            properties["cas_unattested_match_refused"] = surface
+            break
+    else:
+        properties.pop("cas_unattested_match_refused", None)
 
     if model_cas is not _MISSING:
         properties["cas_number_dropped"] = model_cas
