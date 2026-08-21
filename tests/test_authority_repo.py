@@ -16,13 +16,12 @@ import pytest
 
 from ontologylab.authority_repo import (
     IdentifierOwnedConflict,
-    RedirectCycleError,
     SecondDoiAttachConflict,
     attach_identifier,
     create_work,
     map_identifier_integrity_error,
-    record_redirect,
 )
+from ontologylab.work_redirects import RedirectCycleError, record_redirect
 from ontologylab.kgstore import KGStore
 
 

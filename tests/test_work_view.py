@@ -11,7 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from ontologylab.authority_repo import attach_identifier, create_work, record_redirect
+from ontologylab.authority_repo import attach_identifier, create_work
+from ontologylab.work_redirects import record_redirect
 from ontologylab.kgstore import KGStore
 from ontologylab.work_view import WorkNotFound, work_snapshot
 
