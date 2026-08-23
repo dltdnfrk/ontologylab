@@ -215,8 +215,10 @@ def _item_for(
         work_id=work_id,
         representation_id=representation_id,
         representation=representation,
-        stage="unknown",
-        content_kind="fulltext" if raw.raw_text else "metadata_only",
+        stage=raw.stage or "unknown",
+        content_kind=raw.content_kind or (
+            "fulltext" if raw.raw_text else "metadata_only"
+        ),
     )
 
 

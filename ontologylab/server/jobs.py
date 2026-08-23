@@ -18,6 +18,7 @@ concern and is intentionally skipped here (budgets still govern).
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
 import time
 from contextlib import suppress
@@ -45,6 +46,11 @@ from ontologylab.extractor import (
     run_extraction,
 )
 from ontologylab.ingestion import ingest_documents
+from ontologylab.research_extract import (
+    ResearchExtractSession,
+    extract_research_documents,
+)
+from ontologylab.selection_types import SelectionRefused
 
 # A research run where every source failed. Returned by `_research_async`
 # instead of "" so the terminal transition can call it what it is — storing
@@ -101,6 +107,8 @@ def summarize_failure(exc: BaseException) -> str:
         return "offline mode blocked network egress"
     if isinstance(exc, EngineError):
         return ENGINE_FAILURE_SUMMARY
+    if isinstance(exc, SelectionRefused):
+        return "no eligible ready full text"
     if isinstance(exc, KGStoreError):
         return "knowledge store rejected a write"
     if isinstance(exc, TimeoutError):
@@ -865,6 +873,9 @@ class JobRegistry:
                 provenance.log("research.end", {"documents": 0, "created": 0})
                 return RESEARCH_NO_SOURCES
 
+            fetched_docs = tuple(
+                doc for _source, group in batches for doc in group
+            )
             raw_docs = collapse_duplicates(batches, SOURCE_ORDER)
             job.log(
                 f"[ontologylab] collected {len(raw_docs)} document(s) from "
@@ -942,18 +953,24 @@ class JobRegistry:
                     for key in job.totals:
                         job.totals[key] += stats.get(key, 0)
 
-            stopped_reason = await run_extraction(
+            decode = extraction_decode_params(engine)
+            stopped_reason = await extract_research_documents(
                 store,
-                engine,
-                provenance,
-                caps,
-                doc_ids,
-                extractor_engine=job.engine,
-                extractor_model=effective_model,
-                on_progress=job.log,
-                on_stats=_accumulate,
-                should_abort=job.cancel_reason,
-                decode_params=extraction_decode_params(engine),
+                tuple(doc_ids),
+                ResearchExtractSession(
+                    engine=engine,
+                    provenance=provenance,
+                    caps=caps,
+                    extractor_engine=job.engine,
+                    extractor_model=effective_model or "",
+                    on_progress=job.log,
+                    on_stats=_accumulate,
+                    should_abort=job.cancel_reason,
+                    decode_params_json=(
+                        json.dumps(decode, sort_keys=True) if decode else "{}"
+                    ),
+                    raw_documents=fetched_docs,
+                ),
             )
 
             with job._lock:

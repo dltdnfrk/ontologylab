@@ -108,6 +108,8 @@ class RawDocument:
     # whereas this is always one of the fixed API hosts already in use.
     # Empty for everything outside the open-access subset.
     fulltext_url: str | None = None
+    stage: str = ""
+    content_kind: str = ""
 
     @property
     def content_hash(self) -> str:
