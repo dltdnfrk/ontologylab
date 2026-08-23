@@ -55,6 +55,60 @@ def plant_valid_stale_run(store: KGStore, representation_id: str) -> str:
     return receipts.run.receipt_id
 
 
+def chunk_id_for_run(store: KGStore, run_id: str) -> str:
+    row = store.conn.execute(
+        "SELECT receipt_id FROM extraction_chunk_receipts "
+        "WHERE run_receipt_id = ? ORDER BY chunk_index",
+        (run_id,),
+    ).fetchone()
+    assert row is not None
+    return str(row[0])
+
+
+def plant_valid_stale_run_before(
+    store: KGStore, representation_id: str, before_id: str,
+) -> tuple[str, str]:
+    from ontologylab.extraction_receipt_ids import (
+        chunk_receipt_id,
+        plan_receipt_id,
+        run_receipt_id,
+    )
+
+    text = read_ready_text(
+        store.conn, store_root_from_conn(store.conn), representation_id,
+    )
+    body_hash = content_hash_for(text.encode("utf-8"))
+    spans = (
+        ChunkSpan(
+            index=0,
+            start_offset=0,
+            end_offset=len(text),
+            text=text,
+            text_hash=body_hash,
+            coordinate_profile=DOCUMENT_UTF8_V1,
+        ),
+    )
+    for n in range(400):
+        binding = ExtractionRunBinding(
+            representation_id=representation_id,
+            policy_identity=_WRONG_POLICY,
+            config_identity=f"{_WRONG_CONFIG}-{n:03d}",
+            schema_version_id=1,
+            extractor_engine="mock",
+            extractor_model="",
+            prompt_version="extract-v1",
+            decode_params_json="{}",
+        )
+        plan = plan_receipt_id(binding, spans)
+        run_id = run_receipt_id(binding, body_hash, plan)
+        chunk_id = chunk_receipt_id(run_id, plan, spans[0])
+        if chunk_id < before_id:
+            receipts = put_extraction_receipts(store.conn, binding, spans)
+            store.conn.commit()
+            return receipts.run.receipt_id, receipts.chunks[0].receipt_id
+    raise AssertionError("no smaller stale receipt id")
+
+
 def plant_valid_stale_citation(
     store: KGStore,
     *,

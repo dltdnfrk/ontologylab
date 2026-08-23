@@ -53,15 +53,16 @@ def selection_run_receipt(
     policy = selection_policy(conn, representation_id)
     if policy is None:
         return None
-    row = conn.execute(
+    rows = conn.execute(
         "SELECT * FROM extraction_run_receipts "
         "WHERE representation_id = ? AND document_content_hash = ? "
-        "AND policy_identity = ?",
+        "AND policy_identity = ? ORDER BY receipt_id",
         (representation_id, content_hash, policy),
-    ).fetchone()
-    if row is None or not _run_identity_matches(row):
+    ).fetchall()
+    matched = [row for row in rows if _run_identity_matches(row)]
+    if len(matched) != 1:
         return None
-    return str(row["receipt_id"])
+    return str(matched[0]["receipt_id"])
 
 
 def current_run_receipt_id(

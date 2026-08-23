@@ -10,7 +10,11 @@ from ontologylab.grounded_review_ids import (
     historical_review_decision_id,
     review_decision_id,
 )
-from ontologylab.grounded_review_store import list_decisions
+from ontologylab.grounded_review_store import (
+    current_decision_id,
+    get_decision,
+    list_decisions,
+)
 from ontologylab.grounded_review_types import ReviewAction, ReviewDecision
 from ontologylab.h1_existing import has_table
 from ontologylab.h1_existing_cite import expected_cite_ids, verified_citation
@@ -25,17 +29,34 @@ def existing_review(
         return None
     if not has_table(conn, "grounded_review_decisions"):
         return None
+    history = list_decisions(conn, anchor.fact_kind, anchor.fact_id)
+    aligned = [
+        item for item in history
+        if item.actor == anchor.actor
+        and item.reason == anchor.reason
+        and item.decided_ts == anchor.decided_ts
+        and item.as_of_ts == anchor.decided_ts
+        and _review_id_ok(item)
+        and _action_fits(item.action, action)
+    ]
     cite_ids = expected_cite_ids(conn, anchor.fact_kind, anchor.fact_id)
     if not cite_ids:
         return None
     grounding = _grounding_from_cites(conn, cite_ids)
     if grounding is None:
         return None
+    pointed_id = current_decision_id(conn, anchor.fact_kind, anchor.fact_id)
+    if pointed_id is not None:
+        pointed = get_decision(conn, pointed_id)
+        if (
+            pointed is not None
+            and pointed in aligned
+            and _review_matches(pointed, anchor, action, cite_ids, grounding)
+        ):
+            return pointed
     found = [
-        item
-        for item in list_decisions(conn, anchor.fact_kind, anchor.fact_id)
+        item for item in aligned
         if _review_matches(item, anchor, action, cite_ids, grounding)
-        and _review_id_ok(item)
     ]
     if len(found) == 1:
         return found[0]
@@ -67,7 +88,7 @@ def _review_matches(
     cite_ids: tuple[str, ...],
     grounding: tuple[str | None, str | None, str | None],
 ) -> bool:
-    if item.action is not action:
+    if not _action_fits(item.action, action):
         return False
     if item.fact_revision != fact_revision_id(anchor.fact_kind, anchor.fact_id):
         return False
@@ -90,6 +111,8 @@ def _review_matches(
         return False
     if item.run_receipt_id != grounding[2]:
         return False
+    if item.action is ReviewAction.APPROVE_WITH_GROUNDING_WAIVER:
+        return item.pack_ineligible and bool(item.scoped_defects)
     if item.predecessor_receipt_id is not None:
         return False
     if item.pack_ineligible:
@@ -97,6 +120,14 @@ def _review_matches(
     return not (
         item.waived_fact_ids or item.waived_citation_ids or item.scoped_defects
     )
+
+
+def _action_fits(stored: ReviewAction, classified: ReviewAction) -> bool:
+    if stored is classified:
+        return True
+    if classified is ReviewAction.APPROVE:
+        return stored is ReviewAction.APPROVE_WITH_GROUNDING_WAIVER
+    return False
 
 
 def _review_id_ok(item: ReviewDecision) -> bool:

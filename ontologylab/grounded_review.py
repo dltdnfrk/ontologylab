@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import Final, TypeVar
 
 from ontologylab.citation import CitationReceipt
+from ontologylab.grounded_review_members import stored_member_citations
 from ontologylab.grounded_review_ids import build_decision
 from ontologylab.grounded_review_payload import (
     batch_payload as batch_payload,
@@ -25,10 +26,13 @@ from ontologylab.grounded_review_schema import (
 )
 from ontologylab.grounded_review_store import (
     apply_derived_status,
+    current_decision_id,
     decisions_as_of as decisions_as_of,
+    get_decision,
     latest_decision,
     list_decisions,
     persist_decision,
+    set_current_decision,
 )
 from ontologylab.grounded_review_types import (
     GroundedReviewRefusalCode as GroundedReviewRefusalCode,
@@ -75,11 +79,17 @@ def _apply(conn: sqlite3.Connection, request: ReviewRequest) -> ReviewBatchResul
     )
     now = request.now if request.now is not None else time.time()
     require = _should_require(request, conn, members)
-    citations = (
-        require_grounding(conn, members)
-        if require
-        else {member.item_id: citations_for(conn, member) for member in members}
-    )
+    if require:
+        citations = require_grounding(conn, members)
+        ineligible = False
+    else:
+        citations = {
+            member.item_id: stored_member_citations(
+                conn, member.kind, member.item_id,
+            )
+            for member in members
+        }
+        ineligible = True
     return _write_batch(
         conn,
         members,
@@ -88,7 +98,7 @@ def _apply(conn: sqlite3.Connection, request: ReviewRequest) -> ReviewBatchResul
         request.reason,
         now,
         citations,
-        pack_ineligible=False,
+        pack_ineligible=ineligible,
     )
 
 
@@ -122,7 +132,10 @@ def _waive(conn: sqlite3.Connection, request: WaiverRequest) -> ReviewBatchResul
         )
     now = request.now if request.now is not None else time.time()
     citations = {
-        member.item_id: citations_for(conn, member) for member in members
+        member.item_id: stored_member_citations(
+            conn, member.kind, member.item_id,
+        )
+        for member in members
     }
     return _write_batch(
         conn,
@@ -159,7 +172,7 @@ def _write_batch(
         receipts = citations[member.item_id]
         citation_ids = tuple(item.receipt_id for item in receipts)
         representation, selection, policy, run = grounding_identities(receipts)
-        predecessor = latest_decision(conn, member.kind, member.item_id)
+        predecessor = _current_predecessor(conn, member.kind, member.item_id)
         decision = build_decision(
             fact_kind=member.kind,
             fact_id=member.item_id,
@@ -182,6 +195,9 @@ def _write_batch(
             scoped_defects=scoped_defects,
         )
         persist_decision(conn, decision)
+        set_current_decision(
+            conn, member.kind, member.item_id, decision.receipt_id,
+        )
         apply_derived_status(
             conn, member.kind, member.item_id, status, actor, reason, now,
         )
@@ -191,6 +207,17 @@ def _write_batch(
         item_ids=tuple(member.item_id for member in members),
         decisions=tuple(written),
     )
+
+
+def _current_predecessor(
+    conn: sqlite3.Connection, fact_kind: str, fact_id: str,
+) -> ReviewDecision | None:
+    pointed = current_decision_id(conn, fact_kind, fact_id)
+    if pointed is not None:
+        loaded = get_decision(conn, pointed)
+        if loaded is not None:
+            return loaded
+    return latest_decision(conn, fact_kind, fact_id)
 
 
 def _should_require(

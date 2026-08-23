@@ -59,7 +59,14 @@ def bind_family(
             family_id = materialize_citation(conn, decision)
         case H1ReviewAnchor():
             review = materialize_review(conn, anchor)
-            family_id = None if review is None else review.receipt_id
+            if review is None:
+                return quarantine(
+                    anchor,
+                    H1QuarantineReason.UNGROUNDED,
+                    representation_id=decision.representation_id,
+                    evidence={"legacy_pk": anchor.legacy_pk},
+                )
+            return with_family_receipt(decision, review.receipt_id)
         case unreachable:
             assert_never(unreachable)
     if family_id is None:

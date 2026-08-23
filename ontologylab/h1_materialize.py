@@ -19,6 +19,7 @@ from ontologylab.extraction_receipt_types import (
 from ontologylab.extraction_receipts import put_extraction_receipts
 from ontologylab.file_lifecycle import content_hash_for
 from ontologylab.h1_bytes import load_document
+from ontologylab.h1_existing import current_run_receipt_id, selection_policy, selection_receipt_id
 from ontologylab.h1_existing_cite import existing_citation_receipt
 from ontologylab.h1_ids import LEGACY_POLICY, run_config_identity
 from ontologylab.h1_types import (
@@ -99,16 +100,23 @@ def lookup_chunk_receipt(
     end = evidence.get("end")
     if not isinstance(start, int) or not isinstance(end, int):
         return None
-    row = conn.execute(
-        "SELECT c.receipt_id FROM extraction_chunk_receipts c "
-        "JOIN extraction_run_receipts r ON r.receipt_id = c.run_receipt_id "
-        "WHERE r.representation_id = ? AND c.chunk_index = ? "
-        "AND c.start_offset = ? AND c.end_offset = ? ORDER BY c.receipt_id",
-        (chunk.representation_id, chunk.chunk_index, start, end),
-    ).fetchone()
-    if row is None:
+    loaded = load_document(conn, chunk.representation_id)
+    if isinstance(loaded, H1QuarantineReason):
         return None
-    return str(row[0])
+    run_id = current_run_receipt_id(
+        conn, chunk.representation_id, loaded.content_hash,
+    )
+    if run_id is None:
+        return None
+    rows = conn.execute(
+        "SELECT c.receipt_id FROM extraction_chunk_receipts c "
+        "WHERE c.run_receipt_id = ? AND c.chunk_index = ? "
+        "AND c.start_offset = ? AND c.end_offset = ?",
+        (run_id, chunk.chunk_index, start, end),
+    ).fetchall()
+    if len(rows) != 1:
+        return None
+    return str(rows[0][0])
 
 
 def _spans_from_decisions(
@@ -172,17 +180,25 @@ def _citation_binding(
     loaded = load_document(conn, seed.representation_id)
     if isinstance(loaded, H1QuarantineReason):
         return None
+    run_id = current_run_receipt_id(
+        conn, seed.representation_id, seed.content_hash,
+    )
+    if run_id is None:
+        return None
     pair = conn.execute(
         "SELECT r.receipt_id, r.chunk_plan_receipt_id, c.receipt_id, "
         "c.start_offset, c.end_offset, c.chunk_text_hash "
         "FROM extraction_run_receipts r "
         "JOIN extraction_chunk_receipts c ON c.run_receipt_id = r.receipt_id "
-        "WHERE r.representation_id = ? AND c.start_offset <= ? "
-        "AND c.end_offset >= ? ORDER BY r.receipt_id, c.chunk_index",
-        (seed.representation_id, seed.start, seed.end),
+        "WHERE r.receipt_id = ? AND c.start_offset <= ? "
+        "AND c.end_offset >= ?",
+        (run_id, seed.start, seed.end),
     ).fetchone()
     if pair is None:
         return None
+    policy = selection_policy(conn, seed.representation_id)
+    if policy is None:
+        policy = LEGACY_POLICY
     return CitationBinding(
         representation_id=seed.representation_id,
         representation_content_hash=seed.content_hash,
@@ -193,8 +209,8 @@ def _citation_binding(
         coordinate_profile=DOCUMENT_UTF8_V1,
         chunk_text_hash=str(pair[5]),
         chunk_plan_receipt_id=str(pair[1]),
-        selection_receipt_id=None,
-        policy_identity=LEGACY_POLICY,
+        selection_receipt_id=selection_receipt_id(conn, seed.representation_id),
+        policy_identity=policy,
         fact_kind=seed.fact_kind,
         fact_id=seed.fact_id,
         proposal_id=seed.fact_id,

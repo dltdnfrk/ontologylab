@@ -28,6 +28,7 @@ class CitationRefusalCode(StrEnum):
     NOT_READY = "not_ready"
     UNKNOWN_REPRESENTATION = "unknown_representation"
     MISSING_RECEIPT = "missing_receipt"
+    AMBIGUOUS = "ambiguous"
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +96,8 @@ class ChunkCitationBatch:
     entities: tuple[ProposedEntity, ...]
     relations: tuple[ProposedRelation, ...]
     id_map: Mapping[str, str]
+    run_receipt_id: str | None = None
+    chunk_receipt_id: str | None = None
 
 
 def refuse(code: CitationRefusalCode, message: str) -> NoReturn:

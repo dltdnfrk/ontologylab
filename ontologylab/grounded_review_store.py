@@ -104,6 +104,52 @@ def decisions_as_of(
     return tuple(_row_decision(row) for row in rows)
 
 
+def get_decision(
+    conn: sqlite3.Connection, receipt_id: str,
+) -> ReviewDecision | None:
+    ensure_grounded_review_schema(conn)
+    return _get(conn, receipt_id)
+
+
+def current_decision_id(
+    conn: sqlite3.Connection, fact_kind: str, fact_id: str,
+) -> str | None:
+    ensure_grounded_review_schema(conn)
+    row = conn.execute(
+        "SELECT receipt_id FROM grounded_review_current "
+        "WHERE fact_kind = ? AND fact_id = ?",
+        (fact_kind, fact_id),
+    ).fetchone()
+    if row is None:
+        return None
+    return str(row[0])
+
+
+def set_current_decision(
+    conn: sqlite3.Connection, fact_kind: str, fact_id: str, receipt_id: str,
+) -> None:
+    ensure_grounded_review_schema(conn)
+    existing = conn.execute(
+        "SELECT receipt_id FROM grounded_review_current "
+        "WHERE fact_kind = ? AND fact_id = ?",
+        (fact_kind, fact_id),
+    ).fetchone()
+    if existing is None:
+        conn.execute(
+            "INSERT INTO grounded_review_current "
+            "(fact_kind, fact_id, receipt_id) VALUES (?,?,?)",
+            (fact_kind, fact_id, receipt_id),
+        )
+        return
+    if str(existing[0]) == receipt_id:
+        return
+    conn.execute(
+        "UPDATE grounded_review_current SET receipt_id = ? "
+        "WHERE fact_kind = ? AND fact_id = ?",
+        (receipt_id, fact_kind, fact_id),
+    )
+
+
 def latest_decision(
     conn: sqlite3.Connection, fact_kind: str, fact_id: str,
 ) -> ReviewDecision | None:

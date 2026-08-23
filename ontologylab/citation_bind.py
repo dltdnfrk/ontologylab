@@ -48,56 +48,23 @@ def persist_once(
 def _load_context(
     conn: sqlite3.Connection, batch: ChunkCitationBatch,
 ) -> _GroundingContext | None:
-    runs = conn.execute(
-        "SELECT receipt_id, policy_identity FROM extraction_run_receipts "
-        "WHERE representation_id = ? ORDER BY created_ts DESC",
-        (batch.representation_id,),
-    ).fetchall()
-    if not runs:
-        return None
-    chunk = conn.execute(
-        "SELECT c.receipt_id, c.run_receipt_id, c.start_offset, c.end_offset, "
-        "c.coordinate_profile, c.chunk_text_hash, c.plan_receipt_id "
-        "FROM extraction_chunk_receipts c "
-        "JOIN extraction_run_receipts r ON r.receipt_id = c.run_receipt_id "
-        "WHERE r.representation_id = ? AND c.chunk_index = ? "
-        "AND c.start_offset = ? ORDER BY r.created_ts DESC",
-        (
-            batch.representation_id,
-            batch.chunk_index,
-            batch.chunk_start_offset,
-        ),
-    ).fetchone()
+    chunk = _resolve_chunk(conn, batch)
     if chunk is None:
-        refuse(
-            CitationRefusalCode.MISSING_RECEIPT,
-            "extraction chunk receipt is required for grounded citations",
-        )
-    text, content_hash = ready_document(conn, batch.representation_id)
+        return None
     run_id = str(chunk["run_receipt_id"])
-    policy_row = None
-    for row in runs:
-        if str(row["receipt_id"]) == run_id:
-            policy_row = row
-            break
-    if policy_row is None:
+    run = conn.execute(
+        "SELECT receipt_id, policy_identity FROM extraction_run_receipts "
+        "WHERE receipt_id = ?",
+        (run_id,),
+    ).fetchone()
+    if run is None:
         refuse(
             CitationRefusalCode.MISSING_RECEIPT,
             "chunk run receipt is not bound to the representation",
         )
-    policy = str(policy_row["policy_identity"])
-    selection = conn.execute(
-        "SELECT receipt_id, policy_hash FROM preferred_selection_receipts "
-        "WHERE selected_representation_id = ? AND policy_hash = ? "
-        "ORDER BY created_ts DESC",
-        (batch.representation_id, policy),
-    ).fetchone()
-    if selection is None:
-        selection = conn.execute(
-            "SELECT receipt_id, policy_hash FROM preferred_selection_receipts "
-            "WHERE selected_representation_id = ? ORDER BY created_ts DESC",
-            (batch.representation_id,),
-        ).fetchone()
+    text, content_hash = ready_document(conn, batch.representation_id)
+    policy = str(run["policy_identity"]) if run["policy_identity"] else None
+    selection = _resolve_selection(conn, batch.representation_id, policy)
     return _GroundingContext(
         text=text,
         content_hash=content_hash,
@@ -106,6 +73,88 @@ def _load_context(
         selection_id=None if selection is None else str(selection["receipt_id"]),
         policy_identity=None if selection is None else str(selection["policy_hash"]),
     )
+
+
+def _resolve_chunk(
+    conn: sqlite3.Connection, batch: ChunkCitationBatch,
+) -> sqlite3.Row | None:
+    if batch.run_receipt_id is not None and batch.chunk_receipt_id is not None:
+        row = conn.execute(
+            "SELECT c.receipt_id, c.run_receipt_id, c.start_offset, "
+            "c.end_offset, c.coordinate_profile, c.chunk_text_hash, "
+            "c.plan_receipt_id FROM extraction_chunk_receipts c "
+            "WHERE c.receipt_id = ? AND c.run_receipt_id = ? "
+            "AND c.chunk_index = ? AND c.start_offset = ?",
+            (
+                batch.chunk_receipt_id, batch.run_receipt_id,
+                batch.chunk_index, batch.chunk_start_offset,
+            ),
+        ).fetchone()
+        if row is None:
+            refuse(
+                CitationRefusalCode.MISSING_RECEIPT,
+                "explicit extraction chunk receipt was not found",
+            )
+        return row
+    rows = conn.execute(
+        "SELECT c.receipt_id, c.run_receipt_id, c.start_offset, c.end_offset, "
+        "c.coordinate_profile, c.chunk_text_hash, c.plan_receipt_id "
+        "FROM extraction_chunk_receipts c "
+        "JOIN extraction_run_receipts r ON r.receipt_id = c.run_receipt_id "
+        "WHERE r.representation_id = ? AND c.chunk_index = ? "
+        "AND c.start_offset = ? ORDER BY c.receipt_id",
+        (
+            batch.representation_id,
+            batch.chunk_index,
+            batch.chunk_start_offset,
+        ),
+    ).fetchall()
+    if not rows:
+        return None
+    if len(rows) > 1:
+        refuse(
+            CitationRefusalCode.AMBIGUOUS,
+            "multiple extraction chunks cover this representation span",
+        )
+    return rows[0]
+
+
+def _resolve_selection(
+    conn: sqlite3.Connection, representation_id: str, policy: str | None,
+) -> sqlite3.Row | None:
+    if conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+        "AND name = 'preferred_selection_receipts'"
+    ).fetchone() is None:
+        return None
+    if policy:
+        rows = conn.execute(
+            "SELECT receipt_id, policy_hash FROM preferred_selection_receipts "
+            "WHERE selected_representation_id = ? AND policy_hash = ? "
+            "ORDER BY receipt_id",
+            (representation_id, policy),
+        ).fetchall()
+        if len(rows) == 1:
+            return rows[0]
+        if len(rows) > 1:
+            refuse(
+                CitationRefusalCode.AMBIGUOUS,
+                "multiple selection receipts share this policy",
+            )
+        return None
+    rows = conn.execute(
+        "SELECT receipt_id, policy_hash FROM preferred_selection_receipts "
+        "WHERE selected_representation_id = ? ORDER BY receipt_id",
+        (representation_id,),
+    ).fetchall()
+    if len(rows) == 1:
+        return rows[0]
+    if len(rows) > 1:
+        refuse(
+            CitationRefusalCode.AMBIGUOUS,
+            "selection receipt is ambiguous without an explicit policy",
+        )
+    return None
 
 
 def _entity_bindings(

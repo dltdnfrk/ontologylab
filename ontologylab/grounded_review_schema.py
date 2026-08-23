@@ -45,6 +45,14 @@ _SCHEMA_STATEMENTS: Final = (
     ON grounded_review_decisions (fact_kind, fact_id, as_of_ts, receipt_id)
     """,
     """
+    CREATE TABLE IF NOT EXISTS grounded_review_current (
+        fact_kind  TEXT NOT NULL CHECK (fact_kind IN ('node', 'edge')),
+        fact_id    TEXT NOT NULL,
+        receipt_id TEXT NOT NULL,
+        PRIMARY KEY (fact_kind, fact_id)
+    )
+    """,
+    """
     CREATE TRIGGER IF NOT EXISTS trg_grounded_review_decisions_no_update
     BEFORE UPDATE ON grounded_review_decisions
     BEGIN

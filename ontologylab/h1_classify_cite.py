@@ -134,19 +134,26 @@ def classify_review(
             representation_id=anchor.representation_id,
             evidence=_review_evidence(anchor),
         )
-    cite_rows = conn.execute(
-        "SELECT receipt_id, representation_content_hash FROM citation_receipts "
-        "WHERE fact_kind = ? AND fact_id = ? ORDER BY receipt_id",
-        (anchor.fact_kind, anchor.fact_id),
-    ).fetchall()
-    if not cite_rows:
+    from ontologylab.h1_existing_cite import expected_cite_ids, verified_citation
+
+    cite_ids = expected_cite_ids(conn, anchor.fact_kind, anchor.fact_id)
+    if not cite_ids:
         return quarantine(
             anchor, H1QuarantineReason.UNGROUNDED,
             representation_id=anchor.representation_id,
             evidence=_review_evidence(anchor),
         )
-    digest = citation_set_digest(tuple(str(row[0]) for row in cite_rows))
-    hashes = {str(row[1]) for row in cite_rows}
+    hashes = set()
+    for receipt_id in cite_ids:
+        loaded = verified_citation(conn, receipt_id)
+        if loaded is None:
+            return quarantine(
+                anchor, H1QuarantineReason.UNGROUNDED,
+                representation_id=anchor.representation_id,
+                evidence=_review_evidence(anchor),
+            )
+        hashes.add(loaded.representation_content_hash)
+    digest = citation_set_digest(cite_ids)
     file_hash = next(iter(hashes)) if len(hashes) == 1 else digest
     return verified(
         anchor,
@@ -161,13 +168,34 @@ def classify_review(
 def containing_chunk(
     conn: sqlite3.Connection, representation_id: str, start: int, end: int,
 ) -> sqlite3.Row | None:
-    stored = conn.execute(
-        "SELECT c.receipt_id FROM extraction_chunk_receipts c "
-        "JOIN extraction_run_receipts r ON r.receipt_id = c.run_receipt_id "
-        "WHERE r.representation_id = ? AND c.start_offset <= ? "
-        "AND c.end_offset >= ? ORDER BY c.receipt_id",
-        (representation_id, start, end),
-    ).fetchone()
+    from ontologylab.file_lifecycle import (
+        FileLifecycleError,
+        content_hash_for,
+        read_ready_text,
+        store_root_from_conn,
+    )
+    from ontologylab.h1_existing import current_run_receipt_id
+
+    try:
+        text = read_ready_text(
+            conn, store_root_from_conn(conn), representation_id,
+        )
+    except FileLifecycleError:
+        text = None
+    run_id = None
+    if text is not None:
+        run_id = current_run_receipt_id(
+            conn, representation_id, content_hash_for(text.encode("utf-8")),
+        )
+    if run_id is not None:
+        stored = conn.execute(
+            "SELECT c.receipt_id FROM extraction_chunk_receipts c "
+            "WHERE c.run_receipt_id = ? AND c.start_offset <= ? "
+            "AND c.end_offset >= ?",
+            (run_id, start, end),
+        ).fetchone()
+    else:
+        stored = None
     if stored is not None:
         return stored
     for row in conn.execute(

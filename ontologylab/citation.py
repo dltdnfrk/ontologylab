@@ -10,7 +10,12 @@ from ontologylab.citation_bind import persist_once
 from ontologylab.citation_schema import (
     ensure_citation_schema as ensure_citation_schema,
 )
-from ontologylab.citation_store import get_once, list_for_fact, put_once
+from ontologylab.citation_store import (
+    get_once,
+    list_for_fact,
+    list_stored_for_fact,
+    put_once,
+)
 from ontologylab.citation_types import (
     ChunkCitationBatch as ChunkCitationBatch,
     CitationBinding as CitationBinding,
@@ -44,6 +49,13 @@ def list_citation_receipts(
 ) -> tuple[CitationReceipt, ...]:
     """Grounded receipts for one fact, oldest first."""
     return list_for_fact(conn, fact_kind, fact_id)
+
+
+def list_stored_citation_receipts(
+    conn: sqlite3.Connection, fact_kind: str, fact_id: str,
+) -> tuple[CitationReceipt, ...]:
+    """Stored receipts for one fact without ready-byte re-verify."""
+    return list_stored_for_fact(conn, fact_kind, fact_id)
 
 
 def persist_chunk_citations(

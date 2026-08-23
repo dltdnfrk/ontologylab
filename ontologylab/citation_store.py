@@ -71,6 +71,18 @@ def list_for_fact(
     return receipts
 
 
+def list_stored_for_fact(
+    conn: sqlite3.Connection, fact_kind: str, fact_id: str,
+) -> tuple[CitationReceipt, ...]:
+    ensure_citation_schema(conn)
+    rows = conn.execute(
+        "SELECT * FROM citation_receipts WHERE fact_kind = ? AND fact_id = ? "
+        "ORDER BY created_ts, receipt_id",
+        (fact_kind, fact_id),
+    ).fetchall()
+    return tuple(_row_receipt(row, created=False) for row in rows)
+
+
 def _verify_stored(
     conn: sqlite3.Connection, receipt: CitationReceipt,
 ) -> None:
