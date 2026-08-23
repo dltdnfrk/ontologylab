@@ -26,3 +26,11 @@ No push, amend, rebase, reset, checkout, restore, stash or force operation.
 This closure bundle is evidence/state only. Its commit must not change
 ontologylab/, tests/, scripts/, or pyproject.toml.
 
+Base evidence commit:
+b328a8c66a20fbbc64b43f3ad14eb430828f9bc8
+tree:
+e044733fb4d4762f18623dfb1b581c16da2912a6
+subject:
+docs(evidence): close wave21 ingestion step 7
+47-path evidence perimeter:
+3866e5e8e41da5ad16b731348039bf36476a5d638b3675fe1ac20c54db945924

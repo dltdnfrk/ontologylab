@@ -4,6 +4,8 @@
   "verdict": "approved",
   "product_commit": "362b0a679483139e51d8e37748674a867d6a9b2f",
   "tree": "dce1386961684e924108ded625e56dab4031384d",
+  "evidence_base_commit": "b328a8c66a20fbbc64b43f3ad14eb430828f9bc8",
+  "evidence_base_tree": "e044733fb4d4762f18623dfb1b581c16da2912a6",
   "repair_perimeter_sha256": "1bd10421c5075045e550c2b4015270dd251409c4157622e87c79fc21dc47126b",
   "full_suite_perimeter_sha256": "9d3f579022ae33f8280753509dac75e44c4c51c5e3884253b57da930349e5867",
   "suite": {
@@ -46,4 +48,3 @@
     "planning_docs_edited": false
   }
 }
-

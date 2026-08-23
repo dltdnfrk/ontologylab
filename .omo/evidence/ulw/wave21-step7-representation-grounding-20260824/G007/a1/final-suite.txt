@@ -8,4 +8,3 @@ full-suite perimeter 9d3f579022ae33f8280753509dac75e44c4c51c5e3884253b57da930349
 2650 passed, 1 skipped, 2 xfailed, exit 0
 before/after HEAD and perimeter equal
 tracked product/test worktree clean after
-

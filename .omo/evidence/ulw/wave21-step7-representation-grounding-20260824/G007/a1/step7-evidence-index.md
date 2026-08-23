@@ -48,6 +48,7 @@ Consumed baseline:
 | 7 integration | `4878c2f262e6909deb94ff61ef6d04a7e990edd7` | `4289084a254738908b811f1ae4682562fda5f751` | `da88d057e89491a35acb0feb7083e3159a70679a85cc8746d7c2c99606ba6f6f` | `feat(extraction): complete representation-grounded review flow` |
 | suite seam | `5a6378964bfc41fe2a679453a88235c548a59f4b` | `d295cb05ba5967f00cec9c69f21291d8890e2143` | `tests/test_server.py` `8a420db2bb95e77817afb369061dee0ba772b134e4520ea54c210393689eb3cb` | `test(server): synchronize jobs stream change` |
 | final repair | `362b0a679483139e51d8e37748674a867d6a9b2f` | `dce1386961684e924108ded625e56dab4031384d` | `1bd10421c5075045e550c2b4015270dd251409c4157622e87c79fc21dc47126b` | `fix(extraction): preserve exact receipt identity` |
+| evidence base | `b328a8c66a20fbbc64b43f3ad14eb430828f9bc8` | `e044733fb4d4762f18623dfb1b581c16da2912a6` | `3866e5e8e41da5ad16b731348039bf36476a5d638b3675fe1ac20c54db945924` | `docs(evidence): close wave21 ingestion step 7` |
 
 Every product/test commit has a separate boundary report and independent
 commit verifier. `origin/main` remained
@@ -203,4 +204,3 @@ This index does not claim:
 
 Step 8 kickoff:
 `.omo/ulw-loop/wave21-step7-representation-grounding-20260824/step8-kickoff.md`.
-

@@ -3,6 +3,6 @@
   "status": "complete",
   "source": "start-work evidence reconstruction",
   "product_commit": "362b0a679483139e51d8e37748674a867d6a9b2f",
+  "evidence_base_commit": "b328a8c66a20fbbc64b43f3ad14eb430828f9bc8",
   "evidence_index": ".omo/evidence/ulw/wave21-step7-representation-grounding-20260824/G007/a1/step7-evidence-index.md"
 }
-

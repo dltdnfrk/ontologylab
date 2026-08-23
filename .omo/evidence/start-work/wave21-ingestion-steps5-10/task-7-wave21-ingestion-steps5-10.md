@@ -2,7 +2,7 @@
 
 ## Verdict
 
-`CLOSURE BUNDLE WRITTEN; EVIDENCE-ONLY COMMIT PENDING`
+`CLOSURE EVIDENCE COMMITTED`
 
 Task 7 product/test behavior is approved on commit
 `362b0a679483139e51d8e37748674a867d6a9b2f`, tree
@@ -17,6 +17,12 @@ Final bindings:
 - exact suite: `2650 passed, 1 skipped, 2 xfailed`, exit 0
 - goal/code/manual-QA/security/context: PASS
 - final gate: APPROVED
+- base evidence commit:
+  `b328a8c66a20fbbc64b43f3ad14eb430828f9bc8`
+- base evidence tree:
+  `e044733fb4d4762f18623dfb1b581c16da2912a6`
+- base evidence 47-path perimeter:
+  `3866e5e8e41da5ad16b731348039bf36476a5d638b3675fe1ac20c54db945924`
 
 Closure artifacts:
 
@@ -32,7 +38,7 @@ Closure artifacts:
 - `.omo/ulw-loop/wave21-step7-representation-grounding-20260824/aggregate-complete.json`
 - `.omo/ulw-loop/wave21-step7-representation-grounding-20260824/step8-kickoff.md`
 
-The final evidence-only commit must stage only this closure artifact set and
-the existing start-work/Boulder state explicitly authorized for Task 7 close.
-It must not modify product/test bytes or stage unrelated/denylist files.
-
+The base evidence-only commit staged the independently confirmed stable
+47-path subset. It excluded active orchestration, superseded receipts,
+product/tests, unrelated files and denylist drafts. Product/test bytes remain
+identical to `362b0a6`.
