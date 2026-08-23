@@ -13,6 +13,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, BinaryIO, Iterable
 
+from ontologylab.extraction_receipts import (
+    ChunkSpan as ChunkSpan,
+    ExtractionReceiptRefusalCode as ExtractionReceiptRefusalCode,
+    ExtractionReceiptRefused as ExtractionReceiptRefused,
+    ExtractionRunBinding as ExtractionRunBinding,
+    ensure_receipt_schema,
+    put_extraction_receipts as put_extraction_receipts,
+)
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS extraction_runs (
@@ -121,6 +130,7 @@ class _StoreOwnerLock:
 
 def ensure_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
+    ensure_receipt_schema(conn)
     # Existing working stores predate ownership. SQLite has no
     # ``ADD COLUMN IF NOT EXISTS``, so inspect before applying the additive,
     # backwards-compatible migration.
