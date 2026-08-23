@@ -141,6 +141,10 @@ class UnknownItem(KGStoreError):
     """Raised when an id matches neither a node nor an edge."""
 
 
+class GroundingPreflightError(KGStoreError):
+    """Ordinary review refused: a member Citation failed preflight."""
+
+
 # One definition of "a mention in context": consumed by span_excerpt's
 # defaults, entity_review_context, and critic.py's evidence prompts.
 SPAN_EXCERPT_CONTEXT_CHARS = 160
@@ -745,6 +749,11 @@ class KGStore:
 
             _execute_sql_script(conn, extraction_state._SCHEMA)
             _execute_sql_script(conn, authority._SCHEMA)
+            from ontologylab.grounded_review_schema import (
+                ensure_grounded_review_schema,
+            )
+
+            ensure_grounded_review_schema(conn)
             for table, column in (
                 ("extraction_runs", "owner_token"),
                 ("extraction_chunks", "owner_token"),
@@ -2940,6 +2949,19 @@ class KGStore:
         together with its endpoints in one explicit command — the endpoints
         get real approvals (verified_by/verified_ts), no invariant bypass.
         """
+        from ontologylab.grounded_review import ReviewAction, ReviewRequest
+
+        grounded = self._grounded_review(
+            ReviewRequest(
+                item_id=item_id,
+                actor=by,
+                reason=note or "human-review",
+                action=ReviewAction.APPROVE,
+                cascade=cascade,
+            )
+        )
+        if grounded is not None:
+            return grounded
         self._assert_writable()
         kind, row = self._find_kind(item_id)
         if row["status"] != "proposed":
@@ -2984,6 +3006,18 @@ class KGStore:
         self, item_id: str, *, by: str = DEFAULT_ACTOR, note: str | None = None
     ) -> dict[str, Any]:
         """Flip one proposed row to rejected (kept for audit, never served)."""
+        from ontologylab.grounded_review import ReviewAction, ReviewRequest
+
+        grounded = self._grounded_review(
+            ReviewRequest(
+                item_id=item_id,
+                actor=by,
+                reason=note or "human-review",
+                action=ReviewAction.REJECT,
+            )
+        )
+        if grounded is not None:
+            return grounded
         self._assert_writable()
         kind, row = self._find_kind(item_id)
         if row["status"] != "proposed":
@@ -2993,6 +3027,147 @@ class KGStore:
         self._set_status(kind, item_id, "rejected", by=by, note=note)
         self.conn.commit()
         return {"kind": kind, "rejected_ids": [item_id]}
+
+    def quarantine(
+        self, item_id: str, *, by: str = DEFAULT_ACTOR, note: str | None = None
+    ) -> dict[str, Any]:
+        from ontologylab.grounded_review import ReviewAction, ReviewRequest
+
+        return self._require_grounded_review(
+            ReviewRequest(
+                item_id=item_id,
+                actor=by,
+                reason=note or "human-review",
+                action=ReviewAction.QUARANTINE,
+            )
+        )
+
+    def retract_review(
+        self, item_id: str, *, by: str = DEFAULT_ACTOR, note: str | None = None
+    ) -> dict[str, Any]:
+        from ontologylab.grounded_review import ReviewAction, ReviewRequest
+
+        return self._require_grounded_review(
+            ReviewRequest(
+                item_id=item_id,
+                actor=by,
+                reason=note or "human-review",
+                action=ReviewAction.RETRACT,
+            )
+        )
+
+    def compensate_review(
+        self, item_id: str, *, by: str = DEFAULT_ACTOR, note: str | None = None
+    ) -> dict[str, Any]:
+        from ontologylab.grounded_review import ReviewAction, ReviewRequest
+
+        return self._require_grounded_review(
+            ReviewRequest(
+                item_id=item_id,
+                actor=by,
+                reason=note or "human-review",
+                action=ReviewAction.COMPENSATE,
+            )
+        )
+
+    def approve_with_grounding_waiver(self, request: Any) -> dict[str, Any]:
+        from ontologylab.grounded_review import (
+            GroundedReviewRefused,
+            ReviewAction,
+            approve_with_grounding_waiver,
+            batch_payload,
+        )
+
+        self._assert_writable()
+        try:
+            result = approve_with_grounding_waiver(self.conn, request)
+        except GroundedReviewRefused as exc:
+            self._raise_grounded(exc)
+        self.conn.commit()
+        return batch_payload(result, ReviewAction.APPROVE_WITH_GROUNDING_WAIVER)
+
+    def _grounded_review(self, request: Any) -> dict[str, Any] | None:
+        from ontologylab.grounded_review import (
+            GroundedReviewRefused,
+            ReviewAction,
+            apply_review,
+            batch_payload,
+        )
+        from ontologylab.grounded_review_preflight import (
+            citations_for,
+            collect_members,
+        )
+
+        self._assert_writable()
+        try:
+            members = collect_members(
+                self.conn,
+                request.item_id,
+                request.action,
+                cascade=request.cascade,
+            )
+        except GroundedReviewRefused as exc:
+            self._raise_grounded(exc)
+        if request.action is ReviewAction.APPROVE and not any(
+            citations_for(self.conn, member) for member in members
+        ):
+            return None
+        if request.action is ReviewAction.REJECT and not any(
+            citations_for(self.conn, member) for member in members
+        ):
+            return None
+        try:
+            result = apply_review(self.conn, request)
+        except GroundedReviewRefused as exc:
+            self._raise_grounded(exc)
+        self.conn.commit()
+        return batch_payload(result, request.action)
+
+    def _require_grounded_review(self, request: Any) -> dict[str, Any]:
+        result = self._grounded_review(request)
+        if result is None:
+            from ontologylab.grounded_review import apply_review, batch_payload
+            from ontologylab.grounded_review import GroundedReviewRefused
+
+            try:
+                applied = apply_review(self.conn, request)
+            except GroundedReviewRefused as exc:
+                self._raise_grounded(exc)
+            self.conn.commit()
+            return batch_payload(applied, request.action)
+        return result
+
+    def _raise_grounded(self, exc: Exception) -> None:
+        from typing import assert_never
+
+        from ontologylab.grounded_review import (
+            GroundedReviewRefusalCode,
+            GroundedReviewRefused,
+        )
+
+        if not isinstance(exc, GroundedReviewRefused):
+            raise exc
+        match exc.code:
+            case GroundedReviewRefusalCode.UNKNOWN_ITEM:
+                raise UnknownItem(exc.message) from exc
+            case GroundedReviewRefusalCode.INVALID_TRANSITION:
+                raise InvalidTransition(exc.message) from exc
+            case GroundedReviewRefusalCode.ENDPOINT_NOT_VERIFIED:
+                raise EndpointNotVerified(exc.message) from exc
+            case (
+                GroundedReviewRefusalCode.MISSING_ACTOR
+                | GroundedReviewRefusalCode.MISSING_REASON
+                | GroundedReviewRefusalCode.MISSING_FACT_REVISION
+                | GroundedReviewRefusalCode.MISSING_CITATION_DIGEST
+                | GroundedReviewRefusalCode.MISSING_CITATION
+                | GroundedReviewRefusalCode.INVALID_MEMBER
+                | GroundedReviewRefusalCode.GENERIC_WAIVER
+                | GroundedReviewRefusalCode.UNSCOPED_WAIVER
+                | GroundedReviewRefusalCode.CITATION_UNGROUNDED
+            ):
+                raise GroundingPreflightError(str(exc)) from exc
+            case unreachable:
+                assert_never(unreachable)
 
     def reopen(
         self, item_id: str, *, by: str = DEFAULT_ACTOR, note: str | None = None

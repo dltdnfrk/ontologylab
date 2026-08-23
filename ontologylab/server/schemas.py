@@ -250,6 +250,18 @@ class ProposalAction(BaseModel):
     cascade: bool = False
 
 
+class GroundingWaiverAction(BaseModel):
+    """Scoped grounding waiver for named members only."""
+
+    id: str
+    by: str = DEFAULT_ACTOR
+    reason: str
+    member_ids: list[str]
+    citation_ids: list[str] = []
+    scoped_defects: list[str]
+    cascade: bool = False
+
+
 class InvalidateAction(BaseModel):
     """Invalidate a verified edge addressed by the URL path.
 

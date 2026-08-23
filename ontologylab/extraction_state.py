@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, BinaryIO, Iterable
 
 from ontologylab.citation_schema import ensure_citation_schema
+from ontologylab.grounded_review_schema import ensure_grounded_review_schema
 from ontologylab.extraction_receipts import (
     ChunkSpan as ChunkSpan,
     ExtractionReceiptRefusalCode as ExtractionReceiptRefusalCode,
@@ -133,6 +134,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
     ensure_receipt_schema(conn)
     ensure_citation_schema(conn)
+    ensure_grounded_review_schema(conn)
     # Existing working stores predate ownership. SQLite has no
     # ``ADD COLUMN IF NOT EXISTS``, so inspect before applying the additive,
     # backwards-compatible migration.

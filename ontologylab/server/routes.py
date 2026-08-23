@@ -59,6 +59,7 @@ from ontologylab.ingestion import ingest_documents, ingest_sample
 from ontologylab.ingestion_shadow import ShadowBatchBoundError
 from ontologylab.kgstore import (
     EndpointNotVerified,
+    GroundingPreflightError,
     InvalidTransition,
     KGStore,
     KGStoreError,
@@ -125,6 +126,7 @@ from ontologylab.server.schemas import (
     CriticRunRequest,
     EngineInfo,
     ExtractRequest,
+    GroundingWaiverAction,
     InvalidateAction,
     JobStatus,
     MergeAction,
@@ -493,7 +495,7 @@ def approve_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any
             body.id, by=body.by, note=body.note, cascade=body.cascade
         )
         return {"ok": True, **result}
-    except (EndpointNotVerified, InvalidTransition) as exc:
+    except (EndpointNotVerified, InvalidTransition, GroundingPreflightError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except UnknownItem as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -524,7 +526,85 @@ def reject_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]
     try:
         result = store.reject(body.id, by=body.by, note=body.note)
         return {"ok": True, **result}
-    except InvalidTransition as exc:
+    except (InvalidTransition, GroundingPreflightError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except UnknownItem as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KGStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+@router.post("/proposals/quarantine")
+def quarantine_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
+    store = _open_store(deps)
+    try:
+        result = store.quarantine(body.id, by=body.by, note=body.note)
+        return {"ok": True, **result}
+    except (InvalidTransition, GroundingPreflightError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except UnknownItem as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KGStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+@router.post("/proposals/retract")
+def retract_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
+    store = _open_store(deps)
+    try:
+        result = store.retract_review(body.id, by=body.by, note=body.note)
+        return {"ok": True, **result}
+    except (InvalidTransition, GroundingPreflightError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except UnknownItem as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KGStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+@router.post("/proposals/compensate")
+def compensate_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
+    store = _open_store(deps)
+    try:
+        result = store.compensate_review(body.id, by=body.by, note=body.note)
+        return {"ok": True, **result}
+    except (InvalidTransition, GroundingPreflightError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except UnknownItem as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KGStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+@router.post("/proposals/approve-with-waiver")
+def approve_proposal_with_waiver(
+    deps: AppDependency, body: GroundingWaiverAction,
+) -> dict[str, Any]:
+    from ontologylab.grounded_review import WaiverRequest
+
+    store = _open_store(deps)
+    try:
+        result = store.approve_with_grounding_waiver(
+            WaiverRequest(
+                item_id=body.id,
+                actor=body.by,
+                reason=body.reason,
+                member_ids=tuple(body.member_ids),
+                citation_ids=tuple(body.citation_ids),
+                scoped_defects=tuple(body.scoped_defects),
+                cascade=body.cascade,
+            )
+        )
+        return {"ok": True, **result}
+    except (InvalidTransition, GroundingPreflightError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except UnknownItem as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

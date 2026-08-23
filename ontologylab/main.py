@@ -807,6 +807,12 @@ def cmd_approve(args: argparse.Namespace) -> int:
                 f"[ontologylab] approved {result['kind']} "
                 f"{', '.join(result['approved_ids'])}"
             )
+            receipts = result.get("decision_receipt_ids")
+            if receipts:
+                print(
+                    "[ontologylab] decision_receipt_ids "
+                    + ", ".join(receipts)
+                )
             return 0
         if args.filter:
             filters = _parse_filter(args.filter)
@@ -836,6 +842,94 @@ def cmd_reject(args: argparse.Namespace) -> int:
     try:
         result = store.reject(args.id, by=args.by, note=args.note)
         print(f"[ontologylab] rejected {result['kind']} {args.id}")
+        _print_review_receipts(result)
+        return 0
+    except KGStoreError as exc:
+        print(f"[ontologylab] error: {exc}", file=sys.stderr)
+        return 2
+    finally:
+        store.close()
+
+
+def _print_review_receipts(result: dict) -> None:
+    receipts = result.get("decision_receipt_ids")
+    if receipts:
+        print("[ontologylab] decision_receipt_ids " + ", ".join(receipts))
+
+
+def cmd_quarantine(args: argparse.Namespace) -> int:
+    store = _open_store(args)
+    try:
+        result = store.quarantine(args.id, by=args.by, note=args.note)
+        print(f"[ontologylab] quarantined {result['kind']} {args.id}")
+        _print_review_receipts(result)
+        return 0
+    except KGStoreError as exc:
+        print(f"[ontologylab] error: {exc}", file=sys.stderr)
+        return 2
+    finally:
+        store.close()
+
+
+def cmd_review_retract(args: argparse.Namespace) -> int:
+    store = _open_store(args)
+    try:
+        result = store.retract_review(args.id, by=args.by, note=args.note)
+        print(f"[ontologylab] retracted {result['kind']} {args.id}")
+        _print_review_receipts(result)
+        return 0
+    except KGStoreError as exc:
+        print(f"[ontologylab] error: {exc}", file=sys.stderr)
+        return 2
+    finally:
+        store.close()
+
+
+def cmd_review_compensate(args: argparse.Namespace) -> int:
+    store = _open_store(args)
+    try:
+        result = store.compensate_review(args.id, by=args.by, note=args.note)
+        print(f"[ontologylab] compensated {result['kind']} {args.id}")
+        _print_review_receipts(result)
+        return 0
+    except KGStoreError as exc:
+        print(f"[ontologylab] error: {exc}", file=sys.stderr)
+        return 2
+    finally:
+        store.close()
+
+
+def cmd_approve_with_waiver(args: argparse.Namespace) -> int:
+    from ontologylab.grounded_review import WaiverRequest
+
+    store = _open_store(args)
+    try:
+        members = tuple(
+            part for part in args.member_ids.split(",") if part.strip()
+        )
+        citations = tuple(
+            part for part in (args.citation_ids or "").split(",") if part.strip()
+        )
+        defects = tuple(
+            part for part in args.defects.split(",") if part.strip()
+        )
+        result = store.approve_with_grounding_waiver(
+            WaiverRequest(
+                item_id=args.id,
+                actor=args.by,
+                reason=args.note or args.reason,
+                member_ids=members,
+                citation_ids=citations,
+                scoped_defects=defects,
+                cascade=args.cascade,
+            )
+        )
+        print(
+            f"[ontologylab] waived {result['kind']} "
+            f"{', '.join(result['approved_ids'])}"
+        )
+        _print_review_receipts(result)
+        print("[ontologylab] pack_ineligible true")
         return 0
     except KGStoreError as exc:
         print(f"[ontologylab] error: {exc}", file=sys.stderr)
@@ -1834,6 +1928,48 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_reject.add_argument("--note", default=None)
     _add_data_dir(p_reject)
     p_reject.set_defaults(func=cmd_reject)
+
+    p_quarantine = sub.add_parser(
+        "quarantine", help="Quarantine a proposed item (append-only).",
+    )
+    p_quarantine.add_argument("--id", required=True)
+    p_quarantine.add_argument("--by", default=paths.DEFAULT_ACTOR)
+    p_quarantine.add_argument("--note", default=None)
+    _add_data_dir(p_quarantine)
+    p_quarantine.set_defaults(func=cmd_quarantine)
+
+    p_review_retract = sub.add_parser(
+        "review-retract", help="Retract a verified review decision.",
+    )
+    p_review_retract.add_argument("--id", required=True)
+    p_review_retract.add_argument("--by", default=paths.DEFAULT_ACTOR)
+    p_review_retract.add_argument("--note", default=None)
+    _add_data_dir(p_review_retract)
+    p_review_retract.set_defaults(func=cmd_review_retract)
+
+    p_review_compensate = sub.add_parser(
+        "review-compensate", help="Compensate a prior review decision.",
+    )
+    p_review_compensate.add_argument("--id", required=True)
+    p_review_compensate.add_argument("--by", default=paths.DEFAULT_ACTOR)
+    p_review_compensate.add_argument("--note", default=None)
+    _add_data_dir(p_review_compensate)
+    p_review_compensate.set_defaults(func=cmd_review_compensate)
+
+    p_waiver = sub.add_parser(
+        "approve-with-waiver",
+        help="Approve with a scoped grounding waiver (pack-ineligible).",
+    )
+    p_waiver.add_argument("--id", required=True)
+    p_waiver.add_argument("--member-ids", required=True)
+    p_waiver.add_argument("--citation-ids", default="")
+    p_waiver.add_argument("--defects", required=True)
+    p_waiver.add_argument("--reason", required=True)
+    p_waiver.add_argument("--cascade", action="store_true")
+    p_waiver.add_argument("--by", default=paths.DEFAULT_ACTOR)
+    p_waiver.add_argument("--note", default=None)
+    _add_data_dir(p_waiver)
+    p_waiver.set_defaults(func=cmd_approve_with_waiver)
 
     p_invalidate = sub.add_parser(
         "invalidate",
