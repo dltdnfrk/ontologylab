@@ -1,0 +1,28 @@
+Task 7 commit boundary
+
+Product/test chain:
+49ac524 feat(extraction): bind runs and chunks to representations
+1afd0f8 feat(extraction): receipt preferred representation selection
+7c159fd feat(citations): seal representation grounding receipts
+0a3c7a2 feat(review): require append-only grounding decisions
+8f0e45f feat(migration): backfill historical grounding receipts
+4878c2f feat(extraction): complete representation-grounded review flow
+5a63789 test(server): synchronize jobs stream change
+362b0a6 fix(extraction): preserve exact receipt identity
+
+Final product/test HEAD:
+362b0a679483139e51d8e37748674a867d6a9b2f
+tree:
+dce1386961684e924108ded625e56dab4031384d
+
+All eight commits are conventional, independently verified, local-only, and
+descend linearly from the Step 6 evidence commit
+63e326f27c60b81f8a3e3daaf27518e82564da5c.
+
+origin/main remained
+4ee5465b9727a2ca3c00e7eea0f3893e2301c148.
+No push, amend, rebase, reset, checkout, restore, stash or force operation.
+
+This closure bundle is evidence/state only. Its commit must not change
+ontologylab/, tests/, scripts/, or pyproject.toml.
+

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "step": 7,
+  "verdict": "approved",
+  "product_commit": "362b0a679483139e51d8e37748674a867d6a9b2f",
+  "tree": "dce1386961684e924108ded625e56dab4031384d",
+  "repair_perimeter_sha256": "1bd10421c5075045e550c2b4015270dd251409c4157622e87c79fc21dc47126b",
+  "full_suite_perimeter_sha256": "9d3f579022ae33f8280753509dac75e44c4c51c5e3884253b57da930349e5867",
+  "suite": {
+    "passed": 2650,
+    "skipped": 1,
+    "xfailed": 2,
+    "exit_code": 0
+  },
+  "reviews": {
+    "goal": {
+      "sha256": "4ce20fa4b2d36f6cb4376dba715b6d80bdbeb4fd65d911adeb775bf0b153f5a4",
+      "verdict": "passed"
+    },
+    "code": {
+      "sha256": "aeb97646b9bc71a667df00462d42d65e57eb1eaa774849b2e52b6a608dc8c9fc",
+      "verdict": "passed"
+    },
+    "manual_qa": {
+      "sha256": "48f71153a869aac74acc86be4920e66882e7556e38939f321eb925c0ce51518a",
+      "verdict": "pass"
+    },
+    "security": {
+      "sha256": "522a1bef03c0552e4646b840ff61f8df8750165dd52b1b43e2a289deda3b0580",
+      "verdict": "passed"
+    },
+    "context": {
+      "sha256": "63c34690eaf164e440b245c3aca221dfee2bec519d12f22ebca0541530b35bb4",
+      "verdict": "pass"
+    },
+    "gate": {
+      "sha256": "bb398a788b2b025a9c8f01818f07f448a4ec4863b7ea5a006193a20289e86430",
+      "verdict": "approved"
+    }
+  },
+  "prohibited": {
+    "step_9c_executed": false,
+    "live_application_support_accessed": false,
+    "port_8799_mutated": false,
+    "external_network_used": false,
+    "planning_docs_edited": false
+  }
+}
+

@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "evidenceLayoutVersion": 2,
+  "briefPath": ".omo/ulw-loop/wave21-step7-representation-grounding-20260824/brief.md",
+  "goalsPath": ".omo/ulw-loop/wave21-step7-representation-grounding-20260824/goals.json",
+  "ledgerPath": ".omo/ulw-loop/wave21-step7-representation-grounding-20260824/ledger.jsonl",
+  "codexGoalMode": "aggregate",
+  "goals": [
+    {
+      "id": "G002",
+      "title": "Representation-scoped extraction run and chunk receipts",
+      "status": "complete",
+      "criteria": [
+        "RED before production change",
+        "all seven named mutants killed and restored",
+        "focused and affected suites green",
+        "commit 49ac5249 independently verified"
+      ]
+    },
+    {
+      "id": "G003",
+      "title": "Immutable F9 selection and C-024 research consumer",
+      "status": "complete",
+      "criteria": [
+        "publisher abstract loses to ready PMC full text",
+        "historical v1 selection remains immutable",
+        "isolated raw-path mutant killed and restored",
+        "commit 1afd0f85 independently verified"
+      ]
+    },
+    {
+      "id": "G004",
+      "title": "Exact Citation grounding receipts",
+      "status": "complete",
+      "criteria": [
+        "run/chunk/selection/span/hash identities sealed",
+        "ambiguous and tampered context fail closed",
+        "named mutants killed and restored",
+        "commit 7c159fd3 independently verified"
+      ]
+    },
+    {
+      "id": "G005",
+      "title": "Append-only grounded review decisions",
+      "status": "complete",
+      "criteria": [
+        "all-member preflight writes zero on invalid member",
+        "scoped waiver is explicit durable and pack-ineligible",
+        "current pointer and active-member cite set are atomic",
+        "commit 0a3c7a21 independently verified"
+      ]
+    },
+    {
+      "id": "G006",
+      "title": "Deterministic H1 historical receipt migration",
+      "status": "complete",
+      "criteria": [
+        "backup-API copy only",
+        "preserve anchors and quarantine unverifiable spans",
+        "interrupt/resume and pass two are idempotent",
+        "commit 8f0e45fd independently verified"
+      ]
+    },
+    {
+      "id": "G007",
+      "title": "Close Step 7 on committed bytes",
+      "status": "complete",
+      "criteria": [
+        "integration, hang-fix and exact-identity repair commits verified",
+        "exact suite 2650 passed 1 skipped 2 xfailed exit 0",
+        "goal code manual-QA security context and gate approved",
+        "evidence index cleanup aggregate and Step 8 kickoff written"
+      ],
+      "evidence": ".omo/evidence/ulw/wave21-step7-representation-grounding-20260824/G007/a1/step7-evidence-index.md"
+    }
+  ],
+  "activeGoalId": null,
+  "aggregateCompletion": {
+    "status": "complete",
+    "productCommit": "362b0a679483139e51d8e37748674a867d6a9b2f",
+    "tree": "dce1386961684e924108ded625e56dab4031384d",
+    "repairPerimeter": "1bd10421c5075045e550c2b4015270dd251409c4157622e87c79fc21dc47126b",
+    "fullSuitePerimeter": "9d3f579022ae33f8280753509dac75e44c4c51c5e3884253b57da930349e5867",
+    "suite": "2650 passed, 1 skipped, 2 xfailed, exit 0",
+    "gate": "approved",
+    "evidence": ".omo/evidence/ulw/wave21-step7-representation-grounding-20260824/G007/a1/step7-evidence-index.md"
+  }
+}
+

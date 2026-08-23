@@ -1,0 +1,11 @@
+Task 7 final suite authority:
+.omo/evidence/start-work/wave21-ingestion-steps5-10/task-7-final-full-suite.md
+SHA-256 c047fe84a6fc5c6aa185a1d48195f89a4b9c4e2a223f25f8a10bcb955c47c261
+
+HEAD 362b0a679483139e51d8e37748674a867d6a9b2f
+tree dce1386961684e924108ded625e56dab4031384d
+full-suite perimeter 9d3f579022ae33f8280753509dac75e44c4c51c5e3884253b57da930349e5867
+2650 passed, 1 skipped, 2 xfailed, exit 0
+before/after HEAD and perimeter equal
+tracked product/test worktree clean after
+
