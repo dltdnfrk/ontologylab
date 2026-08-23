@@ -2282,6 +2282,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     _add_data_dir(p_prov_test)
     p_prov_test.set_defaults(func=cmd_provider_test)
 
+    from ontologylab.h1_cli import add_h1_parser
+
+    add_h1_parser(sub)
     return parser
 
 
