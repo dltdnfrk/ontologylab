@@ -4,7 +4,9 @@ import asyncio
 import hashlib
 import json
 import platform
+import resource
 import statistics
+import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -214,3 +216,115 @@ def measure_existing_operations(
             pack_build,
         ),
     ]
+
+
+TARGET_MIGRATION_RECEIPT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / ".omo"
+    / "evidence"
+    / "ulw"
+    / "wave21-step5-migration-core-20260821"
+    / "G004-goal-4-produce-the-first-measured-ta"
+    / "a1"
+    / "perf-receipt.json"
+)
+
+
+def _directory_bytes(path: Path) -> int:
+    return sum(item.stat().st_size for item in path.rglob("*") if item.is_file())
+
+
+def _max_rss_bytes(usage: resource.struct_rusage) -> int:
+    rss = int(usage.ru_maxrss)
+    if sys.platform == "darwin":
+        return rss
+    return rss * 1024
+
+
+def measure_target_v2_migration(
+    root: Path,
+    *,
+    document_count: int = 10000,
+    n: int = 1,
+) -> dict:
+    """Drive Step 5 snapshot + DOI backfill and return a measured receipt.
+
+    Gap: ontologylab.migration / migration_backfill / migration_rehearsal
+    expose snapshot_db, prepare_backup_copy, execute_doi_backfill, and
+    run_rehearsal, but not a measured target-migration driver or a
+    budget/receipt type. This wrapper is the missing measurement surface.
+    """
+    from ontologylab.migration_backfill import (
+        execute_doi_backfill,
+        prepare_backup_copy,
+    )
+
+    if n <= 0:
+        raise ValueError("n must be positive")
+    root.mkdir(parents=True, exist_ok=True)
+    docs = deterministic_documents(document_count)
+    source_dir = root / "source"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    source_db = source_dir / "kg.sqlite"
+    create_populated_legacy_fixture(source_db, docs)
+
+    samples: list[float] = []
+    last_budget: dict[str, float] | None = None
+    for sample_index in range(n):
+        copy_dir = root / f"copy-{sample_index}"
+        copy_dir.mkdir(parents=True, exist_ok=True)
+        usage_before = resource.getrusage(resource.RUSAGE_SELF)
+        started = time.perf_counter()
+        copied = prepare_backup_copy(source_db, copy_dir)
+        store = KGStore.open(copied)
+        try:
+            execute_doi_backfill(store.conn)
+            store.conn.commit()
+        finally:
+            store.close()
+        wall_s = time.perf_counter() - started
+        usage_after = resource.getrusage(resource.RUSAGE_SELF)
+        samples.append(wall_s * 1000)
+        last_budget = {
+            "cpu_s": (
+                (usage_after.ru_utime - usage_before.ru_utime)
+                + (usage_after.ru_stime - usage_before.ru_stime)
+            ),
+            "max_rss_bytes": _max_rss_bytes(usage_after),
+            "disk_bytes": _directory_bytes(copy_dir),
+            "wall_s": wall_s,
+        }
+
+    assert last_budget is not None
+    ordered = sorted(samples)
+    p95_index = max(0, min(len(ordered) - 1, round(0.95 * (len(ordered) - 1))))
+    payload = {
+        "operation": FORBIDDEN_OPERATION,
+        "dataset_documents": document_count,
+        "n": n,
+        "mean_ms": statistics.fmean(samples),
+        "p95_ms": ordered[p95_index],
+        "max_ms": max(samples),
+        "environment": {
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+            "machine": platform.machine(),
+        },
+        "budget": last_budget,
+        "recipe_anchor": {
+            "recipe_id": "wave21-perf-v1",
+            "manifest_sha256": manifest_sha256(),
+        },
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    payload["receipt_sha256"] = digest
+    return payload
+
+
+def write_target_migration_receipt(path: Path, receipt: dict) -> str:
+    text = json.dumps(receipt, indent=2, sort_keys=True) + "\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
