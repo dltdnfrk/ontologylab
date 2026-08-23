@@ -27,6 +27,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from ontologylab.citation import persist_chunk_citations
+from ontologylab.citation_types import ChunkCitationBatch
 from ontologylab.engines import (
     CHUNK_MARKER_CLOSE,
     CHUNK_MARKER_OPEN,
@@ -892,6 +894,20 @@ async def run_extraction(
                             # What the provider actually used, not merely requested.
                             decode_params=usage.get("decode_params"),
                             commit=False,
+                        )
+                        persist_chunk_citations(
+                            store.conn,
+                            ChunkCitationBatch(
+                                representation_id=doc_id,
+                                chunk_index=chunk.index,
+                                chunk_start_offset=chunk.char_offset,
+                                entities=tuple(result.entities),
+                                relations=tuple(result.relations),
+                                id_map={
+                                    str(key): str(value)
+                                    for key, value in stats["id_map"].items()
+                                },
+                            ),
                         )
                         lifecycle.succeeded(plan.run_id, chunk.index, stats)
                     except Exception:
