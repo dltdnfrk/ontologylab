@@ -1,0 +1,32 @@
+G007 final-suite pointer (no new pytest invocation)
+
+This closer did not re-run .venv/bin/python -m pytest. The exact full suite
+already ran once against the frozen committed Step 6 perimeter. Authority
+for the number is the start-work receipt, not a second execution.
+
+Receipt:
+  .omo/evidence/start-work/wave21-ingestion-steps5-10/task-1-full-suite.md
+  worker st_01a02e51
+  SHA-256 f51dbb65f1299fdbf8a64c7bea5dbbc4efe4e5a9e71b4fb4e597fd1db4ff791f
+
+Bound identities (before and after that run, still current):
+  HEAD      e3bca459c27f6d2cbcabb1a0a9bc37230d38316f
+  tree      47e5964457c46f6a769ff074ed20f3619e1b9c0c
+  perimeter abe543be4ca635c219ddda465a13c7ca223ee92a2b727f1a83650af7ddd6371e
+
+Command (verbatim from the receipt):
+  cwd=/Users/hyunjun/Documents/MUNI/ontologylab
+  interpreter=/Users/hyunjun/Documents/MUNI/ontologylab/.venv/bin/python
+  command=.venv/bin/python -m pytest
+
+Authoritative last line:
+  2521 passed, 1 skipped, 2 xfailed, 1 warning in 1166.19s (0:19:26)
+
+Exit code: 0
+failed: 0
+errors: 0
+xpass: 0
+
+Warning is third-party Starlette/FastAPI httpx TestClient deprecation, not a
+product file. Raw log SHA-256 inside that receipt:
+  888cc7257f7e5bba4548d38b2f228be71b55a41c7f34156bba61fe87f28dc3e2

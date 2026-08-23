@@ -1,0 +1,5 @@
+{
+  "objective": "Complete the durable ulw-loop plan in .omo/ulw-loop/wave21-step6-ingestion-service-20260821/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/wave21-step6-ingestion-service-20260821/ledger.jsonl as the audit trail.",
+  "status": "complete",
+  "source": "goal_tool"
+}

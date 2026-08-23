@@ -1,0 +1,61 @@
+G007 scope and cleanup boundary (closer on committed product e3bca45)
+
+This closer writes only under:
+  .omo/evidence/ulw/wave21-step6-ingestion-service-20260821/
+  .omo/ulw-loop/wave21-step6-ingestion-service-20260821/
+  .omo/evidence/start-work/wave21-ingestion-steps5-10/task-1-closer.md
+
+No product, test, plan, boulder, or start-work ledger bytes are edited.
+
+== git rev-parse ==
+HEAD  e3bca459c27f6d2cbcabb1a0a9bc37230d38316f
+tree  47e5964457c46f6a769ff074ed20f3619e1b9c0c
+
+== git diff --stat -- ontologylab tests ==
+(empty)
+
+== git diff --stat -- .omo/plans/wave21-ingestion-steps5-10.md .omo/boulder.json .omo/start-work/ledger.jsonl ==
+(empty)
+
+== git diff --staged --stat ==
+(empty)
+
+== git status --short (unrelated residual, same 11 entries as product-commit / full-suite / gate) ==
+?? .sisyphus/
+?? artifacts/
+?? docs/CONANSSAM-PROMPT-2026-08-08.bak
+?? docs/INGESTION-WAVE-2.1-RECURSIVE-PLAN-R10-2026-08-20.md
+?? docs/OMO-INGESTION-WAVE-2.1-IMPLEMENTATION-HANDOFF-2026-08-20.md
+?? docs/OMO-INGESTION-WAVE-2.1-MASS-ULW-INTEGRATED-ANALYSIS-2026-08-20.md
+?? "docs/ONTOLOGYLAB-DETAILED-SMOKE-RESULT-2026-08-08 2.md"
+?? docs/WAVE-2.1-DEEP-RESEARCH-REMEDIATION-GJC-2026-08-20.md
+?? graphify-out/
+?? ontologylab/graphify-out/
+?? uv.lock
+
+Classification: pre-existing / orchestration / unrelated. None is a tracked
+Step 6 product or test source. Canonical analysis stays untracked on purpose.
+Unrelated untracked files are preserved.
+
+== protected port (observe only) ==
+COMMAND     PID    USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+python3.1 55560 hyunjun   10u  IPv4 0x1ff51c806b197195      0t0  TCP 127.0.0.1:8799 (LISTEN)
+
+ps -p 55560: started Thu Aug  6 13:51:44 2026
+argv: ontologylab.serve --host 127.0.0.1 --port 8799 --data-dir /Users/hyunjun/Library/Application Support/ontologylab/data --packs-dir /Users/hyunjun/Library/Application Support/ontologylab/packs
+DEVICE unchanged: 0x1ff51c806b197195
+
+== disposable residue ==
+ls /private/tmp/ontologylab-wave21-t1qa*   -> none
+ls /private/tmp/ontologylab-wave21-task1*  -> none
+lsof :19173 LISTEN -> empty
+lsof :18871 LISTEN -> empty
+
+== no Step 7+ in the committed increment ==
+git diff --name-only eab47a6 e3bca45 is the 23 service / lifecycle / outbox /
+shadow / surface / compatibility-repair paths only. No extractor, extraction
+state, review decision, pack v2, or cutover module.
+
+Conclusion: working tree product/test/plan/boulder/start-work-ledger clean vs
+HEAD; 8799 remains PID 55560 only; QA temps and extra listeners gone; this
+closer does not touch live Application Support.

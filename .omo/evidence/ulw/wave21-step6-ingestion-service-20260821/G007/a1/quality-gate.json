@@ -1,0 +1,168 @@
+{
+  "goalReview": {
+    "by": "st_01a02e68",
+    "recommendation": "PASS",
+    "confidence": 0.86,
+    "reportPath": ".omo/evidence/start-work/wave21-ingestion-steps5-10/task-1-reviews/goal.md",
+    "reportSha256": "786ca27a04103c1ce6e9080b302702fe68a74903bf992d2803f576165a3f7999",
+    "evidence": "Committed Step 6 meets 6A / F4 / F5 / 6D plus the Task 1 legacy-read repair on e3bca45. F2 is G004, not 05-failure-analysis.md F2 GREEN. Closer remainder is this G007 write.",
+    "blockers": []
+  },
+  "codeReview": {
+    "by": "st_01a02e69",
+    "recommendation": "APPROVE",
+    "codeQualityStatus": "PASS",
+    "confidence": 0.91,
+    "reportPath": ".omo/evidence/start-work/wave21-ingestion-steps5-10/task-1-reviews/code.md",
+    "reportSha256": "ac1a7013d0b0e3342995f9b2528989d6eb0f939d035d6d5b0088b0938519bd0a",
+    "evidence": "SAVEPOINT ownership, staged-ready-quarantine, outbox-as-truth, and four-entrypoint shadow adapter hold. 0 CRITICAL, 0 MAJOR, 7 MINOR. Focused 94-test set and basedpyright exit 0.",
+    "blockers": []
+  },
+  "manualQa": {
+    "by": "st_01a02e6a",
+    "status": "passed",
+    "confidence": 0.94,
+    "reportPath": ".omo/evidence/start-work/wave21-ingestion-steps5-10/task-1-reviews/qa.md",
+    "reportSha256": "145b20cd6445a47304d0be7da31fb7c8f5838a10cec681b3f0fadd52ef99ea3d",
+    "evidence": "S1-S16 PASS on disposable roots and port 19173. Legacy synthetic-hash provenance 200. v2 tamper hash_mismatch then HTTP 400 quarantined. Unsafe paths 400 with SECRET_LEAK=[]. Fixtures and 19173 gone.",
+    "surfaceEvidence": [
+      {
+        "id": "surface-direct-ingest",
+        "criterionRef": "C002",
+        "surface": "library",
+        "invocation": "ingest_item staged then ready on disposable root",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-qa"]
+      },
+      {
+        "id": "surface-cli-http-research",
+        "criterionRef": "C002",
+        "surface": "cli",
+        "invocation": "installed CLI ingest/collect, research ingest_documents, HTTP collect/sample on 19173",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-qa"]
+      },
+      {
+        "id": "surface-full-suite",
+        "criterionRef": "C001",
+        "surface": "cli",
+        "invocation": ".venv/bin/python -m pytest once on e3bca45 (task-1-full-suite.md)",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-final-suite"]
+      },
+      {
+        "id": "surface-cleanup",
+        "criterionRef": "C002",
+        "surface": "cli",
+        "invocation": "lsof/ps/find after QA; PID 55560 / 8799 unchanged",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-scope-cleanup", "artifact-qa"]
+      }
+    ],
+    "adversarialCases": [
+      {
+        "id": "adv-v2-tamper",
+        "criterionRef": "C002",
+        "scenario": "one-byte v2 ready tamper",
+        "expectedBehavior": "hash_mismatch live; HTTP 400 quarantined after reopen; no secret",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-qa"]
+      },
+      {
+        "id": "adv-unsafe-legacy-paths",
+        "criterionRef": "C002",
+        "scenario": "absolute / ../ / sources.json / providers.json / .env",
+        "expectedBehavior": "HTTP 400 escape; SECRET_LEAK=[]",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-qa"]
+      },
+      {
+        "id": "adv-outbox-failpoints",
+        "criterionRef": "C002",
+        "scenario": "torn / malformed / failpoint outbox",
+        "expectedBehavior": "SQLite truth; JSONL rebuilt or left; prior domain remains",
+        "verdict": "passed",
+        "artifactRefs": ["artifact-qa"]
+      }
+    ],
+    "artifactRefs": [
+      {
+        "id": "artifact-final-suite",
+        "kind": "cli-transcript",
+        "description": "Pointer to the one exact full-suite run on committed e3bca45.",
+        "path": ".omo/evidence/ulw/wave21-step6-ingestion-service-20260821/G007/a1/final-suite.txt"
+      },
+      {
+        "id": "artifact-qa",
+        "kind": "log",
+        "description": "Independent real-surface QA on disposable fixtures.",
+        "path": ".omo/evidence/start-work/wave21-ingestion-steps5-10/task-1-reviews/qa.md"
+      },
+      {
+        "id": "artifact-scope-cleanup",
+        "kind": "log",
+        "description": "Scope/cleanup boundary receipt.",
+        "path": ".omo/evidence/ulw/wave21-step6-ingestion-service-20260821/G007/a1/scope-cleanup.txt"
+      }
+    ]
+  },
+  "securityReview": {
+    "by": "st_01a02e6b",
+    "recommendation": "PASS",
+    "maxSeverity": "LOW",
+    "confidence": 0.90,
+    "reportPath": ".omo/evidence/start-work/wave21-ingestion-steps5-10/task-1-reviews/security.md",
+    "reportSha256": "f528c25aa2ced84e06b2e82c75a746661d53009f7f383220202cbdfe53ec3c22",
+    "evidence": "Path/symlink write and read containment, collect store-interior refusal, staged/quarantined refusal, v2 hash, SAVEPOINT atomicity, outbox rebuild, current-batch quarantine filter, and concurrent-writer fixture all refuted as exploitable from ingest/collect. 6 LOW residuals need a SQL plant or store-root write.",
+    "blockers": []
+  },
+  "contextReview": {
+    "by": "st_01a02e6c",
+    "recommendation": "PASS",
+    "confidence": 0.93,
+    "reportPath": ".omo/evidence/start-work/wave21-ingestion-steps5-10/task-1-reviews/context.md",
+    "reportSha256": "f55f14c9fbaf63ac682e035fe2b21633edd60987156efa8c53a7c949a1a5ddd3",
+    "evidence": "Step 5 parent consumed and not rewritten. 23-path Step 6-only increment. FULL_V2_AUTHORITY = False. Research still extracts current document_ids only. Legacy vs v2 read split is the Task 1 repair. No Step 7+ / pack v2 / cutover slip.",
+    "blockers": []
+  },
+  "gateReview": {
+    "by": "st_01a02e73",
+    "recommendation": "PASS",
+    "reportPath": ".omo/evidence/start-work/wave21-ingestion-steps5-10/task-1-reviews/gate.md",
+    "reportSha256": "f6c36527276dc79e602568935e6a69457a281ce96ce73e58018daccc727a9c3d",
+    "evidence": "All five final reports exist and PASS. Independently recomputed HEAD / tree / perimeter / suite identities agree. No CRITICAL, MAJOR, HIGH, MEDIUM, or blocker. QA fixtures and 19173 gone. Tracked product/test bytes match HEAD. This gate is the review-DAG close, not the product commit.",
+    "blockers": []
+  },
+  "iteration": {
+    "fullRerun": false,
+    "status": "passed",
+    "rerunCommands": [".venv/bin/python -m pytest"],
+    "evidence": "Bound to task-1-full-suite.md: 2521 passed, 1 skipped, 2 xfailed, exit 0 in 1166.19s on e3bca459c27f6d2cbcabb1a0a9bc37230d38316f. This closer did not invoke pytest again.",
+    "receiptPath": ".omo/evidence/start-work/wave21-ingestion-steps5-10/task-1-full-suite.md",
+    "receiptSha256": "f51dbb65f1299fdbf8a64c7bea5dbbc4efe4e5a9e71b4fb4e597fd1db4ff791f"
+  },
+  "identities": {
+    "commit": "e3bca459c27f6d2cbcabb1a0a9bc37230d38316f",
+    "tree": "47e5964457c46f6a769ff074ed20f3619e1b9c0c",
+    "perimeter": "abe543be4ca635c219ddda465a13c7ca223ee92a2b727f1a83650af7ddd6371e",
+    "suite": "2521 passed, 1 skipped, 2 xfailed",
+    "exitCode": 0
+  },
+  "criteriaCoverage": {
+    "totalCriteria": 27,
+    "passCount": 24,
+    "blockedSupersededCriteria": 3,
+    "originalIntent": "Deliver Wave 2.1 Step 6 only: transactional ingestion service v2, F4 file lifecycle, F5 outbox, production shadow entrypoints, and the Task 1 legacy-read repair, without Step 7+ behavior.",
+    "desiredOutcome": "G001 G002 G004 G006 G008 G009 complete with RED/GREEN and restored mutants; G003 historical receipts labeled superseded; G005 blocked; G007 closer artifacts and aggregate complete on committed e3bca45 after gate PASS.",
+    "userOutcomeReview": "Product commit and suite already landed. Review DAG PASS. This receipt closes the loop state only. G005 C001-C003 stay pending under blocked/superseded and are not open work.",
+    "adversarialClassesCovered": ["malformed_input", "stale_state", "misleading_success_output", "leftover_state", "path_escape"]
+  },
+  "supersededReports": [
+    ".omo/evidence/ulw/wave21-step6-ingestion-service-20260821/G005-goal-5-close-step-6-run-the-exact-fu/a1/",
+    ".omo/evidence/ulw/wave21-step6-ingestion-service-20260821/G007/a1/goal-review.md",
+    ".omo/evidence/ulw/wave21-step6-ingestion-service-20260821/G007/a1/code-review.md",
+    ".omo/evidence/ulw/wave21-step6-ingestion-service-20260821/G007/a1/qa-review.md",
+    ".omo/evidence/ulw/wave21-step6-ingestion-service-20260821/G007/a1/security-review.md",
+    ".omo/evidence/ulw/wave21-step6-ingestion-service-20260821/G007/a1/context-review.md"
+  ]
+}

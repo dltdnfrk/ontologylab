@@ -1,0 +1,63 @@
+G007 commit boundary (recorded after the product commit already landed)
+
+HEAD: e3bca459c27f6d2cbcabb1a0a9bc37230d38316f
+tree: 47e5964457c46f6a769ff074ed20f3619e1b9c0c
+subject: feat(ingestion): complete transactional v2 shadow service
+parent: eab47a615cc5f309c05a48875c6e6877096783dd
+staged: 0 lines of staged diff (0 expected)
+branch: main
+upstream: origin/main (not updated by this closer; no push)
+
+Perimeter SHA-256 over the 23 committed Step 6 paths:
+abe543be4ca635c219ddda465a13c7ca223ee92a2b727f1a83650af7ddd6371e
+
+Suite bound to this tree (not re-run by this closer):
+2521 passed, 1 skipped, 2 xfailed, exit 0
+receipt: .omo/evidence/start-work/wave21-ingestion-steps5-10/task-1-full-suite.md
+receipt SHA-256: f51dbb65f1299fdbf8a64c7bea5dbbc4efe4e5a9e71b4fb4e597fd1db4ff791f
+
+Landed path list (from task-1-product-commit.md):
+
+M ontologylab/authority_repo.py
+A ontologylab/file_lifecycle.py
+M ontologylab/ingestion.py
+A ontologylab/ingestion_service.py
+A ontologylab/ingestion_shadow.py
+A ontologylab/ingestion_surfaces.py
+M ontologylab/kgstore.py
+M ontologylab/main.py
+A ontologylab/provenance_outbox.py
+M ontologylab/server/app.py
+A ontologylab/server/ingest_routes.py
+M ontologylab/server/routes.py
+M ontologylab/work_view.py
+A tests/test_document_view.py
+A tests/test_file_lifecycle.py
+A tests/test_ingest_concurrency.py
+A tests/test_ingestion_service.py
+A tests/test_ingestion_shadow_entrypoints.py
+A tests/test_ingestion_surfaces.py
+A tests/test_provenance.py
+M tests/test_provenance_api.py
+A tests/test_provenance_outbox.py
+A tests/wave21/ingest_concurrency.py
+
+G007 C003 originally said HEAD remains eab47a6 until the fresh binary gate
+is clean, then one atomic conventional Step 6 commit lands the frozen tested
+bundle. That commit is already e3bca45. Quality-gate JSON and the six final
+review reports bind the same identities. This closer records that fact and
+does not amend, reset, or add a second product/test commit.
+
+Review reports (final, not the superseded G007/a1 pre-commit set):
+  goal.md      786ca27a04103c1ce6e9080b302702fe68a74903bf992d2803f576165a3f7999
+  code.md      ac1a7013d0b0e3342995f9b2528989d6eb0f939d035d6d5b0088b0938519bd0a
+  qa.md        145b20cd6445a47304d0be7da31fb7c8f5838a10cec681b3f0fadd52ef99ea3d
+  security.md  f528c25aa2ced84e06b2e82c75a746661d53009f7f383220202cbdfe53ec3c22
+  context.md   f55f14c9fbaf63ac682e035fe2b21633edd60987156efa8c53a7c949a1a5ddd3
+  gate.md      f6c36527276dc79e602568935e6a69457a281ce96ce73e58018daccc727a9c3d
+
+Machine-readable gate:
+  .omo/evidence/ulw/wave21-step6-ingestion-service-20260821/G007/a1/quality-gate.json
+
+Post-closer status expected: HEAD still e3bca45, staged empty, product/test
+clean, only the named .omo closer files added or updated.
