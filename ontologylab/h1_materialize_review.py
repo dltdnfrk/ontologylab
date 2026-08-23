@@ -9,6 +9,7 @@ from ontologylab.citation_ids import fact_revision_id
 from ontologylab.grounded_review_ids import build_decision
 from ontologylab.grounded_review_store import persist_decision
 from ontologylab.grounded_review_types import ReviewAction, ReviewDecision
+from ontologylab.h1_existing_review import existing_review
 from ontologylab.h1_ids import LEGACY_POLICY
 from ontologylab.h1_types import H1ReviewAnchor
 
@@ -21,6 +22,9 @@ def materialize_review(
     action = _review_action(anchor.status)
     if action is None:
         return None
+    existing = existing_review(conn, anchor)
+    if existing is not None:
+        return existing
     cite_ids = tuple(
         str(row[0])
         for row in conn.execute(
@@ -52,12 +56,7 @@ def materialize_review(
         predecessor_receipt_id=None,
         pack_ineligible=False,
     )
-    exists = conn.execute(
-        "SELECT 1 FROM grounded_review_decisions WHERE receipt_id = ?",
-        (decision.receipt_id,),
-    ).fetchone()
-    if exists is None:
-        persist_decision(conn, decision)
+    persist_decision(conn, decision)
     return decision
 
 

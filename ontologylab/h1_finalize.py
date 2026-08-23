@@ -8,6 +8,7 @@ from typing import Final, assert_never
 
 from ontologylab.h1_classify import classify_anchor
 from ontologylab.h1_decisions import quarantine, with_family_receipt
+from ontologylab.h1_existing import existing_run_receipt
 from ontologylab.h1_materialize import (
     lookup_chunk_receipt,
     materialize_citation,
@@ -140,6 +141,9 @@ def _bound_run(
                 evidence={"run_id": run.run_id},
             )
         return run_decision
+    existing = existing_run_receipt(conn, run, chunk_pairs)
+    if existing is not None:
+        return with_family_receipt(run_decision, existing)
     receipts = materialize_run(conn, run, chunk_pairs)
     if receipts is None:
         return quarantine(

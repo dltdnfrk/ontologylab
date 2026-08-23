@@ -31,6 +31,7 @@ class GroundedReviewRefusalCode(StrEnum):
     GENERIC_WAIVER = "generic_waiver"
     UNSCOPED_WAIVER = "unscoped_waiver"
     CITATION_UNGROUNDED = "citation_ungrounded"
+    CONFLICT = "conflict"
 
 
 @dataclass(frozen=True, slots=True)

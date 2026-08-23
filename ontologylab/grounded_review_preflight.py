@@ -9,6 +9,7 @@ from ontologylab.citation import CitationReceipt, CitationRefused, list_citation
 from ontologylab.citation_ids import fact_revision_id
 from ontologylab.grounded_review_types import (
     GroundedReviewRefusalCode,
+    GroundedReviewRefused,
     ReviewAction,
     ReviewMember,
     refuse,
@@ -87,6 +88,21 @@ def require_grounding(
             tuple(invalid),
         )
     return found
+
+
+def members_have_citations(
+    conn: sqlite3.Connection, members: tuple[ReviewMember, ...],
+) -> bool:
+    """True when any member has Citation receipts, including ungrounded ones."""
+    for member in members:
+        try:
+            if citations_for(conn, member):
+                return True
+        except GroundedReviewRefused as exc:
+            if exc.code is GroundedReviewRefusalCode.CITATION_UNGROUNDED:
+                return True
+            raise
+    return False
 
 
 def member_revision(

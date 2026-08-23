@@ -19,6 +19,7 @@ from ontologylab.extraction_receipt_types import (
 from ontologylab.extraction_receipts import put_extraction_receipts
 from ontologylab.file_lifecycle import content_hash_for
 from ontologylab.h1_bytes import load_document
+from ontologylab.h1_existing_cite import existing_citation_receipt
 from ontologylab.h1_ids import LEGACY_POLICY, run_config_identity
 from ontologylab.h1_types import (
     H1ChunkAnchor,
@@ -70,6 +71,9 @@ def materialize_citation(conn: sqlite3.Connection, decision: H1Decision) -> str 
     seed = _seed_from_decision(decision)
     if seed is None:
         return None
+    existing = existing_citation_receipt(conn, decision)
+    if existing is not None:
+        return existing
     binding = _citation_binding(conn, seed)
     if binding is None:
         return None

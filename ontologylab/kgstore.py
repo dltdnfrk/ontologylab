@@ -3094,8 +3094,8 @@ class KGStore:
             batch_payload,
         )
         from ontologylab.grounded_review_preflight import (
-            citations_for,
             collect_members,
+            members_have_citations,
         )
 
         self._assert_writable()
@@ -3108,13 +3108,10 @@ class KGStore:
             )
         except GroundedReviewRefused as exc:
             self._raise_grounded(exc)
-        if request.action is ReviewAction.APPROVE and not any(
-            citations_for(self.conn, member) for member in members
-        ):
+        has_citations = members_have_citations(self.conn, members)
+        if request.action is ReviewAction.APPROVE and not has_citations:
             return None
-        if request.action is ReviewAction.REJECT and not any(
-            citations_for(self.conn, member) for member in members
-        ):
+        if request.action is ReviewAction.REJECT and not has_citations:
             return None
         try:
             result = apply_review(self.conn, request)
@@ -3164,6 +3161,7 @@ class KGStore:
                 | GroundedReviewRefusalCode.GENERIC_WAIVER
                 | GroundedReviewRefusalCode.UNSCOPED_WAIVER
                 | GroundedReviewRefusalCode.CITATION_UNGROUNDED
+                | GroundedReviewRefusalCode.CONFLICT
             ):
                 raise GroundingPreflightError(str(exc)) from exc
             case unreachable:

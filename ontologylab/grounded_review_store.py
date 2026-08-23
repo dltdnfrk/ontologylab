@@ -33,6 +33,14 @@ def persist_decision(conn: sqlite3.Connection, decision: ReviewDecision) -> None
             else GroundedReviewRefusalCode.MISSING_REASON
         )
         refuse(code, f"{code} is required")
+    existing = _get(conn, decision.receipt_id)
+    if existing is not None:
+        if _same_payload(existing, decision):
+            return
+        refuse(
+            GroundedReviewRefusalCode.CONFLICT,
+            "receipt id already stores a different ReviewDecision payload",
+        )
     conn.execute(
         "INSERT INTO grounded_review_decisions ("
         "receipt_id, fact_kind, fact_id, proposal_id, fact_revision, action, "
@@ -152,3 +160,39 @@ def _opt(value: str | None) -> str | None:
     if value is None:
         return None
     return str(value)
+
+
+def _get(conn: sqlite3.Connection, receipt_id: str) -> ReviewDecision | None:
+    row = conn.execute(
+        "SELECT * FROM grounded_review_decisions WHERE receipt_id = ?",
+        (receipt_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _row_decision(row)
+
+
+def _same_payload(left: ReviewDecision, right: ReviewDecision) -> bool:
+    return (
+        left.receipt_id == right.receipt_id
+        and left.fact_kind == right.fact_kind
+        and left.fact_id == right.fact_id
+        and left.proposal_id == right.proposal_id
+        and left.fact_revision == right.fact_revision
+        and left.action is right.action
+        and left.actor == right.actor
+        and left.reason == right.reason
+        and left.decided_ts == right.decided_ts
+        and left.as_of_ts == right.as_of_ts
+        and left.citation_set_digest == right.citation_set_digest
+        and left.citation_receipt_ids == right.citation_receipt_ids
+        and left.representation_id == right.representation_id
+        and left.selection_receipt_id == right.selection_receipt_id
+        and left.policy_identity == right.policy_identity
+        and left.run_receipt_id == right.run_receipt_id
+        and left.predecessor_receipt_id == right.predecessor_receipt_id
+        and left.pack_ineligible is right.pack_ineligible
+        and left.waived_fact_ids == right.waived_fact_ids
+        and left.waived_citation_ids == right.waived_citation_ids
+        and left.scoped_defects == right.scoped_defects
+    )

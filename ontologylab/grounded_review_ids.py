@@ -10,7 +10,7 @@ def citation_set_digest(receipt_ids: tuple[str, ...]) -> str:
     return digest(("citation-set-v1", *sorted(receipt_ids)))
 
 
-def review_decision_id(
+def historical_review_decision_id(
     *,
     fact_kind: str,
     fact_id: str,
@@ -34,6 +34,50 @@ def review_decision_id(
         actor,
         reason,
         predecessor_receipt_id or "",
+        *waived_fact_ids,
+        *waived_citation_ids,
+        *scoped_defects,
+    ))
+
+
+def review_decision_id(
+    *,
+    fact_kind: str,
+    fact_id: str,
+    fact_revision: str,
+    action: ReviewAction,
+    digest_value: str,
+    actor: str,
+    reason: str,
+    predecessor_receipt_id: str | None,
+    representation_id: str | None,
+    selection_receipt_id: str | None,
+    policy_identity: str | None,
+    run_receipt_id: str | None,
+    pack_ineligible: bool,
+    decided_ts: float,
+    as_of_ts: float,
+    waived_fact_ids: tuple[str, ...],
+    waived_citation_ids: tuple[str, ...],
+    scoped_defects: tuple[str, ...],
+) -> str:
+    return digest((
+        "grounded-review-v2",
+        fact_kind,
+        fact_id,
+        fact_revision,
+        action.value,
+        digest_value,
+        actor,
+        reason,
+        predecessor_receipt_id or "",
+        representation_id or "",
+        selection_receipt_id or "",
+        policy_identity or "",
+        run_receipt_id or "",
+        "1" if pack_ineligible else "0",
+        f"{decided_ts:.9f}",
+        f"{as_of_ts:.9f}",
         *waived_fact_ids,
         *waived_citation_ids,
         *scoped_defects,
@@ -71,6 +115,13 @@ def build_decision(
             actor=actor,
             reason=reason,
             predecessor_receipt_id=predecessor_receipt_id,
+            representation_id=representation_id,
+            selection_receipt_id=selection_receipt_id,
+            policy_identity=policy_identity,
+            run_receipt_id=run_receipt_id,
+            pack_ineligible=pack_ineligible,
+            decided_ts=now,
+            as_of_ts=now,
             waived_fact_ids=waived_fact_ids,
             waived_citation_ids=waived_citation_ids,
             scoped_defects=scoped_defects,
