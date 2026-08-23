@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from ontologylab.connectors.base import RawDocument
-from ontologylab.kgstore import DocumentIdentityConflict, KGStore
+from ontologylab.kgstore import KGStore
 from ontologylab.models import Document
 from ontologylab.provenance import Provenance
 
@@ -51,71 +52,60 @@ class IngestionResult:
         return self.document_count - self.created_count
 
 
+def finalize_shadow_writes(
+    store: KGStore,
+    representation_ids: Sequence[str] = (),
+) -> None:
+    """Caller-owned commit plus file/outbox projection after shadow persist."""
+    from ontologylab.file_lifecycle import FileIntegrityError, reconcile_files
+    from ontologylab.provenance_outbox import project_outbox
+
+    if store.conn.in_transaction:
+        store.conn.commit()
+    decisions = reconcile_files(store.conn)
+    project_outbox(store.conn)
+    if store.conn.in_transaction:
+        store.conn.commit()
+    current_ids = frozenset(representation_ids)
+    quarantined = tuple(
+        decision.representation_id
+        for decision in decisions
+        if (
+            decision.classification == "quarantined"
+            and decision.representation_id is not None
+            and decision.representation_id in current_ids
+        )
+    )
+    if quarantined:
+        raise FileIntegrityError(
+            "quarantined",
+            "shadow file finalization quarantined: " + ", ".join(quarantined),
+        )
+
+
 def ingest_documents(
     store: KGStore,
     documents: Sequence[RawDocument],
     provenance: Provenance,
 ) -> IngestionResult:
-    """Persist documents without dropping identity or evidence metadata."""
-    entries: list[IngestedDocument] = []
-    conflicts: list[IdentityConflict] = []
-    created_count = 0
-    for raw in documents:
-        try:
-            document, created = store.insert_document(
-                source_kind=raw.source_kind,
-                source_uri=raw.source_uri,
-                title=raw.title,
-                raw_text=raw.raw_text,
-                content_hash=raw.content_hash,
-                source=raw.source,
-                evidence_grade=raw.evidence_grade,
-                doi=raw.doi,
-            )
-        except DocumentIdentityConflict as conflict:
-            # A refused merge is a typed per-document outcome, not a batch
-            # failure: the rest of the run still persists, and the conflict
-            # is recorded for the caller and the provenance trail.
-            conflicts.append(
-                IdentityConflict(
-                    source_uri=raw.source_uri,
-                    incoming_doi=conflict.incoming_doi,
-                    existing_doc_id=conflict.existing_doc_id,
-                    existing_doi=conflict.existing_doi,
-                    content_hash=conflict.content_hash,
-                )
-            )
-            provenance.log(
-                "collect.identity_conflict",
-                {
-                    "source_uri": raw.source_uri,
-                    "incoming_doi": conflict.incoming_doi,
-                    "existing_doc_id": conflict.existing_doc_id,
-                    "existing_doi": conflict.existing_doi,
-                },
-            )
-            continue
-        entries.append(IngestedDocument(document=document, created=created))
-        created_count += int(created)
-        provenance.log(
-            "collect.doc",
-            {
-                "doc_id": document.id,
-                "source_uri": document.source_uri,
-                "created": created,
-                "chars": len(raw.raw_text),
-            },
-        )
-    provenance.log(
-        "collect.end",
-        {
-            "documents": len(documents),
-            "created": created_count,
-            "identity_conflicts": len(conflicts),
-        },
+    """Persist documents through the legacy-compatible v2 shadow adapter."""
+    from ontologylab import ingestion_shadow as shadow
+
+    result = shadow.shadow_persist(store, documents, provenance)
+    finalize_shadow_writes(store, result.document_ids)
+    return result
+
+
+def ingest_sample(
+    store: KGStore, *, title: str, text: str
+) -> dict[str, Any]:
+    """Persist the onboarding sample through the same shadow adapter."""
+    from ontologylab import ingestion_shadow as shadow
+
+    payload = shadow.shadow_ingest_sample(store, title=title, text=text)
+    document_id = payload.get("document_id")
+    finalize_shadow_writes(
+        store,
+        (document_id,) if isinstance(document_id, str) else (),
     )
-    return IngestionResult(
-        entries=tuple(entries),
-        created_count=created_count,
-        conflicts=tuple(conflicts),
-    )
+    return payload

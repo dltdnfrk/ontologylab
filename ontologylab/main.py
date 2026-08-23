@@ -58,6 +58,7 @@ from ontologylab.extractor import (
     run_extraction,
 )
 from ontologylab.ingestion import ingest_documents
+from ontologylab.ingestion_shadow import ShadowBatchBoundError
 from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError
 from ontologylab.method_ir import (
     MethodIR, StatementOccurrence, canonical_json_bytes, parse_method,
@@ -439,6 +440,42 @@ def _add_method_parser(sub: argparse._SubParsersAction) -> None:
 
 
 # ---------------------------------------------------------------------------
+# ingest (Wave 2.1 Step 6 authority-write seam)
+# ---------------------------------------------------------------------------
+
+
+def cmd_ingest(args: argparse.Namespace) -> int:
+    from ontologylab.file_lifecycle import reconcile_files
+    from ontologylab.ingestion_surfaces import collect_sample, run_ingest
+    from ontologylab.provenance_outbox import project_outbox
+
+    loaded = json.loads(Path(args.items).read_text(encoding="utf-8"))
+    items = loaded if isinstance(loaded, list) else [loaded]
+    store = _open_store(args)
+    try:
+        if args.mode == "sample":
+            batch = collect_sample(store.conn, items)
+        else:
+            batch = run_ingest(store.conn, items, mode=args.mode)
+        if args.mode != "queue":
+            store.conn.commit()
+            reconcile_files(store.conn)
+            project_outbox(store.conn)
+            store.conn.commit()
+        print(json.dumps(batch.to_dict(), sort_keys=True))
+        if not batch.ok:
+            classes = batch.error_classes or ("InvalidIngestItem",)
+            print(
+                f"[ontologylab] error: {' '.join(classes)}",
+                file=sys.stderr,
+            )
+            return 2
+        return 0
+    finally:
+        store.close()
+
+
+# ---------------------------------------------------------------------------
 # collect
 # ---------------------------------------------------------------------------
 
@@ -554,6 +591,17 @@ def cmd_collect(args: argparse.Namespace) -> int:
                 f"[ontologylab] {state} document {entry.document.id} "
                 f"<- {entry.document.source_uri}"
             )
+    except ShadowBatchBoundError:
+        provenance.log("collect.rejected", {"error": "batch_limit"})
+        print(
+            "[ontologylab] REJECTED: batch exceeds 100 documents",
+            file=sys.stderr,
+        )
+        return 2
+    except Exception:
+        provenance.log("collect.failed", {"error": "internal_error"})
+        print("[ontologylab] collect failed: internal_error", file=sys.stderr)
+        return 2
     finally:
         store.close()
     print(
@@ -1704,6 +1752,23 @@ def build_arg_parser() -> argparse.ArgumentParser:
                                 "clamped to 1..25).")
     _add_data_dir(p_collect)
     p_collect.set_defaults(func=cmd_collect)
+
+    p_ingest = sub.add_parser(
+        "ingest",
+        help="Authority write through the v2 ingestion service.",
+    )
+    p_ingest.add_argument(
+        "--items",
+        required=True,
+        help="JSON file of ingest items (list or single object).",
+    )
+    p_ingest.add_argument(
+        "--mode",
+        choices=("write", "queue", "sample"),
+        default="write",
+    )
+    _add_data_dir(p_ingest)
+    p_ingest.set_defaults(func=cmd_ingest)
 
     p_extract = sub.add_parser("extract", help="LLM-extract proposed entities/relations.")
     p_extract.add_argument("--engine", default=paths.DEFAULT_ENGINE,

@@ -764,7 +764,16 @@ class KGStore:
         store = cls(conn, db_path, read_only=False)
         try:
             store._seed_default_schema()
+            from ontologylab.file_lifecycle import reconcile_files
+            from ontologylab.provenance_outbox import project_outbox
+
+            reconcile_files(store.conn, db_path.parent)
+            project_outbox(store.conn, db_path.parent)
+            if store.conn.in_transaction:
+                store.conn.commit()
         except BaseException:
+            if store.conn.in_transaction:
+                store.conn.rollback()
             store.close()
             raise
         return store
@@ -2175,8 +2184,40 @@ class KGStore:
         return [self._row_to_document(r) for r in cur.fetchall()]
 
     def document_raw_text(self, doc_id: str) -> str:
-        doc = self.get_document(doc_id)
-        return (self.db_path.parent / doc.raw_text_path).read_text(encoding="utf-8")
+        from ontologylab.file_lifecycle import (
+            READY,
+            FileLifecycleError,
+            read_ready_text,
+        )
+
+        row = self.conn.execute(
+            "SELECT raw_text_path, representation_state, work_id "
+            "FROM documents WHERE id = ?",
+            (doc_id,),
+        ).fetchone()
+        if row is None:
+            raise UnknownItem(f"unknown document id {doc_id!r}")
+        try:
+            if row["work_id"] is not None:
+                return read_ready_text(self.conn, self.db_path.parent, doc_id)
+            if row["representation_state"] != READY:
+                raise KGStoreError(
+                    f"representation {doc_id} is "
+                    f"{row['representation_state']}"
+                )
+            raw = Path(str(row["raw_text_path"]))
+            candidate = raw if raw.is_absolute() else self.db_path.parent / raw
+            resolved = candidate.resolve()
+            root = self.db_path.parent.resolve()
+            if (
+                not resolved.is_relative_to(root)
+                or resolved.name in {"sources.json", "providers.json", ".env"}
+            ):
+                raise KGStoreError("legacy raw_text_path escapes safe storage")
+            data = resolved.read_bytes()
+            return data.decode("utf-8")
+        except (FileLifecycleError, OSError, UnicodeDecodeError) as exc:
+            raise KGStoreError(str(exc)) from exc
 
     # ------------------------------------------------------------------
     # Store-boundary ontology validation

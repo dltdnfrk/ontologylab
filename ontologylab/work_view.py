@@ -10,10 +10,10 @@ serializer.
 
 from __future__ import annotations
 
-import os
 import sqlite3
 from pathlib import Path
 
+from ontologylab.file_lifecycle import ready_byte_length
 from ontologylab.preferred import preferred_representation
 
 
@@ -79,33 +79,50 @@ def work_snapshot(conn: sqlite3.Connection, work_id: str) -> dict:
         )
     }
 
+    document_columns = {
+        row[1] for row in conn.execute("PRAGMA table_info(documents)")
+    }
+    select = ["id", "content_hash", "raw_text_path"]
+    has_state = "representation_state" in document_columns
+    if has_state:
+        select.append("representation_state")
+
     representations: list[dict] = []
+    representation_states: list[str] = []
     db_root = Path(
         conn.execute("PRAGMA database_list").fetchone()[2]
     ).parent
     for row in conn.execute(
-        "SELECT id, content_hash, raw_text_path FROM documents "
+        f"SELECT {', '.join(select)} FROM documents "
         "WHERE work_id = ? ORDER BY id",
         (work_id,),
     ):
-        doc_id, content_hash, raw_text_path = row[0], row[1], row[2]
-        raw_path = db_root / raw_text_path
-        byte_length = os.path.getsize(raw_path) if raw_path.is_file() else 0
-        meta = observations_by_rep.get(doc_id)
-        representations.append(
-            {
-                "doc_id": doc_id,
-                "content_hash": content_hash,
-                "byte_length": byte_length,
-                "stage": meta[1] if meta else "unknown",
-                "kind": meta[2] if meta else "metadata_only",
-                "source": meta[3] if meta else "",
-                "evidence_grade": meta[4] if meta else "",
-            }
+        mapped = dict(zip(select, row))
+        doc_id = mapped["id"]
+        state = str(mapped["representation_state"]) if has_state else "ready"
+        byte_length = ready_byte_length(
+            db_root, str(mapped["raw_text_path"]), state
         )
+        meta = observations_by_rep.get(doc_id)
+        representation = {
+            "doc_id": doc_id,
+            "content_hash": mapped["content_hash"],
+            "byte_length": byte_length,
+            "stage": meta[1] if meta else "unknown",
+            "kind": meta[2] if meta else "metadata_only",
+            "source": meta[3] if meta else "",
+            "evidence_grade": meta[4] if meta else "",
+        }
+        representations.append(representation)
+        representation_states.append(state)
 
     preferred_id = None
-    if representations:
+    ready = [
+        rep
+        for rep, rep_state in zip(representations, representation_states)
+        if rep_state == "ready"
+    ]
+    if ready:
         preferred = preferred_representation(
             [
                 {
@@ -117,7 +134,7 @@ def work_snapshot(conn: sqlite3.Connection, work_id: str) -> dict:
                     "byte_length": rep["byte_length"],
                     "content_hash": rep["content_hash"],
                 }
-                for rep in representations
+                for rep in ready
             ]
         )
         preferred_id = preferred["doc_id"]

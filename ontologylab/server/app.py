@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from ontologylab.paths import ROOT, default_data_dir, default_packs_dir
+from ontologylab.server.ingest_routes import router as ingest_router
 from ontologylab.server.jobs import JobRegistry
 from ontologylab.server.routes import router
 from ontologylab.server.security import (
@@ -60,6 +61,7 @@ def create_app(
     app.state.jobs = JobRegistry(resolved)
 
     app.include_router(router)
+    app.include_router(ingest_router)
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(

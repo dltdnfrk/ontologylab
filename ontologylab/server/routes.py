@@ -55,7 +55,8 @@ from ontologylab.connectors.resources import (
     RESOURCE_ORDER,
 )
 from ontologylab.connectors.web_crawl import WebCrawlConnector
-from ontologylab.ingestion import ingest_documents
+from ontologylab.ingestion import ingest_documents, ingest_sample
+from ontologylab.ingestion_shadow import ShadowBatchBoundError
 from ontologylab.kgstore import (
     EndpointNotVerified,
     InvalidTransition,
@@ -1950,6 +1951,16 @@ def collect(deps: AppDependency, body: CollectRequest) -> dict[str, Any]:
     store = _open_store(deps)
     try:
         result = ingest_documents(store, raw_docs, provenance)
+    except ShadowBatchBoundError:
+        provenance.log("collect.rejected", {"error": "batch_limit"})
+        return {
+            "ok": False,
+            "error_kind": "rejected",
+            "detail": "batch exceeds 100 documents",
+        }
+    except Exception:
+        provenance.log("collect.failed", {"error": "internal_error"})
+        return {"ok": False, "error_kind": "failed", "detail": "internal_error"}
     finally:
         store.close()
     return {
@@ -1989,21 +2000,9 @@ def collect_sample(deps: AppDependency) -> dict[str, Any]:
     )
     store = _open_store(deps)
     try:
-        doc, created = store.insert_document(
-            source_kind=raw.source_kind,
-            source_uri=raw.source_uri,
-            title=raw.title,
-            raw_text=raw.raw_text,
-            content_hash=raw.content_hash,
-        )
+        return ingest_sample(store, title=raw.title or SAMPLE_DOC_TITLE, text=raw.raw_text)
     finally:
         store.close()
-    return {
-        "ok": True,
-        "created": created,
-        "document_id": doc.id,
-        "title": doc.title,
-    }
 
 
 # ---------------------------------------------------------------------------

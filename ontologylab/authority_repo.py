@@ -13,6 +13,7 @@ from __future__ import annotations
 import sqlite3
 import uuid
 from dataclasses import dataclass
+from typing import Callable
 
 
 class AuthorityError(Exception):
@@ -134,6 +135,7 @@ def attach_identifier(
     stage: str = "unknown",
     content_kind: str = "metadata_only",
     begin_before_check: bool = True,
+    failpoint: Callable[[str], None] | None = None,
 ) -> AttachResult:
     """Reserve an identifier, then record the Observation and assertion.
 
@@ -192,6 +194,8 @@ def attach_identifier(
         if existing_same is not None:
             identifier_id = existing_same[0]
         else:
+            if failpoint is not None:
+                failpoint("before_identifier_insert")
             identifier_id = _new_id("wi")
             try:
                 conn.execute(
@@ -201,11 +205,21 @@ def attach_identifier(
                     (identifier_id, work_id, scheme, normalized_value),
                 )
             except sqlite3.IntegrityError as exc:
-                raise map_identifier_integrity_error(
-                    conn, exc, work_id=work_id, scheme=scheme,
-                    normalized_value=normalized_value,
-                ) from exc
+                raced = conn.execute(
+                    "SELECT id FROM work_identifiers WHERE work_id = ? "
+                    "AND scheme = ? AND normalized_value = ? "
+                    "AND status = 'accepted'",
+                    (work_id, scheme, normalized_value),
+                ).fetchone()
+                if raced is None:
+                    raise map_identifier_integrity_error(
+                        conn, exc, work_id=work_id, scheme=scheme,
+                        normalized_value=normalized_value,
+                    ) from exc
+                identifier_id = raced[0]
 
+        if failpoint is not None:
+            failpoint("after_identifier_reservation")
         observation_id = _insert_observation(
             conn,
             idempotency_key=idempotency_key,
@@ -232,6 +246,27 @@ def attach_identifier(
         conn.execute("ROLLBACK TO SAVEPOINT attach_identifier")
         conn.execute("RELEASE SAVEPOINT attach_identifier")
         raise
+
+
+def insert_observation(
+    conn: sqlite3.Connection,
+    *,
+    idempotency_key: str,
+    source: str = "",
+    evidence_grade: str = "",
+    representation_id: str | None = None,
+    stage: str = "unknown",
+    content_kind: str = "metadata_only",
+) -> str:
+    return _insert_observation(
+        conn,
+        idempotency_key=idempotency_key,
+        source=source,
+        evidence_grade=evidence_grade,
+        representation_id=representation_id,
+        stage=stage,
+        content_kind=content_kind,
+    )
 
 
 def _insert_observation(

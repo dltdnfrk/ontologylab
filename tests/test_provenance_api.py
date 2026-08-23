@@ -234,3 +234,27 @@ def test_a_bad_kind_is_a_400_not_a_500(tmp_path) -> None:
     client = _client(tmp_path)
 
     assert client.get("/api/provenance/documents/x").status_code == 400
+
+
+def test_legacy_provenance_reads_when_hash_metadata_is_synthetic(
+    tmp_path,
+) -> None:
+    """Contained legacy rows may carry placeholder sha256-shaped hashes."""
+    store, doc = _seed(tmp_path)
+    try:
+        row = store.conn.execute(
+            "SELECT work_id, content_hash, raw_text_path, "
+            "representation_state FROM documents WHERE id = ?",
+            (doc.id,),
+        ).fetchone()
+        assert row["work_id"] is None
+        assert row["content_hash"] == "sha256:" + "d" * 64
+        rel_path = str(row["raw_text_path"])
+        assert not rel_path.startswith("/")
+        assert ".." not in rel_path.split("/")
+        assert store.document_raw_text(doc.id) == TEXT
+        record = store.provenance("node", _a_node(store))
+        assert record["extraction"]["engine"] == "claude"
+        assert "PaymentGateway" in record["excerpt"]
+    finally:
+        store.close()
