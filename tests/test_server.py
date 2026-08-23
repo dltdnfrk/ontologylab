@@ -270,9 +270,28 @@ def test_jobs_stream_pushes_on_registry_change(tmp_path: Path, monkeypatch) -> N
     monkeypatch.setattr(routes, "JOBS_STREAM_WAIT_S", 0.2)
     client = _client(tmp_path)
     registry = client.app.state.jobs
-    # 요청이 두 번째 이벤트를 기다리며 파킹된 동안 레지스트리를 건드린다.
-    threading.Timer(0.15, registry.touch).start()
+    original_wait_version = registry.wait_version
+    second_wait_entered = threading.Event()
+    touch_errors: list[str] = []
+
+    def observed_wait_version(last_seen: int, timeout: float) -> int:
+        if last_seen >= 0:
+            second_wait_entered.set()
+        return original_wait_version(last_seen, timeout)
+
+    def touch_after_subscription() -> None:
+        if not second_wait_entered.wait(2.0):
+            touch_errors.append("jobs stream never entered its second wait")
+            return
+        registry.touch()
+
+    monkeypatch.setattr(registry, "wait_version", observed_wait_version)
+    touch_thread = threading.Thread(target=touch_after_subscription, daemon=True)
+    touch_thread.start()
     resp = client.get("/api/jobs/stream", params={"max_events": 2})
+    touch_thread.join(timeout=1.0)
+    assert not touch_thread.is_alive()
+    assert touch_errors == []
     events = _parse_jobs_events(resp.text)
     assert len(events) == 2  # 초기 스냅샷 + touch로 밀린 스냅샷
 
