@@ -16,6 +16,7 @@ from ontologylab.engines import MockEngine
 from ontologylab.extraction_state import effective_extractor_model
 from ontologylab.extractor import extraction_decode_params, run_extraction
 from ontologylab.ingestion import ingest_documents
+from ontologylab.ingestion_shadow import MAX_SHADOW_BATCH
 from ontologylab.kgstore import KGStore
 from ontologylab.packbuilder import build_pack
 from ontologylab.provenance import Provenance
@@ -142,8 +143,18 @@ def measure_existing_operations(
             str(data_dir / "jobs" / "perf"),
             seed=20260820,
         )
-        ingest_documents(store, docs, provenance)
-        ingest_documents(store, docs, provenance)
+        for offset in range(0, len(docs), MAX_SHADOW_BATCH):
+            ingest_documents(
+                store,
+                docs[offset : offset + MAX_SHADOW_BATCH],
+                provenance,
+            )
+        for offset in range(0, len(docs), MAX_SHADOW_BATCH):
+            ingest_documents(
+                store,
+                docs[offset : offset + MAX_SHADOW_BATCH],
+                provenance,
+            )
         store.close()
 
     pack_data_dir = root / "pack-source"

@@ -233,6 +233,18 @@ def test_existing_operation_baseline_receipts(tmp_path: Path) -> None:
             assert "doi" in columns
 
 
+def test_existing_operation_benchmark_respects_shadow_batch_bound(
+    tmp_path: Path,
+) -> None:
+    receipts = measure_existing_operations(tmp_path / "perf", document_count=101)
+    assert {receipt.operation for receipt in receipts} == {
+        "fixture_create_open_noop",
+        "legacy_noop_migration_open",
+        "current_ingest_create_and_duplicate",
+        "current_pack_build",
+    }
+
+
 def test_target_migration_contract_requires_measured_receipt() -> None:
     receipt = validate_target_migration_receipt(
         load_target_migration_receipt(TARGET_MIGRATION_RECEIPT_PATH)

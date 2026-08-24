@@ -1,0 +1,58 @@
+{
+  "schema": "ontologylab.wave21.step10-release-receipt.v1",
+  "recipe_anchor": {
+    "recipe_id": "wave21-perf-v1",
+    "manifest_sha256": "019a986f878bcba5b2ba8c67a1451d8fc19af021988e28bdd9f7e2287f82f0b1"
+  },
+  "measured_release": {
+    "head": "5974b7820f69c67b4e5f9ad9fc1d201d5eadb6b1",
+    "tree": "f3e03643d8c274050ee8301f98895a4b914e36ad"
+  },
+  "performance": {
+    "p95_regression_limit_percent": 20.0,
+    "payload_increase_approval_threshold_percent": 10.0,
+    "target_v2_migration": {
+      "historical_p95_ms": 3914.5126659423113,
+      "current_p95_ms": 3749.766167020425,
+      "current_receipt_sha256": "9d52aa8d409aa5f1ed561d7f1f336be1678967aaee3d2c2103b9bbf0b8ec2737",
+      "historical_disk_bytes": 16119888,
+      "current_disk_bytes": 16164944,
+      "approval_required": false,
+      "verdict": "pass"
+    },
+    "current_ingest_create_and_duplicate": {
+      "historical_p95_ms": 8496.42020801548,
+      "ceiling_ms": 10195.704249618575,
+      "sample_active_lower_bound_ms": 1720000,
+      "status": "refused",
+      "reason": "performance_threshold_exceeded"
+    }
+  },
+  "determinism": {
+    "same_snapshot_policy_root_a": "sha256:a93bd3a8f000317cd7ca9fa7d7bffa8e04d5027c8509cccdb930dca9512ba1d2",
+    "same_snapshot_policy_root_b": "sha256:a93bd3a8f000317cd7ca9fa7d7bffa8e04d5027c8509cccdb930dca9512ba1d2",
+    "changed_policy_root": "sha256:3e65bc1bc3f2e659972e734952fb0b9244fdb5b862f8ddc8e8c9f2c14fc0634c",
+    "changed_representation_root": "sha256:ef6325ebb9048456a8bd0c6ad5ce750c1ba18aaab3f1676e7bebfaa2e86e0013"
+  },
+  "capabilities": {
+    "unreviewed": [
+      "knowledge-graph-v2",
+      "evidence-self-contained-v2"
+    ],
+    "reviewed_c036": [
+      "knowledge-graph-v2",
+      "evidence-self-contained-v2",
+      "reviewed",
+      "sourced-answer-v2"
+    ],
+    "missing_c036": "refused"
+  },
+  "release": {
+    "go": false,
+    "reasons": [
+      "current_ingest_performance_threshold_exceeded"
+    ],
+    "production_authorized": false,
+    "stop_token": "STOP_BEFORE_STEP_9C"
+  }
+}
