@@ -165,13 +165,27 @@ def main(argv: list[str] | None = None) -> int:
         "c036_receipt_id": granted.c036_receipt_id,
     }
     if args.publish is not None:
-        from ontologylab.packbuilder import build_pack
+        from ontologylab.packbuilder import (
+            IncompleteExtractionError,
+            PackBuildError,
+            build_pack,
+        )
+        from ontologylab.pack_v2_closure import PackV2ClosureRefused
         try:
             manifest = build_pack(
                 args.kg, args.publish, args.name, evidence_mode=args.evidence_mode,
             )
         except PackReadinessRefused as refused:
             _emit({"ok": False, "code": refused.code.value, "member": refused.member})
+            return 2
+        except PackV2ClosureRefused as refused:
+            _emit({"ok": False, "code": refused.code.value, "member": refused.member})
+            return 2
+        except IncompleteExtractionError as refused:
+            _emit({"ok": False, "code": refused.code, "member": "stream"})
+            return 2
+        except PackBuildError as refused:
+            _emit({"ok": False, "code": "pack_build_refused", "member": type(refused).__name__})
             return 2
         payload["pack_id"] = manifest.pack_id
     _emit(payload)

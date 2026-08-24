@@ -50,6 +50,7 @@ class ReceiptSealRefused(Exception):
 class SealedInventory:
     members: Mapping[str, tuple[str, ...]]
     root: str
+    entries: tuple[tuple[str, str, str], ...]
 
 
 def seal_receipt_inventory(conn: sqlite3.Connection) -> SealedInventory:
@@ -73,7 +74,8 @@ def seal_receipt_inventory(conn: sqlite3.Connection) -> SealedInventory:
     root = hashlib.sha256(
         json.dumps(payload, separators=(",", ":")).encode("utf-8"),
     ).hexdigest()
-    return SealedInventory(members=members, root=root)
+    entries = tuple((str(row[0]), str(row[1]), str(row[2])) for row in payload)
+    return SealedInventory(members=members, root=root, entries=entries)
 
 
 def _expected_id(family: ReceiptFamily, row: sqlite3.Row) -> str:

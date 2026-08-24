@@ -14,23 +14,12 @@ JsonValue: TypeAlias = (
     str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 )
 
+from ontologylab.pack_v2_derive import derive_capabilities, derive_v2_counts
 from ontologylab.pack_verifier import ClaimedEntry
 
 _MANIFEST: Final = "manifest.json"
 _INTEGRITY: Final = "sha256-receipt-not-signature"
 _READONLY: Final = 0o444
-_COUNT_TABLES: Final = {
-    "works": "works",
-    "representations": "documents",
-    "observations": "observations",
-    "identifiers": "work_identifiers",
-    "citations": "citations",
-    "review_decisions": "review_decisions",
-    "extraction_runs": "extraction_runs",
-    "extraction_chunks": "extraction_chunks",
-    "nodes": "nodes",
-    "edges": "edges",
-}
 
 
 def finalize_v2_manifest(pack_dir: Path, fields: dict[str, JsonValue]) -> None:
@@ -46,7 +35,20 @@ def finalize_v2_manifest(pack_dir: Path, fields: dict[str, JsonValue]) -> None:
     payload["sqlite_hash"] = sqlite_hash
     payload["pack_content_hash"] = pack_hash
     payload["integrity_model"] = _INTEGRITY
-    payload["counts"] = dict(_rederive_counts(root / "pack.sqlite"))
+    connection = sqlite3.connect(f"file:{root / 'pack.sqlite'}?mode=ro", uri=True)
+    try:
+        payload["counts"] = dict(derive_v2_counts(connection))
+        has_evidence = any(
+            isinstance(item, dict) and str(item.get("path", "")).startswith("evidence/")
+            for item in inventory
+        )
+        payload["capabilities"] = list(
+            derive_capabilities(
+                connection, has_evidence=has_evidence, pack_root=root,
+            ),
+        )
+    finally:
+        connection.close()
     dest = root / _MANIFEST
     dest.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     dest.chmod(_READONLY)
@@ -110,27 +112,6 @@ def _chmod_payloads(root: Path) -> None:
             child = Path(dirpath) / name
             if child.relative_to(root).as_posix() != _MANIFEST:
                 child.chmod(_READONLY)
-
-
-def _rederive_counts(database: Path) -> dict[str, int]:
-    connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
-    try:
-        present = {
-            str(row[0])
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'table'",
-            )
-        }
-        derived: dict[str, int] = {}
-        for key, table in _COUNT_TABLES.items():
-            if table in present:
-                row = connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
-                derived[key] = 0 if row is None else int(row[0])
-            else:
-                derived[key] = 0
-        return derived
-    finally:
-        connection.close()
 
 
 def _canonical(entries: tuple[ClaimedEntry, ...]) -> str:

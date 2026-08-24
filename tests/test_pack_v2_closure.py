@@ -449,8 +449,10 @@ def test_full_pack_resolves_every_closure_member_from_pack_bytes(
             "edges",
         ):
             assert payload["counts"][key] >= 1
-        assert "observations" in payload["counts"]
-        assert "review_decisions" in payload["counts"]
+        assert payload["counts"]["observations"] >= 1
+        assert payload["counts"]["review_decisions"] >= 1
+        assert payload["counts"]["nodes_verified"] >= 1
+        assert payload["counts"]["edges_verified"] >= 1
         assert payload["integrity_model"] == "sha256-receipt-not-signature"
         assert payload["sqlite_hash"].startswith("sha256:")
         assert payload["pack_content_hash"].startswith("sha256:")

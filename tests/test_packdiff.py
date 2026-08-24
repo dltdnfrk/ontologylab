@@ -109,18 +109,7 @@ def _v2_wrap(pack_dir: Path) -> None:
 
     from ontologylab.pack_verifier import verify_pack
 
-    count_tables = {
-        "works": "works",
-        "representations": "documents",
-        "observations": "observations",
-        "identifiers": "work_identifiers",
-        "citations": "citations",
-        "review_decisions": "review_decisions",
-        "extraction_runs": "extraction_runs",
-        "extraction_chunks": "extraction_chunks",
-        "nodes": "nodes",
-        "edges": "edges",
-    }
+    from ontologylab.pack_v2_derive import derive_capabilities, derive_v2_counts
     files: dict[str, bytes] = {}
     for dirpath, _dirnames, filenames in os.walk(pack_dir, followlinks=False):
         base = Path(dirpath)
@@ -143,27 +132,15 @@ def _v2_wrap(pack_dir: Path) -> None:
     ]
     connection = sqlite.connect(f"file:{pack_dir / 'pack.sqlite'}?mode=ro", uri=True)
     try:
-        present = {
-            str(row[0])
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
-        }
-        counts = {
-            key: (
-                int(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
-                if table in present
-                else 0
-            )
-            for key, table in count_tables.items()
-        }
+        counts = dict(derive_v2_counts(connection))
+        capabilities = list(derive_capabilities(connection, has_evidence=False))
     finally:
         connection.close()
     original = json.loads((pack_dir / "manifest.json").read_text(encoding="utf-8"))
     manifest = {
         "pack_id": pack_dir.name,
         "pack_schema_version": 2,
-        "capabilities": ["knowledge-graph-v2"],
+        "capabilities": capabilities,
         "integrity_model": "sha256-receipt-not-signature",
         "content_hash": original["content_hash"],
         "sqlite_hash": "sha256:" + hashlib.sha256(files["pack.sqlite"]).hexdigest(),

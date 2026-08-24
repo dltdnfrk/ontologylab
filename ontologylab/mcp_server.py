@@ -40,6 +40,7 @@ from ontologylab.packbuilder import (
 )
 from ontologylab.paths import default_packs_dir
 from ontologylab.semantic_staleness import baseline_compatible, semantic_deltas
+from ontologylab.pack_v2_derive import fact_receipts, resolve_pack_evidence
 from ontologylab.verified_pack_reader import (
     PackIntegrityError,
     VerifiedPackSnapshot,
@@ -157,11 +158,18 @@ def compact_node(item: dict[str, Any]) -> dict[str, Any]:
         out["source_document_ids"] = item["source_document_ids"]
     elif "source_doc_id" in item:
         out["source_doc_id"] = item["source_doc_id"]
+    for key in (
+        "work_id", "representation_id", "representation_content_hash",
+        "citation_id", "selected_text_hash", "start_offset", "end_offset",
+        "policy_identity",
+    ):
+        if key in item:
+            out[key] = item[key]
     return out
 
 
 def compact_edge(edge: dict[str, Any]) -> dict[str, Any]:
-    return {
+    out = {
         "id": edge["id"],
         "relation_type": edge["relation_type"],
         "source_id": edge["source_id"],
@@ -169,6 +177,22 @@ def compact_edge(edge: dict[str, Any]) -> dict[str, Any]:
         "status": edge["status"],
         "source_doc_id": edge.get("source_doc_id"),
     }
+    for key in (
+        "work_id", "representation_id", "representation_content_hash",
+        "citation_id", "selected_text_hash", "start_offset", "end_offset",
+        "policy_identity",
+    ):
+        if key in edge:
+            out[key] = edge[key]
+    return out
+
+
+def _with_fact_receipts(
+    conn: Any, item: dict[str, Any], fact_kind: str,
+) -> dict[str, Any]:
+    enriched = dict(item)
+    enriched.update(fact_receipts(conn, fact_kind, str(item["id"])))
+    return enriched
 
 
 def _entity_detail(store: KGStore, entity_id: str, *, include_proposed: bool) -> dict[str, Any]:
@@ -180,7 +204,7 @@ def _entity_detail(store: KGStore, entity_id: str, *, include_proposed: bool) ->
     )
     if not matches:
         raise KGStoreError(f"no visible entity with id {entity_id!r}")
-    entity = matches[0]
+    entity = _with_fact_receipts(store.conn, matches[0], "node")
     entity["citations"] = store.citations("node", entity_id)
     neighborhood = store.traverse_relations(
         [entity_id], max_hops=1, include_proposed=include_proposed
@@ -362,7 +386,15 @@ class PackSession:
     def _provenance(self) -> dict[str, Any]:
         """Pack identity attached to every query response, so a caller can
         always say WHICH immutable pack produced an answer."""
-        return {"pack_id": self.pack_id, "content_hash": self.pack_hash}
+        payload: dict[str, Any] = {
+            "pack_id": self.pack_id, "content_hash": self.pack_hash,
+        }
+        if self._snapshot is not None:
+            manifest = self._snapshot.manifest
+            payload["pack_schema_version"] = manifest.get("pack_schema_version", 1)
+            payload["integrity_level"] = self._snapshot.integrity_level
+            payload["evidence_mode"] = manifest.get("evidence_mode")
+        return payload
 
     def _method_reader(self) -> MethodPackReader:
         store = self._require_store()
@@ -525,7 +557,8 @@ class PackSession:
         limit: int = 5,
         detail: bool = False,
     ) -> dict[str, Any]:
-        matches = self._require_store().entity_lookup(
+        store = self._require_store()
+        matches = store.entity_lookup(
             id=id,
             name=name,
             entity_type=entity_type,
@@ -533,6 +566,7 @@ class PackSession:
             include_proposed=include_proposed,
             limit=limit,
         )
+        matches = [_with_fact_receipts(store.conn, m, "node") for m in matches]
         if not detail:
             matches = [compact_node(m) for m in matches]
         return {
@@ -546,8 +580,11 @@ class PackSession:
         self, id: str, *, include_proposed: bool = False
     ) -> dict[str, Any]:
         """Tier-2 follow-up: the full record behind one compact row."""
-        entity = _entity_detail(
-            self._require_store(), id, include_proposed=include_proposed
+        store = self._require_store()
+        entity = _with_fact_receipts(
+            store.conn,
+            _entity_detail(store, id, include_proposed=include_proposed),
+            "node",
         )
         return {"entity": entity, "pack": self._provenance()}
 
@@ -738,6 +775,8 @@ class PackSession:
             min_score=min_score,
             include_proposed=include_proposed,
         )
+        store = self._require_store()
+        results = [_with_fact_receipts(store.conn, r, "node") for r in results]
         if not detail:
             results = [compact_node(r) for r in results]
         return {
@@ -836,7 +875,8 @@ class PackSession:
         offset: int = 0,
         detail: bool = False,
     ) -> dict[str, Any]:
-        result = self._require_store().graph_query(
+        store = self._require_store()
+        result = store.graph_query(
             entity_type=entity_type,
             relation_type=relation_type,
             property_filters=property_filters,
@@ -844,6 +884,8 @@ class PackSession:
             limit=limit,
             offset=offset,
         )
+        result["nodes"] = [_with_fact_receipts(store.conn, n, "node") for n in result["nodes"]]
+        result["edges"] = [_with_fact_receipts(store.conn, e, "edge") for e in result["edges"]]
         if not detail:
             result["nodes"] = [compact_node(n) for n in result["nodes"]]
             result["edges"] = [compact_edge(e) for e in result["edges"]]
@@ -861,7 +903,8 @@ class PackSession:
         limit: int = 200,
         detail: bool = False,
     ) -> dict[str, Any]:
-        result = self._require_store().traverse_relations(
+        store = self._require_store()
+        result = store.traverse_relations(
             start_ids,
             relation_types=relation_types,
             direction=direction,
@@ -869,6 +912,8 @@ class PackSession:
             include_proposed=include_proposed,
             limit=limit,
         )
+        result["nodes"] = [_with_fact_receipts(store.conn, n, "node") for n in result["nodes"]]
+        result["edges"] = [_with_fact_receipts(store.conn, e, "edge") for e in result["edges"]]
         if not detail:
             result["nodes"] = [compact_node(n) for n in result["nodes"]]
             result["edges"] = [compact_edge(e) for e in result["edges"]]
@@ -894,6 +939,27 @@ class PackSession:
         result["pack"] = self._provenance()
         return result
 
+    def document_raw_text(self, representation_id: str) -> dict[str, Any]:
+        """Return FULL evidence bytes from the process-owned pack snapshot."""
+        if self._snapshot is None:
+            raise NoActivePack(
+                "no pack loaded; call load_pack first (or start with --pack)"
+            )
+        evidence = resolve_pack_evidence(
+            self._snapshot.sqlite_path.parent,
+            self._require_store().conn,
+            representation_id,
+        )
+        return {
+            "representation_id": evidence.representation_id,
+            "evidence_mode": evidence.evidence_mode,
+            "available": evidence.available,
+            "text": evidence.text,
+            "limitation": evidence.limitation,
+            "path": evidence.path,
+            "pack": self._provenance(),
+        }
+
 
 # ---------------------------------------------------------------------------
 # Structured tool result envelopes. FastMCP derives each tool's outputSchema
@@ -903,11 +969,14 @@ class PackSession:
 # ---------------------------------------------------------------------------
 
 
-class PackProvenance(TypedDict):
-    """Which immutable pack produced a response (id + content hash)."""
+class PackProvenance(TypedDict, total=False):
+    """Which immutable pack produced a response."""
 
     pack_id: str | None
     content_hash: str | None
+    pack_schema_version: int
+    integrity_level: str
+    evidence_mode: str | None
 
 
 class PackListResult(TypedDict):

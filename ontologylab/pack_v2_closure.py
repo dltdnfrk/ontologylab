@@ -105,6 +105,9 @@ class PackV2Closure:
     excerpts: Mapping[str, str]
     representation_hashes: Mapping[str, str]
     excerpt_hashes: Mapping[str, str]
+    exclusions: Mapping[str, int]
+    source_inventory: tuple[tuple[str, str, str], ...]
+    source_fingerprint_entries: tuple[tuple[str, str], ...]
 
 
 class PackV2ManifestFields(TypedDict):
@@ -115,6 +118,7 @@ class PackV2ManifestFields(TypedDict):
     selection_policy_version: str
     source_material_policy: dict[str, int]
     closure: dict[str, list[str]]
+    exclusions: dict[str, int]
 
 
 def parse_evidence_mode(value: str) -> EvidenceMode:
@@ -139,9 +143,10 @@ def collect_v2_closure(
 ) -> PackV2Closure:
     from ontologylab.pack_readiness import authorize_publication
     from ontologylab.pack_receipt_seal import seal_receipt_inventory
+    from ontologylab.pack_source_fingerprint import capture_source_fingerprint_entries
 
     readiness = authorize_publication(conn)
-    seal_receipt_inventory(conn)
+    sealed = seal_receipt_inventory(conn)
     generation = readiness.generation
     _refuse_cross_generation(conn, generation)
     representations = _require_ids(conn, _SHIPPED_DOCS, "representation")
@@ -260,6 +265,9 @@ def collect_v2_closure(
         excerpts=excerpts,
         representation_hashes=rep_hashes,
         excerpt_hashes=excerpt_hashes,
+        exclusions=_exclusions(conn),
+        source_inventory=sealed.entries,
+        source_fingerprint_entries=capture_source_fingerprint_entries(conn),
     )
 
 
@@ -279,6 +287,12 @@ def install_v2_pack_schema(conn: sqlite3.Connection) -> None:
     columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(documents)")}
     if "work_id" not in columns:
         conn.execute("ALTER TABLE documents ADD COLUMN work_id TEXT")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS c036_capability_receipts ("
+        "receipt_id TEXT PRIMARY KEY, generation INTEGER NOT NULL, "
+        "source_fingerprint TEXT NOT NULL, receipt_inventory_root TEXT NOT NULL, "
+        "scope TEXT NOT NULL, decision TEXT NOT NULL)"
+    )
 
 
 def copy_v2_tables(pack_conn: sqlite3.Connection, closure: PackV2Closure) -> None:
@@ -313,11 +327,33 @@ def copy_v2_tables(pack_conn: sqlite3.Connection, closure: PackV2Closure) -> Non
         if closure.evidence_mode is EvidenceMode.FULL
         else "''"
     )
+    _copy_c036(pack_conn)
     pack_conn.execute(
         "UPDATE main.documents SET work_id = ("
         "SELECT work_id FROM live.documents AS src WHERE src.id = main.documents.id), "
         f"raw_text_path = {path_sql}"
     )
+
+
+def _copy_c036(pack_conn: sqlite3.Connection) -> None:
+    present = {
+        str(row[0])
+        for row in pack_conn.execute(
+            "SELECT name FROM live.sqlite_master WHERE type = 'table'",
+        )
+    }
+    if "c036_capability_receipts" not in present:
+        return
+    pack_conn.execute(
+        "INSERT INTO main.c036_capability_receipts SELECT * "
+        "FROM live.c036_capability_receipts"
+    )
+
+
+def _exclusions(conn: sqlite3.Connection) -> dict[str, int]:
+    from ontologylab.pack_v2_derive import derive_exclusions
+
+    return derive_exclusions(conn)
 
 
 def write_v2_evidence(
@@ -341,6 +377,11 @@ def write_v2_evidence(
                     raise PackV2ClosureRefused(PackV2ClosureCode.EVIDENCE_HASH_MISMATCH, "source")
         case unreachable:
             assert_never(unreachable)
+    from ontologylab.pack_source_fingerprint import write_source_fingerprint
+    from ontologylab.pack_v2_derive import write_source_receipt_inventory
+
+    write_source_receipt_inventory(pack_dir, closure.source_inventory)
+    write_source_fingerprint(pack_dir, closure.source_fingerprint_entries)
 
 
 def v2_manifest_fields(closure: PackV2Closure) -> PackV2ManifestFields:
@@ -352,6 +393,7 @@ def v2_manifest_fields(closure: PackV2Closure) -> PackV2ManifestFields:
         "selection_policy_version": closure.selection_policy_version,
         "source_material_policy": dict(closure.source_material_policy),
         "closure": {name: list(ids) for name, ids in closure.members.items()},
+        "exclusions": dict(closure.exclusions),
     }
 
 
@@ -405,6 +447,9 @@ def resolve_v2_closure(pack_dir: Path) -> PackV2Closure:
         source_material_policy=payload["source_material_policy"],
         selection_policy_version=str(payload["selection_policy_version"]),
         excerpts=excerpts, representation_hashes={}, excerpt_hashes={},
+        exclusions=payload.get("exclusions") or {},
+        source_inventory=(),
+        source_fingerprint_entries=(),
     )
 
 

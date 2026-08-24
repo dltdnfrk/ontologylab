@@ -16,6 +16,8 @@ from typing import Final
 import pytest
 
 from ontologylab.pack_verifier import (
+    JsonValue,
+    ManifestV1,
     PackSchemaVersion,
     PackVerifyCode,
     PackVerifyRefused,
@@ -35,6 +37,8 @@ _COUNT_KEYS: Final = (
     "extraction_chunks",
     "nodes",
     "edges",
+    "nodes_verified",
+    "edges_verified",
 )
 _TABLES: Final = (
     ("works", "works"),
@@ -166,6 +170,12 @@ def _write_v2(
         "pack_content_hash": pack_content_hash
         or _digest(_canonical_inventory(claimed).encode()),
         "counts": counts or derived_counts,
+        "exclusions": {
+            "ungrounded": 0,
+            "waived": 0,
+            "invalid_legacy_evidence": 0,
+            "identity_conflicts": 0,
+        },
     }
     manifest_path = pack_dir / "manifest.json"
     manifest_path.write_text(
@@ -229,6 +239,203 @@ def test_legacy_v1_tampered_payload_tree_hash_is_refused(tmp_path: Path) -> None
     pack_dir = _write_v1(tmp_path, "legacy-schema", tree_hash=True)
     (pack_dir / "schema.json").write_text('{"injected":true}', encoding="utf-8")
     assert _refuse_code(pack_dir) is PackVerifyCode.TAMPERED_ARTIFACT
+
+
+_V1_SHA: Final = "sha256:" + ("ab" * 32)
+_V2_ONLY_FIELDS: Final = (
+    "artifact_inventory",
+    "pack_content_hash",
+    "sqlite_hash",
+    "integrity_model",
+    "evidence_mode",
+    "closure",
+    "receipt_inventory",
+    "receipt_inventory_root",
+    "source_fingerprint",
+    "source_fingerprint_entries",
+)
+
+
+def _v1_manifest(**fields: JsonValue) -> dict[str, JsonValue]:
+    payload: dict[str, JsonValue] = {
+        "pack_id": "legacy-parse",
+        "content_hash": _V1_SHA,
+    }
+    payload.update(fields)
+    return payload
+
+
+def _parse_v1_ok(**fields: JsonValue) -> ManifestV1:
+    parsed = parse_manifest(_v1_manifest(**fields))
+    assert isinstance(parsed, ManifestV1)
+    return parsed
+
+
+def _parse_v1_path(**fields: JsonValue) -> str | None:
+    with pytest.raises(PackVerifyRefused) as raised:
+        parse_manifest(_v1_manifest(**fields))
+    assert raised.value.code is PackVerifyCode.INVALID_MANIFEST
+    return raised.value.path
+
+
+@pytest.mark.parametrize(
+    "fields",
+    (
+        {},
+        {"capabilities": []},
+        {"capabilities": ["knowledge-graph-v1"]},
+        {"capabilities": ["knowledge-graph-v1", "methodology-v1"]},
+        {"pack_schema_version": 1, "capabilities": ["knowledge-graph-v1"]},
+    ),
+    ids=(
+        "historical-absent",
+        "empty",
+        "graph-only",
+        "graph-and-methodology",
+        "explicit-schema-1",
+    ),
+)
+def test_parse_v1_accepts_historical_and_builder_capabilities(
+    fields: dict[str, JsonValue],
+) -> None:
+    # Given a legitimate historical or builder v1 capability shape
+    # When parse_manifest runs
+    # Then the typed v1 manifest is accepted
+    assert _parse_v1_ok(**fields).pack_id == "legacy-parse"
+
+
+@pytest.mark.parametrize(
+    "capabilities",
+    (
+        ["admin-override"],
+        ["knowledge-graph-v1", "admin-override"],
+        ["reviewed"],
+        ["sourced-answer-v2"],
+        ["knowledge-graph-v2"],
+        ["evidence-self-contained-v2"],
+        ["knowledge-graph-v1", "reviewed"],
+        ["methodology-v1"],
+        ["methodology-v1", "knowledge-graph-v1"],
+        ["knowledge-graph-v1", "knowledge-graph-v1"],
+        ["knowledge-graph-v1", "methodology-v1", "knowledge-graph-v1"],
+        "knowledge-graph-v1",
+        {"cap": "knowledge-graph-v1"},
+        [1],
+    ),
+    ids=(
+        "unknown",
+        "unknown-after-v1",
+        "reviewed",
+        "sourced",
+        "knowledge-graph-v2",
+        "evidence-self-contained-v2",
+        "reviewed-after-v1",
+        "methodology-without-graph",
+        "methodology-before-graph",
+        "duplicate-graph",
+        "duplicate-after-methodology",
+        "string-shape",
+        "object-shape",
+        "non-string-item",
+    ),
+)
+def test_parse_v1_rejects_capability_outside_allowlist(
+    capabilities: JsonValue,
+) -> None:
+    # Given a v1-shaped manifest whose capabilities leave the historical allowlist
+    # When parse_manifest runs
+    # Then the typed capabilities path is refused
+    assert _parse_v1_path(capabilities=capabilities) == "capabilities"
+
+
+@pytest.mark.parametrize("field", _V2_ONLY_FIELDS)
+def test_parse_v1_rejects_v2_contract_field(field: str) -> None:
+    # Given a v1-shaped manifest that still carries a v2-only contract field
+    # When parse_manifest runs
+    # Then that field is refused and is not treated as legacy
+    assert _parse_v1_path(**{field: []}) == field
+
+
+def test_parse_v1_omitted_schema_rejects_v2_capabilities() -> None:
+    # Given omitted pack_schema_version and raw v2 authority strings
+    raw = _v1_manifest(
+        capabilities=[
+            "knowledge-graph-v2",
+            "evidence-self-contained-v2",
+            "reviewed",
+            "sourced-answer-v2",
+        ],
+    )
+    assert "pack_schema_version" not in raw
+    # When parse_manifest defaults the omitted schema to v1
+    with pytest.raises(PackVerifyRefused) as raised:
+        parse_manifest(raw)
+    # Then the v2 labels cannot enter the typed v1 value
+    assert raised.value.code is PackVerifyCode.INVALID_MANIFEST
+    assert raised.value.path == "capabilities"
+
+
+def test_legacy_v1_without_capabilities_verifies(tmp_path: Path) -> None:
+    pack_dir = _write_v1(tmp_path, "legacy-nocap", tree_hash=True)
+    manifest_path = pack_dir / "manifest.json"
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del payload["capabilities"]
+    manifest_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    receipt = verify_pack(pack_dir)
+    assert receipt.pack_schema_version is PackSchemaVersion.V1
+    assert receipt.integrity_level == "legacy-graph-only"
+
+
+def test_legacy_v1_with_methodology_capability_verifies(tmp_path: Path) -> None:
+    pack_dir = _write_v1(tmp_path, "legacy-method", tree_hash=False)
+    manifest_path = pack_dir / "manifest.json"
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["capabilities"] = ["knowledge-graph-v1", "methodology-v1"]
+    manifest_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    receipt = verify_pack(pack_dir)
+    assert receipt.pack_id == "legacy-method"
+    assert receipt.integrity_level == "legacy-graph-only"
+
+
+def test_legacy_v1_unknown_capability_is_refused(tmp_path: Path) -> None:
+    pack_dir = _write_v1(tmp_path, "legacy-unknown", tree_hash=True)
+    manifest_path = pack_dir / "manifest.json"
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["capabilities"] = ["knowledge-graph-v1", "admin-override"]
+    manifest_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    with pytest.raises(PackVerifyRefused) as raised:
+        verify_pack(pack_dir)
+    assert raised.value.code is PackVerifyCode.INVALID_MANIFEST
+    assert raised.value.path == "capabilities"
+
+
+def test_legacy_v1_reviewed_capability_is_refused(tmp_path: Path) -> None:
+    pack_dir = _write_v1(tmp_path, "legacy-reviewed", tree_hash=True)
+    manifest_path = pack_dir / "manifest.json"
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["capabilities"] = [
+        "knowledge-graph-v2",
+        "evidence-self-contained-v2",
+        "reviewed",
+        "sourced-answer-v2",
+    ]
+    manifest_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    with pytest.raises(PackVerifyRefused) as raised:
+        verify_pack(pack_dir)
+    assert raised.value.code is PackVerifyCode.INVALID_MANIFEST
+    assert raised.value.path == "capabilities"
+
+
+def test_legacy_v1_v2_contract_field_is_refused(tmp_path: Path) -> None:
+    pack_dir = _write_v1(tmp_path, "legacy-inventory", tree_hash=True)
+    manifest_path = pack_dir / "manifest.json"
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["artifact_inventory"] = []
+    manifest_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    with pytest.raises(PackVerifyRefused) as raised:
+        verify_pack(pack_dir)
+    assert raised.value.code is PackVerifyCode.INVALID_MANIFEST
+    assert raised.value.path == "artifact_inventory"
 
 
 def test_accepts_valid_v2_dynamic_inventory(tmp_path: Path) -> None:

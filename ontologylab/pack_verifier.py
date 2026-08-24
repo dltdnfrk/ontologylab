@@ -24,19 +24,23 @@ _TREE: Final = ("pack.sqlite", "schema.json", "provenance.jsonl")
 _WRITE: Final = 0o222
 _V2_CAP: Final = "knowledge-graph-v2"
 _V2_EV: Final = "evidence-self-contained-v2"
-_COUNTS: Final = {
-    "works": "works",
-    "representations": "documents",
-    "observations": "observations",
-    "identifiers": "work_identifiers",
-    "citations": "citations",
-    "review_decisions": "review_decisions",
-    "extraction_runs": "extraction_runs",
-    "extraction_chunks": "extraction_chunks",
-    "nodes": "nodes",
-    "edges": "edges",
-}
-
+_V1_CAPABILITIES: Final = frozenset({
+    (),
+    ("knowledge-graph-v1",),
+    ("knowledge-graph-v1", "methodology-v1"),
+})
+_V2_ONLY_FIELDS: Final = (
+    "artifact_inventory",
+    "pack_content_hash",
+    "sqlite_hash",
+    "integrity_model",
+    "evidence_mode",
+    "closure",
+    "receipt_inventory",
+    "receipt_inventory_root",
+    "source_fingerprint",
+    "source_fingerprint_entries",
+)
 JsonValue: TypeAlias = (
     str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 )
@@ -165,9 +169,12 @@ def _pack_id(value: JsonValue) -> str:
 def _relpath(path: str) -> None:
     if path == _MANIFEST:
         _refuse(PackVerifyCode.SELF_REFERENCE, path)
-    escaped = path.startswith("/") or path.startswith("\\") or ":" in path or "\\" in path
+    escaped = path.startswith("/") or path.startswith("\\") or "\\" in path
+    drive = len(path) >= 2 and path[1] == ":" and path[0].isalpha()
     parts = path.split("/")
-    if escaped or not parts or any(part in {"", ".", ".."} for part in parts):
+    if escaped or drive or "://" in path or not parts or any(
+        part in {"", ".", ".."} for part in parts
+    ):
         _refuse(PackVerifyCode.PATH_MISMATCH, path)
 
 
@@ -201,7 +208,25 @@ def _ints(raw: JsonValue, code: PackVerifyCode) -> Mapping[str, int]:
     return MappingProxyType(out)
 
 
+def _refuse_v2_only_fields(raw: Mapping[str, JsonValue]) -> None:
+    for field in _V2_ONLY_FIELDS:
+        if field in raw:
+            _refuse(PackVerifyCode.INVALID_MANIFEST, field)
+
+
+def _parse_v1_capabilities(raw: JsonValue) -> None:
+    if raw is None:
+        return
+    if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
+        _refuse(PackVerifyCode.INVALID_MANIFEST, "capabilities")
+    claimed = tuple(str(item) for item in raw)
+    if claimed not in _V1_CAPABILITIES:
+        _refuse(PackVerifyCode.INVALID_MANIFEST, "capabilities")
+
+
 def _parse_v1(raw: dict[str, JsonValue]) -> ManifestV1:
+    _refuse_v2_only_fields(raw)
+    _parse_v1_capabilities(raw.get("capabilities"))
     content, tree = raw.get("content_hash"), raw.get("tree_hash")
     if not _is_sha(content) or not isinstance(content, str):
         _refuse(PackVerifyCode.FORGED_HASH, "pack.sqlite")
@@ -331,25 +356,51 @@ def _guard_inode(records: Mapping[str, InventoryRecord], idents: frozenset[tuple
 
 
 def _rederive_counts(database: Path) -> Mapping[str, int]:
+    from ontologylab.pack_v2_derive import derive_v2_counts
+
     connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
     try:
         check = connection.execute("PRAGMA integrity_check").fetchone()
         if check is None or check[0] != "ok":
             _refuse(PackVerifyCode.TAMPERED_ARTIFACT, "pack.sqlite")
-        present = {
-            str(row[0])
-            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        }
-        derived: dict[str, int] = {}
-        for key, table in _COUNTS.items():
-            if table in present:
-                row = connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
-                derived[key] = 0 if row is None else int(row[0])
-            else:
-                derived[key] = 0
-        return MappingProxyType(derived)
+        return MappingProxyType(derive_v2_counts(connection))
     finally:
         connection.close()
+
+
+def _validate_packed_v2(pack_dir: Path, manifest: ManifestV2) -> None:
+    from ontologylab.pack_v2_validate import (
+        PackedV2ClosureRefused,
+        validate_packed_v2_closure,
+    )
+
+    connection = sqlite3.connect(f"file:{pack_dir / 'pack.sqlite'}?mode=ro", uri=True)
+    try:
+        validate_packed_v2_closure(pack_dir, connection, manifest)
+    except PackedV2ClosureRefused as refused:
+        _refuse(PackVerifyCode.INVALID_MANIFEST, refused.member)
+    finally:
+        connection.close()
+
+
+def _refuse_forged_capabilities(
+    database: Path,
+    claimed: tuple[str, ...],
+    found: Mapping[str, InventoryRecord],
+    pack_dir: Path,
+) -> None:
+    from ontologylab.pack_v2_derive import derive_capabilities
+
+    connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+    try:
+        has_evidence = any(path.startswith("evidence/") for path in found)
+        derived = derive_capabilities(
+            connection, has_evidence=has_evidence, pack_root=pack_dir,
+        )
+    finally:
+        connection.close()
+    if claimed != derived:
+        _refuse(PackVerifyCode.INVALID_MANIFEST, "capabilities")
 
 
 def _verify_v1(pack_dir: Path, manifest: ManifestV1, working: Path | None) -> PackVerifyReceipt:
@@ -397,6 +448,10 @@ def _verify_v2(pack_dir: Path, manifest: ManifestV2, working: Path | None) -> Pa
     derived = _rederive_counts(pack_dir / "pack.sqlite")
     if dict(manifest.counts) != dict(derived):
         _refuse(PackVerifyCode.FORGED_COUNTS)
+    _refuse_forged_capabilities(
+        pack_dir / "pack.sqlite", manifest.capabilities, found, pack_dir,
+    )
+    _validate_packed_v2(pack_dir, manifest)
     level = "evidence-self-contained-v2" if _V2_EV in manifest.capabilities else "knowledge-graph-v2"
     inventory = tuple(found[path] for path in sorted(found))
     return PackVerifyReceipt(
