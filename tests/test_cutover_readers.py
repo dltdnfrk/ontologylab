@@ -18,6 +18,7 @@ from ontologylab.cutover_readers import (
     identity_from_payload,
     observe_cli_graph,
     observe_http_query,
+    observe_kg_store,
     observe_mcp_session,
     observe_method_graph,
     reader_probes,
@@ -112,6 +113,48 @@ def test_cli_payload_corrupt_resets_streak(
         with pytest.raises(CutoverRefused):
             advance_cutover(kit.store.conn, CutoverPhase.DRAINED, CutoverChecks())
         monkeypatch.setattr("ontologylab.cutover_readers.observe_cli_graph", real)
+    finally:
+        kit.close()
+
+
+def test_cli_adapter_hashes_its_returned_graph_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    kit = _kit(tmp_path)
+    binding = _binding()
+    captured: dict[str, str] = {}
+    real_graph_query = KGStore.graph_query
+
+    def corrupt_graph_query(
+        store: KGStore,
+        *,
+        include_proposed: bool = False,
+        limit: int = 100,
+    ) -> dict[str, object]:
+        graph = real_graph_query(
+            store,
+            include_proposed=include_proposed,
+            limit=limit,
+        )
+        nodes = list(graph["nodes"]) + [
+            {
+                "id": "cli-returned-ghost",
+                "name": "ReturnedGhost",
+                "entity_type": "Component",
+                "status": "verified",
+            },
+        ]
+        edges = list(graph["edges"])
+        captured["hash"] = hash_identity(identity_from_payload(nodes, edges))
+        return {"nodes": nodes, "edges": edges}
+
+    monkeypatch.setattr(KGStore, "graph_query", corrupt_graph_query)
+    try:
+        observed = observe_cli_graph(str(kit.surfaces.sqlite_path), binding)
+        direct = observe_kg_store(kit.store.conn, binding)
+        assert observed.canonical_hash == captured["hash"]
+        assert observed.canonical_hash != direct.canonical_hash
     finally:
         kit.close()
 
