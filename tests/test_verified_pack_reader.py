@@ -89,6 +89,41 @@ def test_activate_pack_serves_detached_copy_when_source_is_valid(
     assert pack_dir.exists()
 
 
+def test_activate_pack_reverifies_detached_copy_after_copy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pack_dir = _build_pack(tmp_path, "reader-reverify")
+    source_sqlite = pack_dir / "pack.sqlite"
+    source_bytes = source_sqlite.read_bytes()
+
+    import ontologylab.verified_pack_reader as reader
+
+    real_copy_tree = reader._copy_tree
+
+    def copy_then_tamper(source: Path, serving: Path) -> None:
+        real_copy_tree(source, serving)
+        copied_sqlite = serving / "pack.sqlite"
+        blob = bytearray(copied_sqlite.read_bytes())
+        blob[len(blob) // 2] ^= 0xFF
+        copied_sqlite.write_bytes(bytes(blob))
+
+    monkeypatch.setattr(reader, "_copy_tree", copy_then_tamper)
+
+    with pytest.raises(PackIntegrityError, match="integrity"):
+        activate_pack(pack_dir)
+
+    assert source_sqlite.read_bytes() == source_bytes
+    leftover = [
+        path
+        for path in Path(os.environ.get("TMPDIR", "/tmp")).glob(
+            f"ontologylab-pack-{os.getpid()}-*"
+        )
+        if path.is_dir()
+    ]
+    assert leftover == []
+
+
 def test_activate_pack_ignores_source_mutation_after_load(tmp_path: Path) -> None:
     pack_dir = _build_pack(tmp_path, "reader-mutate")
     snapshot = activate_pack(pack_dir)
