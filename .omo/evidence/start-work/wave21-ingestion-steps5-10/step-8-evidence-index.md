@@ -17,15 +17,19 @@ cutover has not occurred.
 
 ## Core implementation evidence
 
-- `task-8-closure-executor.md`
-- `task-9-verifier-executor.md`
-- `task-10-reader-executor.md`
+- `task-8-executor.md`
+- `task-9-executor.md`
+- `task-10-executor.md`
 - `task-10-11-repair-executor.md`
-- `task-11-readiness-executor.md`
+- `task-11-executor.md`
 - `task-12-review-repair-executor.md`
 - `task-12-review-repair-2-executor.md`
 - `task-12-review-repair-3-executor.md`
 - `task-12-review-repair-4-executor.md`
+- `task-12-review-repair-4-manual-qa.md`
+- `task-12-review-repair-4-security.md`
+- `task-12-review-code.md`
+- `task-12-review-final-code.md`
 - `task-12-review-repair-5-executor.md`
 - `task-12-review-repair-6-executor.md`
 
@@ -50,7 +54,7 @@ Repair and final reviews:
 - `task-12-review-repair-3-code.md`
 - `task-12-review-repair-3-security.md`
 - `task-12-review-repair-3-manual-qa.md`
-- `task-12-review-repair-4-code.md`
+- `task-12-review-repair-4-executor.md`
 - `task-12-review-repair-4-security.md`
 - `task-12-review-repair-4-security-bypass-qa.md`
 - `task-12-review-final-code.md`
