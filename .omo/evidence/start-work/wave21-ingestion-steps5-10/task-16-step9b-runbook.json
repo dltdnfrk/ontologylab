@@ -1,0 +1,78 @@
+{
+  "schema": "ontologylab.step9b.operator-runbook.v1",
+  "scope": "disposable-backup-api-rehearsal",
+  "status": "ready_for_operator_rehearsal",
+  "stop_token": "STOP_BEFORE_STEP_9C",
+  "production_cutover": {
+    "authorized": false,
+    "commands_present": false,
+    "maintenance_window_name": null,
+    "approval_receipt": null,
+    "approved_by": null
+  },
+  "protected": {
+    "application_support_access": "forbidden",
+    "external_network": "forbidden",
+    "host": "127.0.0.1",
+    "port": 8799,
+    "pid": 55560,
+    "device": "0x1ff51c806b197195",
+    "mode": "observe_only"
+  },
+  "reader_kinds": [
+    "kg_store",
+    "cli_graph",
+    "http_query",
+    "verified_pack",
+    "mcp_session",
+    "method_graph"
+  ],
+  "phases": [
+    "expand",
+    "shadow_write",
+    "backfill",
+    "catch_up",
+    "drained",
+    "fenced",
+    "constraints_rebuilt",
+    "full_v2",
+    "authority_flipped"
+  ],
+  "minimum_complete_reader_bundles": 2,
+  "restore_boundary": {
+    "before_post_cutover_write": "backup_restore_with_all_gates",
+    "after_post_cutover_write": "restore_forbidden",
+    "after_marker_recovery": "forward_only"
+  },
+  "forward_rollback": {
+    "ordinary_v2_writes_enabled": false,
+    "preferred_selection_enabled": false,
+    "general_publication_enabled": false,
+    "old_writer_reopen_allowed": false,
+    "compatibility_modes": [
+      "read_only",
+      "unavailable"
+    ]
+  },
+  "additive_recovery": {
+    "merge_compensation": "append_only",
+    "fact_retraction": "append_only",
+    "citation_anchor_rewrite": false,
+    "foreign_key_rewrite": false,
+    "source_file_rewrite": false,
+    "old_pack_mutation": false,
+    "new_pack_standalone_verification": true
+  },
+  "step9b_completion_tokens": [
+    "STEP_9B_COMPLETE",
+    "STOP_BEFORE_STEP_9C"
+  ],
+  "step9c_resume_requirements": [
+    "new_direct_user_request",
+    "separately_named_maintenance_window",
+    "explicit_production_cutover_approval",
+    "approval_receipt_identity",
+    "named_operator_and_observer",
+    "fresh_protected_boundary_preflight"
+  ]
+}
