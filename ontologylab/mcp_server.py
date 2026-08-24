@@ -12,8 +12,6 @@ Tool logic lives on ``PackSession`` so it is unit-testable without the
 from __future__ import annotations
 
 import argparse
-import hashlib
-import hmac
 import json
 import sys
 from pathlib import Path
@@ -37,29 +35,22 @@ from ontologylab.mcp_runtime import McpApp
 from ontologylab.engines import EngineError, engine_name_arg, get_engine
 from ontologylab.expansion import expand_query
 from ontologylab.packbuilder import (
-    _tree_hash,
     list_packs as discover_packs,
-    pack_sqlite_path,
     safe_pack_component,
 )
 from ontologylab.paths import default_packs_dir
 from ontologylab.semantic_staleness import baseline_compatible, semantic_deltas
+from ontologylab.verified_pack_reader import (
+    PackIntegrityError,
+    VerifiedPackSnapshot,
+    activate_pack,
+    inspect_verified_manifest,
+    opened_verified_pack,
+)
 
 
 class NoActivePack(Exception):
     """Raised when a query tool is called before any pack is loaded."""
-
-
-class PackIntegrityError(KGStoreError):
-    """Raised when a pack fails load-time integrity verification.
-
-    Two shapes: the pack's bytes do not match the manifest's content_hash
-    receipt (tampered or corrupted in transit/at rest), or the pack carries
-    no usable receipt at all (unverifiable — it must be rebuilt, never
-    silently loaded). The hash is an integrity receipt, NOT a signature: it
-    proves the served bytes are exactly what the builder recorded, nothing
-    about who built them.
-    """
 
 
 def serve_args(packs_dir: str | Path, pack_id: str) -> list[str]:
@@ -235,139 +226,6 @@ def _term_xref_detail(store: KGStore, xref_id: str) -> dict[str, Any]:
     return {"xref": store.get_term_xref(xref_id)}
 
 
-def _verified_content_hash(pack_id: str, sqlite_path: Path) -> str:
-    """Recompute the pack's SHA-256 from CURRENT bytes and check the receipt.
-
-    Returns the verified ``sha256:<hex>`` receipt string. Raises
-    PackIntegrityError when the manifest is missing/unreadable, the receipt
-    is missing or malformed (unverifiable — rebuild required), or the
-    digest does not match (tampered/corrupted bytes). Read-only: the pack
-    is never mutated.
-    """
-    manifest_path = sqlite_path.parent / "manifest.json"
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise PackIntegrityError(
-            f"pack {pack_id!r} is unverifiable: no readable manifest.json "
-            f"({exc}); rebuild the pack to generate an integrity receipt"
-        ) from exc
-    receipt = manifest.get("content_hash")
-    expected = ""
-    if isinstance(receipt, str) and receipt.startswith("sha256:"):
-        candidate = receipt[len("sha256:"):]
-        try:
-            bytes.fromhex(candidate)
-        except ValueError:
-            candidate = ""
-        if len(candidate) == 64:
-            expected = candidate
-    if not expected:
-        raise PackIntegrityError(
-            f"pack {pack_id!r} is unverifiable: manifest has no usable "
-            f"content_hash receipt; rebuild the pack so its integrity can "
-            f"be verified at load time"
-        )
-    digest = hashlib.sha256()
-    try:
-        with sqlite_path.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(chunk)
-    except OSError as exc:
-        raise PackIntegrityError(
-            f"pack {pack_id!r} is unverifiable: cannot read pack bytes "
-            f"({exc}); rebuild the pack"
-        ) from exc
-    actual = digest.hexdigest()
-    if not hmac.compare_digest(actual, expected):
-        raise PackIntegrityError(
-            f"pack {pack_id!r} failed integrity verification: pack.sqlite "
-            f"hash mismatch (manifest sha256:{expected}, actual "
-            f"sha256:{actual}); the pack was tampered with or corrupted — "
-            f"rebuild it from the working store"
-        )
-    assert isinstance(receipt, str)
-    return receipt
-
-
-def _active_pack_paths(
-    packs_dir: Path,
-    pack_id: str,
-) -> tuple[Path, Path]:
-    safe_pack_component(pack_id, kind="pack id")
-    canonical_root = packs_dir.resolve(strict=True)
-    pack_dir = canonical_root / pack_id
-    database = pack_dir / "pack.sqlite"
-    manifest = pack_dir / "manifest.json"
-    for path, label in (
-        (pack_dir, "pack directory"),
-        (database, "pack.sqlite"),
-        (manifest, "manifest.json"),
-    ):
-        if path.is_symlink():
-            raise PackIntegrityError(
-                f"pack {pack_id!r} has a symlinked {label}; "
-                "active packs must be exact physical pack files"
-            )
-        try:
-            resolved = path.resolve(strict=True)
-        except OSError as exc:
-            raise PackIntegrityError(
-                f"pack {pack_id!r} is unverifiable: {label} not found"
-            ) from exc
-        if resolved != path:
-            raise PackIntegrityError(
-                f"pack {pack_id!r} has a non-canonical {label}"
-            )
-        if resolved != canonical_root and canonical_root not in resolved.parents:
-            raise PackIntegrityError(
-                f"pack {pack_id!r} escapes the canonical packs root"
-            )
-    for path, label in (
-        (database, "pack.sqlite"),
-        (manifest, "manifest.json"),
-    ):
-        if path.stat().st_nlink != 1:
-            raise PackIntegrityError(
-                f"pack {pack_id!r} has a hard-linked {label}"
-            )
-    return database, manifest
-
-
-def _verified_pack(
-    packs_dir: Path,
-    pack_id: str,
-) -> tuple[Path, str, dict[str, Any]]:
-    database, manifest_path = _active_pack_paths(packs_dir, pack_id)
-    content_hash = _verified_content_hash(pack_id, database)
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise PackIntegrityError(
-            f"pack {pack_id!r} has no readable manifest"
-        ) from exc
-    if (
-        not isinstance(manifest, dict)
-        or manifest.get("pack_id") != pack_id
-        or manifest.get("content_hash") != content_hash
-    ):
-        raise PackIntegrityError(
-            f"pack {pack_id!r} manifest identity is invalid"
-        )
-    tree_hash = manifest.get("tree_hash")
-    if tree_hash is not None:
-        # New-style receipt: payload files (schema.json, provenance.jsonl,
-        # pack.sqlite) are bound too — a rewritten payload under a valid
-        # content_hash is tamper. Legacy manifests carry no tree_hash and
-        # keep verifying on content_hash alone.
-        if _tree_hash(database.parent) != tree_hash:
-            raise PackIntegrityError(
-                f"pack {pack_id!r} payload files do not match the tree "
-                "receipt"
-            )
-    return database, content_hash, manifest
-
-
 class PackSession:
     """In-memory MCP session: packs-dir + one active read-only KGStore.
 
@@ -385,6 +243,7 @@ class PackSession:
     ) -> None:
         self.packs_dir = Path(packs_dir)
         self.store: KGStore | None = None
+        self._snapshot: VerifiedPackSnapshot | None = None
         self.pack_id: str | None = None
         self.pack_hash: str | None = None
         self._methodology: dict[str, Any] | None = None
@@ -482,20 +341,19 @@ class PackSession:
                 )
                 return result
             ephemeral = self.store is None or self.pack_id != latest["pack_id"]
-            packed = (
-                KGStore.open(
-                    _verified_pack(self.packs_dir, latest["pack_id"])[0],
-                    read_only=True,
-                )
-                if ephemeral
-                else self.store
-            )
+            packed_snapshot: VerifiedPackSnapshot | None = None
+            if ephemeral:
+                packed_snapshot = self._activate(str(latest["pack_id"]))
+                packed = packed_snapshot.open_store()
+            else:
+                packed = self.store
             assert packed is not None
             try:
                 deltas = semantic_deltas(packed.conn, live.conn)
             finally:
-                if ephemeral:
+                if packed_snapshot is not None:
                     packed.close()
+                    packed_snapshot.close()
             result.update(**deltas, note=None)
             return result
         finally:
@@ -510,24 +368,26 @@ class PackSession:
         store = self._require_store()
         assert self.pack_id is not None
         assert self.pack_hash is not None
-        _, content_hash, manifest = _verified_pack(
-            self.packs_dir,
-            self.pack_id,
-        )
-        if content_hash != self.pack_hash:
-            raise PackIntegrityError(
-                f"active pack {self.pack_id!r} identity changed"
-            )
-        methodology = manifest.get("methodology")
-        if methodology != self._methodology:
-            raise PackIntegrityError(
-                f"active pack {self.pack_id!r} manifest changed"
-            )
+        # Method tools keep serving snapshot rows, but refuse if the published
+        # source directory is gone or its methodology claim drifted.
+        published = self._activate(self.pack_id)
+        try:
+            if published.content_hash != self.pack_hash:
+                raise PackIntegrityError(
+                    f"active pack {self.pack_id!r} identity changed"
+                )
+            methodology = published.manifest.get("methodology")
+            if methodology != self._methodology:
+                raise PackIntegrityError(
+                    f"active pack {self.pack_id!r} manifest changed"
+                )
+        finally:
+            published.close()
         return MethodPackReader(
             MethodPackSql(store.conn),
             pack_id=self.pack_id,
             pack_hash=self.pack_hash,
-            methodology=methodology or {},
+            methodology=self._methodology or {},
         )
 
     def list_methods(
@@ -561,9 +421,12 @@ class PackSession:
         if self.store is not None:
             self.store.close()
             self.store = None
-            self.pack_id = None
-            self.pack_hash = None
-            self._methodology = None
+        if self._snapshot is not None:
+            self._snapshot.close()
+            self._snapshot = None
+        self.pack_id = None
+        self.pack_hash = None
+        self._methodology = None
         if self._live_store is not None:
             self._live_store.close()
             self._live_store = None
@@ -588,36 +451,40 @@ class PackSession:
             "count": len(packs),
         }
 
+    def _activate(self, pack_id: str) -> VerifiedPackSnapshot:
+        safe_pack_component(pack_id, kind="pack id")
+        return activate_pack(self.packs_dir / pack_id, working=self.live_store_path)
+
     def load_pack(self, pack_id: str) -> dict[str, Any]:
-        sqlite_path, content_hash, manifest = _verified_pack(
-            self.packs_dir,
-            pack_id,
-        )
-        # Verify BEFORE touching session state: a tampered or unverifiable
-        # pack must never displace a working one. The digest is recomputed
-        # from current bytes on every load — no cached verdicts.
-        store = KGStore.open(sqlite_path, read_only=True)
+        snapshot = self._activate(pack_id)
+        try:
+            store = snapshot.open_store()
+        except Exception:  # noqa: BROAD_EXCEPT_OK
+            snapshot.close()
+            raise
         try:
             counts = store.counts()
             schema = store.get_schema()
-        except Exception:
+        except Exception:  # noqa: BROAD_EXCEPT_OK
             store.close()
+            snapshot.close()
             raise
-        # Atomic switch: only now, with a verified pack fully open, does the
-        # session drop the previous store and publish the new identity.
         if self.store is not None:
             self.store.close()
+        if self._snapshot is not None:
+            self._snapshot.close()
         self.store = store
+        self._snapshot = snapshot
         self.pack_id = pack_id
-        self.pack_hash = content_hash
-        methodology = manifest.get("methodology")
+        self.pack_hash = snapshot.content_hash
+        methodology = snapshot.manifest.get("methodology")
         self._methodology = (
             dict(methodology) if isinstance(methodology, dict) else None
         )
         return {
             "pack_id": pack_id,
             "content_hash": self.pack_hash,
-            "sqlite_path": str(sqlite_path),
+            "sqlite_path": str(snapshot.sqlite_path),
             "counts": counts,
             "schema": schema,
         }
@@ -641,14 +508,11 @@ class PackSession:
         schema_version_id: int | None = None,
     ) -> dict[str, Any]:
         if pack_id is not None and pack_id != self.pack_id:
-            # Ephemeral verified open for a non-active pack; does not switch
-            # session state.
-            path, _, _ = _verified_pack(self.packs_dir, pack_id)
-            store = KGStore.open(path, read_only=True)
-            try:
+            safe_pack_component(pack_id, kind="pack id")
+            with opened_verified_pack(
+                self.packs_dir / pack_id, working=self.live_store_path
+            ) as (_snapshot, store):
                 return store.get_schema(schema_version_id=schema_version_id)
-            finally:
-                store.close()
         return self._require_store().get_schema(schema_version_id=schema_version_id)
 
     def entity_lookup(
@@ -718,53 +582,60 @@ class PackSession:
     # ------------------------------------------------------------------
 
     def _store_for(self, pack_id: str):
-        """(store, ephemeral) for the named pack — active store when it
-        matches, else a VERIFIED read-only ephemeral open that the caller
-        closes. The hash check is not optional here: load_pack's integrity
-        boundary means nothing if pack:// reads bypass it."""
+        """(store, snapshot) for the named pack — active store when it
+        matches, else a verified snapshot the caller must close."""
         if pack_id == self.pack_id and self.store is not None:
-            return self.store, False
-        path, _, _ = _verified_pack(self.packs_dir, pack_id)
-        return KGStore.open(path, read_only=True), True
+            return self.store, None
+        snapshot = self._activate(pack_id)
+        try:
+            return snapshot.open_store(), snapshot
+        except Exception:  # noqa: BROAD_EXCEPT_OK
+            snapshot.close()
+            raise
 
     def resource_manifest(self, pack_id: str) -> dict[str, Any]:
-        # Serve the identity-checked manifest from the verified read, not a
-        # raw file read — a manifest is a claim, and this endpoint is where
-        # the claim is checked.
-        _, _, manifest = _verified_pack(self.packs_dir, pack_id)
-        return manifest
+        if pack_id == self.pack_id and self._snapshot is not None:
+            return dict(self._snapshot.manifest)
+        safe_pack_component(pack_id, kind="pack id")
+        return inspect_verified_manifest(
+            self.packs_dir / pack_id, working=self.live_store_path
+        )
 
     def resource_schema(self, pack_id: str) -> dict[str, Any]:
-        store, ephemeral = self._store_for(pack_id)
+        store, snapshot = self._store_for(pack_id)
         try:
             return store.get_schema()
         finally:
-            if ephemeral:
+            if snapshot is not None:
                 store.close()
+                snapshot.close()
 
     def resource_entity(self, pack_id: str, entity_id: str) -> dict[str, Any]:
-        store, ephemeral = self._store_for(pack_id)
+        store, snapshot = self._store_for(pack_id)
         try:
             return _entity_detail(store, entity_id, include_proposed=False)
         finally:
-            if ephemeral:
+            if snapshot is not None:
                 store.close()
+                snapshot.close()
 
     def resource_term(self, pack_id: str, term_id: str) -> dict[str, Any]:
-        store, ephemeral = self._store_for(pack_id)
+        store, snapshot = self._store_for(pack_id)
         try:
             return _ontology_term_detail(store, term_id)
         finally:
-            if ephemeral:
+            if snapshot is not None:
                 store.close()
+                snapshot.close()
 
     def resource_xref(self, pack_id: str, xref_id: str) -> dict[str, Any]:
-        store, ephemeral = self._store_for(pack_id)
+        store, snapshot = self._store_for(pack_id)
         try:
             return _term_xref_detail(store, xref_id)
         finally:
-            if ephemeral:
+            if snapshot is not None:
                 store.close()
+                snapshot.close()
 
     def resource_method(
         self,
@@ -1461,7 +1332,10 @@ def main(argv: list[str] | None = None) -> None:
             print(f"[ontologylab.mcp] auto-loaded pack {auto}", file=sys.stderr)
 
     mcp = build_mcp_app(session)
-    mcp.run(transport="stdio")
+    try:
+        mcp.run(transport="stdio")
+    finally:
+        session.close()
 
 
 if __name__ == "__main__":

@@ -1,9 +1,11 @@
 """Reviewed, license-gated ontology publication through packs and MCP."""
+# noqa: SIZE_OK — Task 10 adds discovery refusal to the existing publication SUT
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import shutil
 import sqlite3
 import time
@@ -261,6 +263,24 @@ def test_resources_are_pack_specific_read_only_and_legacy_safe(tmp_path: Path) -
         session.resource_term("legacy", seed.new_term)
     assert (legacy / "pack.sqlite").read_bytes() == before
     session.close()
+
+
+def test_list_packs_refuses_forged_publication_when_sibling_remains(
+    tmp_path: Path,
+) -> None:
+    kg, packs = tmp_path / "kg.sqlite", tmp_path / "packs"
+    store = KGStore.open(kg)
+    _seed_ontology(store)
+    store.close()
+    old = _build(kg, packs, "old")
+    new = _build(kg, packs, "new")
+    forged_path = packs / old.pack_id / "manifest.json"
+    forged = json.loads(forged_path.read_text(encoding="utf-8"))
+    forged["content_hash"] = "sha256:" + ("ab" * 32)
+    forged_path.write_text(json.dumps(forged), encoding="utf-8")
+    ids = [row["pack_id"] for row in list_packs(packs)]
+    assert new.pack_id in ids
+    assert old.pack_id not in ids
 
 
 def test_finalize_failure_leaves_no_partial_pack(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

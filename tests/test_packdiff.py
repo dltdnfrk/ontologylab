@@ -1,4 +1,5 @@
 """W14: pack diff + re-extraction harmony with existing verified data."""
+# noqa: SIZE_OK — Task 10 adds verifier-boundary cases to the existing SUT
 
 from __future__ import annotations
 
@@ -95,6 +96,100 @@ def test_diff_refuses_a_tampered_pack(evolving_workspace):
     blob = bytearray(sqlite_b.read_bytes())
     blob[-1] ^= 0xFF
     sqlite_b.write_bytes(bytes(blob))
+    with pytest.raises(PackIntegrityError):
+        diff_packs(packs, manifest_a.pack_id, manifest_b.pack_id)
+
+
+def _v2_wrap(pack_dir: Path) -> None:
+    """Rewrite a built v1 pack as a verifier-valid v2 inventory pack."""
+    import hashlib
+    import os
+    import sqlite3 as sqlite
+    import stat as mode
+
+    from ontologylab.pack_verifier import verify_pack
+
+    count_tables = {
+        "works": "works",
+        "representations": "documents",
+        "observations": "observations",
+        "identifiers": "work_identifiers",
+        "citations": "citations",
+        "review_decisions": "review_decisions",
+        "extraction_runs": "extraction_runs",
+        "extraction_chunks": "extraction_chunks",
+        "nodes": "nodes",
+        "edges": "edges",
+    }
+    files: dict[str, bytes] = {}
+    for dirpath, _dirnames, filenames in os.walk(pack_dir, followlinks=False):
+        base = Path(dirpath)
+        for name in filenames:
+            child = base / name
+            rel = child.relative_to(pack_dir).as_posix()
+            if rel == "manifest.json":
+                continue
+            child.chmod(0o444)
+            files[rel] = child.read_bytes()
+    inventory = [
+        {
+            "file_type": "regular",
+            "mode": mode.S_IMODE((pack_dir / rel).stat().st_mode),
+            "path": rel,
+            "sha256": "sha256:" + hashlib.sha256(data).hexdigest(),
+            "size": len(data),
+        }
+        for rel, data in sorted(files.items())
+    ]
+    connection = sqlite.connect(f"file:{pack_dir / 'pack.sqlite'}?mode=ro", uri=True)
+    try:
+        present = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        counts = {
+            key: (
+                int(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+                if table in present
+                else 0
+            )
+            for key, table in count_tables.items()
+        }
+    finally:
+        connection.close()
+    original = json.loads((pack_dir / "manifest.json").read_text(encoding="utf-8"))
+    manifest = {
+        "pack_id": pack_dir.name,
+        "pack_schema_version": 2,
+        "capabilities": ["knowledge-graph-v2"],
+        "integrity_model": "sha256-receipt-not-signature",
+        "content_hash": original["content_hash"],
+        "sqlite_hash": "sha256:" + hashlib.sha256(files["pack.sqlite"]).hexdigest(),
+        "artifact_inventory": inventory,
+        "pack_content_hash": "sha256:" + hashlib.sha256(
+            json.dumps(inventory, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+        "counts": counts,
+    }
+    manifest_path = pack_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    manifest_path.chmod(0o444)
+    verify_pack(pack_dir)
+
+
+def test_diff_refuses_extra_artifact_that_legacy_opener_would_serve(
+    evolving_workspace,
+) -> None:
+    """Independent-diff: packdiff must share the standalone verifier."""
+    store, _doc, packs, manifest_a = evolving_workspace
+    manifest_b = build_pack(store.db_path, packs, name="v2-extra")
+    pack_b = packs / manifest_b.pack_id
+    _v2_wrap(pack_b)
+    extra = pack_b / "notes.txt"
+    extra.write_bytes(b"not-in-inventory\n")
+    extra.chmod(0o444)
     with pytest.raises(PackIntegrityError):
         diff_packs(packs, manifest_a.pack_id, manifest_b.pack_id)
 

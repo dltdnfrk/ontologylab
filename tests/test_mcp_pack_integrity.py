@@ -1,4 +1,5 @@
 """Pack byte-hash verification across the MCP named-pack read surface.
+# noqa: SIZE_OK — single SUT integrity matrix; Task 10 owns this file
 
 Every ``PackSession`` tool entry point that accepts a ``pack_id`` must
 recompute the pack's SHA-256 from the CURRENT bytes of ``pack.sqlite`` and
@@ -18,6 +19,8 @@ from __future__ import annotations
 
 import inspect
 import json
+import sqlite3
+import stat
 import sys
 from pathlib import Path
 
@@ -288,5 +291,118 @@ def test_zero_byte_pack_sqlite_rejected(tmp_path: Path) -> None:
             session.load_pack(pack_id)
         assert "mismatch" in str(excinfo.value).lower()
         assert session.pack_id is None
+    finally:
+        session.close()
+
+
+def _forge_content_hash(packs: Path, pack_id: str) -> None:
+    manifest_path = packs / pack_id / "manifest.json"
+    forged = json.loads(manifest_path.read_text(encoding="utf-8"))
+    forged["content_hash"] = "sha256:" + ("0" * 64)
+    forged["created_ts"] = 9_999_999_999.0
+    forged["counts"] = {"nodes_verified": 12345, "edges_verified": 0}
+    manifest_path.write_text(json.dumps(forged), encoding="utf-8")
+
+
+def test_resource_manifest_refuses_source_rewrite_after_load(tmp_path: Path) -> None:
+    """Tampered resource: activation must freeze the served manifest."""
+    packs, good_id = _build_fixture_pack(tmp_path, name="res-freeze")
+    session = PackSession(packs)
+    try:
+        session.load_pack(good_id)
+        original = session.resource_manifest(good_id)
+        manifest_path = packs / good_id / "manifest.json"
+        forged = json.loads(manifest_path.read_text(encoding="utf-8"))
+        forged["attacker"] = "yes"
+        forged["counts"] = {"nodes_verified": 999}
+        manifest_path.write_text(json.dumps(forged), encoding="utf-8")
+        served = session.resource_manifest(good_id)
+        assert served.get("attacker") is None
+        assert served.get("counts") == original.get("counts")
+    finally:
+        session.close()
+
+
+def test_staleness_refuses_forged_latest_manifest(tmp_path: Path) -> None:
+    """Staleness must not consume raw latest counts before verify."""
+    packs, good_id = _build_fixture_pack(tmp_path, name="stale-good")
+    _, bad_id = _build_fixture_pack(tmp_path, name="stale-bad")
+    _forge_content_hash(packs, bad_id)
+    session = PackSession(packs)
+    try:
+        result = session.get_staleness()
+        assert result["latest_pack_id"] != bad_id
+        assert result["latest_pack_id"] == good_id
+        assert result["pack_verified_count"] != 12345
+    finally:
+        session.close()
+
+
+def test_list_packs_refuses_raw_unverified_path(tmp_path: Path) -> None:
+    """Discovery may list an unverified directory only as unusable."""
+    packs, good_id = _build_fixture_pack(tmp_path, name="list-good")
+    _, bad_id = _build_fixture_pack(tmp_path, name="list-bad")
+    _forge_content_hash(packs, bad_id)
+    session = PackSession(packs)
+    try:
+        listed = session.list_packs()
+        ids = {row["pack_id"] for row in listed["packs"]}
+        assert good_id in ids
+        assert bad_id not in ids
+    finally:
+        session.close()
+
+
+def test_load_pack_opens_detached_immutable_snapshot(tmp_path: Path) -> None:
+    """Writable/source-path: serve a copy, not the mutable source inode."""
+    packs, pack_id = _build_fixture_pack(tmp_path, name="snap-open")
+    session = PackSession(packs)
+    try:
+        loaded = session.load_pack(pack_id)
+        source = packs / pack_id / "pack.sqlite"
+        serving = Path(loaded["sqlite_path"])
+        assert serving.resolve() != source.resolve()
+        assert serving.stat().st_ino != source.stat().st_ino
+        assert stat.S_IMODE(serving.stat().st_mode) & 0o222 == 0
+        assert session.store is not None
+        with pytest.raises(sqlite3.Error):
+            session.store.conn.execute("UPDATE nodes SET name = 'mutated'")
+            session.store.conn.commit()
+        before = session.entity_lookup(name="RateLimiter")
+        assert before["count"] >= 1
+        source.write_bytes(source.read_bytes() + b"\x00")
+        after = session.entity_lookup(name="RateLimiter")
+        assert after["matches"][0]["id"] == before["matches"][0]["id"]
+        assert after["pack"]["content_hash"] == loaded["content_hash"]
+    finally:
+        session.close()
+
+
+def test_failed_switch_keeps_prior_session_byte_identical(tmp_path: Path) -> None:
+    """Failed replacement must leave the previous serving snapshot intact."""
+    packs, good_id = _build_fixture_pack(tmp_path, name="switch-good")
+    _, bad_id = _build_fixture_pack(tmp_path, name="switch-bad")
+    session = PackSession(packs)
+    try:
+        loaded = session.load_pack(good_id)
+        serving = Path(loaded["sqlite_path"])
+        before_bytes = serving.read_bytes()
+        before_ino = serving.stat().st_ino
+        before_hash = session.pack_hash
+        before_lookup = session.entity_lookup(name="RateLimiter")
+        _flip_one_byte(pack_sqlite_path(packs, bad_id))
+        with pytest.raises(mcp_server.PackIntegrityError):
+            session.load_pack(bad_id)
+        assert session.pack_id == good_id
+        assert session.pack_hash == before_hash
+        assert session.store is not None
+        assert Path(session.store.db_path).stat().st_ino == before_ino
+        assert Path(session.store.db_path).read_bytes() == before_bytes
+        assert session.entity_lookup(name="RateLimiter") == before_lookup
+        manifest_path = packs / good_id / "manifest.json"
+        forged = json.loads(manifest_path.read_text(encoding="utf-8"))
+        forged["attacker"] = "switch"
+        manifest_path.write_text(json.dumps(forged), encoding="utf-8")
+        assert session.resource_manifest(good_id).get("attacker") is None
     finally:
         session.close()

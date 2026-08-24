@@ -46,6 +46,10 @@ from ontologylab.method_pack import (
 from ontologylab.pack_completeness import extraction_completeness, with_override
 from ontologylab.paths import MAX_JOB_DIR_ATTEMPTS
 from ontologylab.semantic_staleness import semantic_baseline_marker
+from ontologylab.verified_pack_reader import (
+    PackIntegrityError,
+    inspect_verified_manifest,
+)
 
 
 class PackBuildError(Exception):
@@ -303,6 +307,7 @@ def _build_pack_unlocked(
     allow_incomplete_extraction: bool = False,
     incomplete_extraction_intent: str | None = None,
     method_release_ids: Sequence[str] = (),
+    evidence_mode: str | None = None,
     owned_stages: list[Path],
 ) -> PackManifest:
     """Snapshot the verified subgraph into a new immutable pack directory.
@@ -354,10 +359,33 @@ def _build_pack_unlocked(
         used=override_used,
         operator_intent=intent if override_used else None,
     )
-    if completeness["status"] == "incomplete" and not override_used:
-        snapshot_conn.close()
-        snapshot_tmp.cleanup()
-        raise IncompleteExtractionError(completeness)
+    v2_closure = None
+    snapshot_ready = False
+    try:
+        if evidence_mode is not None:
+            from ontologylab.pack_v2_closure import (
+                PackV2ClosureCode,
+                PackV2ClosureRefused,
+                collect_v2_closure,
+                parse_evidence_mode,
+            )
+            v2_mode = parse_evidence_mode(evidence_mode)
+            if completeness["status"] == "incomplete":
+                raise PackV2ClosureRefused(
+                    PackV2ClosureCode.INCOMPLETE_STREAM, "stream",
+                )
+            v2_closure = collect_v2_closure(
+                snapshot_conn,
+                evidence_mode=v2_mode,
+                source_root=kg_db_path.parent,
+            )
+        elif completeness["status"] == "incomplete" and not override_used:
+            raise IncompleteExtractionError(completeness)
+        snapshot_ready = True
+    finally:
+        if not snapshot_ready:
+            snapshot_conn.close()
+            snapshot_tmp.cleanup()
     preflight = sqlite3.connect(":memory:")
     try:
         try:
@@ -415,6 +443,10 @@ def _build_pack_unlocked(
     try:
         conn.execute("PRAGMA foreign_keys=ON")
         conn.executescript(_SCHEMA)
+        if v2_closure is not None:
+            from ontologylab.pack_v2_closure import install_v2_pack_schema
+
+            install_v2_pack_schema(conn)
         # P1-A adds these tables through the writable-store migration rather
         # than _SCHEMA. Create the same committed schema in the empty pack;
         # backfill sees no type rows yet, so only DDL is materialized here.
@@ -518,6 +550,10 @@ def _build_pack_unlocked(
             "  UNION SELECT source_doc_id FROM main.citations"
             ")"
         )
+        if v2_closure is not None:
+            from ontologylab.pack_v2_closure import copy_v2_tables
+
+            copy_v2_tables(conn, v2_closure)
         conn.commit()
         conn.execute("DETACH DATABASE live")
 
@@ -713,13 +749,27 @@ def _build_pack_unlocked(
                 )
                 + "\n"
             )
-    manifest.tree_hash = _tree_hash(pack_dir)
-    manifest_json = manifest.__dict__.copy()
-    if manifest.methodology is None:
-        manifest_json.pop("methodology")
-    (pack_dir / "manifest.json").write_text(
-        json.dumps(manifest_json, indent=2), encoding="utf-8"
-    )
+    if v2_closure is not None:
+        from ontologylab.pack_v2_closure import v2_manifest_fields, write_v2_evidence
+        from ontologylab.pack_v2_manifest import finalize_v2_manifest
+
+        write_v2_evidence(pack_dir, v2_closure, kg_db_path.parent)
+        manifest.capabilities = list(v2_closure.capabilities)
+        manifest.counts.update(dict(v2_closure.counts))
+        manifest.tree_hash = _tree_hash(pack_dir)
+        manifest_json = manifest.__dict__.copy()
+        if manifest.methodology is None:
+            manifest_json.pop("methodology")
+        manifest_json.update(v2_manifest_fields(v2_closure))
+        finalize_v2_manifest(pack_dir, manifest_json)
+    else:
+        manifest.tree_hash = _tree_hash(pack_dir)
+        manifest_json = manifest.__dict__.copy()
+        if manifest.methodology is None:
+            manifest_json.pop("methodology")
+        (pack_dir / "manifest.json").write_text(
+            json.dumps(manifest_json, indent=2), encoding="utf-8"
+        )
 
     if final_pack_dir.exists():
         staging_tmp.cleanup()
@@ -760,6 +810,7 @@ def build_pack(
     allow_incomplete_extraction: bool = False,
     incomplete_extraction_intent: str | None = None,
     method_release_ids: Sequence[str] = (),
+    evidence_mode: str | None = None,
 ) -> PackManifest:
     """Build one pack while serializing release IDs in its packs directory."""
     safe_pack_component(name, kind="pack name")
@@ -788,6 +839,7 @@ def build_pack(
             allow_incomplete_extraction=allow_incomplete_extraction,
             incomplete_extraction_intent=incomplete_extraction_intent,
             method_release_ids=method_release_ids,
+            evidence_mode=evidence_mode,
             owned_stages=owned_stages,
         )
     finally:
@@ -889,17 +941,10 @@ def scan_packs(packs_dir: str | Path) -> tuple[
                 }
             )
             continue
-        sqlite_path = entry / "pack.sqlite"
-        if not sqlite_path.is_file():
-            unusable.append(
-                {"pack_dir": entry.name, "reason": "pack.sqlite is missing"}
-            )
-            continue
-        reason = _pack_sqlite_unusable_reason(sqlite_path)
-        if reason is not None:
-            unusable.append({"pack_dir": entry.name, "reason": reason})
-            continue
-        packs.append(manifest)
+        try:
+            packs.append(inspect_verified_manifest(entry))
+        except PackIntegrityError as exc:
+            unusable.append({"pack_dir": entry.name, "reason": str(exc)})
     return packs, unusable
 
 
@@ -934,6 +979,13 @@ def _tree_hash(pack_dir: Path) -> str:
         h.update(hashlib.sha256(data).hexdigest().encode())
         h.update(b"\n")
     return "sha256:" + h.hexdigest()
+
+
+def rewrite_existing_pack(packs_dir: str | Path, pack_id: str) -> None:
+    """Refuse in-place replacement of an already published pack."""
+    from ontologylab.pack_v2_closure import refuse_v1_rewrite
+
+    refuse_v1_rewrite(Path(packs_dir) / pack_id)
 
 
 def pack_sqlite_path(packs_dir: str | Path, pack_id: str) -> Path:
