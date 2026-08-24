@@ -30,7 +30,8 @@ CURRENT_BUILD_PACK_SIGNATURE = (
     "summary_method: 'str' = 'extractive', "
     "allow_incomplete_extraction: 'bool' = False, "
     "incomplete_extraction_intent: 'str | None' = None, "
-    "method_release_ids: 'Sequence[str]' = ()) -> 'PackManifest'"
+    "method_release_ids: 'Sequence[str]' = (), "
+    "evidence_mode: 'str | None' = None) -> 'PackManifest'"
 )
 
 CURRENT_GRAPH_ONLY_PACK_TABLES = set("""annotations artifacts citations
