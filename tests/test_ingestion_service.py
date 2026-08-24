@@ -204,6 +204,56 @@ def test_second_doi_is_typed_conflict_not_duplicate_or_merge(tmp_path: Path) -> 
         store.close()
 
 
+def test_foreign_content_hash_is_typed_failure_not_cross_work_merge(
+    tmp_path: Path,
+) -> None:
+    store = _open(tmp_path)
+    try:
+        first = ingest_item(
+            store.conn,
+            _item(operation="op-first", doi="10.1000/service.first"),
+        )
+        refused = ingest_item(
+            store.conn,
+            IngestItem(
+                idempotency_key="op-second",
+                scheme="doi",
+                normalized_value="10.1000/service.second",
+                source="crossref",
+                evidence_grade="A",
+                representation=RepresentationInput(
+                    source_kind="paper_api",
+                    source_uri="https://doi.org/10.1000/service.second",
+                    title="Foreign hash",
+                    content_hash="sha256:op-first",
+                    raw_text_path="documents/op-second/raw.txt",
+                ),
+                stage="version_of_record",
+                content_kind="abstract",
+            ),
+        )
+
+        assert first.status == "created"
+        assert first.work_id is not None
+        assert first.representation_id is not None
+        assert refused.status == "failed"
+        assert refused.error is not None
+        assert refused.error.startswith("InvalidIngestItem:")
+        assert _count(store.conn, "works") == 1
+        assert _count(store.conn, "documents") == 1
+        assert _count(store.conn, "work_identifiers") == 1
+        assert _count(store.conn, "document_observations") == 1
+        assert _count(store.conn, "provenance_outbox") == 1
+        owner = store.conn.execute(
+            "SELECT work_id FROM documents WHERE id = ?",
+            (first.representation_id,),
+        ).fetchone()
+        assert owner is not None
+        assert owner[0] == first.work_id
+    finally:
+        store.close()
+
+
 def test_failpoint_after_authority_write_leaves_zero_partial_rows(
     tmp_path: Path,
 ) -> None:
