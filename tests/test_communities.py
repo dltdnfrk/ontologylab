@@ -209,8 +209,13 @@ def test_legacy_pack_without_communities_degrades(community_pack, tmp_path):
     try:
         assert session.get_communities() == {
             "communities": [], "members": [], "count": 0,
-            "pack": {"pack_id": manifest.pack_id,
-                     "content_hash": legacy_hash},
+            "pack": {
+                "pack_id": manifest.pack_id,
+                "content_hash": legacy_hash,
+                "pack_schema_version": 1,
+                "integrity_level": "legacy-graph-only",
+                "evidence_mode": None,
+            },
         }
     finally:
         session.close()
