@@ -49,6 +49,7 @@ class CutoverCode(StrEnum):
     READER_HASH = "reader_hash"
     READER_UNAVAILABLE = "reader_unavailable"
     READER_FAILED = "reader_failed"
+    AUTHORIZATION_REQUIRED = "authorization_required"
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +78,12 @@ class CutoverChecks:
     blocking_collisions: int = 0; fk_errors: int = 0
     citation_errors: int = 0; outbox_gap: int = 0
     open_outbox: int = 0; pack_verified: bool = False; reader_bundle_hash: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class CutoverAuthorization:
+    maintenance_window: str
+    approved_by: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,14 +262,44 @@ def _enforce(target: CutoverPhase, checks: CutoverChecks, state: CutoverState) -
             assert_never(unreachable)
 
 
+def _authorization_for(
+    target: CutoverPhase,
+    authorization: CutoverAuthorization | None,
+) -> CutoverAuthorization | None:
+    match target:
+        case CutoverPhase.AUTHORITY_FLIPPED:
+            if authorization is None:
+                _refuse(CutoverCode.AUTHORIZATION_REQUIRED, "step9c")
+            maintenance_window = authorization.maintenance_window.strip()
+            approved_by = authorization.approved_by.strip()
+            if not maintenance_window or not approved_by:
+                _refuse(CutoverCode.AUTHORIZATION_REQUIRED, "step9c")
+            return CutoverAuthorization(maintenance_window, approved_by)
+        case (
+            CutoverPhase.EXPAND
+            | CutoverPhase.SHADOW_WRITE
+            | CutoverPhase.BACKFILL
+            | CutoverPhase.CATCH_UP
+            | CutoverPhase.DRAINED
+            | CutoverPhase.FENCED
+            | CutoverPhase.CONSTRAINTS_REBUILT
+            | CutoverPhase.FULL_V2
+        ):
+            return None
+        case unreachable:
+            assert_never(unreachable)
+
+
 def advance_cutover(
     conn: sqlite3.Connection,
     target: CutoverPhase,
     checks: CutoverChecks,
     *,
+    authorization: CutoverAuthorization | None = None,
     failpoint: Callable[[str], None] | None = None,
 ) -> CutoverState:
     """Advance exactly one legal phase after its typed gate."""
+    approved = _authorization_for(target, authorization)
     current = read_cutover_state(conn)
     if target is current.phase:
         _refuse(CutoverCode.DUPLICATE_TRANSITION, target.value)
@@ -281,6 +318,23 @@ def advance_cutover(
             fence_writes(
                 conn, generation=current.generation,
                 source_fingerprint=current.source_fingerprint,
+            )
+        if approved is not None:
+            conn.execute(
+                "INSERT INTO cutover_receipts (kind, phase, detail) "
+                "VALUES (?, ?, ?)",
+                (
+                    "authorization",
+                    target.value,
+                    json.dumps(
+                        {
+                            "approved_by": approved.approved_by,
+                            "maintenance_window": approved.maintenance_window,
+                        },
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                ),
             )
         before = canonical_data_hash(conn)
         _persist(conn, nxt, ("transition", target.value, current.phase.value), failpoint)

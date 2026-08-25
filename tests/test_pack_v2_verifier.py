@@ -201,6 +201,50 @@ def _run_cli(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def test_v2_rejects_sqlite_uri_metacharacters_in_pack_id(
+    tmp_path: Path,
+) -> None:
+    # Given a pack whose name can alter a raw SQLite file: URI
+    claimed_counts = {key: 0 for key in _COUNT_KEYS}
+    claimed_counts["nodes"] = 1
+    pack_dir = _write_v2(
+        tmp_path,
+        "evil?immutable=1",
+        nodes=2,
+        counts=claimed_counts,
+    )
+    _seed_sqlite(tmp_path / "evil", nodes=1)
+
+    # When the standalone boundary verifies the pack
+    code = _refuse_code(pack_dir)
+
+    # Then the unsafe pack id is rejected before SQLite opens any database
+    assert code is PackVerifyCode.INVALID_MANIFEST
+
+
+def test_v2_encodes_sqlite_uri_when_parent_path_contains_query_marker(
+    tmp_path: Path,
+) -> None:
+    # Given a safe pack id below an unsafe-looking parent and a sibling decoy DB
+    claimed_counts = {key: 0 for key in _COUNT_KEYS}
+    claimed_counts["nodes"] = 1
+    _seed_sqlite(tmp_path / "parent", nodes=1)
+    root = tmp_path / "parent?immutable=1"
+    root.mkdir()
+    pack_dir = _write_v2(
+        root,
+        "safe-pack",
+        nodes=2,
+        counts=claimed_counts,
+    )
+
+    # When the verifier derives counts
+    code = _refuse_code(pack_dir)
+
+    # Then it reads the physical pack.sqlite, not the sibling decoy
+    assert code is PackVerifyCode.FORGED_COUNTS
+
+
 def test_legacy_v1_with_tree_hash_verifies(tmp_path: Path) -> None:
     # Given a current-style v1 pack with tree_hash
     pack_dir = _write_v1(tmp_path, "legacy-tree", tree_hash=True)

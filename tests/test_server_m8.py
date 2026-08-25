@@ -209,7 +209,7 @@ def test_collect_crossref_allowlisted_query_ingests(
     assert document["evidence_grade"] == "peer_reviewed"
 
 
-def test_collect_same_doi_with_changed_abstract_is_duplicate(
+def test_collect_same_doi_with_changed_abstract_creates_representation(
     tmp_path: Path, monkeypatch
 ) -> None:
     # Given: one source returns two representations of the same DOI.
@@ -238,15 +238,15 @@ def test_collect_same_doi_with_changed_abstract_is_duplicate(
         json={"paper_queries": ["databases"], "paper_source": "crossref"},
     ).json()
 
-    # Then: persisted DOI identity prevents a second document row.
+    # Then: the shared DOI keeps one Work while preserving both representations.
     assert first["created"] == 1
     assert second == {
         "ok": True,
         "documents": 1,
-        "created": 0,
-        "duplicates": 1,
+        "created": 1,
+        "duplicates": 0,
     }
-    assert client.get("/api/documents").json()["count"] == 1
+    assert client.get("/api/documents").json()["count"] == 2
 
 
 def test_collect_non_allowlisted_source_rejected(tmp_path: Path) -> None:

@@ -40,7 +40,14 @@ from ontologylab.cutover_rehearsal import (
 from ontologylab.kgstore import KGStore
 from ontologylab.mcp_server import PackSession
 from ontologylab.packbuilder import build_pack
-from tests.test_cutover_rehearsal import _bind, _kit, _walk, _zero
+from tests.factories import make_entity, make_relation
+from tests.test_cutover_rehearsal import (
+    _authorization,
+    _bind,
+    _kit,
+    _walk,
+    _zero,
+)
 from tests.test_method_pack import seed_method_pack_database
 
 
@@ -52,7 +59,11 @@ def test_two_real_reader_passes_drain_and_flip(tmp_path: Path) -> None:
     kit = _kit(tmp_path)
     try:
         install_cutover(kit.store.conn, _bind(kit.store.conn))
-        _walk(kit, CutoverPhase.AUTHORITY_FLIPPED)
+        _walk(
+            kit,
+            CutoverPhase.AUTHORITY_FLIPPED,
+            authorization=_authorization(),
+        )
         assert read_cutover_state(kit.store.conn).phase is CutoverPhase.AUTHORITY_FLIPPED
         kinds = [row.kind for row in read_cutover_receipts(kit.store.conn)]
         assert kinds.count("reader_bundle") == 2
@@ -155,6 +166,40 @@ def test_cli_adapter_hashes_its_returned_graph_payload(
         direct = observe_kg_store(kit.store.conn, binding)
         assert observed.canonical_hash == captured["hash"]
         assert observed.canonical_hash != direct.canonical_hash
+    finally:
+        kit.close()
+
+
+def test_direct_and_cli_readers_hash_verified_edges_identically(
+    tmp_path: Path,
+) -> None:
+    # Given one physical graph with a verified edge
+    kit = _kit(tmp_path)
+    try:
+        document_id = str(
+            kit.store.conn.execute("SELECT id FROM documents").fetchone()[0]
+        )
+        source = make_entity("SourceNode")
+        target = make_entity("TargetNode")
+        relation = make_relation(source, target)
+        kit.store.insert_proposed(
+            [source, target],
+            [relation],
+            source_doc_id=document_id,
+            extractor_engine="mock",
+        )
+        kit.store.approve(source.id)
+        kit.store.approve(target.id)
+        kit.store.approve(relation.id)
+        kit.store.conn.commit()
+
+        # When two cutover readers observe the same database
+        binding = _binding()
+        direct = observe_kg_store(kit.store.conn, binding)
+        cli = observe_cli_graph(str(kit.copied), binding)
+
+        # Then their shared graph identity is identical
+        assert direct.canonical_hash == cli.canonical_hash
     finally:
         kit.close()
 
@@ -331,6 +376,7 @@ def test_rewritten_bundle_row_cannot_flip(tmp_path: Path) -> None:
                 kit.store.conn,
                 CutoverPhase.AUTHORITY_FLIPPED,
                 CutoverChecks(pack_verified=True, reader_bundle_hash="sha256:" + ("cd" * 32)),
+                authorization=_authorization(),
             )
         assert raised.value.code is CutoverCode.HASH_CHANGED
         assert read_cutover_state(kit.store.conn).phase is CutoverPhase.FULL_V2

@@ -24,6 +24,7 @@ from ontologylab.mcp_server import PackSession
 
 _SHA: Final = "sha256:"
 _UNREPRESENTABLE: Final = "unrepresentable_v2_state"
+_GRAPH_LIMIT: Final = 500
 
 
 @unique
@@ -104,8 +105,18 @@ def _edge_tuple(edge: dict[str, str] | tuple[str, ...]) -> tuple[str, ...]:
         case dict() as row:
             return (
                 str(row.get("id", "")),
-                str(row.get("src_node_id", row.get("src", ""))),
-                str(row.get("dst_node_id", row.get("dst", ""))),
+                str(
+                    row.get(
+                        "src_node_id",
+                        row.get("source_id", row.get("src", "")),
+                    )
+                ),
+                str(
+                    row.get(
+                        "dst_node_id",
+                        row.get("target_id", row.get("dst", "")),
+                    )
+                ),
                 str(row.get("relation_type", row.get("relation", ""))),
                 str(row.get("status", "")),
             )
@@ -146,11 +157,13 @@ def observe_kg_store(conn: sqlite3.Connection, binding: GenerationBinding) -> Re
     """Direct KGStore query output (verified nodes/edges)."""
     nodes = conn.execute(
         "SELECT id, name, entity_type, status FROM nodes "
-        "WHERE status = 'verified' ORDER BY id",
+        "WHERE status = 'verified' ORDER BY id LIMIT ?",
+        (_GRAPH_LIMIT,),
     ).fetchall()
     edges = conn.execute(
         "SELECT id, src_node_id, dst_node_id, relation_type, status FROM edges "
-        "WHERE status = 'verified' AND invalidated_ts IS NULL ORDER BY id",
+        "WHERE status = 'verified' AND invalidated_ts IS NULL ORDER BY id LIMIT ?",
+        (_GRAPH_LIMIT,),
     ).fetchall()
     payload = {
         "nodes": [tuple(str(item) for item in row) for row in nodes],
@@ -165,7 +178,10 @@ def observe_cli_graph(sqlite_path: str, binding: GenerationBinding) -> ReaderObs
     """Hash `KGStore.graph_query` return — the CLI entity/search graph path."""
     store = KGStore.open(sqlite_path)
     try:
-        graph = store.graph_query(include_proposed=False, limit=500)
+        graph = store.graph_query(
+            include_proposed=False,
+            limit=_GRAPH_LIMIT,
+        )
     finally:
         store.close()
     payload = identity_from_payload(graph["nodes"], graph["edges"])
@@ -183,7 +199,9 @@ def observe_http_query(data_dir: Path, binding: GenerationBinding) -> ReaderObse
     headers = {"host": "127.0.0.1"}
     with TestClient(app) as client:
         response = client.get(
-            "/api/graph", params={"include_proposed": False, "limit": 500}, headers=headers,
+            "/api/graph",
+            params={"include_proposed": False, "limit": _GRAPH_LIMIT},
+            headers=headers,
         )
     if response.status_code != 200:
         _refuse(CutoverCode.READER_FAILED, "http")
@@ -204,7 +222,10 @@ def observe_verified_pack(pack_dir: Path, binding: GenerationBinding) -> ReaderO
     try:
         store = snapshot.open_store()
         try:
-            graph = store.graph_query(include_proposed=False, limit=500)
+            graph = store.graph_query(
+                include_proposed=False,
+                limit=_GRAPH_LIMIT,
+            )
         finally:
             store.close()
     finally:
@@ -221,7 +242,10 @@ def observe_mcp_session(
     """Hash PackSession.graph_query tool payload."""
     if session.pack_id != pack_id:
         session.load_pack(pack_id)
-    graph = session.graph_query(include_proposed=False, limit=500)
+    graph = session.graph_query(
+        include_proposed=False,
+        limit=_GRAPH_LIMIT,
+    )
     payload = identity_from_payload(graph.get("nodes") or [], graph.get("edges") or [])
     return ReaderObservation(
         ReaderKind.MCP_SESSION, binding, ReaderStatus.AVAILABLE, hash_identity(payload), "",
@@ -243,7 +267,10 @@ def observe_method_graph(session: PackSession, pack_id: str, binding: Generation
         return ReaderObservation(
             ReaderKind.METHOD_GRAPH, binding, ReaderStatus.UNAVAILABLE, "", _UNREPRESENTABLE,
         )
-    graph = session.graph_query(include_proposed=False, limit=500)
+    graph = session.graph_query(
+        include_proposed=False,
+        limit=_GRAPH_LIMIT,
+    )
     payload = identity_from_payload(graph.get("nodes") or [], graph.get("edges") or [])
     return ReaderObservation(
         ReaderKind.METHOD_GRAPH, binding, ReaderStatus.AVAILABLE, hash_identity(payload), "",

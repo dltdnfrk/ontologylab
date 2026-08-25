@@ -1,8 +1,8 @@
 """Legacy-compatible v2 shadow adapter for production collect entrypoints.
 
 Pre-fence only: representable outcomes atomically write the legacy document
-row plus a v2 Observation/outbox event. Richer or conflicting outcomes go
-to a durable queue or typed not_ready. This is not full semantic dual-write;
+row plus a v2 Observation/outbox event. Conflicting outcomes go to a durable
+queue or typed not_ready. This is not full semantic dual-write;
 full v2 authority stays off until Step 9.
 """
 
@@ -239,6 +239,7 @@ def _mirror_create(
     *,
     operation_id: str,
     doi: str | None,
+    work_id: str | None = None,
 ) -> Any:
     from ontologylab.ingestion import IngestedDocument
     conn = store.conn
@@ -246,7 +247,12 @@ def _mirror_create(
     try:
         receipt = ingest_item(
             conn,
-            _item_for(raw, operation_id=operation_id, doi=doi),
+            _item_for(
+                raw,
+                operation_id=operation_id,
+                doi=doi,
+                work_id=work_id,
+            ),
         )
         if (
             receipt.status not in {"created", "staged"}
@@ -255,7 +261,7 @@ def _mirror_create(
             conn.execute("ROLLBACK TO SAVEPOINT shadow_item")
             conn.execute("RELEASE SAVEPOINT shadow_item")
             raise ShadowIngestError("internal_error")
-        if doi is not None:
+        if doi is not None and work_id is None:
             conn.execute(
                 "UPDATE documents SET doi = ? WHERE id = ?",
                 (doi, receipt.representation_id),
@@ -330,7 +336,6 @@ def _persist_one(
     *,
     operation_id: str,
 ) -> tuple[Any, Any]:
-    from ontologylab.ingestion import IngestedDocument
     conn = store.conn
     doi = _canonical_doi(raw)
     by_doi = _existing_by_doi(conn, doi)
@@ -342,18 +347,13 @@ def _persist_one(
                 ),
                 None,
             )
-        _enqueue(
-            conn,
-            operation_id=operation_id,
-            reason="richer",
-            raw=raw,
-            doi=doi,
-            extra={"existing_doc_id": str(by_doi["id"])},
-        )
         return (
-            IngestedDocument(
-                document=_row_document(store, str(by_doi["id"])),
-                created=False,
+            _mirror_create(
+                store,
+                raw,
+                operation_id=operation_id,
+                doi=doi,
+                work_id=_work_id_for(conn, by_doi),
             ),
             None,
         )

@@ -93,6 +93,59 @@ def source_doc_ids(store: KGStore) -> set[str]:
     }
 
 
+def test_identifierless_ready_fulltext_remains_selectable(
+    tmp_path: Path,
+) -> None:
+    from ontologylab.selection import put_selection_receipt
+    from ontologylab.selection_types import PolicyVersion
+
+    # Given a ready full-text Representation without an external identifier
+    store = KGStore.open(tmp_path / "identifierless.sqlite")
+    try:
+        body = b"IdentifierlessReadyFullText " * 40
+        ingested = ingest_item(
+            store.conn,
+            IngestItem(
+                idempotency_key="identifierless-fulltext",
+                scheme="",
+                normalized_value="",
+                source="upload",
+                evidence_grade="A",
+                representation=RepresentationInput(
+                    source_kind="upload",
+                    source_uri="file:///identifierless.txt",
+                    title="Identifierless",
+                    content_hash=content_hash_for(body),
+                    raw_text=body,
+                ),
+                stage="unknown",
+                content_kind="fulltext",
+            ),
+        )
+        assert ingested.work_id is not None
+        assert ingested.representation_id is not None
+        store.conn.commit()
+        finalize_representation(
+            store.conn,
+            tmp_path,
+            ingested.representation_id,
+        )
+        store.conn.commit()
+
+        # When F9 selects evidence for the Work
+        selected = put_selection_receipt(
+            store.conn,
+            ingested.work_id,
+            PolicyVersion.V1,
+        )
+
+        # Then the identifier-less full text retains its metadata and wins
+        assert selected.selected_representation_id == ingested.representation_id
+        assert selected.inventory[0].usable_full_text_rank == 0
+    finally:
+        store.close()
+
+
 def test_baseline_stage_first_projection_picks_published_abstract() -> None:
     publisher = {
         "doc_id": "rep-pub",

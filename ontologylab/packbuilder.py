@@ -785,7 +785,7 @@ def _build_pack_unlocked(
             raise PackBuildError("final pack content hash changed after rename")
         if manifest.methodology is not None:
             connection = sqlite3.connect(
-                f"file:{final_sqlite}?mode=ro",
+                f"{final_sqlite.resolve().as_uri()}?mode=ro",
                 uri=True,
             )
             try:
@@ -863,7 +863,10 @@ def _pack_sqlite_unusable_reason(path: Path) -> str | None:
     cannot serve.
     """
     try:
-        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        conn = sqlite3.connect(
+            f"{path.resolve().as_uri()}?mode=ro",
+            uri=True,
+        )
     except sqlite3.Error as exc:
         return f"pack.sqlite cannot be opened: {exc}"
     try:

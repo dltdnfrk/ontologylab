@@ -161,7 +161,15 @@ def _canonical(entries: tuple[ClaimedEntry, ...]) -> str:
 def _pack_id(value: JsonValue) -> str:
     if not isinstance(value, str):
         _refuse(PackVerifyCode.INVALID_MANIFEST, "pack_id")
-    if not value or "/" in value or "\\" in value or value in {".", ".."} or "\x00" in value:
+    if (
+        not value
+        or value in {".", ".."}
+        or any(
+            not char.isascii()
+            or not (char.isalnum() or char in "._-")
+            for char in value
+        )
+    ):
         _refuse(PackVerifyCode.INVALID_MANIFEST, "pack_id")
     return value
 
@@ -358,7 +366,10 @@ def _guard_inode(records: Mapping[str, InventoryRecord], idents: frozenset[tuple
 def _rederive_counts(database: Path) -> Mapping[str, int]:
     from ontologylab.pack_v2_derive import derive_v2_counts
 
-    connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+    connection = sqlite3.connect(
+        f"{database.resolve().as_uri()}?mode=ro",
+        uri=True,
+    )
     try:
         check = connection.execute("PRAGMA integrity_check").fetchone()
         if check is None or check[0] != "ok":
@@ -374,7 +385,11 @@ def _validate_packed_v2(pack_dir: Path, manifest: ManifestV2) -> None:
         validate_packed_v2_closure,
     )
 
-    connection = sqlite3.connect(f"file:{pack_dir / 'pack.sqlite'}?mode=ro", uri=True)
+    database = pack_dir / "pack.sqlite"
+    connection = sqlite3.connect(
+        f"{database.resolve().as_uri()}?mode=ro",
+        uri=True,
+    )
     try:
         validate_packed_v2_closure(pack_dir, connection, manifest)
     except PackedV2ClosureRefused as refused:
@@ -391,7 +406,10 @@ def _refuse_forged_capabilities(
 ) -> None:
     from ontologylab.pack_v2_derive import derive_capabilities
 
-    connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+    connection = sqlite3.connect(
+        f"{database.resolve().as_uri()}?mode=ro",
+        uri=True,
+    )
     try:
         has_evidence = any(path.startswith("evidence/") for path in found)
         derived = derive_capabilities(

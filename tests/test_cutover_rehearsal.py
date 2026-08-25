@@ -18,6 +18,7 @@ from ontologylab.cutover_readers import (
     record_all_reader_observation,
 )
 from ontologylab.cutover_rehearsal import (
+    CutoverAuthorization,
     CutoverBind,
     CutoverChecks,
     CutoverCode,
@@ -87,6 +88,13 @@ def _bind(conn: sqlite3.Connection, *, high_water: int = 7) -> CutoverBind:
     )
 
 
+def _authorization() -> CutoverAuthorization:
+    return CutoverAuthorization(
+        maintenance_window="wave21-step9c-test-window",
+        approved_by="test-operator",
+    )
+
+
 def _plant_verified(copied: Path) -> None:
     store = KGStore.open(copied)
     try:
@@ -139,7 +147,13 @@ def _zero(kit: _Kit, binding: GenerationBinding | None = None) -> None:
     )
 
 
-def _walk(kit: _Kit, target: CutoverPhase, checks: CutoverChecks | None = None) -> None:
+def _walk(
+    kit: _Kit,
+    target: CutoverPhase,
+    checks: CutoverChecks | None = None,
+    *,
+    authorization: CutoverAuthorization | None = None,
+) -> None:
     gates = checks or CutoverChecks(pack_verified=True)
     current = read_cutover_state(kit.store.conn).phase
     for phase in CutoverPhase:
@@ -148,7 +162,12 @@ def _walk(kit: _Kit, target: CutoverPhase, checks: CutoverChecks | None = None) 
         if phase is CutoverPhase.DRAINED:
             _zero(kit)
             _zero(kit)
-        advance_cutover(kit.store.conn, phase, gates)
+        advance_cutover(
+            kit.store.conn,
+            phase,
+            gates,
+            authorization=authorization,
+        )
         if phase is target:
             return
 
@@ -184,6 +203,7 @@ def test_happy_path_reaches_authority_flipped_on_backup_copy(tmp_path: Path) -> 
         before = canonical_data_hash(kit.store.conn)
         advance_cutover(
             kit.store.conn, CutoverPhase.AUTHORITY_FLIPPED, CutoverChecks(pack_verified=True),
+            authorization=_authorization(),
         )
         state = read_cutover_state(kit.store.conn)
         assert state.phase is CutoverPhase.AUTHORITY_FLIPPED
@@ -204,10 +224,39 @@ def test_happy_path_reaches_authority_flipped_on_backup_copy(tmp_path: Path) -> 
             ("transition", "fenced"),
             ("transition", "constraints_rebuilt"),
             ("transition", "full_v2"),
+            ("authorization", "authority_flipped"),
             ("transition", "authority_flipped"),
         ]
         assert canonical_data_hash(kit.store.conn) == before
         assert _file_hash(kit.source) == kit.source_hash
+    finally:
+        kit.close()
+
+
+def test_authority_flip_requires_typed_authorization_before_mutation(
+    tmp_path: Path,
+) -> None:
+    # Given a rehearsal that passed every technical gate but has no approval
+    kit = _kit(tmp_path)
+    try:
+        install_cutover(kit.store.conn, _bind(kit.store.conn))
+        _walk(kit, CutoverPhase.FULL_V2)
+        before_hash = canonical_data_hash(kit.store.conn)
+        before_receipts = read_cutover_receipts(kit.store.conn)
+
+        # When a caller attempts the authority transition without authorization
+        with pytest.raises(CutoverRefused) as refused:
+            advance_cutover(
+                kit.store.conn,
+                CutoverPhase.AUTHORITY_FLIPPED,
+                CutoverChecks(pack_verified=True),
+            )
+
+        # Then the typed gate refuses before state or receipts change
+        assert refused.value.code is CutoverCode.AUTHORIZATION_REQUIRED
+        assert read_cutover_state(kit.store.conn).phase is CutoverPhase.FULL_V2
+        assert canonical_data_hash(kit.store.conn) == before_hash
+        assert read_cutover_receipts(kit.store.conn) == before_receipts
     finally:
         kit.close()
 
@@ -430,7 +479,11 @@ def test_source_db_bytes_unchanged_after_rehearsal(tmp_path: Path) -> None:
     kit = _kit(tmp_path)
     try:
         install_cutover(kit.store.conn, _bind(kit.store.conn))
-        _walk(kit, CutoverPhase.AUTHORITY_FLIPPED)
+        _walk(
+            kit,
+            CutoverPhase.AUTHORITY_FLIPPED,
+            authorization=_authorization(),
+        )
     finally:
         kit.close()
     assert _file_hash(kit.source) == kit.source_hash
@@ -446,6 +499,7 @@ def test_authority_flip_is_data_neutral(tmp_path: Path) -> None:
         docs = list(kit.store.conn.execute("SELECT id, content_hash FROM documents"))
         advance_cutover(
             kit.store.conn, CutoverPhase.AUTHORITY_FLIPPED, CutoverChecks(pack_verified=True),
+            authorization=_authorization(),
         )
         assert canonical_data_hash(kit.store.conn) == before
         assert list(kit.store.conn.execute("SELECT id, content_hash FROM documents")) == docs
@@ -492,7 +546,10 @@ def test_stale_drift_after_drain_blocks_later_phases(
         assert read_cutover_state(kit.store.conn).zero_drift_streak == 0
         with pytest.raises(CutoverRefused) as raised:
             advance_cutover(
-                kit.store.conn, blocked, CutoverChecks(pack_verified=True),
+                kit.store.conn,
+                blocked,
+                CutoverChecks(pack_verified=True),
+                authorization=_authorization(),
             )
         assert raised.value.code is CutoverCode.DRIFT_REQUIRED
         assert read_cutover_state(kit.store.conn).phase is start

@@ -35,7 +35,11 @@ def finalize_v2_manifest(pack_dir: Path, fields: dict[str, JsonValue]) -> None:
     payload["sqlite_hash"] = sqlite_hash
     payload["pack_content_hash"] = pack_hash
     payload["integrity_model"] = _INTEGRITY
-    connection = sqlite3.connect(f"file:{root / 'pack.sqlite'}?mode=ro", uri=True)
+    database = root / "pack.sqlite"
+    connection = sqlite3.connect(
+        f"{database.resolve().as_uri()}?mode=ro",
+        uri=True,
+    )
     try:
         payload["counts"] = dict(derive_v2_counts(connection))
         has_evidence = any(

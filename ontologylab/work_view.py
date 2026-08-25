@@ -38,9 +38,8 @@ def work_candidates(
             "SELECT o.representation_id, o.stage, o.content_kind, o.source, "
             "o.evidence_grade "
             "FROM document_observations o "
-            "JOIN identifier_assertions ia ON ia.observation_id = o.id "
-            "JOIN work_identifiers wi ON wi.id = ia.identifier_id "
-            "WHERE wi.work_id = ?",
+            "JOIN documents d ON d.id = o.representation_id "
+            "WHERE d.work_id = ?",
             (work_id,),
         )
     }
@@ -120,9 +119,8 @@ def work_snapshot(conn: sqlite3.Connection, work_id: str) -> dict:
             "SELECT o.id, o.representation_id, o.idempotency_key, o.source, "
             "o.evidence_grade, o.stage, o.content_kind "
             "FROM document_observations o "
-            "JOIN identifier_assertions ia ON ia.observation_id = o.id "
-            "JOIN work_identifiers wi ON wi.id = ia.identifier_id "
-            "WHERE wi.work_id = ? ORDER BY o.created_ts",
+            "JOIN documents d ON d.id = o.representation_id "
+            "WHERE d.work_id = ? ORDER BY o.created_ts",
             (work_id,),
         )
     ]

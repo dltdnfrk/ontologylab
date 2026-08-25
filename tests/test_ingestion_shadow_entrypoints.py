@@ -397,7 +397,7 @@ def test_representable_outcome_has_matching_observation_and_outbox(
         store.close()
 
 
-def test_richer_same_doi_new_bytes_is_queued_not_second_representation(
+def test_richer_same_doi_new_bytes_create_second_representation(
     tmp_path: Path,
 ) -> None:
     store = _open(tmp_path / "richer")
@@ -429,20 +429,25 @@ def test_richer_same_doi_new_bytes_is_queued_not_second_representation(
             _provenance(tmp_path, "richer-2"),
         )
         assert first.created_count == 1
-        assert second.created_count == 0
+        assert second.created_count == 1
         assert second.document_count == 1
-        assert second.entries[0].document.id == first.entries[0].document.id
-        assert len(store.list_documents()) == 1
+        assert second.entries[0].document.id != first.entries[0].document.id
+        assert len(store.list_documents()) == 2
         assert store.document_raw_text(first.entries[0].document.id) == (
             "short abstract"
         )
-        queued = load_shadow_queue(store.conn)
-        assert len(queued) == 1
-        assert queued[0].reason == "richer"
-        assert queued[0].status == "queued"
-        assert "full text that is richer" in queued[0].payload_json
-        assert _count(store.conn, "documents") == 1
-        assert FULL_V2_AUTHORITY is False
+        assert store.document_raw_text(second.entries[0].document.id) == (
+            "short abstract plus full text that is richer"
+        )
+        work_ids = {
+            str(row[0])
+            for row in store.conn.execute(
+                "SELECT work_id FROM documents ORDER BY id"
+            )
+        }
+        assert len(work_ids) == 1
+        assert load_shadow_queue(store.conn) == ()
+        assert _count(store.conn, "documents") == 2
     finally:
         store.close()
 
@@ -546,7 +551,9 @@ def test_doi_spellings_canonicalize_to_one_work(tmp_path: Path) -> None:
             row[0]
             for row in store.conn.execute("SELECT doi FROM documents")
         ]
-        assert set(dois) == {"10.1000/foo"}
+        assert dois.count("10.1000/foo") == 1
+        assert dois.count(None) == len(spellings) - 1
+        assert _count(store.conn, "documents") == len(spellings)
     finally:
         store.close()
 

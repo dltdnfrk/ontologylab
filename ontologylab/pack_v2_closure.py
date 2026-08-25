@@ -400,7 +400,11 @@ def v2_manifest_fields(closure: PackV2Closure) -> PackV2ManifestFields:
 def resolve_v2_closure(pack_dir: Path) -> PackV2Closure:
     payload = json.loads((pack_dir / "manifest.json").read_text(encoding="utf-8"))
     mode = parse_evidence_mode(str(payload["evidence_mode"]))
-    connection = sqlite3.connect(f"file:{pack_dir / 'pack.sqlite'}?mode=ro", uri=True)
+    database = pack_dir / "pack.sqlite"
+    connection = sqlite3.connect(
+        f"{database.resolve().as_uri()}?mode=ro",
+        uri=True,
+    )
     try:
         members = {
             "work": _ids(connection, "SELECT id FROM works ORDER BY id"),
