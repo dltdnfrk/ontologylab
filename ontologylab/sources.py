@@ -22,13 +22,18 @@ Claude Science, which solves the same problem with the same shape (see
 from __future__ import annotations
 
 import json
+import os
 import re
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 from ontologylab.keychain import ACCOUNT_RE, resolve_key
 from ontologylab.paths import sources_path
+
+_REGISTRY_FILE_MODE = 0o600
+_DATA_DIR_MODE = 0o700
 
 # Source id: a short slug, mirroring PROVIDER_ID_RE.
 SOURCE_ID_RE = re.compile(r"[a-z0-9][a-z0-9_-]{0,31}")
@@ -133,6 +138,22 @@ def resolve_source_key(source: Source) -> Optional[str]:
     return resolve_key(source.keychain_account, source.api_key_env)
 
 
+def _restrict_dir(path: Path) -> None:
+    try:
+        if path.is_dir() and stat.S_IMODE(path.stat().st_mode) & 0o077:
+            os.chmod(path, _DATA_DIR_MODE)
+    except OSError:
+        return
+
+
+def _restrict_file(path: Path) -> None:
+    try:
+        if path.is_file() and stat.S_IMODE(path.stat().st_mode) & 0o077:
+            os.chmod(path, _REGISTRY_FILE_MODE)
+    except OSError:
+        return
+
+
 def load_sources(data_dir: Path | str) -> list[Source]:
     """Load all registered sources; fail soft to ``[]`` on any problem.
 
@@ -141,6 +162,9 @@ def load_sources(data_dir: Path | str) -> list[Source]:
     as well.
     """
     path = sources_path(data_dir)
+    _restrict_file(path)
+    if path.parent.is_dir():
+        _restrict_dir(path.parent)
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError, OSError):
@@ -164,10 +188,14 @@ def save_sources(data_dir: Path | str, sources: list[Source]) -> None:
     """Atomically write the registry (``.tmp`` + replace, like providers.py)."""
     path = sources_path(data_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
+    _restrict_dir(path.parent)
     payload = {"sources": [s.to_dict() for s in sources]}
     tmp_path = path.with_suffix(".json.tmp")
     tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    tmp_path.chmod(_REGISTRY_FILE_MODE)
     tmp_path.replace(path)
+    if stat.S_IMODE(path.stat().st_mode) & 0o077:
+        path.chmod(_REGISTRY_FILE_MODE)
 
 
 def get_source(data_dir: Path | str, source_id: str) -> Optional[Source]:
@@ -202,15 +230,18 @@ def remove_source(data_dir: Path | str, source_id: str) -> bool:
 
 
 def source_public(source: Source) -> dict:
-    """The browser-facing view: connected or not, never the key.
+    """The browser-facing view: connected or not, never the key or locators.
 
     Mirrors `routes._provider_public`. `key_present` is computed by actually
     resolving the key and throwing it away, because the alternative —
     reporting "configured" from the registry alone — would say "connected"
     for a source whose Keychain item was deleted out from under it.
+    Locators stay on disk; they are not part of the public JSON.
     """
     return {
-        **source.to_dict(),
+        "id": source.id,
+        "role": source.role,
+        "label": source.label,
         "key_present": resolve_source_key(source) is not None,
     }
 

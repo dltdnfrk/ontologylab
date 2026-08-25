@@ -30,7 +30,7 @@ def _anthropic() -> Provider:
         id="anth",
         kind="anthropic",
         base_url="https://api.anthropic.com/v1",
-        api_key_env="ANTH_KEY",
+        api_key_env="ANTHROPIC_API_KEY",
         models=("claude-fable-5",),
     )
 
@@ -40,7 +40,7 @@ def _openai() -> Provider:
         id="orouter",
         kind="openai",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OR_KEY",
+        api_key_env="OPENROUTER_API_KEY",
         models=("meta/llama",),
     )
 
@@ -64,7 +64,7 @@ def test_name_is_api_prefixed():
 
 
 def test_anthropic_request_shape_and_parsing(monkeypatch):
-    monkeypatch.setenv("ANTH_KEY", _KEY)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", _KEY)
     seen = _capture(
         monkeypatch,
         {
@@ -94,7 +94,7 @@ def test_anthropic_request_shape_and_parsing(monkeypatch):
 
 
 def test_openai_request_shape_and_parsing(monkeypatch):
-    monkeypatch.setenv("OR_KEY", _KEY)
+    monkeypatch.setenv("OPENROUTER_API_KEY", _KEY)
     seen = _capture(
         monkeypatch,
         {
@@ -114,25 +114,25 @@ def test_openai_request_shape_and_parsing(monkeypatch):
 
 
 def test_explicit_model_overrides_provider_default(monkeypatch):
-    monkeypatch.setenv("ANTH_KEY", _KEY)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", _KEY)
     seen = _capture(monkeypatch, {"content": [{"type": "text", "text": "x"}]})
     asyncio.run(ApiEngine(_anthropic()).generate("hi", model="claude-haiku"))
     assert seen["payload"]["model"] == "claude-haiku"
 
 
 def test_missing_key_env_raises_engineerror(monkeypatch):
-    monkeypatch.delenv("ANTH_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(EngineError) as exc:
         asyncio.run(ApiEngine(_anthropic()).generate("hi"))
-    assert "ANTH_KEY" in str(exc.value)  # the NAME, not a value
+    assert "ANTHROPIC_API_KEY" in str(exc.value)  # the NAME, not a value
     assert "is not set" in str(exc.value)
 
 
 def test_no_model_available_raises_engineerror(monkeypatch):
-    monkeypatch.setenv("ANTH_KEY", _KEY)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", _KEY)
     provider = Provider(
         id="anth", kind="anthropic",
-        base_url="https://api.anthropic.com/v1", api_key_env="ANTH_KEY",
+        base_url="https://api.anthropic.com/v1", api_key_env="ANTHROPIC_API_KEY",
         models=(),  # no default model
     )
     with pytest.raises(EngineError):
@@ -140,7 +140,7 @@ def test_no_model_available_raises_engineerror(monkeypatch):
 
 
 def test_non_2xx_raises_redacted_engineerror(monkeypatch):
-    monkeypatch.setenv("ANTH_KEY", _KEY)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", _KEY)
 
     def boom(url, headers, payload, timeout_s):
         raise HTTPError(url, 401, "Unauthorized", {}, None)
@@ -154,7 +154,7 @@ def test_non_2xx_raises_redacted_engineerror(monkeypatch):
 
 
 def test_urlerror_raises_redacted_engineerror(monkeypatch):
-    monkeypatch.setenv("ANTH_KEY", _KEY)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", _KEY)
 
     def boom(url, headers, payload, timeout_s):
         raise URLError("connection refused")
@@ -166,7 +166,7 @@ def test_urlerror_raises_redacted_engineerror(monkeypatch):
 
 
 def test_unexpected_response_shape_raises_engineerror(monkeypatch):
-    monkeypatch.setenv("OR_KEY", _KEY)
+    monkeypatch.setenv("OPENROUTER_API_KEY", _KEY)
     _capture(monkeypatch, {"choices": []})  # no message
     # openai parser on an empty choices list -> IndexError -> EngineError
     with pytest.raises(EngineError):

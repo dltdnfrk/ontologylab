@@ -5,9 +5,44 @@ from __future__ import annotations
 import os
 
 import pytest
+from starlette.testclient import TestClient as _StarletteTestClient
 
 from ontologylab.kgstore import KGStore
 from tests.factories import make_entity, make_relation
+
+# Test-only default credential. Production has no SESSION_OPTIONAL switch;
+# existing TestClient callers pick up the process token minted by create_app.
+# Auth tests that need a bare client must call drop_test_session().
+_SESSION_HEADER = "X-OntologyLab-Session"
+_SESSION_COOKIE = "ontologylab_session"
+_orig_testclient_init = _StarletteTestClient.__init__
+
+
+def _authed_testclient_init(self, app, *args, **kwargs):  # type: ignore[no-untyped-def]
+    headers = dict(kwargs.get("headers") or {})
+    already = any(key.lower() == _SESSION_HEADER.lower() for key in headers)
+    token = getattr(getattr(app, "state", None), "session_token", None)
+    if token and not already:
+        headers[_SESSION_HEADER] = token
+        kwargs["headers"] = headers
+    # Default the ASGI peer to loopback so tests that set base_url to
+    # http://127.0.0.1 satisfy the Host/peer coupling. Attack cases pass
+    # client= explicitly.
+    kwargs.setdefault("client", ("127.0.0.1", 50000))
+    _orig_testclient_init(self, app, *args, **kwargs)
+
+
+_StarletteTestClient.__init__ = _authed_testclient_init  # type: ignore[method-assign]
+
+
+def drop_test_session(client):
+    """Remove the test-only default session header/cookie."""
+    client.headers.pop(_SESSION_HEADER, None)
+    try:
+        client.cookies.delete(_SESSION_COOKIE)
+    except (KeyError, AttributeError):
+        client.cookies.pop(_SESSION_COOKIE, None)
+    return client
 
 
 @pytest.fixture(autouse=True)

@@ -55,6 +55,56 @@ CONTENTS="$APP/Contents"
 rm -rf "$APP"
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources"
 
+# --- signed Keychain helper (compile Wave 1C source into this bundle) ------
+HELPER_SRC="$SCRIPT_DIR/keychain-helper.swift"
+HELPER_BIN="$CONTENTS/Resources/keychain-helper"
+if [ ! -f "$HELPER_SRC" ]; then
+  echo "error: missing Keychain helper source: $HELPER_SRC" >&2
+  exit 1
+fi
+if ! command -v swiftc >/dev/null 2>&1; then
+  echo "error: swiftc not found; cannot compile the Keychain helper." >&2
+  exit 1
+fi
+if ! command -v codesign >/dev/null 2>&1; then
+  echo "error: codesign not found; cannot sign the Keychain helper." >&2
+  echo "macOS Keychain access requires a signed helper. Install Xcode CLT and retry." >&2
+  exit 1
+fi
+SDK="$(/usr/bin/xcrun --show-sdk-path)"
+if ! swiftc -O \
+  -sdk "$SDK" \
+  -framework Security \
+  -framework Foundation \
+  -o "$HELPER_BIN" \
+  "$HELPER_SRC"
+then
+  echo "error: failed to compile Keychain helper" >&2
+  exit 1
+fi
+chmod 0755 "$HELPER_BIN"
+IDENTITY="${CODESIGN_IDENTITY-}"
+if [ -z "$IDENTITY" ]; then
+  IDENTITY="$(/usr/bin/security find-identity -v -p codesigning 2>/dev/null \
+    | /usr/bin/sed -n 's/^[[:space:]]*[0-9][0-9]*)[[:space:]]\{1,\}[A-F0-9]\{40,\}[[:space:]]\{1,\}"\(.*\)"$/\1/p' \
+    | /usr/bin/head -n 1)"
+fi
+if [ -z "$IDENTITY" ]; then
+  IDENTITY="-"
+fi
+if ! /usr/bin/codesign --force --sign "$IDENTITY" \
+  --identifier "town.neobio.ontologylab.keychain-helper" \
+  "$HELPER_BIN"
+then
+  echo "error: Keychain helper signing is unavailable or refused." >&2
+  echo "Set CODESIGN_IDENTITY to a codesigning identity (or '-' for ad-hoc) and retry." >&2
+  exit 1
+fi
+if ! /usr/bin/codesign --verify "$HELPER_BIN"; then
+  echo "error: Keychain helper signature could not be verified." >&2
+  exit 1
+fi
+
 # --- Info.plist ------------------------------------------------------------
 cat > "$CONTENTS/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -83,6 +133,7 @@ REPO="$REPO"
 PY="$PY"
 PREF_PORT="$PORT"
 export PATH="\$HOME/.npm-global/bin:\$HOME/.local/bin:\$HOME/.bun/bin:\$HOME/.volta/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export ONTOLOGYLAB_KEYCHAIN_HELPER="$APP/Contents/Resources/keychain-helper"
 ASIDE_BUNDLE_ID="at.studio.AsideBrowser"
 PORTFILE="\$REPO/.launcher.port"
 LOG="\$REPO/.launcher.log"
@@ -97,7 +148,7 @@ PACKS_DIR="\$HOME/Library/Application Support/ontologylab/packs"
 # Is OUR dashboard already up on a given port? Distinguish from any other
 # service on that port by hitting an ontologylab-specific JSON endpoint.
 is_ours() {
-  /usr/bin/curl -sf "http://127.0.0.1:\$1/api/engines" 2>/dev/null | /usr/bin/grep -q '"available"'
+  /usr/bin/curl -sf "http://127.0.0.1:\$1/healthz" 2>/dev/null | /usr/bin/grep -q '"ok":true'
 }
 port_free() {
   ! /usr/sbin/lsof -iTCP:"\$1" -sTCP:LISTEN -n >/dev/null 2>&1

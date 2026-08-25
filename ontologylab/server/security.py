@@ -1,21 +1,24 @@
 """Local-only hardening for the ontologylab web layer.
 
-The server binds to loopback and has no auth by design (single local user).
-That leaves two browser-reachable attack paths, because a web page the user
-visits can still issue requests to ``127.0.0.1``:
+The server binds to loopback. Session auth (see ``session.py``) covers
+``/api/*``; these checks still matter because a page the user visits can
+issue requests to ``127.0.0.1`` with a stolen or bootstrapped cookie:
 
 * **DNS rebinding** — an attacker domain rebinds to 127.0.0.1, becomes
   same-origin, and reads the whole knowledge graph. Defeated by pinning the
   ``Host`` header to a loopback name: the browser still sends the attacker's
   hostname, so a rebound request is rejected before it reaches a handler.
+* **Spoofed loopback Host** — a non-loopback TCP peer sends ``Host:
+  127.0.0.1``. The Host pin alone would accept that; the peer must also be
+  loopback. Forwarded headers are ignored.
 * **Cross-site request forgery** — a page at ``evil.com`` POSTs to a local
   mutating endpoint (``/api/collect`` can pull local files into the KG). The
   browser labels such a request cross-site; we reject state-changing methods
   that are not same-origin, while still allowing non-browser clients (curl,
   the CLI, MCP) that send neither ``Origin`` nor ``Sec-Fetch-Site``.
 
-Both checks are pure functions here so they can be unit-tested without a live
-server; ``app.py`` wraps them in a single middleware.
+The checks are pure functions here so they can be unit-tested without a live
+server; ``app.py`` wraps them in middleware.
 """
 
 from __future__ import annotations
@@ -102,6 +105,26 @@ def host_header_is_trusted(host_header: str | None) -> bool:
         return True
     hostname = hostname_from_host_header(host_header)
     return hostname is not None and hostname.lower() in extra_allowed_hosts()
+
+
+def loopback_host_peer_mismatch(
+    host_header: str | None, client_host: str | None
+) -> bool:
+    """True when ``Host`` names loopback but the TCP peer does not.
+
+    ``client_host`` must be the socket address the ASGI server observed.
+    ``X-Forwarded-For`` / ``X-Real-IP`` / ``X-Forwarded-Host`` are not
+    consulted and must not be passed in here.
+    """
+    return host_header_is_local(host_header) and not is_local_hostname(client_host)
+
+
+HARDENING_HEADERS: dict[str, str] = {
+    "Content-Security-Policy": "frame-ancestors 'none'",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+}
 
 
 def is_cross_site_state_change(

@@ -2,7 +2,7 @@
 
 Runnable as: python -m ontologylab.serve [--host 127.0.0.1] [--port 8765]
 
-Binds to 127.0.0.1 only (single local user, no auth, no cloud).
+Binds to 127.0.0.1 only. Session auth covers /api; remote binds are refused.
 """
 
 from __future__ import annotations
@@ -43,9 +43,8 @@ def main() -> None:
         "--allow-remote",
         action="store_true",
         help=(
-            "Permit binding a non-loopback host. The server has NO auth and "
-            "exposes the entire knowledge graph, so a non-loopback bind puts "
-            "your data on the network — required flag to acknowledge that."
+            "Legacy flag. Non-loopback binds are refused even when this is "
+            "passed; the server is local-only."
         ),
     )
     args = parser.parse_args()
@@ -63,12 +62,12 @@ def main() -> None:
 
     from ontologylab.server.security import is_local_hostname
 
-    if not is_local_hostname(args.host) and not args.allow_remote:
+    if not is_local_hostname(args.host):
         parser.error(
-            f"refusing to bind non-loopback host {args.host!r} without "
-            "--allow-remote: the server has no auth and would expose your "
-            "entire knowledge graph to the network. Keep 127.0.0.1 for "
-            "local-only use, or pass --allow-remote if you truly intend this."
+            f"refusing to bind non-loopback host {args.host!r}: "
+            "the server is local-only and will not expose the knowledge graph "
+            "on the network. --allow-remote is ignored and no longer permits "
+            "a remote bind. Keep 127.0.0.1."
         )
 
     import uvicorn

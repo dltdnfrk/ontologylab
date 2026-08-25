@@ -1208,7 +1208,65 @@
 
   /* ---- Providers (configurable API model backends) ---- */
 
-  /* Server strings (id/base_url/env-name/label/error) are user-entered;
+  /* Bound env names are derived here from id + origin. The public API
+     never returns a locator; do not read p.api_key_env. Custom origins
+     include a 12-hex SHA-256 of scheme://host:port so a URL change cannot
+     reuse the previous credential. */
+  function officialProviderEnv(baseUrl) {
+    try {
+      var parsed = new URL(baseUrl);
+      var host = (parsed.hostname || "").toLowerCase();
+      var protocol = parsed.protocol;
+      var port = parsed.port ? Number(parsed.port) : (protocol === "https:" ? 443 : 80);
+      if (protocol === "https:" && port === 443) {
+        if (host === "api.anthropic.com") return "ANTHROPIC_API_KEY";
+        if (host === "api.openai.com") return "OPENAI_API_KEY";
+        if (host === "openrouter.ai") return "OPENROUTER_API_KEY";
+      }
+    } catch (err) {}
+    return "";
+  }
+
+  function normalizedProviderOrigin(baseUrl) {
+    try {
+      var parsed = new URL(baseUrl);
+      var host = (parsed.hostname || "").toLowerCase();
+      var protocol = parsed.protocol;
+      if ((protocol !== "http:" && protocol !== "https:") || !host) return "";
+      var port = parsed.port ? Number(parsed.port) : (protocol === "https:" ? 443 : 80);
+      var scheme = protocol === "https:" ? "https" : "http";
+      if (host.indexOf(":") !== -1) return scheme + "://[" + host + "]:" + port;
+      return scheme + "://" + host + ":" + port;
+    } catch (err) {
+      return "";
+    }
+  }
+
+  function sha256Hex12(text) {
+    return crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)).then(
+      function (buf) {
+        var bytes = new Uint8Array(buf);
+        var hex = "";
+        for (var i = 0; i < 6; i++) {
+          var part = bytes[i].toString(16);
+          hex += part.length < 2 ? "0" + part : part;
+        }
+        return hex.toUpperCase();
+      }
+    );
+  }
+
+  function dedicatedProviderEnv(id, baseUrl) {
+    var official = officialProviderEnv(baseUrl);
+    if (official) return Promise.resolve(official);
+    var slug = String(id || "").toUpperCase().replace(/-/g, "_");
+    var fingerprint = normalizedProviderOrigin(baseUrl) || String(baseUrl || "");
+    return sha256Hex12(fingerprint).then(function (digest) {
+      return "ONTOLOGYLAB_PROVIDER_" + slug + "_" + digest;
+    });
+  }
+
+  /* Server strings (id/base_url/label/error) are user-entered;
      always escapeHtml before innerHTML. The registry never returns a key. */
   async function loadProviders() {
     var tbody = $("#providers-body");
@@ -1216,7 +1274,7 @@
     var empty = $("#providers-empty");
     var errEl = $("#providers-error");
     errEl.classList.add("hidden");
-    showTableLoading(tbody, 7);
+    showTableLoading(tbody, 6);
     try {
       var res = await api("/api/providers");
       var providers = (res && res.providers) || [];
@@ -1226,7 +1284,8 @@
         return;
       }
       empty.classList.add("hidden");
-      providers.forEach(function (p) {
+      for (var i = 0; i < providers.length; i++) {
+        var p = providers[i];
         var keyBadge = p.key_present
           ? "<span class='badge st-verified'>설정됨</span>"
           : "<span class='badge st-proposed'>미설정</span>";
@@ -1235,7 +1294,6 @@
           "<td><code>api:" + escapeHtml(p.id) + "</code></td>" +
           "<td>" + escapeHtml(p.kind) + "</td>" +
           "<td>" + escapeHtml(p.base_url) + "</td>" +
-          "<td><code>" + escapeHtml(p.api_key_env) + "</code></td>" +
           "<td>" + keyBadge + "</td>" +
           "<td>" + escapeHtml(String((p.models || []).length)) + "</td>" +
           "<td class='actions'>" +
@@ -1247,7 +1305,7 @@
           "'>삭제</button>" +
           "</td>";
         tbody.appendChild(tr);
-      });
+      }
     } catch (e) {
       tbody.innerHTML = "";
       errEl.textContent = friendlyError(e);
@@ -1323,12 +1381,13 @@
       id: $("#provider-id").value.trim(),
       kind: $("#provider-kind").value,
       base_url: $("#provider-base-url").value.trim(),
-      api_key_env: $("#provider-api-key-env").value.trim(),
+      api_key_env: "",
       models: splitList($("#provider-models").value),
       label: $("#provider-label").value.trim(),
     };
-    if (!payload.id || !payload.base_url || !payload.api_key_env) {
-      showResult(box, "ID·base_url·키 환경변수 이름은 꼭 채워주세요.", true);
+    payload.api_key_env = await dedicatedProviderEnv(payload.id, payload.base_url);
+    if (!payload.id || !payload.base_url) {
+      showResult(box, "ID·base_url은 꼭 채워주세요.", true);
       return;
     }
     btn.disabled = true;
@@ -1346,7 +1405,6 @@
         );
         $("#provider-id").value = "";
         $("#provider-base-url").value = "";
-        $("#provider-api-key-env").value = "";
         $("#provider-models").value = "";
         $("#provider-label").value = "";
         await loadProviders();

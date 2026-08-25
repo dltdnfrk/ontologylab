@@ -76,7 +76,7 @@ esac
 say "4) 서버 재시작"
 /bin/launchctl bootstrap "gui/$UID_NUM" "$HOME/Library/LaunchAgents/$AGENT.plist"
 sleep 4
-if curl -sf -o /dev/null "http://127.0.0.1:8799/api/engines"; then
+if curl -sf -o /dev/null "http://127.0.0.1:8799/healthz"; then
   echo "   서버 응답 정상"
 else
   echo "   !! 서버가 아직 안 뜹니다. 로그: ~/Library/Logs/ontologylab-server.log" >&2

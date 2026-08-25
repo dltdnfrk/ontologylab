@@ -18,8 +18,13 @@ failure here can never leave junk in the real `ontologylab` service.
 
 from __future__ import annotations
 
+import atexit
 import json
+import os
+import shutil
 import subprocess
+import sys
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -34,37 +39,91 @@ from ontologylab.server.app import create_app
 
 SECRET = "ELS-key-that-must-never-come-back-9f3a"
 _REAL_RUN = subprocess.run
+_HELPER_SRC = Path(__file__).resolve().parents[1] / "launcher" / "keychain-helper.swift"
+_MODULE_HELPER_DIR: str | None = None
+_MODULE_HELPER: str | None = None
 
 needs_keychain = pytest.mark.skipif(
     not keychain_available(), reason="no macOS `security` binary"
 )
 
 
+def _cleanup_module_helper() -> None:
+    global _MODULE_HELPER_DIR, _MODULE_HELPER
+    path = _MODULE_HELPER_DIR
+    _MODULE_HELPER = None
+    _MODULE_HELPER_DIR = None
+    if path and os.path.isdir(path):
+        shutil.rmtree(path, ignore_errors=True)
+
+
+def _ensure_module_helper() -> str | None:
+    global _MODULE_HELPER_DIR, _MODULE_HELPER
+    if _MODULE_HELPER and os.path.isfile(_MODULE_HELPER):
+        return _MODULE_HELPER
+    if sys.platform != "darwin" or shutil.which("swiftc") is None:
+        return None
+    if not _HELPER_SRC.is_file():
+        return None
+    work = tempfile.mkdtemp(prefix="ol-keychain-helper-routes-")
+    binary = os.path.join(work, "keychain-helper")
+    compiled = _REAL_RUN(
+        [
+            "swiftc", "-O",
+            "-sdk", subprocess.check_output(
+                ["xcrun", "--show-sdk-path"], text=True,
+            ).strip(),
+            "-framework", "Security",
+            "-framework", "Foundation",
+            "-o", binary,
+            str(_HELPER_SRC),
+        ],
+        capture_output=True, text=True, timeout=120,
+    )
+    if compiled.returncode != 0:
+        shutil.rmtree(work, ignore_errors=True)
+        return None
+    signed = _REAL_RUN(
+        ["codesign", "--force", "--sign", "-", binary],
+        capture_output=True, text=True, timeout=30,
+    )
+    if signed.returncode != 0:
+        shutil.rmtree(work, ignore_errors=True)
+        return None
+    _MODULE_HELPER_DIR = work
+    _MODULE_HELPER = binary
+    atexit.register(_cleanup_module_helper)
+    return binary
+
+
 @pytest.fixture(autouse=True)
 def _isolated_keychain(monkeypatch, tmp_path):
     test_service = f"ontologylab-pytest-routes-{uuid.uuid5(uuid.NAMESPACE_URL, str(tmp_path))}"
+    helper = _ensure_module_helper()
+    if helper:
+        monkeypatch.setenv("ONTOLOGYLAB_KEYCHAIN_HELPER", helper)
     monkeypatch.setattr(keychain, "KEYCHAIN_SERVICE", test_service)
+    monkeypatch.setattr(keychain, "KEYCHAIN_SERVICE_LEGACY", f"{test_service}-legacy")
     yield
-    if not keychain_available():
-        return
-    for _ in range(20):
-        found = _REAL_RUN(
-            ["security", "find-generic-password", "-s", test_service],
-            capture_output=True, text=True, timeout=15,
-        )
-        if found.returncode != 0:
-            break
-        account = ""
-        for line in found.stdout.splitlines():
-            if '"acct"<blob>=' in line:
-                account = line.split('="', 1)[-1].rstrip('"')
-        if not account:
-            break
-        _REAL_RUN(
-            ["security", "delete-generic-password",
-             "-s", test_service, "-a", account],
-            capture_output=True, text=True, timeout=15,
-        )
+    for service in (test_service, f"{test_service}-legacy"):
+        for _ in range(20):
+            found = _REAL_RUN(
+                ["security", "find-generic-password", "-s", service],
+                capture_output=True, text=True, timeout=15,
+            )
+            if found.returncode != 0:
+                break
+            account = ""
+            for line in found.stdout.splitlines():
+                if '"acct"<blob>=' in line:
+                    account = line.split('="', 1)[-1].rstrip('"')
+            if not account:
+                break
+            _REAL_RUN(
+                ["security", "delete-generic-password",
+                 "-s", service, "-a", account],
+                capture_output=True, text=True, timeout=15,
+            )
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -108,6 +167,29 @@ def test_listing_never_carries_the_key(tmp_path) -> None:
 
     assert body["sources"][0]["key_present"] is True
     assert SECRET not in json.dumps(body)
+
+
+def test_listing_omits_credential_locators(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(routes, "keychain_available", lambda: False)
+    monkeypatch.setenv("ELSEVIER_API_KEY", SECRET)
+    client = _client(tmp_path)
+
+    created = client.post(
+        "/api/sources",
+        json={
+            "id": "elsevier",
+            "role": "literature",
+            "api_key_env": "ELSEVIER_API_KEY",
+        },
+    ).json()
+    listed = client.get("/api/sources").json()
+
+    for payload in (created["source"], listed["sources"][0]):
+        assert "keychain_account" not in payload
+        assert "api_key_env" not in payload
+        assert payload["id"] == "elsevier"
+        assert payload["role"] == "literature"
+        assert payload["key_present"] is True
 
 
 @needs_keychain

@@ -17,10 +17,16 @@ absent. The rest run anywhere.
 
 from __future__ import annotations
 
+import atexit
 import json
 import os
+import shutil
+import stat
 import subprocess
+import sys
+import tempfile
 import uuid
+from pathlib import Path
 
 import pytest
 
@@ -50,7 +56,7 @@ from ontologylab.sources import (
 SECRET = "ELS-secret-value-must-never-hit-disk-9f3a"
 
 needs_keychain = pytest.mark.skipif(
-    not keychain_available(), reason="no macOS `security` binary"
+    not keychain_available(), reason="no macOS Keychain transport"
 )
 
 # Tests write to the developer's real login Keychain — there is no fake one,
@@ -61,6 +67,10 @@ needs_keychain = pytest.mark.skipif(
 # removed left an `ontologylab / ontologylab.test.empty` item behind exactly
 # this way, and it had to be deleted by hand.
 TEST_SERVICE = "ontologylab-pytest"
+TEST_SERVICE_LEGACY = "ontologylab-pytest-legacy"
+_HELPER_SRC = Path(__file__).resolve().parents[1] / "launcher" / "keychain-helper.swift"
+_MODULE_HELPER_DIR: str | None = None
+_MODULE_HELPER: str | None = None
 
 # Several tests monkeypatch `keychain.subprocess.run` to raise or hang — and
 # `keychain.subprocess` is the same module object as this file's, so those
@@ -70,17 +80,67 @@ TEST_SERVICE = "ontologylab-pytest"
 _REAL_RUN = subprocess.run
 
 
-@pytest.fixture(autouse=True)
-def _isolated_keychain_service(monkeypatch):
-    """Point every Keychain call at a test-only service, then sweep it."""
-    monkeypatch.setattr(keychain, "KEYCHAIN_SERVICE", TEST_SERVICE)
-    yield
-    if not keychain_available():
+def _cleanup_module_helper() -> None:
+    global _MODULE_HELPER_DIR, _MODULE_HELPER
+    path = _MODULE_HELPER_DIR
+    _MODULE_HELPER = None
+    _MODULE_HELPER_DIR = None
+    if path and os.path.isdir(path):
+        shutil.rmtree(path, ignore_errors=True)
+
+
+def _ensure_module_helper() -> str | None:
+    global _MODULE_HELPER_DIR, _MODULE_HELPER
+    if _MODULE_HELPER and os.path.isfile(_MODULE_HELPER):
+        return _MODULE_HELPER
+    if sys.platform != "darwin" or shutil.which("swiftc") is None:
+        return None
+    if not _HELPER_SRC.is_file():
+        return None
+    work = tempfile.mkdtemp(prefix="ol-keychain-helper-")
+    binary = os.path.join(work, "keychain-helper")
+    compiled = _REAL_RUN(
+        [
+            "swiftc", "-O",
+            "-sdk", subprocess.check_output(
+                ["xcrun", "--show-sdk-path"], text=True,
+            ).strip(),
+            "-framework", "Security",
+            "-framework", "Foundation",
+            "-o", binary,
+            str(_HELPER_SRC),
+        ],
+        capture_output=True, text=True, timeout=120,
+    )
+    if compiled.returncode != 0:
+        shutil.rmtree(work, ignore_errors=True)
+        return None
+    signed = _REAL_RUN(
+        ["codesign", "--force", "--sign", "-", binary],
+        capture_output=True, text=True, timeout=30,
+    )
+    if signed.returncode != 0:
+        shutil.rmtree(work, ignore_errors=True)
+        return None
+    _MODULE_HELPER_DIR = work
+    _MODULE_HELPER = binary
+    atexit.register(_cleanup_module_helper)
+    return binary
+
+
+def _dummy_helper(tmp_path: Path) -> Path:
+    helper = tmp_path / "keychain-helper"
+    helper.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    helper.chmod(0o755)
+    return helper
+
+
+def _sweep_service(service: str) -> None:
+    if shutil.which("security") is None:
         return
-    # Sweep whatever this test left, whether it cleaned up after itself or not.
     for _ in range(20):
         found = _REAL_RUN(
-            ["security", "find-generic-password", "-s", TEST_SERVICE],
+            ["security", "find-generic-password", "-s", service],
             capture_output=True, text=True, timeout=15,
         )
         if found.returncode != 0:
@@ -93,9 +153,22 @@ def _isolated_keychain_service(monkeypatch):
             break
         _REAL_RUN(
             ["security", "delete-generic-password",
-             "-s", TEST_SERVICE, "-a", account],
+             "-s", service, "-a", account],
             capture_output=True, text=True, timeout=15,
         )
+
+
+@pytest.fixture(autouse=True)
+def _isolated_keychain_service(monkeypatch):
+    """Point every Keychain call at a test-only service, then sweep it."""
+    helper = _ensure_module_helper()
+    if helper:
+        monkeypatch.setenv("ONTOLOGYLAB_KEYCHAIN_HELPER", helper)
+    monkeypatch.setattr(keychain, "KEYCHAIN_SERVICE", TEST_SERVICE)
+    monkeypatch.setattr(keychain, "KEYCHAIN_SERVICE_LEGACY", TEST_SERVICE_LEGACY)
+    yield
+    _sweep_service(TEST_SERVICE)
+    _sweep_service(TEST_SERVICE_LEGACY)
 
 
 def _source(**overrides) -> Source:
@@ -174,6 +247,26 @@ def test_the_public_view_reports_presence_and_nothing_else(
 
     assert public["key_present"] is True
     assert SECRET not in json.dumps(public)
+
+
+def test_public_projection_omits_credential_locators(monkeypatch) -> None:
+    """Browser JSON must not carry Keychain/env locators, only presence."""
+    monkeypatch.setenv("ELSEVIER_API_KEY", SECRET)
+    source = _source(
+        keychain_account="ontologylab.literature",
+        api_key_env="ELSEVIER_API_KEY",
+        label="저널 접근",
+    )
+
+    public = source_public(source)
+
+    assert "keychain_account" not in public
+    assert "api_key_env" not in public
+    assert public["id"] == "journals"
+    assert public["role"] == "literature"
+    assert public["label"] == "저널 접근"
+    assert public["key_present"] is True
+    assert set(public) == {"id", "role", "label", "key_present"}
 
 
 def test_presence_is_computed_not_assumed(tmp_path, monkeypatch) -> None:
@@ -305,8 +398,131 @@ def test_the_write_is_atomic(tmp_path) -> None:
 
 
 # --------------------------------------------------------------------------
+# Owner-only registry files (locators are not secrets, but they are locators)
+# --------------------------------------------------------------------------
+
+
+def test_sources_registry_file_is_owner_only(tmp_path) -> None:
+    add_source(tmp_path, _source())
+
+    mode = stat.S_IMODE(sources_path(tmp_path).stat().st_mode)
+    assert mode & 0o077 == 0, f"sources.json mode {oct(mode)} is group/world accessible"
+
+
+def test_providers_registry_file_is_owner_only(tmp_path) -> None:
+    from ontologylab.paths import providers_path
+    from ontologylab.providers import Provider, add_provider
+
+    add_provider(
+        tmp_path,
+        Provider(
+            id="my-anthropic",
+            kind="anthropic",
+            base_url="https://api.anthropic.com/v1",
+            api_key_env="ANTHROPIC_API_KEY",
+        ),
+    )
+
+    mode = stat.S_IMODE(providers_path(tmp_path).stat().st_mode)
+    assert mode & 0o077 == 0, (
+        f"providers.json mode {oct(mode)} is group/world accessible"
+    )
+
+
+def test_world_readable_sources_registry_is_tightened_on_load(tmp_path) -> None:
+    add_source(tmp_path, _source())
+    path = sources_path(tmp_path)
+    path.chmod(0o644)
+
+    load_sources(tmp_path)
+
+    mode = stat.S_IMODE(path.stat().st_mode)
+    assert mode & 0o077 == 0, f"sources.json remained {oct(mode)} after load"
+
+
+def test_world_readable_providers_registry_is_tightened_on_load(tmp_path) -> None:
+    from ontologylab.paths import providers_path
+    from ontologylab.providers import Provider, add_provider, load_providers
+
+    add_provider(
+        tmp_path,
+        Provider(
+            id="my-anthropic",
+            kind="anthropic",
+            base_url="https://api.anthropic.com/v1",
+            api_key_env="ANTHROPIC_API_KEY",
+        ),
+    )
+    path = providers_path(tmp_path)
+    path.chmod(0o644)
+
+    load_providers(tmp_path)
+
+    mode = stat.S_IMODE(path.stat().st_mode)
+    assert mode & 0o077 == 0, f"providers.json remained {oct(mode)} after load"
+
+
+def test_data_dir_is_owner_only_after_registry_write(tmp_path) -> None:
+    os.chmod(tmp_path, 0o755)
+    add_source(tmp_path, _source())
+
+    mode = stat.S_IMODE(tmp_path.stat().st_mode)
+    assert mode & 0o077 == 0, f"data dir mode {oct(mode)} is group/world accessible"
+
+
+def test_existing_owner_only_sources_registry_stays_owner_only(tmp_path) -> None:
+    add_source(tmp_path, _source())
+    path = sources_path(tmp_path)
+    path.chmod(0o600)
+
+    load_sources(tmp_path)
+    add_source(tmp_path, _source(label="again"))
+
+    mode = stat.S_IMODE(path.stat().st_mode)
+    assert mode & 0o077 == 0, f"rewrite widened sources.json to {oct(mode)}"
+
+
+# --------------------------------------------------------------------------
 # Keychain access
 # --------------------------------------------------------------------------
+
+ARGV_CANARY = "CANARY-secret-must-not-appear-in-argv-7f2c"
+
+
+def test_keychain_write_never_places_secret_in_argv(monkeypatch, tmp_path) -> None:
+    """A write must not put the secret on `security ... -w` argv or in env."""
+    helper = tmp_path / "keychain-helper"
+    helper.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    helper.chmod(0o755)
+    monkeypatch.setenv("ONTOLOGYLAB_KEYCHAIN_HELPER", str(helper))
+
+    calls: list[list[str]] = []
+    envs: list[dict] = []
+
+    def _run(argv, **kwargs):
+        calls.append(list(argv))
+        env = kwargs.get("env")
+        if isinstance(env, dict):
+            envs.append(env)
+        return subprocess.CompletedProcess(argv, 0, '{"ok":true}', "")
+
+    monkeypatch.setattr(keychain, "keychain_available", lambda: True)
+    monkeypatch.setattr(keychain.subprocess, "run", _run)
+    monkeypatch.setattr(keychain, "read_key", lambda _acct: ARGV_CANARY)
+    monkeypatch.setattr(keychain, "_read_native", lambda _acct: ARGV_CANARY)
+
+    write_key("ontologylab.test.argv", ARGV_CANARY)
+
+    leaked = [argv for argv in calls if ARGV_CANARY in argv]
+    assert leaked == [], (
+        "secret appeared on argv (legacy security transport): " + repr(leaked)
+    )
+    for argv in calls:
+        assert "add-generic-password" not in argv
+        assert "-T" not in argv or "/usr/bin/security" not in argv
+    for env in envs:
+        assert ARGV_CANARY not in env.values()
+
 
 
 @needs_keychain
@@ -351,54 +567,45 @@ def test_writing_twice_replaces_rather_than_duplicating() -> None:
         delete_key(account)
 
 
-def test_a_replacement_never_modifies_an_existing_item(monkeypatch) -> None:
-    """The regression that put a password dialog on the user's screen.
+def test_a_replacement_never_modifies_an_existing_item(
+    monkeypatch, tmp_path
+) -> None:
+    """Writes go through the helper; `security add-generic-password -U -T` is gone.
 
-    `add-generic-password -U -T /usr/bin/security` against an item that
-    already exists is an ACL *modification*, and macOS demands the login
-    password for it: "security wants to change the access permissions of the
-    item". Creating a fresh item with the same `-T` raises nothing.
-
-    Rotating a key is the single most common reason to write twice, so the
-    prompt landed on the most ordinary path there is. It also explained an
-    earlier 15-second write timeout that had been dismissed as a transient.
-
-    This asserts the shape of the command rather than the absence of a
-    dialog, because a test cannot see a dialog — it can only hang, which is
-    exactly how this was discovered.
+    The old `-U -T /usr/bin/security` path was an ACL modification and
+    raised a login-password dialog. The helper updates via SecItemUpdate /
+    SecItemAdd and never passes `-T`.
     """
+    helper = _dummy_helper(tmp_path)
+    monkeypatch.setenv("ONTOLOGYLAB_KEYCHAIN_HELPER", str(helper))
     calls = []
     monkeypatch.setattr(keychain, "keychain_available", lambda: True)
     monkeypatch.setattr(
         keychain.subprocess, "run",
         lambda argv, **k: calls.append(list(argv))
-        or subprocess.CompletedProcess(argv, 0, "", ""),
+        or subprocess.CompletedProcess(argv, 0, '{"ok":true}', ""),
     )
-    monkeypatch.setattr(keychain, "read_key", lambda _acct: "new-value")
+    monkeypatch.setattr(keychain, "_read_native", lambda _acct: "new-value")
 
     write_key("ontologylab.test.rotate", "new-value")
 
-    adds = [c for c in calls if "add-generic-password" in c]
-    assert adds, "nothing was written"
-    for argv in adds:
-        assert "-U" not in argv, (
-            "-U turns a create into an ACL modification, which prompts"
-        )
-    assert any("delete-generic-password" in c for c in calls), (
-        "without deleting first, a second write has nothing to replace"
-    )
+    assert any(c and c[0] == str(helper) for c in calls), "helper was not invoked"
+    for argv in calls:
+        assert "add-generic-password" not in argv
+        assert "-U" not in argv
+        assert "-T" not in argv or "/usr/bin/security" not in argv
 
 
-def test_a_failed_replacement_puts_the_old_key_back(monkeypatch) -> None:
-    """Deleting first means a failed create would otherwise lose the key.
-
-    Rotation is precisely when that happens: the user has a working key,
-    asks to replace it, the write fails, and they are left with nothing.
-    """
+def test_a_failed_replacement_puts_the_old_key_back(
+    monkeypatch, tmp_path
+) -> None:
+    """A failed native write must put the previous value back via the helper."""
+    helper = _dummy_helper(tmp_path)
+    monkeypatch.setenv("ONTOLOGYLAB_KEYCHAIN_HELPER", str(helper))
     restored = []
     monkeypatch.setattr(keychain, "keychain_available", lambda: True)
     monkeypatch.setattr(keychain, "read_key", lambda _acct: "old-value")
-    monkeypatch.setattr(keychain, "delete_key", lambda _acct: True)
+    monkeypatch.setattr(keychain, "_read_native", lambda _acct: None)
     monkeypatch.setattr(
         keychain, "_restore", lambda acct, value: restored.append((acct, value))
     )
@@ -467,9 +674,14 @@ def test_a_malformed_account_never_reaches_the_subprocess(monkeypatch) -> None:
     assert not calls
 
 
-def test_a_keychain_failure_message_never_quotes_the_key(monkeypatch) -> None:
-    """The command line contains the key, so the error must not echo it."""
+def test_a_keychain_failure_message_never_quotes_the_key(
+    monkeypatch, tmp_path
+) -> None:
+    """Helper stderr can mention the secret; the raised error must not."""
+    helper = _dummy_helper(tmp_path)
+    monkeypatch.setenv("ONTOLOGYLAB_KEYCHAIN_HELPER", str(helper))
     monkeypatch.setattr(keychain, "keychain_available", lambda: True)
+    monkeypatch.setattr(keychain, "_read_native", lambda _acct: None)
     monkeypatch.setattr(
         keychain.subprocess, "run",
         lambda *a, **k: subprocess.CompletedProcess(a, 1, "", f"failed on {SECRET}"),
@@ -481,14 +693,19 @@ def test_a_keychain_failure_message_never_quotes_the_key(monkeypatch) -> None:
     assert SECRET not in str(excinfo.value)
 
 
-def test_a_prompt_that_blocks_becomes_an_error_not_a_hang(monkeypatch) -> None:
-    """`security` blocks forever on a GUI authorization prompt.
+def test_a_prompt_that_blocks_becomes_an_error_not_a_hang(
+    monkeypatch, tmp_path
+) -> None:
+    """The helper can block forever on a GUI authorization prompt.
 
     A request thread parked on one would hang the dashboard, so the timeout
     is the contract and this pins it.
     """
+    helper = _dummy_helper(tmp_path)
+    monkeypatch.setenv("ONTOLOGYLAB_KEYCHAIN_HELPER", str(helper))
+
     def _hang(*a, **k):
-        raise subprocess.TimeoutExpired(cmd="security", timeout=15)
+        raise subprocess.TimeoutExpired(cmd=str(helper), timeout=15)
 
     monkeypatch.setattr(keychain, "keychain_available", lambda: True)
     monkeypatch.setattr(keychain.subprocess, "run", _hang)
@@ -499,28 +716,30 @@ def test_a_prompt_that_blocks_becomes_an_error_not_a_hang(monkeypatch) -> None:
 
 
 def test_a_write_that_timed_out_but_landed_is_reported_as_success(
-    monkeypatch,
+    monkeypatch, tmp_path,
 ) -> None:
-    """Observed once during development: `securityd` blew the timeout on a
+    """Observed once during development: the store blew the timeout on a
     write that had in fact stored the value.
 
     Calling that a failure sends the user to re-enter a key that is already
-    there, and leaves them believing journal access is unconfigured while it
-    works. So the read-back, not the clock, decides.
+    there. So the native read-back, not the clock, decides.
     """
+    helper = _dummy_helper(tmp_path)
+    monkeypatch.setenv("ONTOLOGYLAB_KEYCHAIN_HELPER", str(helper))
     monkeypatch.setattr(keychain, "keychain_available", lambda: True)
 
     def _slow_but_effective(*a, **k):
-        raise subprocess.TimeoutExpired(cmd="security", timeout=15)
+        raise subprocess.TimeoutExpired(cmd=str(helper), timeout=15)
 
     monkeypatch.setattr(keychain.subprocess, "run", _slow_but_effective)
     monkeypatch.setattr(keychain, "read_key", lambda _acct: SECRET)
+    monkeypatch.setattr(keychain, "_read_native", lambda _acct: SECRET)
 
     write_key("ontologylab.test.slow", SECRET)  # must not raise
 
 
 def test_a_write_that_exits_zero_without_storing_is_still_an_error(
-    monkeypatch,
+    monkeypatch, tmp_path,
 ) -> None:
     """A zero exit was measured not to mean "stored".
 
@@ -528,12 +747,15 @@ def test_a_write_that_exits_zero_without_storing_is_still_an_error(
     every length from 32 to 1024 bytes. Trusting the exit status is exactly
     how that would have shipped unnoticed.
     """
+    helper = _dummy_helper(tmp_path)
+    monkeypatch.setenv("ONTOLOGYLAB_KEYCHAIN_HELPER", str(helper))
     monkeypatch.setattr(keychain, "keychain_available", lambda: True)
     monkeypatch.setattr(
         keychain.subprocess, "run",
-        lambda *a, **k: subprocess.CompletedProcess(a, 0, "", ""),
+        lambda *a, **k: subprocess.CompletedProcess(a, 0, '{"ok":true}', ""),
     )
-    monkeypatch.setattr(keychain, "read_key", lambda _acct: None)  # nothing stored
+    monkeypatch.setattr(keychain, "read_key", lambda _acct: None)
+    monkeypatch.setattr(keychain, "_read_native", lambda _acct: None)
 
     with pytest.raises(KeychainError) as excinfo:
         write_key("ontologylab.test.silent", SECRET)
@@ -541,20 +763,25 @@ def test_a_write_that_exits_zero_without_storing_is_still_an_error(
     assert SECRET not in str(excinfo.value)
 
 
-def test_a_write_that_stored_the_wrong_value_is_an_error(monkeypatch) -> None:
+def test_a_write_that_stored_the_wrong_value_is_an_error(
+    monkeypatch, tmp_path
+) -> None:
     """Truncation would look like this — a stored value that is a prefix.
 
     The long key is deliberate: `SECRET` is 41 characters, so a naive
     `SECRET[:128]` here would equal `SECRET` and the test would pass while
     asserting nothing.
     """
+    helper = _dummy_helper(tmp_path)
+    monkeypatch.setenv("ONTOLOGYLAB_KEYCHAIN_HELPER", str(helper))
     long_key = "k" * 300
     monkeypatch.setattr(keychain, "keychain_available", lambda: True)
     monkeypatch.setattr(
         keychain.subprocess, "run",
-        lambda *a, **k: subprocess.CompletedProcess(a, 0, "", ""),
+        lambda *a, **k: subprocess.CompletedProcess(a, 0, '{"ok":true}', ""),
     )
     monkeypatch.setattr(keychain, "read_key", lambda _acct: long_key[:128])
+    monkeypatch.setattr(keychain, "_read_native", lambda _acct: long_key[:128])
 
     with pytest.raises(KeychainError):
         write_key("ontologylab.test.truncated", long_key)
@@ -572,13 +799,16 @@ def test_a_read_never_raises_whatever_the_platform_does(monkeypatch) -> None:
 
 def test_without_the_security_binary_everything_degrades(monkeypatch) -> None:
     """Non-macOS is a capability question, not an error."""
+    monkeypatch.delenv("ONTOLOGYLAB_KEYCHAIN_HELPER", raising=False)
+    monkeypatch.setattr(keychain, "_resolved_helper_path", lambda: None)
     monkeypatch.setattr(keychain.shutil, "which", lambda _name: None)
 
     assert keychain_available() is False
     assert read_key("ontologylab.literature") is None
     assert delete_key("ontologylab.literature") is False
-    with pytest.raises(KeychainError):
+    with pytest.raises(KeychainError) as excinfo:
         write_key("ontologylab.literature", "value")
+    assert excinfo.value.kind == "missing_helper"
 
 
 # --------------------------------------------------------------------------

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,7 @@ if TestClient is None:
 from ontologylab.kgstore import KGStore  # noqa: E402
 from ontologylab.models import ProposedEntity  # noqa: E402
 from ontologylab.server.app import create_app  # noqa: E402
+from ontologylab.server.rate_limit import reset_provider_test_limiter  # noqa: E402
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -137,9 +139,16 @@ _OPENAI_BODY = {
     "id": "orouter",
     "kind": "openai",
     "base_url": "https://openrouter.ai/api/v1",
-    "api_key_env": "SRV_OR_KEY",
+    "api_key_env": "OPENROUTER_API_KEY",
     "models": ["meta/llama"],
 }
+
+
+@pytest.fixture(autouse=True)
+def _reset_provider_test_limiter() -> Iterator[None]:
+    reset_provider_test_limiter()
+    yield
+    reset_provider_test_limiter()
 
 
 def test_providers_empty(tmp_path: Path) -> None:
@@ -156,15 +165,15 @@ def test_provider_add_lists_and_reports_key_present(
     assert add.json()["ok"] is True
 
     # Without the env var, key_present is False.
-    monkeypatch.delenv("SRV_OR_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     listed = client.get("/api/providers").json()["providers"]
     assert len(listed) == 1
     assert listed[0]["id"] == "orouter"
     assert listed[0]["key_present"] is False
-    assert listed[0]["api_key_env"] == "SRV_OR_KEY"
+    assert "api_key_env" not in listed[0]
 
     # With it set, key_present flips True — but the value is never returned.
-    monkeypatch.setenv("SRV_OR_KEY", "sk-secret")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-secret")
     listed = client.get("/api/providers").json()["providers"]
     assert listed[0]["key_present"] is True
 
@@ -193,10 +202,10 @@ def test_provider_test_missing_key_is_clear_not_error(
 ) -> None:
     client = _client(tmp_path)
     client.post("/api/providers", json=_OPENAI_BODY)
-    monkeypatch.delenv("SRV_OR_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     res = client.post("/api/providers/orouter/test").json()
     assert res["ok"] is False
-    assert "SRV_OR_KEY" in res["error"]
+    assert "환경변수" in res["error"] or "전용" in res["error"]
 
 
 def test_provider_test_with_key_pings_via_monkeypatched_http(
@@ -206,7 +215,7 @@ def test_provider_test_with_key_pings_via_monkeypatched_http(
 
     client = _client(tmp_path)
     client.post("/api/providers", json=_OPENAI_BODY)
-    monkeypatch.setenv("SRV_OR_KEY", "sk-super-secret")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-super-secret")
 
     def fake_post(url, headers, payload, timeout_s):
         assert url.endswith("/chat/completions")

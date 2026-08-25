@@ -19,8 +19,19 @@ from ontologylab.server.ingest_routes import router as ingest_router
 from ontologylab.server.jobs import JobRegistry
 from ontologylab.server.routes import router
 from ontologylab.server.security import (
+    HARDENING_HEADERS,
+    host_header_is_local,
     host_header_is_trusted,
     is_cross_site_state_change,
+    is_local_hostname,
+    loopback_host_peer_mismatch,
+)
+from ontologylab.server.session import (
+    COOKIE_NAME,
+    HEADER_NAME,
+    install_session,
+    presented_session_token,
+    tokens_match,
 )
 
 WEB_DIR = ROOT / "web"
@@ -36,6 +47,12 @@ _BUSY_MARKERS = ("database is locked", "database table is locked", "busy")
 _RETRY_AFTER_S = "2"
 
 
+def _hardened_response(response):
+    for key, value in HARDENING_HEADERS.items():
+        response.headers.setdefault(key, value)
+    return response
+
+
 def create_app(
     data_dir: Path | None = None, packs_dir: Path | None = None
 ) -> FastAPI:
@@ -43,11 +60,16 @@ def create_app(
     app = FastAPI(
         title="ontologylab",
         description="Local knowledge-graph pipeline dashboard",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
     )
 
     resolved = Path(data_dir) if data_dir is not None else default_data_dir()
-    resolved.mkdir(parents=True, exist_ok=True)
+    secret = install_session(resolved)
     app.state.data_dir = resolved
+    app.state.session_token = secret.token
+    app.state.session_token_path = secret.path
 
     if packs_dir is not None:
         resolved_packs = Path(packs_dir)
@@ -133,6 +155,10 @@ def create_app(
     if WEB_DIR.is_dir():
         app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
+    @app.get("/healthz", include_in_schema=False)
+    async def healthz() -> dict[str, bool]:
+        return {"ok": True}
+
     @app.get("/", include_in_schema=False)
     async def index() -> FileResponse:
         return FileResponse(str(INDEX_HTML))
@@ -146,45 +172,96 @@ def create_app(
         response = await call_next(request)
         path = request.url.path
         if path == "/" or path.startswith("/static/"):
-            response.headers["Cache-Control"] = "no-cache"
+            response.headers.setdefault("Cache-Control", "no-cache")
         return response
 
-    # Registered last => outermost => runs first. The server binds to loopback
-    # with no auth, so a web page the user visits is the real adversary here.
-    # Reject non-loopback Host headers (DNS rebinding) and cross-site
-    # state-changing requests (CSRF) before any handler sees them. See
-    # server/security.py for the rationale and the unit-tested predicates.
+    # Session sits inside the Host/peer + CSRF guard. /healthz and the
+    # dashboard document stay reachable; every /api/* call needs the token.
+    @app.middleware("http")
+    async def _session_guard(request, call_next):  # type: ignore[no-untyped-def]
+        path = request.url.path
+        if path.startswith("/api/"):
+            presented = presented_session_token(
+                cookie=request.cookies.get(COOKIE_NAME),
+                header=request.headers.get(HEADER_NAME),
+            )
+            if not tokens_match(presented, request.app.state.session_token):
+                return JSONResponse(
+                    status_code=401,
+                    content={
+                        "ok": False,
+                        "error_kind": "unauthenticated",
+                        "detail": "Missing or invalid session.",
+                    },
+                    headers={"Cache-Control": "no-store"},
+                )
+        response = await call_next(request)
+        peer = request.client.host if request.client is not None else None
+        if (
+            request.method.upper() == "GET"
+            and path == "/"
+            and host_header_is_local(request.headers.get("host"))
+            and is_local_hostname(peer)
+        ):
+            response.set_cookie(
+                key=COOKIE_NAME,
+                value=request.app.state.session_token,
+                httponly=True,
+                samesite="strict",
+                path="/",
+            )
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+    # Registered last => outermost => runs first. Host/peer + CSRF reject
+    # before the session middleware sees the request. Forwarded headers are
+    # not consulted; the peer is the ASGI client address only.
     @app.middleware("http")
     async def _local_guard(request, call_next):  # type: ignore[no-untyped-def]
-        if not host_header_is_trusted(request.headers.get("host")):
-            return JSONResponse(
-                status_code=421,
-                content={
-                    "ok": False,
-                    "error_kind": "bad_host",
-                    "detail": (
-                        "This server only accepts loopback Host headers "
-                        "(127.0.0.1 / localhost / [::1]) unless a hostname is "
-                        "allowlisted via ONTOLOGYLAB_ALLOWED_HOSTS."
-                    ),
-                },
+        host = request.headers.get("host")
+        peer = request.client.host if request.client is not None else None
+        if not host_header_is_trusted(host) or loopback_host_peer_mismatch(
+            host, peer
+        ):
+            return _hardened_response(
+                JSONResponse(
+                    status_code=421,
+                    content={
+                        "ok": False,
+                        "error_kind": "bad_host",
+                        "detail": (
+                            "This server only accepts loopback Host headers "
+                            "(127.0.0.1 / localhost / [::1]) from a loopback "
+                            "peer unless a hostname is allowlisted via "
+                            "ONTOLOGYLAB_ALLOWED_HOSTS."
+                        ),
+                    },
+                )
             )
         if is_cross_site_state_change(
             request.method,
             request.headers.get("sec-fetch-site"),
             request.headers.get("origin"),
         ):
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "ok": False,
-                    "error_kind": "cross_site",
-                    "detail": (
-                        "Cross-site state-changing requests are refused. Use "
-                        "the local dashboard or a non-browser client."
-                    ),
-                },
+            return _hardened_response(
+                JSONResponse(
+                    status_code=403,
+                    content={
+                        "ok": False,
+                        "error_kind": "cross_site",
+                        "detail": (
+                            "Cross-site state-changing requests are refused. Use "
+                            "the local dashboard or a non-browser client."
+                        ),
+                    },
+                )
             )
-        return await call_next(request)
+        response = await call_next(request)
+        path = request.url.path
+        if path.startswith("/api/") or path == "/healthz":
+            response.headers["Cache-Control"] = "no-store"
+        elif COOKIE_NAME in (response.headers.get("set-cookie") or ""):
+            response.headers["Cache-Control"] = "no-store"
+        return _hardened_response(response)
 
     return app

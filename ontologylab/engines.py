@@ -36,8 +36,8 @@ import time
 from typing import Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
 
+from ontologylab.http_bound import BoundHttpError, post_json
 from ontologylab.paths import DEFAULT_MODEL, assert_network_allowed, default_data_dir
 
 
@@ -692,16 +692,15 @@ def _http_post_json(
     """POST ``payload`` as JSON to ``url`` and return the decoded JSON body.
 
     The single network boundary for ApiEngine (separated for test
-    monkeypatching, exactly like paper_api._http_get_text). ``urlopen``
-    raises HTTPError on a non-2xx status, so callers wrap it into a redacted
-    EngineError; this helper never logs headers (which carry the API key).
+    monkeypatching, exactly like paper_api._http_get_text). Transport goes
+    through ``http_bound.post_json``; ``urlopen``-style HTTPError still
+    surfaces on a non-2xx status so callers wrap it into a redacted
+    EngineError. This helper never logs headers (which carry the API key).
     """
-    data = json.dumps(payload).encode("utf-8")
-    request = Request(url, data=data, headers=headers, method="POST")
-    with urlopen(request, timeout=timeout_s) as response:
-        charset = response.headers.get_content_charset() or "utf-8"
-        raw = response.read().decode(charset, errors="replace")
-    return json.loads(raw)
+    try:
+        return post_json(url, headers, payload, timeout_s)
+    except BoundHttpError as exc:
+        raise EngineError(str(exc)) from None
 
 
 class ApiEngine:

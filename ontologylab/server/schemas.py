@@ -95,8 +95,6 @@ class SourceModel(BaseModel):
 
     id: str
     role: str
-    keychain_account: str = ""
-    api_key_env: str = ""
     label: str = ""
     key_present: bool = False
 
@@ -169,26 +167,30 @@ class CostSummary(BaseModel):
 class ProviderModel(BaseModel):
     """Public view of one registered API provider (never carries a key).
 
-    ``api_key_env`` is the NAME of an env var; ``key_present`` reports whether
-    that var is currently set — the value itself is never serialized.
+    The env locator is origin-bound and is not projected. ``key_present``
+    reports whether the bound variable is currently set — the value itself
+    is never serialized.
     """
 
     id: str
     kind: str
     base_url: str
-    api_key_env: str
     models: list[str] = Field(default_factory=list)
     label: str = ""
     key_present: bool = False
 
 
 class ProviderCreate(BaseModel):
-    """Register (or upsert) an API provider from the dashboard/HTTP layer."""
+    """Register (or upsert) an API provider from the dashboard/HTTP layer.
+
+    ``api_key_env`` is optional. An empty value is replaced with the
+    origin-bound name; any other value must already be that name.
+    """
 
     id: str
     kind: str
     base_url: str
-    api_key_env: str
+    api_key_env: str = ""
     models: list[str] = Field(default_factory=list)
     label: str = ""
 

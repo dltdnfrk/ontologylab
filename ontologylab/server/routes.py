@@ -90,10 +90,15 @@ from ontologylab.providers import (
     Provider,
     ProviderError,
     add_provider,
+    dedicated_api_key_env,
     get_provider,
     load_providers,
     remove_provider,
     resolve_api_key,
+)
+from ontologylab.server.rate_limit import (
+    RateLimitExceeded,
+    check_provider_test_limit,
 )
 from ontologylab.chatstore import MAX_TURNS, ChatStore
 from ontologylab.provenance import Provenance
@@ -309,12 +314,11 @@ def get_cost(deps: AppDependency) -> CostSummary:
 
 
 def _provider_public(provider: Provider) -> ProviderModel:
-    """Public projection of a Provider: env-var NAME + presence, never the key."""
+    """Public projection of a Provider: presence only, never a key or locator."""
     return ProviderModel(
         id=provider.id,
         kind=provider.kind,
         base_url=provider.base_url,
-        api_key_env=provider.api_key_env,
         models=list(provider.models),
         label=provider.label,
         key_present=resolve_api_key(provider) is not None,
@@ -329,11 +333,14 @@ def list_providers(deps: AppDependency) -> dict[str, Any]:
 
 @router.post("/providers")
 def create_provider(deps: AppDependency, body: ProviderCreate) -> dict[str, Any]:
+    env = (body.api_key_env or "").strip() or dedicated_api_key_env(
+        body.id, body.base_url
+    )
     provider = Provider(
         id=body.id,
         kind=body.kind,
         base_url=body.base_url,
-        api_key_env=body.api_key_env,
+        api_key_env=env,
         models=tuple(body.models or ()),
         label=body.label or "",
     )
@@ -356,6 +363,15 @@ async def test_provider(deps: AppDependency, provider_id: str) -> ProviderTestRe
     ``ok:false`` with a redacted message — the key is never leaked."""
     from ontologylab.engines import EngineError, get_engine
 
+    try:
+        check_provider_test_limit(provider_id)
+    except RateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail="too many requests",
+            headers={"Retry-After": str(exc.retry_after_s)},
+        ) from None
+
     provider = get_provider(deps.data_dir, provider_id)
     if provider is None:
         return ProviderTestResult(
@@ -365,7 +381,7 @@ async def test_provider(deps: AppDependency, provider_id: str) -> ProviderTestRe
         return ProviderTestResult(
             ok=False,
             error=(
-                f"환경변수 {provider.api_key_env} 가 설정되지 않았어요. "
+                "전용 환경변수가 설정되지 않았어요. "
                 "키를 넣고 서버를 다시 시작해주세요."
             ),
         )

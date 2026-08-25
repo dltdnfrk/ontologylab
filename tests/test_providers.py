@@ -15,6 +15,7 @@ from ontologylab.providers import (
     Provider,
     ProviderError,
     add_provider,
+    dedicated_api_key_env,
     get_provider,
     load_providers,
     remove_provider,
@@ -29,7 +30,7 @@ def _anthropic(**overrides) -> Provider:
         "id": "my-anthropic",
         "kind": "anthropic",
         "base_url": "https://api.anthropic.com/v1",
-        "api_key_env": "MY_ANTH_KEY",
+        "api_key_env": "ANTHROPIC_API_KEY",
         "models": ("claude-fable-5",),
         "label": "primary",
     }
@@ -56,7 +57,7 @@ def test_validate_allows_http_only_for_localhost():
         id="ollama",
         kind="openai",
         base_url="http://localhost:11434/v1",
-        api_key_env="OLLAMA_KEY",
+        api_key_env=dedicated_api_key_env("ollama", "http://localhost:11434/v1"),
     )
     assert validate_provider(local).id == "ollama"
 
@@ -95,7 +96,10 @@ def test_validate_rejects_bad_api_key_env(bad_env):
 
 
 def test_save_load_roundtrip(tmp_path):
-    providers = [_anthropic(), _anthropic(id="second", api_key_env="SECOND_KEY")]
+    providers = [
+        _anthropic(),
+        _anthropic(id="second", api_key_env="ANTHROPIC_API_KEY"),
+    ]
     save_providers(tmp_path, providers)
     loaded = load_providers(tmp_path)
     assert [p.id for p in loaded] == ["my-anthropic", "second"]
@@ -144,7 +148,8 @@ def test_load_skips_malformed_entry_keeps_good_one(tmp_path):
     providers_path(tmp_path).write_text(
         json.dumps(
             {"providers": [{"id": "ok", "kind": "openai",
-                            "base_url": "https://x/v1", "api_key_env": "K"},
+                            "base_url": "https://x/v1",
+                             "api_key_env": dedicated_api_key_env("ok", "https://x/v1")},
                            {"garbage": True}]}
         ),
         encoding="utf-8",
@@ -159,18 +164,18 @@ def test_load_skips_malformed_entry_keeps_good_one(tmp_path):
 def test_resolve_api_key_from_env(monkeypatch):
     provider = _anthropic()
     assert resolve_api_key(provider) is None  # unset
-    monkeypatch.setenv("MY_ANTH_KEY", "  sk-secret-123  ")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "  sk-secret-123  ")
     assert resolve_api_key(provider) == "sk-secret-123"  # stripped
-    monkeypatch.setenv("MY_ANTH_KEY", "   ")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "   ")
     assert resolve_api_key(provider) is None  # empty/whitespace -> None
 
 
 def test_saved_registry_never_contains_key_value(tmp_path, monkeypatch):
-    monkeypatch.setenv("MY_ANTH_KEY", "sk-super-secret-value")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-super-secret-value")
     add_provider(tmp_path, _anthropic())
     raw = providers_path(tmp_path).read_text(encoding="utf-8")
     assert "sk-super-secret-value" not in raw
-    assert "MY_ANTH_KEY" in raw  # only the env-var NAME is stored
+    assert "ANTHROPIC_API_KEY" in raw  # only the bound env-var NAME is stored
     # And the parsed shape carries no key-like field.
     stored = json.loads(raw)["providers"][0]
     assert set(stored) == {"id", "kind", "base_url", "api_key_env", "models", "label"}
