@@ -1,0 +1,23 @@
+{
+  "schema": "ontologylab.storage-compatibility.v1",
+  "release_version": "0.1.0",
+  "current_storage_version": 1,
+  "versions": [
+    {
+      "storage_version": 0,
+      "state": "supported-older",
+      "migration_ids": []
+    },
+    {
+      "storage_version": 1,
+      "state": "current",
+      "migration_ids": [
+        "chat-0001-versioned-bootstrap",
+        "kg-0001-versioned-bootstrap",
+        "providers-0001-versioned-bootstrap",
+        "settings-0001-versioned-bootstrap",
+        "sources-0001-versioned-bootstrap"
+      ]
+    }
+  ]
+}
