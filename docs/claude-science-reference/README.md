@@ -1,5 +1,10 @@
 # 온톨로지랩 — Claude Science 구조 이식 참조 (docs/claude-science-reference)
 
+> **ACTIVE DESIGN REFERENCE — 삭제·보관 처리 금지.** 이 문서와 `images/`는 현재
+> OntologyLab UI/UX·세션·문헌 수집 흐름을 설계할 때 사용하는 실측 입력이다.
+> Claude Science의 제품 정체성을 복제하는 것이 아니라 관찰된 동작과 화면 계약을
+> 비교하기 위한 자료다.
+
 > 2026-08-05 정리. 이 폴더는 온톨로지랩 전용 문서·사진만 담는다.
 > 공통 역설계/클론은 `~/Documents/MUNI/artifacts/claude-science-clone-reference-2026-08-04/` (1차: `nipo-science/apps/web/claude-shell`) 참조.
 

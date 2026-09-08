@@ -1,5 +1,9 @@
 # Claude Science 리버스 엔지니어링 분석
 
+> **ACTIVE DESIGN REFERENCE — 삭제·보관 처리 금지.** OntologyLab의 논문 접근,
+> 수집 파이프라인, 실행 UX를 구현할 때 계속 대조하는 실측 자료다. 제품명이나 정체성을
+> 복제하는 문서가 아니라 관찰된 계약을 보존하는 문서다.
+>
 > 2026-07-25. Aside 브라우저의 로그인 세션 + macOS computer use(vision)로 실제 앱을
 > 구동하며 전 구성요소를 분해하고 실사용까지 수행한 기록.
 >

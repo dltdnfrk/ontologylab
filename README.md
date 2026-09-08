@@ -30,10 +30,22 @@ MCP surface is strictly read-only — see
 [`docs/DESIGN-RATIONALE.md`](docs/DESIGN-RATIONALE.md) for the 36-paper
 evidence base behind this design.
 
-The pipeline core is domain-neutral; the current product domain is
-agrochemistry and plant protection. There is no hosted backend or multi-user
-service; persistent data stays on your machine. Source acquisition and
-optional live LLM inference can make explicit outbound requests.
+The platform is domain-neutral. Agrochemistry and plant protection are a
+representative vertical used to validate the contracts, not the product
+identity. There is no hosted backend or multi-user service; persistent data
+stays on your machine. Source acquisition and optional live LLM inference can
+make explicit outbound requests.
+
+## Active design references
+
+- [`docs/claude-science-analysis.md`](docs/claude-science-analysis.md) records
+  direct observation of the literature-access and research workflow.
+- [`docs/claude-science-reference/`](docs/claude-science-reference/) is the
+  active UI/UX and pipeline reverse-engineering bundle, including screenshots.
+
+These are implementation inputs, not inherited product identity. Preserve the
+observed retrieval and interaction contracts while keeping OntologyLab's own
+domain-neutral boundary.
 
 | Guided pipeline | Review queue (HITL gate) | Graph browser |
 |---|---|---|
@@ -68,6 +80,22 @@ polling fallback), the review queue with keyboard-first bulk approve/reject and
 an entity evidence panel, entity-merge review, community view, pack build +
 diff + one-file `.mcpb` bundling, and a **read-only graph browser**
 (force-layout, pan/zoom, neighbor expansion, status/type filters).
+
+### Local dashboard authentication and health
+
+Every `/api/*` request is authenticated, including read-only inventory such as
+`GET /api/documents`, `GET /api/proposals`, and `GET /api/jobs`. A loopback
+`GET /` bootstraps the browser session with a per-process `HttpOnly`,
+`SameSite=Strict` cookie; its absence from `document.cookie` is expected because
+JavaScript cannot read an `HttpOnly` cookie. Non-browser clients authenticate
+with `X-OntologyLab-Session`, using the owner-only `session.token` beside the
+active data directory.
+
+`GET /healthz` is the only anonymous endpoint and returns only readiness. There
+is no `/api/health` route: before authentication it receives the common
+`/api/*` 401, while an authenticated request receives 404. Health probes must
+use `/healthz`. The server also enforces loopback Host/peer coupling and rejects
+cross-site state-changing browser requests.
 
 **One-click launch (macOS):** `bash launcher/build-macos-app.sh` builds a
 double-clickable `ontologylab.app` into `~/Applications`. 한글 실행 가이드:
@@ -121,7 +149,7 @@ drag-and-drop install into Claude Desktop.
 ## Tests
 
 ```bash
-.venv/bin/pytest -q   # 350+ tests, fully offline
+.venv/bin/pytest      # full offline suite; count is intentionally not pinned
 ```
 
 CI runs the same suite on Python 3.11/3.12 plus a dashboard JS syntax check.
