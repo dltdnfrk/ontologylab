@@ -1,0 +1,64 @@
+name: macOS candidate
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/macos-candidate.yml"
+      - "release/**"
+      - "scripts/build-macos-candidate.sh"
+      - "tests/test_macos_candidate*.py"
+      - "tests/test_sqlite_vec_license_override.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  credential-free-contract:
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+      - name: Install locked test environment without credentials
+        run: uv sync --frozen --extra test
+      - name: Candidate contract and workflow gates
+        run: >-
+          uv run --frozen pytest -v
+          tests/test_macos_candidate_build.py
+          tests/test_macos_candidate_build_integrity.py
+          tests/test_macos_candidate_source_closure.py
+          tests/test_macos_candidate_verifier_repairs.py
+          tests/test_sqlite_vec_license_override.py
+
+  controlled-candidate:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, macOS, ARM64, ontologylab-controlled]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+      - name: Freeze exact checked-out source identity
+        run: uv run --frozen --offline python -m ontologylab.release_policy snapshot --root .
+      - name: Build exact local candidate
+        env:
+          UV_FROZEN: "1"
+          UV_OFFLINE: "1"
+        run: bash scripts/build-macos-candidate.sh --out "$RUNNER_TEMP/ontologylab-candidate"
+      - name: Expose receipt and inventories to the controlled runner
+        run: |
+          printf 'candidate=%s\n' "$RUNNER_TEMP/ontologylab-candidate" >> "$GITHUB_STEP_SUMMARY"
+          shasum -a 256 "$RUNNER_TEMP/ontologylab-candidate/candidate-receipt.json" >> "$GITHUB_STEP_SUMMARY"

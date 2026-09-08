@@ -55,4 +55,4 @@ jobs:
         run: python -P scripts/check_product_status.py --root . --document docs/PRODUCT_SPEC.md
 
       - name: Dashboard JS syntax check
-        run: node --check web/app.js
+        run: node --check ontologylab/web/app.js
