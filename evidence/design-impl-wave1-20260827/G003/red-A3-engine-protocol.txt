@@ -1,0 +1,14 @@
+RED captured this session by the orchestrator BEFORE the models.py fix
+(`uv run basedpyright ontologylab/server/jobs.py`):
+
+  ontologylab/server/jobs.py:1115:28 - error: Argument of type "Engine" cannot be assigned to parameter "engine" of type "SupportsGenerate" in function "__init__"
+    "Engine" is incompatible with protocol "SupportsGenerate"
+      "generate" is an incompatible type
+        Type "(prompt: str, *, model: str | None) -> CoroutineType[Any, Any, tuple[str, dict[str, Any]]]" is not assignable to type "(prompt: str, *, model: str | None = None) -> CoroutineType[Any, Any, tuple[str, dict[str, str | int | float]]]"
+          Parameter "model" is missing default argument (reportArgumentType)
+  1 error, 0 warnings, 0 notes
+
+Cause: models.Engine declared `model: str | None` with no default while every
+concrete engine (engines.py:507,558,587,615,793) declares `model: Optional[str] = None`
+and research_extract.SupportsGenerate:44 declares the default. get_engine was
+untyped, so the contradiction was invisible until resolve_engine annotated `-> Engine`.

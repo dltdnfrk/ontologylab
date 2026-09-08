@@ -1,0 +1,15 @@
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 29 items / 17 deselected / 12 selected
+
+tests/test_competency_release_gate.py .........                          [ 75%]
+tests/test_server_m8.py ...                                              [100%]
+
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================= 12 passed, 17 deselected, 1 warning in 1.21s =================

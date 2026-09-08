@@ -1,0 +1,5 @@
+--- SC4 POST /api/collect bogus secret path
+{"ok":false,"error_kind":"fetch_failed","detail":"could not read 'notes.txt' (FileNotFoundError)"}
+shadow_spec_none= True
+G001-SC4 OK
+cleanup: killed 4649; port 18899 free; rm -rf /tmp/ol-w1-CVmKLH

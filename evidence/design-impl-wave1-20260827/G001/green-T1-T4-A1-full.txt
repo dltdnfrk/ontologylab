@@ -1,0 +1,438 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 137 items
+
+tests/test_ingest_raw_documents.py .......                               [  5%]
+tests/test_literature_ingestion.py ..                                    [  6%]
+tests/test_ingestion_service.py ...........                              [ 14%]
+tests/test_ingestion_surfaces.py ........                                [ 20%]
+tests/test_research_selection.py ....                                    [ 23%]
+tests/test_wave21_identity_characterization.py .x...x.....               [ 31%]
+tests/test_evidence_grade.py ................................            [ 54%]
+tests/test_server_m8.py ...............                                  [ 65%]
+tests/test_collect_sample.py ..                                          [ 67%]
+tests/test_file_lifecycle.py ...............                             [ 78%]
+tests/test_provenance_outbox.py ..............                           [ 88%]
+tests/test_ingestion_shadow_entrypoints.py .FFFFF...F.FFF..              [100%]
+
+=================================== FAILURES ===================================
+__________ test_cli_collect_traverses_adapter_and_mirrors_observation __________
+
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-26197/test_cli_collect_traverses_ada0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109169760>
+
+    def test_cli_collect_traverses_adapter_and_mirrors_observation(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import ontologylab.ingestion_shadow as shadow
+    
+        calls: list[int] = []
+        real = shadow.shadow_persist
+    
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
+            calls.append(1)
+            return real(*args, **kwargs)
+    
+        monkeypatch.setattr(shadow, "shadow_persist", wrapped)
+    
+        data_dir = tmp_path / "cli-data"
+        data_dir.mkdir()
+        fixture = tmp_path / "cli-notes.md"
+        fixture.write_text(
+            "The PaymentGateway validates cards through the FraudDetector.\n",
+            encoding="utf-8",
+        )
+        assert _cli_collect(data_dir, fixture) == 0
+>       assert calls == [1]
+E       assert [] == [1]
+E         
+E         Right contains one more item: 1
+E         Use -v to get more diff
+
+tests/test_ingestion_shadow_entrypoints.py:147: AssertionError
+___________ test_http_collect_preserves_legacy_shape_and_mirrors_v2 ____________
+
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-26197/test_http_collect_preserves_le0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1098c12b0>
+
+    def test_http_collect_preserves_legacy_shape_and_mirrors_v2(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import ontologylab.ingestion_shadow as shadow
+    
+        calls: list[int] = []
+        real = shadow.shadow_persist
+    
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
+            calls.append(1)
+            return real(*args, **kwargs)
+    
+        monkeypatch.setattr(shadow, "shadow_persist", wrapped)
+    
+        data_dir = tmp_path / "http-data"
+        data_dir.mkdir()
+        fixture = tmp_path / "http-notes.md"
+        fixture.write_text("The RateLimiter implements the TokenBucketAlgorithm.\n")
+        with _client(tmp_path, data_dir) as client:
+            response = client.post("/api/collect", json={"files": [str(fixture)]})
+        assert response.status_code == 200
+        body = response.json()
+        assert body == {
+            "ok": True,
+            "documents": 1,
+            "created": 1,
+            "duplicates": 0,
+        }
+>       assert calls == [1]
+E       assert [] == [1]
+E         
+E         Right contains one more item: 1
+E         Use -v to get more diff
+
+tests/test_ingestion_shadow_entrypoints.py:189: AssertionError
+_____________ test_research_worker_ingestion_uses_the_same_adapter _____________
+
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-26197/test_research_worker_ingestion0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108d403b0>
+
+    def test_research_worker_ingestion_uses_the_same_adapter(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from fastapi.testclient import TestClient
+    
+        import ontologylab.ingestion_shadow as shadow
+        from ontologylab.extractor import ExtractionOutcome
+        from ontologylab.server import jobs as jobs_module
+        from ontologylab.server.app import create_app
+    
+        calls: list[int] = []
+        real = shadow.shadow_persist
+    
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
+            calls.append(1)
+            return real(*args, **kwargs)
+    
+        monkeypatch.setattr(shadow, "shadow_persist", wrapped)
+    
+        data_dir = tmp_path / "research-data"
+        paper = _raw(
+            uri="https://doi.org/10.1000/research.one",
+            text="The RiskEngine reports to the FraudDetector.\n",
+            title="Research paper",
+            doi="10.1000/research.one",
+            source="crossref",
+            source_kind="paper_api",
+        )
+    
+        async def fake_fetch(*args: Any, **kwargs: Any) -> Any:
+            del args, kwargs
+            return [("crossref", [paper])], []
+    
+        async def fake_extract(*args: Any, **kwargs: Any) -> ExtractionOutcome:
+            del args, kwargs
+            return ExtractionOutcome("")
+    
+        monkeypatch.setattr(jobs_module, "fetch_sources", fake_fetch)
+        monkeypatch.setattr(
+            jobs_module,
+            "extract_research_documents",
+            fake_extract,
+        )
+        app = create_app(data_dir=data_dir, packs_dir=tmp_path / "packs")
+        with TestClient(app) as client:
+            client.get("/")
+            started = client.post(
+                "/api/research",
+                json={
+                    "topic": "research adapter",
+                    "sources": ["crossref"],
+                    "engine": "mock",
+                    "fulltext": False,
+                    "citation_expansion": False,
+                },
+            ).json()
+            assert started["ok"] is True
+            job = app.state.jobs.get(started["job_id"])
+            assert job is not None and job._thread is not None
+            job._thread.join(timeout=30)
+            assert job.status == "complete", job.error
+    
+        store = KGStore.open(kg_db_path(data_dir), read_only=True)
+        try:
+>           assert calls == [1]
+E           assert [] == [1]
+E             
+E             Right contains one more item: 1
+E             Use -v to get more diff
+
+tests/test_ingestion_shadow_entrypoints.py:264: AssertionError
+__________ test_collect_sample_keeps_uri_and_mirrors_through_adapter ___________
+
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-26197/test_collect_sample_keeps_uri_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1091685c0>
+
+    def test_collect_sample_keeps_uri_and_mirrors_through_adapter(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import ontologylab.ingestion_shadow as shadow
+    
+        calls: list[str] = []
+        real = shadow.shadow_persist
+    
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
+            operation = kwargs.get("operation_id")
+            calls.append(str(operation))
+            return real(*args, **kwargs)
+    
+        monkeypatch.setattr(shadow, "shadow_persist", wrapped)
+        insert_calls: list[str] = []
+        real_insert = KGStore.insert_document
+    
+        def insert_wrapped(self: KGStore, *args: Any, **kwargs: Any) -> Any:
+            insert_calls.append("insert_document")
+            return real_insert(self, *args, **kwargs)
+    
+        monkeypatch.setattr(KGStore, "insert_document", insert_wrapped)
+    
+        sample_src = _function_source(
+            Path("ontologylab/server/routes.py"), "collect_sample"
+        )
+        assert "insert_document" not in sample_src
+        assert "ingest_sample" in sample_src or "shadow_ingest_sample" in sample_src
+    
+        data_dir = tmp_path / "sample-data"
+        data_dir.mkdir()
+        with _client(tmp_path, data_dir) as client:
+            first = client.post("/api/collect/sample")
+            again = client.post("/api/collect/sample")
+        assert first.status_code == 200
+        body = first.json()
+        assert body["ok"] is True
+        assert body["created"] is True
+        assert body["title"] == SAMPLE_DOC_TITLE
+        assert again.json()["created"] is False
+        assert again.json()["document_id"] == body["document_id"]
+        assert insert_calls == []
+>       assert calls == [SAMPLE_OPERATION_KEY, SAMPLE_OPERATION_KEY]
+E       AssertionError: assert [] == ['collect.sam...order-system']
+E         
+E         Right contains 2 more items, first extra item: 'collect.sample:sample://onboarding/order-system'
+E         Use -v to get more diff
+
+tests/test_ingestion_shadow_entrypoints.py:320: AssertionError
+________________ test_four_entrypoints_share_one_adapter_symbol ________________
+
+    def test_four_entrypoints_share_one_adapter_symbol() -> None:
+        main_src = Path("ontologylab/main.py").read_text(encoding="utf-8")
+        routes_src = Path("ontologylab/server/routes.py").read_text(encoding="utf-8")
+        jobs_src = Path("ontologylab/server/jobs.py").read_text(encoding="utf-8")
+        ingest_src = Path("ontologylab/ingestion.py").read_text(encoding="utf-8")
+        assert "ingest_documents(" in _function_source(
+            Path("ontologylab/main.py"), "cmd_collect"
+        )
+        assert "ingest_documents(" in _function_source(
+            Path("ontologylab/server/routes.py"), "collect"
+        )
+        assert "ingest_documents_batched(" in jobs_src
+>       assert "ingest_documents(" in _function_source(
+            Path("ontologylab/ingestion.py"),
+            "ingest_documents_batched",
+        )
+E       AssertionError: assert 'ingest_documents(' in 'def ingest_documents_batched(\n    store: KGStore,\n    documents: Sequence[RawDocument],\n    provenance: Provenance... return ingest_raw_documents_batched(\n        store, documents, provenance, should_cancel=should_cancel,\n    )\n\n\n'
+E        +  where 'def ingest_documents_batched(\n    store: KGStore,\n    documents: Sequence[RawDocument],\n    provenance: Provenance... return ingest_raw_documents_batched(\n        store, documents, provenance, should_cancel=should_cancel,\n    )\n\n\n' = _function_source(PosixPath('ontologylab/ingestion.py'), 'ingest_documents_batched')
+E        +    where PosixPath('ontologylab/ingestion.py') = Path('ontologylab/ingestion.py')
+
+tests/test_ingestion_shadow_entrypoints.py:352: AssertionError
+________ test_conflicting_different_doi_same_bytes_is_queued_and_typed _________
+
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-26197/test_conflicting_different_doi0')
+
+    def test_conflicting_different_doi_same_bytes_is_queued_and_typed(
+        tmp_path: Path,
+    ) -> None:
+        store = _open(tmp_path / "conflict")
+        try:
+            shared = "Identical body shared by two distinct registered works."
+            result = ingest_documents(
+                store,
+                [
+                    _raw(
+                        uri="https://doi.org/10.1000/seam.a",
+                        text=shared,
+                        doi="10.1000/seam.a",
+                        source="crossref",
+                        source_kind="paper_api",
+                    ),
+                    _raw(
+                        uri="https://doi.org/10.1000/seam.b",
+                        text=shared,
+                        doi="10.1000/seam.b",
+                        source="crossref",
+                        source_kind="paper_api",
+                    ),
+                    _raw(
+                        uri="https://doi.org/10.1000/seam.c",
+                        text="A different body entirely.",
+                        doi="10.1000/seam.c",
+                        source="crossref",
+                        source_kind="paper_api",
+                    ),
+                ],
+                _provenance(tmp_path, "conflict-batch"),
+            )
+            assert result.document_count == 2
+            assert result.created_count == 2
+            assert len(result.conflicts) == 1
+            assert result.conflicts[0].incoming_doi == "10.1000/seam.b"
+            assert result.conflicts[0].existing_doi == "10.1000/seam.a"
+            assert len(store.list_documents()) == 2
+            queued = load_shadow_queue(store.conn)
+>           assert any(item.reason == "conflict" for item in queued)
+E           assert False
+E            +  where False = any(<generator object test_conflicting_different_doi_same_bytes_is_queued_and_typed.<locals>.<genexpr> at 0x109564ad0>)
+
+tests/test_ingestion_shadow_entrypoints.py:525: AssertionError
+_________________ test_safe_errors_do_not_leak_exception_text __________________
+
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-26197/test_safe_errors_do_not_leak_e0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10965f320>
+
+    def test_safe_errors_do_not_leak_exception_text(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import ontologylab.ingestion_shadow as shadow
+    
+        def boom(*_args: Any, **_kwargs: Any) -> Any:
+            raise sqlite3.OperationalError(
+                f"disk I/O error in /secret/{SECRET}/kg.sqlite"
+            )
+    
+        monkeypatch.setattr(shadow, "shadow_persist", boom)
+        data_dir = tmp_path / "leak-data"
+        data_dir.mkdir()
+        fixture = tmp_path / "leak-notes.md"
+        fixture.write_text("leak probe\n", encoding="utf-8")
+        with _client(tmp_path, data_dir) as client:
+            response = client.post("/api/collect", json={"files": [str(fixture)]})
+        assert response.status_code == 200
+        body = response.json()
+        dumped = json.dumps(body)
+        assert SECRET not in dumped
+        assert "OperationalError" not in dumped
+        assert "/secret/" not in dumped
+>       assert body["ok"] is False
+E       assert True is False
+
+tests/test_ingestion_shadow_entrypoints.py:614: AssertionError
+_______________________ test_batch_above_100_is_rejected _______________________
+
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-26197/test_batch_above_100_is_reject0')
+
+    def test_batch_above_100_is_rejected(tmp_path: Path) -> None:
+        store = _open(tmp_path / "bound")
+        try:
+            docs = [
+                _raw(
+                    uri=f"https://example.invalid/{index}",
+                    text=f"body {index}",
+                    doi=f"10.1000/bound.{index}",
+                    source="crossref",
+                    source_kind="paper_api",
+                )
+                for index in range(MAX_SHADOW_BATCH + 1)
+            ]
+            with pytest.raises(ShadowBatchBoundError):
+>               ingest_documents(store, docs, _provenance(tmp_path, "bound"))
+
+tests/test_ingestion_shadow_entrypoints.py:633: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+ontologylab/ingestion.py:516: in ingest_documents
+    return ingest_raw_documents_and_finalize(store, documents, provenance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ontologylab/ingestion.py:442: in ingest_raw_documents_and_finalize
+    result = ingest_raw_documents(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+store = <ontologylab.kgstore.KGStore object at 0x1097b2e40>
+documents = [RawDocument(source_kind='paper_api', source_uri='https://example.invalid/0', title='Shadow', raw_text='body 0', doi='...on_type=None, retracted=None, search_axis='', search_query='', all_sources=(), search_axes=(), search_queries=()), ...]
+provenance = <ontologylab.provenance.Provenance object at 0x10994b4d0>
+operation_id = None
+
+    def ingest_raw_documents(
+        store: KGStore,
+        documents: Sequence[RawDocument],
+        provenance: Provenance,
+        *,
+        operation_id: str | None = None,
+    ) -> IngestionResult:
+        if len(documents) > MAX_INGEST_BATCH:
+>           raise IngestBatchBoundError(len(documents))
+E           ontologylab.ingestion.IngestBatchBoundError: batch exceeds 100 documents
+
+ontologylab/ingestion.py:331: IngestBatchBoundError
+______________________ test_partial_batch_remains_honest _______________________
+
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-26197/test_partial_batch_remains_hon0')
+
+    def test_partial_batch_remains_honest(tmp_path: Path) -> None:
+        store = _open(tmp_path / "partial")
+        try:
+            shared = "shared-bytes-for-partial-honesty"
+            result = ingest_documents(
+                store,
+                [
+                    _raw(
+                        uri="https://doi.org/10.1000/partial.good",
+                        text="unique good body",
+                        doi="10.1000/partial.good",
+                        source="crossref",
+                        source_kind="paper_api",
+                    ),
+                    _raw(
+                        uri="https://doi.org/10.1000/partial.a",
+                        text=shared,
+                        doi="10.1000/partial.a",
+                        source="crossref",
+                        source_kind="paper_api",
+                    ),
+                    _raw(
+                        uri="https://doi.org/10.1000/partial.b",
+                        text=shared,
+                        doi="10.1000/partial.b",
+                        source="crossref",
+                        source_kind="paper_api",
+                    ),
+                ],
+                _provenance(tmp_path, "partial"),
+            )
+            assert result.created_count == 2
+            assert result.document_count == 2
+            assert len(result.conflicts) == 1
+            assert result.conflicts[0].incoming_doi == "10.1000/partial.b"
+            assert _count(store.conn, "documents") == 2
+            assert _count(store.conn, "document_observations") == 2
+>           assert any(item.reason == "conflict" for item in load_shadow_queue(store.conn))
+E           assert False
+E            +  where False = any(<generator object test_partial_batch_remains_honest.<locals>.<genexpr> at 0x109ac4ad0>)
+
+tests/test_ingestion_shadow_entrypoints.py:698: AssertionError
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_ingestion_shadow_entrypoints.py::test_cli_collect_traverses_adapter_and_mirrors_observation
+FAILED tests/test_ingestion_shadow_entrypoints.py::test_http_collect_preserves_legacy_shape_and_mirrors_v2
+FAILED tests/test_ingestion_shadow_entrypoints.py::test_research_worker_ingestion_uses_the_same_adapter
+FAILED tests/test_ingestion_shadow_entrypoints.py::test_collect_sample_keeps_uri_and_mirrors_through_adapter
+FAILED tests/test_ingestion_shadow_entrypoints.py::test_four_entrypoints_share_one_adapter_symbol
+FAILED tests/test_ingestion_shadow_entrypoints.py::test_conflicting_different_doi_same_bytes_is_queued_and_typed
+FAILED tests/test_ingestion_shadow_entrypoints.py::test_safe_errors_do_not_leak_exception_text
+FAILED tests/test_ingestion_shadow_entrypoints.py::test_batch_above_100_is_rejected
+FAILED tests/test_ingestion_shadow_entrypoints.py::test_partial_batch_remains_honest
+============= 9 failed, 126 passed, 2 xfailed, 1 warning in 5.16s ==============

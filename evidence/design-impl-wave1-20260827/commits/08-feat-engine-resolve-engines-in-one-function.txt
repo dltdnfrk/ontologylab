@@ -1,0 +1,28 @@
+feat(engine): resolve engines in one function
+
+Every consumer decided for itself what an omitted engine meant: main.py,
+server/jobs.py, server/routes.py and mcp_server.py each called get_engine
+directly, and after the CLI defaults became None they each carried their own
+`args.engine or paths.DEFAULT_ENGINE`. "Which engine runs here" was therefore
+answered per surface, not per stage. resolve_engine(requested, *, model, seed,
+data_dir, decode_params) now owns that one policy — blank or None becomes
+paths.DEFAULT_ENGINE, "auto" is a typed EngineError — and all 16 consume-layer
+sites go through it, including routes._competency_receipt and competency.main
+which previously constructed MockEngine() and get_engine("mock") by hand.
+get_engine stays public as the factory; decode-params and api-provider tests
+still exercise it directly.
+
+The annotated return type also exposed a latent contradiction that get_engine's
+missing annotation had hidden: models.Engine declared `model: str | None` with
+no default while all five concrete engines (engines.py:507,558,587,615,793) and
+research_extract.SupportsGenerate declare `model = None`, so passing an engine
+into ResearchExtractSession only type-checked by accident. The protocol now
+carries the default its own implementations already had.
+
+Measured: RED ImportError on resolve_engine and `main.py still calls get_engine`
+(evidence/design-impl-wave1-20260827/G003/red-T1.txt, red-T2.txt) plus the
+basedpyright RED at jobs.py:1115 (red-A3-engine-protocol.txt); after, 239 passed
+on the engine/CLI/server/research sets and basedpyright reports 0 errors on every
+touched module.
+
+Refs: docs/DESIGN-REVIEW-2026-08-26.md D01/D02; plan G003-T1/T2 + Amendment A3

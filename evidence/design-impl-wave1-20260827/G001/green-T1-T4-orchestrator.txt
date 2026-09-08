@@ -1,0 +1,3 @@
+FAILED tests/test_file_lifecycle.py::test_lifecycle_never_commits_or_rolls_back_caller_transaction
+FAILED tests/test_provenance_outbox.py::test_outbox_never_commits_or_rolls_back_caller_transaction
+2 failed, 133 passed, 2 xfailed, 1 warning in 5.21s

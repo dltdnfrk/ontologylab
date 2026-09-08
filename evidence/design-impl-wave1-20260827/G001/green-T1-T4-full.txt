@@ -1,0 +1,25 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 108 items
+
+tests/test_ingest_raw_documents.py .......                               [  6%]
+tests/test_literature_ingestion.py ..                                    [  8%]
+tests/test_ingestion_service.py ...........                              [ 18%]
+tests/test_ingestion_shadow_entrypoints.py ................              [ 33%]
+tests/test_ingestion_surfaces.py ........                                [ 40%]
+tests/test_research_selection.py ....                                    [ 44%]
+tests/test_wave21_identity_characterization.py .x...x.....               [ 54%]
+tests/test_evidence_grade.py ................................            [ 84%]
+tests/test_server_m8.py ...............                                  [ 98%]
+tests/test_collect_sample.py ..                                          [100%]
+
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================== 106 passed, 2 xfailed, 1 warning in 6.55s ===================

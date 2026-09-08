@@ -1,0 +1,62 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 2 items
+
+tests/test_korean_ui.py F.                                               [100%]
+
+=================================== FAILURES ===================================
+________________ test_translate_does_not_walk_fallback_engines _________________
+
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-26498/test_translate_does_not_walk_f0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10a1641d0>
+
+    def test_translate_does_not_walk_fallback_engines(
+        tmp_path: Path, monkeypatch
+    ) -> None:
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        working = _BareTranslationEngine()
+        attempts: list[str] = []
+    
+        def fake_resolve_engine(name: str, *args, **kwargs):
+            attempts.append(name)
+            return _UnavailableEngine() if name == "claude" else working
+    
+        monkeypatch.setattr("ontologylab.engines.resolve_engine", fake_resolve_engine)
+        client = TestClient(create_app(data_dir=data_dir))
+    
+        response = client.post(
+            "/api/translate",
+            json={
+                "texts": [
+                    "This study investigates breast cancer treatment.",
+                    "ovarian tumor tissue",
+                ]
+            },
+        )
+    
+>       assert attempts == ["claude"] and response.status_code == 502, (
+            attempts,
+            response.status_code,
+        )
+E       AssertionError: (['claude', 'codex'], 200)
+E       assert (['claude', 'codex'] == ['claude']
+E         
+E         Left contains one more item: 'codex'
+E         Use -v to get more diff)
+
+tests/test_korean_ui.py:98: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  ontologylab.server.routes:routes.py:236 translation engine claude failed: RuntimeError
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_korean_ui.py::test_translate_does_not_walk_fallback_engines
+==================== 1 failed, 1 passed, 1 warning in 0.31s ====================

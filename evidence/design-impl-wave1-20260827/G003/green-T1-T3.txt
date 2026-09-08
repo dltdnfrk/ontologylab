@@ -1,0 +1,15 @@
+tests/test_extraction_lifecycle.py ...........                           [ 62%]
+tests/test_error_disclosure.py .................                         [ 70%]
+tests/test_cli.py ...                                                    [ 71%]
+tests/test_server_m8.py ................                                 [ 79%]
+tests/test_engine_defaults.py ....                                       [ 80%]
+tests/test_competency_release_gate.py .........                          [ 85%]
+tests/test_chat.py .................................                     [100%]
+
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 221 passed, 1 warning in 13.08s ========================

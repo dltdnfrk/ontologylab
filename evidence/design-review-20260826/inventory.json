@@ -1,0 +1,2973 @@
+{
+ "root": ".",
+ "entrypoints": {
+  "main": "ontologylab.main",
+  "server": "ontologylab.server.app",
+  "mcp": "ontologylab.mcp_server"
+ },
+ "closure_sizes": {
+  "main": 139,
+  "server": 146,
+  "mcp": 90
+ },
+ "modules": [
+  {
+   "module": "ontologylab",
+   "path": "ontologylab/__init__.py",
+   "loc": 7,
+   "fan_in": 14,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.alias_authority",
+   "path": "ontologylab/alias_authority.py",
+   "loc": 55,
+   "fan_in": 1,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.authority",
+   "path": "ontologylab/authority.py",
+   "loc": 168,
+   "fan_in": 2,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.authority_repo",
+   "path": "ontologylab/authority_repo.py",
+   "loc": 293,
+   "fan_in": 7,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.calibration",
+   "path": "ontologylab/calibration.py",
+   "loc": 204,
+   "fan_in": 1,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.kgstore"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.chatstore",
+   "path": "ontologylab/chatstore.py",
+   "loc": 238,
+   "fan_in": 1,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.citation",
+   "path": "ontologylab/citation.py",
+   "loc": 84,
+   "fan_in": 7,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.citation_bind",
+    "ontologylab.citation_schema",
+    "ontologylab.citation_store",
+    "ontologylab.citation_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.citation_bind",
+   "path": "ontologylab/citation_bind.py",
+   "loc": 257,
+   "fan_in": 1,
+   "fan_out": 6,
+   "imports": [
+    "ontologylab.citation_ids",
+    "ontologylab.citation_store",
+    "ontologylab.citation_types",
+    "ontologylab.citation_verify",
+    "ontologylab.file_lifecycle",
+    "ontologylab.models"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.citation_ids",
+   "path": "ontologylab/citation_ids.py",
+   "loc": 60,
+   "fan_in": 9,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.citation_types",
+    "ontologylab.extraction_receipt_ids"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.citation_schema",
+   "path": "ontologylab/citation_schema.py",
+   "loc": 61,
+   "fan_in": 5,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.citation_store",
+   "path": "ontologylab/citation_store.py",
+   "loc": 202,
+   "fan_in": 2,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.citation_ids",
+    "ontologylab.citation_schema",
+    "ontologylab.citation_types",
+    "ontologylab.citation_verify"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.citation_types",
+   "path": "ontologylab/citation_types.py",
+   "loc": 104,
+   "fan_in": 11,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.models"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.citation_verify",
+   "path": "ontologylab/citation_verify.py",
+   "loc": 240,
+   "fan_in": 2,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.citation_types",
+    "ontologylab.extraction_receipt_types",
+    "ontologylab.file_lifecycle"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.communities",
+   "path": "ontologylab/communities.py",
+   "loc": 329,
+   "fan_in": 2,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.engines"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.competency",
+   "path": "ontologylab/competency.py",
+   "loc": 703,
+   "fan_in": 1,
+   "fan_out": 6,
+   "imports": [
+    "ontologylab.engines",
+    "ontologylab.extractor",
+    "ontologylab.kgstore",
+    "ontologylab.models",
+    "ontologylab.ontology_schema",
+    "ontologylab.packbuilder"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.conformal",
+   "path": "ontologylab/conformal.py",
+   "loc": 164,
+   "fan_in": 1,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.kgstore"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.connectors",
+   "path": "ontologylab/connectors/__init__.py",
+   "loc": 1,
+   "fan_in": 1,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.connectors.allowlist",
+   "path": "ontologylab/connectors/allowlist.py",
+   "loc": 292,
+   "fan_in": 6,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.connectors.base",
+   "path": "ontologylab/connectors/base.py",
+   "loc": 164,
+   "fan_in": 17,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab",
+    "ontologylab.connectors.dedup"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.connectors.dedup",
+   "path": "ontologylab/connectors/dedup.py",
+   "loc": 121,
+   "fan_in": 1,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.connectors.base"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.connectors.fulltext",
+   "path": "ontologylab/connectors/fulltext.py",
+   "loc": 194,
+   "fan_in": 1,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.connectors.base",
+    "ontologylab.connectors.paper_api"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.connectors.paper_api",
+   "path": "ontologylab/connectors/paper_api.py",
+   "loc": 2155,
+   "fan_in": 8,
+   "fan_out": 7,
+   "imports": [
+    "ontologylab",
+    "ontologylab.connectors.allowlist",
+    "ontologylab.connectors.base",
+    "ontologylab.connectors.resources",
+    "ontologylab.evidence",
+    "ontologylab.paths",
+    "ontologylab.sources"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.connectors.registry_lookup",
+   "path": "ontologylab/connectors/registry_lookup.py",
+   "loc": 193,
+   "fan_in": 1,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.connectors.resources",
+   "path": "ontologylab/connectors/resources.py",
+   "loc": 394,
+   "fan_in": 3,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.connectors.paper_api"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.connectors.web_crawl",
+   "path": "ontologylab/connectors/web_crawl.py",
+   "loc": 149,
+   "fan_in": 2,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.connectors.allowlist",
+    "ontologylab.connectors.base",
+    "ontologylab.paths"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.critic",
+   "path": "ontologylab/critic.py",
+   "loc": 300,
+   "fan_in": 2,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.engines",
+    "ontologylab.kgstore",
+    "ontologylab.paths"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.cutover_compensation",
+   "path": "ontologylab/cutover_compensation.py",
+   "loc": 157,
+   "fan_in": 1,
+   "fan_out": 7,
+   "imports": [
+    "ontologylab.cutover_rehearsal",
+    "ontologylab.cutover_rollback_store",
+    "ontologylab.cutover_rollback_types",
+    "ontologylab.grounded_review",
+    "ontologylab.grounded_review_types",
+    "ontologylab.pack_verifier",
+    "ontologylab.work_redirects"
+   ],
+   "entrypoints": []
+  },
+  {
+   "module": "ontologylab.cutover_readers",
+   "path": "ontologylab/cutover_readers.py",
+   "loc": 388,
+   "fan_in": 0,
+   "fan_out": 6,
+   "imports": [
+    "ontologylab.cutover_rehearsal",
+    "ontologylab.kgstore",
+    "ontologylab.mcp_server",
+    "ontologylab.pack_verifier",
+    "ontologylab.server.app",
+    "ontologylab.verified_pack_reader"
+   ],
+   "entrypoints": []
+  },
+  {
+   "module": "ontologylab.cutover_rehearsal",
+   "path": "ontologylab/cutover_rehearsal.py",
+   "loc": 347,
+   "fan_in": 4,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.migration"
+   ],
+   "entrypoints": []
+  },
+  {
+   "module": "ontologylab.cutover_rollback",
+   "path": "ontologylab/cutover_rollback.py",
+   "loc": 171,
+   "fan_in": 0,
+   "fan_out": 5,
+   "imports": [
+    "ontologylab.cutover_compensation",
+    "ontologylab.cutover_rehearsal",
+    "ontologylab.cutover_rollback_store",
+    "ontologylab.cutover_rollback_types",
+    "ontologylab.migration"
+   ],
+   "entrypoints": []
+  },
+  {
+   "module": "ontologylab.cutover_rollback_store",
+   "path": "ontologylab/cutover_rollback_store.py",
+   "loc": 140,
+   "fan_in": 2,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.cutover_rehearsal",
+    "ontologylab.cutover_rollback_types"
+   ],
+   "entrypoints": []
+  },
+  {
+   "module": "ontologylab.cutover_rollback_types",
+   "path": "ontologylab/cutover_rollback_types.py",
+   "loc": 111,
+   "fan_in": 3,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": []
+  },
+  {
+   "module": "ontologylab.doi_backfill",
+   "path": "ontologylab/doi_backfill.py",
+   "loc": 110,
+   "fan_in": 1,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.connectors.base"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.embeddings",
+   "path": "ontologylab/embeddings.py",
+   "loc": 279,
+   "fan_in": 4,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.engines",
+   "path": "ontologylab/engines.py",
+   "loc": 930,
+   "fan_in": 13,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.http_bound",
+    "ontologylab.paths",
+    "ontologylab.providers"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.enrichment",
+   "path": "ontologylab/enrichment.py",
+   "loc": 199,
+   "fan_in": 1,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.connectors.resources",
+    "ontologylab.kgstore"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.evaluation",
+   "path": "ontologylab/evaluation.py",
+   "loc": 366,
+   "fan_in": 1,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.kgstore"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.evidence",
+   "path": "ontologylab/evidence.py",
+   "loc": 155,
+   "fan_in": 2,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.expansion",
+   "path": "ontologylab/expansion.py",
+   "loc": 108,
+   "fan_in": 2,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.engines"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.extraction_receipt_ids",
+   "path": "ontologylab/extraction_receipt_ids.py",
+   "loc": 99,
+   "fan_in": 9,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.extraction_receipt_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.extraction_receipt_schema",
+   "path": "ontologylab/extraction_receipt_schema.py",
+   "loc": 74,
+   "fan_in": 2,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.extraction_receipt_store",
+   "path": "ontologylab/extraction_receipt_store.py",
+   "loc": 240,
+   "fan_in": 1,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.extraction_receipt_ids",
+    "ontologylab.extraction_receipt_types",
+    "ontologylab.file_lifecycle"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.extraction_receipt_types",
+   "path": "ontologylab/extraction_receipt_types.py",
+   "loc": 90,
+   "fan_in": 9,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.extraction_receipts",
+   "path": "ontologylab/extraction_receipts.py",
+   "loc": 45,
+   "fan_in": 2,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.extraction_receipt_schema",
+    "ontologylab.extraction_receipt_store",
+    "ontologylab.extraction_receipt_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.extraction_state",
+   "path": "ontologylab/extraction_state.py",
+   "loc": 433,
+   "fan_in": 7,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.citation_schema",
+    "ontologylab.extraction_receipts",
+    "ontologylab.grounded_review_schema"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.extractor",
+   "path": "ontologylab/extractor.py",
+   "loc": 930,
+   "fan_in": 5,
+   "fan_out": 8,
+   "imports": [
+    "ontologylab.citation",
+    "ontologylab.citation_types",
+    "ontologylab.engines",
+    "ontologylab.extraction_state",
+    "ontologylab.kgstore",
+    "ontologylab.models",
+    "ontologylab.normalization",
+    "ontologylab.registry"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.file_lifecycle",
+   "path": "ontologylab/file_lifecycle.py",
+   "loc": 531,
+   "fan_in": 17,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.grounded_review",
+   "path": "ontologylab/grounded_review.py",
+   "loc": 255,
+   "fan_in": 4,
+   "fan_out": 8,
+   "imports": [
+    "ontologylab.citation",
+    "ontologylab.grounded_review_ids",
+    "ontologylab.grounded_review_members",
+    "ontologylab.grounded_review_payload",
+    "ontologylab.grounded_review_preflight",
+    "ontologylab.grounded_review_schema",
+    "ontologylab.grounded_review_store",
+    "ontologylab.grounded_review_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.grounded_review_ids",
+   "path": "ontologylab/grounded_review_ids.py",
+   "loc": 149,
+   "fan_in": 5,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.extraction_receipt_ids",
+    "ontologylab.grounded_review_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.grounded_review_members",
+   "path": "ontologylab/grounded_review_members.py",
+   "loc": 86,
+   "fan_in": 1,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.citation",
+    "ontologylab.citation_ids",
+    "ontologylab.citation_types",
+    "ontologylab.h1_existing"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.grounded_review_payload",
+   "path": "ontologylab/grounded_review_payload.py",
+   "loc": 62,
+   "fan_in": 1,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.grounded_review_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.grounded_review_preflight",
+   "path": "ontologylab/grounded_review_preflight.py",
+   "loc": 206,
+   "fan_in": 2,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.citation",
+    "ontologylab.citation_ids",
+    "ontologylab.grounded_review_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.grounded_review_schema",
+   "path": "ontologylab/grounded_review_schema.py",
+   "loc": 74,
+   "fan_in": 5,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.grounded_review_store",
+   "path": "ontologylab/grounded_review_store.py",
+   "loc": 244,
+   "fan_in": 3,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.grounded_review_schema",
+    "ontologylab.grounded_review_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.grounded_review_types",
+   "path": "ontologylab/grounded_review_types.py",
+   "loc": 133,
+   "fan_in": 9,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.h1",
+   "path": "ontologylab/h1.py",
+   "loc": 129,
+   "fan_in": 1,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.h1_migrate",
+    "ontologylab.h1_types",
+    "ontologylab.kgstore",
+    "ontologylab.migration_backfill"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_bytes",
+   "path": "ontologylab/h1_bytes.py",
+   "loc": 59,
+   "fan_in": 4,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.file_lifecycle",
+    "ontologylab.h1_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_classify",
+   "path": "ontologylab/h1_classify.py",
+   "loc": 125,
+   "fan_in": 1,
+   "fan_out": 5,
+   "imports": [
+    "ontologylab.file_lifecycle",
+    "ontologylab.h1_bytes",
+    "ontologylab.h1_classify_cite",
+    "ontologylab.h1_decisions",
+    "ontologylab.h1_types"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_classify_cite",
+   "path": "ontologylab/h1_classify_cite.py",
+   "loc": 242,
+   "fan_in": 1,
+   "fan_out": 7,
+   "imports": [
+    "ontologylab.file_lifecycle",
+    "ontologylab.grounded_review_ids",
+    "ontologylab.h1_bytes",
+    "ontologylab.h1_decisions",
+    "ontologylab.h1_existing",
+    "ontologylab.h1_existing_cite",
+    "ontologylab.h1_types"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_cli",
+   "path": "ontologylab/h1_cli.py",
+   "loc": 63,
+   "fan_in": 1,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.h1",
+    "ontologylab.h1_types"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_decisions",
+   "path": "ontologylab/h1_decisions.py",
+   "loc": 69,
+   "fan_in": 3,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.h1_inventory",
+    "ontologylab.h1_types"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_existing",
+   "path": "ontologylab/h1_existing.py",
+   "loc": 222,
+   "fan_in": 7,
+   "fan_out": 6,
+   "imports": [
+    "ontologylab.extraction_receipt_ids",
+    "ontologylab.extraction_receipt_types",
+    "ontologylab.file_lifecycle",
+    "ontologylab.h1_bytes",
+    "ontologylab.h1_ids",
+    "ontologylab.h1_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_existing_cite",
+   "path": "ontologylab/h1_existing_cite.py",
+   "loc": 164,
+   "fan_in": 4,
+   "fan_out": 7,
+   "imports": [
+    "ontologylab.citation",
+    "ontologylab.citation_ids",
+    "ontologylab.citation_types",
+    "ontologylab.extraction_receipt_types",
+    "ontologylab.h1_existing",
+    "ontologylab.h1_ids",
+    "ontologylab.h1_types"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_existing_review",
+   "path": "ontologylab/h1_existing_review.py",
+   "loc": 177,
+   "fan_in": 1,
+   "fan_out": 7,
+   "imports": [
+    "ontologylab.citation_ids",
+    "ontologylab.grounded_review_ids",
+    "ontologylab.grounded_review_store",
+    "ontologylab.grounded_review_types",
+    "ontologylab.h1_existing",
+    "ontologylab.h1_existing_cite",
+    "ontologylab.h1_types"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_finalize",
+   "path": "ontologylab/h1_finalize.py",
+   "loc": 162,
+   "fan_in": 1,
+   "fan_out": 7,
+   "imports": [
+    "ontologylab.h1_classify",
+    "ontologylab.h1_decisions",
+    "ontologylab.h1_existing",
+    "ontologylab.h1_materialize",
+    "ontologylab.h1_materialize_review",
+    "ontologylab.h1_store",
+    "ontologylab.h1_types"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_ids",
+   "path": "ontologylab/h1_ids.py",
+   "loc": 54,
+   "fan_in": 6,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.extraction_receipt_ids",
+    "ontologylab.h1_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_inventory",
+   "path": "ontologylab/h1_inventory.py",
+   "loc": 185,
+   "fan_in": 2,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.h1_ids",
+    "ontologylab.h1_types"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_materialize",
+   "path": "ontologylab/h1_materialize.py",
+   "loc": 222,
+   "fan_in": 1,
+   "fan_out": 11,
+   "imports": [
+    "ontologylab.citation",
+    "ontologylab.citation_ids",
+    "ontologylab.citation_types",
+    "ontologylab.extraction_receipt_types",
+    "ontologylab.extraction_receipts",
+    "ontologylab.file_lifecycle",
+    "ontologylab.h1_bytes",
+    "ontologylab.h1_existing",
+    "ontologylab.h1_existing_cite",
+    "ontologylab.h1_ids",
+    "ontologylab.h1_types"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_materialize_review",
+   "path": "ontologylab/h1_materialize_review.py",
+   "loc": 88,
+   "fan_in": 1,
+   "fan_out": 9,
+   "imports": [
+    "ontologylab.citation_ids",
+    "ontologylab.grounded_review_ids",
+    "ontologylab.grounded_review_store",
+    "ontologylab.grounded_review_types",
+    "ontologylab.h1_existing",
+    "ontologylab.h1_existing_cite",
+    "ontologylab.h1_existing_review",
+    "ontologylab.h1_ids",
+    "ontologylab.h1_types"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_migrate",
+   "path": "ontologylab/h1_migrate.py",
+   "loc": 166,
+   "fan_in": 1,
+   "fan_out": 7,
+   "imports": [
+    "ontologylab.h1_finalize",
+    "ontologylab.h1_inventory",
+    "ontologylab.h1_schema",
+    "ontologylab.h1_store",
+    "ontologylab.h1_types",
+    "ontologylab.migration",
+    "ontologylab.migration_rehearsal"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_schema",
+   "path": "ontologylab/h1_schema.py",
+   "loc": 58,
+   "fan_in": 2,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_store",
+   "path": "ontologylab/h1_store.py",
+   "loc": 83,
+   "fan_in": 2,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.h1_ids",
+    "ontologylab.h1_schema",
+    "ontologylab.h1_types"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.h1_types",
+   "path": "ontologylab/h1_types.py",
+   "loc": 167,
+   "fan_in": 16,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.migration"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.http_bound",
+   "path": "ontologylab/http_bound.py",
+   "loc": 88,
+   "fan_in": 1,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.identity_decisions",
+   "path": "ontologylab/identity_decisions.py",
+   "loc": 217,
+   "fan_in": 3,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.authority_repo"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.ingestion",
+   "path": "ontologylab/ingestion.py",
+   "loc": 190,
+   "fan_in": 5,
+   "fan_out": 8,
+   "imports": [
+    "ontologylab",
+    "ontologylab.connectors.base",
+    "ontologylab.file_lifecycle",
+    "ontologylab.ingestion_shadow",
+    "ontologylab.kgstore",
+    "ontologylab.models",
+    "ontologylab.provenance",
+    "ontologylab.provenance_outbox"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.ingestion_service",
+   "path": "ontologylab/ingestion_service.py",
+   "loc": 512,
+   "fan_in": 3,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.authority_repo",
+    "ontologylab.connectors.base",
+    "ontologylab.file_lifecycle",
+    "ontologylab.provenance_outbox"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.ingestion_shadow",
+   "path": "ontologylab/ingestion_shadow.py",
+   "loc": 501,
+   "fan_in": 3,
+   "fan_out": 8,
+   "imports": [
+    "ontologylab.authority_repo",
+    "ontologylab.connectors.base",
+    "ontologylab.ingestion",
+    "ontologylab.ingestion_service",
+    "ontologylab.kgstore",
+    "ontologylab.models",
+    "ontologylab.provenance",
+    "ontologylab.provenance_outbox"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.ingestion_surfaces",
+   "path": "ontologylab/ingestion_surfaces.py",
+   "loc": 264,
+   "fan_in": 2,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.ingestion_service"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.intent",
+   "path": "ontologylab/intent.py",
+   "loc": 220,
+   "fan_in": 1,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.engines"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.keychain",
+   "path": "ontologylab/keychain.py",
+   "loc": 457,
+   "fan_in": 2,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.kgstore",
+   "path": "ontologylab/kgstore.py",
+   "loc": 5587,
+   "fan_in": 23,
+   "fan_out": 16,
+   "imports": [
+    "ontologylab",
+    "ontologylab.authority",
+    "ontologylab.connectors.base",
+    "ontologylab.embeddings",
+    "ontologylab.evidence",
+    "ontologylab.extraction_state",
+    "ontologylab.file_lifecycle",
+    "ontologylab.grounded_review",
+    "ontologylab.grounded_review_preflight",
+    "ontologylab.grounded_review_schema",
+    "ontologylab.method_store",
+    "ontologylab.models",
+    "ontologylab.ontology_schema",
+    "ontologylab.paths",
+    "ontologylab.provenance_outbox",
+    "ontologylab.rerankers"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.literature",
+   "path": "ontologylab/literature.py",
+   "loc": 198,
+   "fan_in": 1,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.connectors.base",
+    "ontologylab.engines",
+    "ontologylab.literature_citations",
+    "ontologylab.searchquery"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.literature_artifacts",
+   "path": "ontologylab/literature_artifacts.py",
+   "loc": 78,
+   "fan_in": 2,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.connectors.base"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.literature_citations",
+   "path": "ontologylab/literature_citations.py",
+   "loc": 113,
+   "fan_in": 1,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.connectors",
+    "ontologylab.connectors.base",
+    "ontologylab.connectors.paper_api",
+    "ontologylab.paths"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.main",
+   "path": "ontologylab/main.py",
+   "loc": 2309,
+   "fan_in": 0,
+   "fan_out": 41,
+   "imports": [
+    "ontologylab",
+    "ontologylab.authority_repo",
+    "ontologylab.communities",
+    "ontologylab.connectors.allowlist",
+    "ontologylab.connectors.base",
+    "ontologylab.connectors.paper_api",
+    "ontologylab.connectors.web_crawl",
+    "ontologylab.critic",
+    "ontologylab.embeddings",
+    "ontologylab.engines",
+    "ontologylab.evaluation",
+    "ontologylab.expansion",
+    "ontologylab.extraction_state",
+    "ontologylab.extractor",
+    "ontologylab.file_lifecycle",
+    "ontologylab.grounded_review",
+    "ontologylab.h1_cli",
+    "ontologylab.ingestion",
+    "ontologylab.ingestion_shadow",
+    "ontologylab.ingestion_surfaces",
+    "ontologylab.kgstore",
+    "ontologylab.mcp_server",
+    "ontologylab.mcpb",
+    "ontologylab.merge",
+    "ontologylab.method_compiler",
+    "ontologylab.method_compiler_replay",
+    "ontologylab.method_extract",
+    "ontologylab.method_gaps",
+    "ontologylab.method_ir",
+    "ontologylab.method_pack",
+    "ontologylab.method_store",
+    "ontologylab.packbuilder",
+    "ontologylab.packdiff",
+    "ontologylab.paths",
+    "ontologylab.provenance",
+    "ontologylab.provenance_outbox",
+    "ontologylab.providers",
+    "ontologylab.reconciliation",
+    "ontologylab.registry",
+    "ontologylab.rerankers",
+    "ontologylab.safety"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.mcp_protocol",
+   "path": "ontologylab/mcp_protocol.py",
+   "loc": 49,
+   "fan_in": 1,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.mcp_runtime",
+   "path": "ontologylab/mcp_runtime.py",
+   "loc": 303,
+   "fan_in": 1,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.mcp_protocol"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.mcp_server",
+   "path": "ontologylab/mcp_server.py",
+   "loc": 1411,
+   "fan_in": 3,
+   "fan_out": 13,
+   "imports": [
+    "ontologylab.embeddings",
+    "ontologylab.engines",
+    "ontologylab.expansion",
+    "ontologylab.kgstore",
+    "ontologylab.mcp_runtime",
+    "ontologylab.method_mcp",
+    "ontologylab.method_mcp_sql",
+    "ontologylab.pack_v2_derive",
+    "ontologylab.packbuilder",
+    "ontologylab.paths",
+    "ontologylab.rerankers",
+    "ontologylab.semantic_staleness",
+    "ontologylab.verified_pack_reader"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.mcpb",
+   "path": "ontologylab/mcpb.py",
+   "loc": 140,
+   "fan_in": 2,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab",
+    "ontologylab.packbuilder"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.merge",
+   "path": "ontologylab/merge.py",
+   "loc": 266,
+   "fan_in": 2,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.embeddings",
+    "ontologylab.kgstore"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_commands",
+   "path": "ontologylab/method_commands.py",
+   "loc": 300,
+   "fan_in": 2,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.method_ir",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_compiler",
+   "path": "ontologylab/method_compiler.py",
+   "loc": 280,
+   "fan_in": 1,
+   "fan_out": 7,
+   "imports": [
+    "ontologylab.method_compiler_artifacts",
+    "ontologylab.method_compiler_contract",
+    "ontologylab.method_compiler_gates",
+    "ontologylab.method_compiler_replay",
+    "ontologylab.method_ir",
+    "ontologylab.method_snapshot",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.method_compiler_artifacts",
+   "path": "ontologylab/method_compiler_artifacts.py",
+   "loc": 369,
+   "fan_in": 1,
+   "fan_out": 6,
+   "imports": [
+    "ontologylab.method_compiler_contract",
+    "ontologylab.method_compiler_gates",
+    "ontologylab.method_compiler_replay",
+    "ontologylab.method_ir",
+    "ontologylab.method_release_validation",
+    "ontologylab.method_snapshot"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.method_compiler_contract",
+   "path": "ontologylab/method_compiler_contract.py",
+   "loc": 388,
+   "fan_in": 7,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_compiler_gates",
+   "path": "ontologylab/method_compiler_gates.py",
+   "loc": 530,
+   "fan_in": 4,
+   "fan_out": 5,
+   "imports": [
+    "ontologylab.method_compiler_contract",
+    "ontologylab.method_gaps",
+    "ontologylab.method_ir",
+    "ontologylab.method_snapshot",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_compiler_replay",
+   "path": "ontologylab/method_compiler_replay.py",
+   "loc": 297,
+   "fan_in": 3,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.method_compiler_contract",
+    "ontologylab.method_compiler_gates",
+    "ontologylab.method_ir"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.method_extract",
+   "path": "ontologylab/method_extract.py",
+   "loc": 266,
+   "fan_in": 1,
+   "fan_out": 7,
+   "imports": [
+    "ontologylab.extraction_state",
+    "ontologylab.extractor",
+    "ontologylab.kgstore",
+    "ontologylab.method_ir",
+    "ontologylab.method_store",
+    "ontologylab.models",
+    "ontologylab.safety"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.method_extraction_store",
+   "path": "ontologylab/method_extraction_store.py",
+   "loc": 348,
+   "fan_in": 2,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.method_ir",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_gaps",
+   "path": "ontologylab/method_gaps.py",
+   "loc": 444,
+   "fan_in": 2,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.method_snapshot"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_ir",
+   "path": "ontologylab/method_ir.py",
+   "loc": 437,
+   "fan_in": 13,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.method_ir_codec"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_ir_codec",
+   "path": "ontologylab/method_ir_codec.py",
+   "loc": 1002,
+   "fan_in": 1,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_mcp",
+   "path": "ontologylab/method_mcp.py",
+   "loc": 229,
+   "fan_in": 1,
+   "fan_out": 5,
+   "imports": [
+    "ontologylab.method_mcp_publication",
+    "ontologylab.method_mcp_queries",
+    "ontologylab.method_mcp_sql",
+    "ontologylab.method_pack_contract",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_mcp_publication",
+   "path": "ontologylab/method_mcp_publication.py",
+   "loc": 186,
+   "fan_in": 1,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.method_mcp_queries",
+    "ontologylab.method_mcp_rows",
+    "ontologylab.method_pack_contract",
+    "ontologylab.method_pack_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_mcp_queries",
+   "path": "ontologylab/method_mcp_queries.py",
+   "loc": 174,
+   "fan_in": 3,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_mcp_rows",
+   "path": "ontologylab/method_mcp_rows.py",
+   "loc": 111,
+   "fan_in": 1,
+   "fan_out": 5,
+   "imports": [
+    "ontologylab.method_mcp_queries",
+    "ontologylab.method_pack_contract",
+    "ontologylab.method_release_validation",
+    "ontologylab.method_snapshot",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_mcp_sql",
+   "path": "ontologylab/method_mcp_sql.py",
+   "loc": 53,
+   "fan_in": 2,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_pack",
+   "path": "ontologylab/method_pack.py",
+   "loc": 352,
+   "fan_in": 2,
+   "fan_out": 7,
+   "imports": [
+    "ontologylab.method_pack_contract",
+    "ontologylab.method_pack_rows",
+    "ontologylab.method_pack_sql",
+    "ontologylab.method_pack_validation",
+    "ontologylab.method_release_validation",
+    "ontologylab.method_snapshot",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_pack_contract",
+   "path": "ontologylab/method_pack_contract.py",
+   "loc": 26,
+   "fan_in": 7,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_pack_rows",
+   "path": "ontologylab/method_pack_rows.py",
+   "loc": 50,
+   "fan_in": 1,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.method_pack_contract"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_pack_sql",
+   "path": "ontologylab/method_pack_sql.py",
+   "loc": 284,
+   "fan_in": 1,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.method_compiler_gates",
+    "ontologylab.method_pack_contract",
+    "ontologylab.method_store"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_pack_validation",
+   "path": "ontologylab/method_pack_validation.py",
+   "loc": 213,
+   "fan_in": 2,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.method_pack_contract",
+    "ontologylab.method_release_validation",
+    "ontologylab.method_snapshot",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_release_store",
+   "path": "ontologylab/method_release_store.py",
+   "loc": 259,
+   "fan_in": 2,
+   "fan_out": 5,
+   "imports": [
+    "ontologylab.method_compiler_contract",
+    "ontologylab.method_ir",
+    "ontologylab.method_release_validation",
+    "ontologylab.method_snapshot",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_release_validation",
+   "path": "ontologylab/method_release_validation.py",
+   "loc": 85,
+   "fan_in": 5,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.method_compiler_contract",
+    "ontologylab.method_ir",
+    "ontologylab.method_snapshot",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_snapshot",
+   "path": "ontologylab/method_snapshot.py",
+   "loc": 289,
+   "fan_in": 10,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.method_compiler_contract",
+    "ontologylab.method_ir",
+    "ontologylab.method_snapshot_payload",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_snapshot_payload",
+   "path": "ontologylab/method_snapshot_payload.py",
+   "loc": 63,
+   "fan_in": 2,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_sql_core",
+   "path": "ontologylab/method_sql_core.py",
+   "loc": 314,
+   "fan_in": 1,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab",
+    "ontologylab.method_commands",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_sql_extraction",
+   "path": "ontologylab/method_sql_extraction.py",
+   "loc": 359,
+   "fan_in": 1,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.method_extraction_store",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_sql_release",
+   "path": "ontologylab/method_sql_release.py",
+   "loc": 265,
+   "fan_in": 1,
+   "fan_out": 5,
+   "imports": [
+    "ontologylab",
+    "ontologylab.method_ir",
+    "ontologylab.method_release_store",
+    "ontologylab.method_snapshot_payload",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_store",
+   "path": "ontologylab/method_store.py",
+   "loc": 645,
+   "fan_in": 4,
+   "fan_out": 10,
+   "imports": [
+    "ontologylab",
+    "ontologylab.method_commands",
+    "ontologylab.method_extraction_store",
+    "ontologylab.method_release_store",
+    "ontologylab.method_snapshot",
+    "ontologylab.method_sql_core",
+    "ontologylab.method_sql_extraction",
+    "ontologylab.method_sql_release",
+    "ontologylab.method_uow",
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_uow",
+   "path": "ontologylab/method_uow.py",
+   "loc": 37,
+   "fan_in": 1,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.method_validation"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.method_validation",
+   "path": "ontologylab/method_validation.py",
+   "loc": 328,
+   "fan_in": 17,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.method_ir"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.migration",
+   "path": "ontologylab/migration.py",
+   "loc": 404,
+   "fan_in": 8,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.migration_backfill",
+   "path": "ontologylab/migration_backfill.py",
+   "loc": 408,
+   "fan_in": 1,
+   "fan_out": 5,
+   "imports": [
+    "ontologylab.authority_repo",
+    "ontologylab.connectors.base",
+    "ontologylab.doi_backfill",
+    "ontologylab.identity_decisions",
+    "ontologylab.migration"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.migration_rehearsal",
+   "path": "ontologylab/migration_rehearsal.py",
+   "loc": 373,
+   "fan_in": 1,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.migration"
+   ],
+   "entrypoints": [
+    "main"
+   ]
+  },
+  {
+   "module": "ontologylab.models",
+   "path": "ontologylab/models.py",
+   "loc": 322,
+   "fan_in": 11,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.normalization",
+   "path": "ontologylab/normalization.py",
+   "loc": 145,
+   "fan_in": 1,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.alias_authority",
+    "ontologylab.models",
+    "ontologylab.registry"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.ontology_schema",
+   "path": "ontologylab/ontology_schema.py",
+   "loc": 75,
+   "fan_in": 4,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.pack_completeness",
+   "path": "ontologylab/pack_completeness.py",
+   "loc": 197,
+   "fan_in": 1,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.pack_readiness",
+   "path": "ontologylab/pack_readiness.py",
+   "loc": 283,
+   "fan_in": 2,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.migration",
+    "ontologylab.pack_receipt_seal",
+    "ontologylab.pack_v2_closure",
+    "ontologylab.packbuilder"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.pack_receipt_seal",
+   "path": "ontologylab/pack_receipt_seal.py",
+   "loc": 283,
+   "fan_in": 3,
+   "fan_out": 8,
+   "imports": [
+    "ontologylab.citation_ids",
+    "ontologylab.citation_types",
+    "ontologylab.extraction_receipt_ids",
+    "ontologylab.extraction_receipt_types",
+    "ontologylab.grounded_review_ids",
+    "ontologylab.grounded_review_types",
+    "ontologylab.selection_ids",
+    "ontologylab.selection_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.pack_source_fingerprint",
+   "path": "ontologylab/pack_source_fingerprint.py",
+   "loc": 99,
+   "fan_in": 2,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.pack_v2_closure",
+   "path": "ontologylab/pack_v2_closure.py",
+   "loc": 696,
+   "fan_in": 3,
+   "fan_out": 13,
+   "imports": [
+    "ontologylab",
+    "ontologylab.authority",
+    "ontologylab.citation_schema",
+    "ontologylab.extraction_receipt_schema",
+    "ontologylab.extraction_state",
+    "ontologylab.file_lifecycle",
+    "ontologylab.grounded_review_schema",
+    "ontologylab.pack_readiness",
+    "ontologylab.pack_receipt_seal",
+    "ontologylab.pack_source_fingerprint",
+    "ontologylab.pack_v2_derive",
+    "ontologylab.selection_schema",
+    "ontologylab.selection_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.pack_v2_derive",
+   "path": "ontologylab/pack_v2_derive.py",
+   "loc": 276,
+   "fan_in": 4,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.migration",
+    "ontologylab.pack_readiness",
+    "ontologylab.pack_receipt_seal",
+    "ontologylab.pack_source_fingerprint"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.pack_v2_manifest",
+   "path": "ontologylab/pack_v2_manifest.py",
+   "loc": 136,
+   "fan_in": 1,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.pack_v2_derive",
+    "ontologylab.pack_verifier"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.pack_v2_validate",
+   "path": "ontologylab/pack_v2_validate.py",
+   "loc": 256,
+   "fan_in": 1,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.pack_v2_closure",
+    "ontologylab.pack_verifier"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.pack_verifier",
+   "path": "ontologylab/pack_verifier.py",
+   "loc": 560,
+   "fan_in": 5,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.pack_v2_derive",
+    "ontologylab.pack_v2_validate"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.packbuilder",
+   "path": "ontologylab/packbuilder.py",
+   "loc": 1002,
+   "fan_in": 8,
+   "fan_out": 11,
+   "imports": [
+    "ontologylab",
+    "ontologylab.communities",
+    "ontologylab.kgstore",
+    "ontologylab.method_pack",
+    "ontologylab.models",
+    "ontologylab.pack_completeness",
+    "ontologylab.pack_v2_closure",
+    "ontologylab.pack_v2_manifest",
+    "ontologylab.paths",
+    "ontologylab.semantic_staleness",
+    "ontologylab.verified_pack_reader"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.packdiff",
+   "path": "ontologylab/packdiff.py",
+   "loc": 152,
+   "fan_in": 2,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.kgstore",
+    "ontologylab.packbuilder",
+    "ontologylab.verified_pack_reader"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.paths",
+   "path": "ontologylab/paths.py",
+   "loc": 293,
+   "fan_in": 19,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.preferred",
+   "path": "ontologylab/preferred.py",
+   "loc": 51,
+   "fan_in": 1,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.proposals",
+   "path": "ontologylab/proposals.py",
+   "loc": 1229,
+   "fan_in": 1,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.kgstore",
+    "ontologylab.models",
+    "ontologylab.ontology_schema"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.provenance",
+   "path": "ontologylab/provenance.py",
+   "loc": 174,
+   "fan_in": 6,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.provenance_outbox",
+   "path": "ontologylab/provenance_outbox.py",
+   "loc": 242,
+   "fan_in": 6,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.file_lifecycle"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.providers",
+   "path": "ontologylab/providers.py",
+   "loc": 310,
+   "fan_in": 3,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.paths"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.reconciliation",
+   "path": "ontologylab/reconciliation.py",
+   "loc": 140,
+   "fan_in": 2,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.identity_decisions",
+    "ontologylab.work_redirects",
+    "ontologylab.work_view"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.registry",
+   "path": "ontologylab/registry.py",
+   "loc": 758,
+   "fan_in": 3,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.connectors.allowlist",
+    "ontologylab.paths"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.rerankers",
+   "path": "ontologylab/rerankers.py",
+   "loc": 117,
+   "fan_in": 3,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.research_extract",
+   "path": "ontologylab/research_extract.py",
+   "loc": 233,
+   "fan_in": 1,
+   "fan_out": 13,
+   "imports": [
+    "ontologylab.connectors.base",
+    "ontologylab.extraction_receipt_ids",
+    "ontologylab.extraction_receipt_types",
+    "ontologylab.extraction_state",
+    "ontologylab.extractor",
+    "ontologylab.file_lifecycle",
+    "ontologylab.ingestion",
+    "ontologylab.ingestion_service",
+    "ontologylab.kgstore",
+    "ontologylab.provenance",
+    "ontologylab.safety",
+    "ontologylab.selection",
+    "ontologylab.selection_types"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.review_decision",
+   "path": "ontologylab/review_decision.py",
+   "loc": 215,
+   "fan_in": 0,
+   "fan_out": 5,
+   "imports": [
+    "ontologylab.review_decision_ids",
+    "ontologylab.review_decision_schema",
+    "ontologylab.review_decision_store",
+    "ontologylab.review_decision_types",
+    "ontologylab.review_grounding"
+   ],
+   "entrypoints": []
+  },
+  {
+   "module": "ontologylab.review_decision_ids",
+   "path": "ontologylab/review_decision_ids.py",
+   "loc": 84,
+   "fan_in": 3,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.extraction_receipt_ids"
+   ],
+   "entrypoints": []
+  },
+  {
+   "module": "ontologylab.review_decision_schema",
+   "path": "ontologylab/review_decision_schema.py",
+   "loc": 69,
+   "fan_in": 3,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": []
+  },
+  {
+   "module": "ontologylab.review_decision_store",
+   "path": "ontologylab/review_decision_store.py",
+   "loc": 180,
+   "fan_in": 1,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.review_decision_ids",
+    "ontologylab.review_decision_schema",
+    "ontologylab.review_decision_types"
+   ],
+   "entrypoints": []
+  },
+  {
+   "module": "ontologylab.review_decision_types",
+   "path": "ontologylab/review_decision_types.py",
+   "loc": 87,
+   "fan_in": 3,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": []
+  },
+  {
+   "module": "ontologylab.review_grounding",
+   "path": "ontologylab/review_grounding.py",
+   "loc": 174,
+   "fan_in": 1,
+   "fan_out": 6,
+   "imports": [
+    "ontologylab.citation",
+    "ontologylab.citation_schema",
+    "ontologylab.citation_types",
+    "ontologylab.review_decision_ids",
+    "ontologylab.review_decision_schema",
+    "ontologylab.review_decision_types"
+   ],
+   "entrypoints": []
+  },
+  {
+   "module": "ontologylab.safety",
+   "path": "ontologylab/safety.py",
+   "loc": 118,
+   "fan_in": 4,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.schemas",
+   "path": "ontologylab/schemas.py",
+   "loc": 416,
+   "fan_in": 1,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab",
+    "ontologylab.ontology_schema"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.searchquery",
+   "path": "ontologylab/searchquery.py",
+   "loc": 231,
+   "fan_in": 4,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.engines"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.selection",
+   "path": "ontologylab/selection.py",
+   "loc": 53,
+   "fan_in": 1,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.selection_schema",
+    "ontologylab.selection_store",
+    "ontologylab.selection_types"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.selection_ids",
+   "path": "ontologylab/selection_ids.py",
+   "loc": 116,
+   "fan_in": 2,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.extraction_receipt_ids",
+    "ontologylab.selection_policy",
+    "ontologylab.selection_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.selection_policy",
+   "path": "ontologylab/selection_policy.py",
+   "loc": 213,
+   "fan_in": 2,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.selection_types"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.selection_schema",
+   "path": "ontologylab/selection_schema.py",
+   "loc": 41,
+   "fan_in": 3,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.selection_store",
+   "path": "ontologylab/selection_store.py",
+   "loc": 131,
+   "fan_in": 1,
+   "fan_out": 5,
+   "imports": [
+    "ontologylab.selection_ids",
+    "ontologylab.selection_policy",
+    "ontologylab.selection_schema",
+    "ontologylab.selection_types",
+    "ontologylab.work_view"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.selection_types",
+   "path": "ontologylab/selection_types.py",
+   "loc": 130,
+   "fan_in": 9,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.semantic_staleness",
+   "path": "ontologylab/semantic_staleness.py",
+   "loc": 165,
+   "fan_in": 2,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.serve",
+   "path": "ontologylab/serve.py",
+   "loc": 95,
+   "fan_in": 0,
+   "fan_out": 5,
+   "imports": [
+    "ontologylab.paths",
+    "ontologylab.server",
+    "ontologylab.server.app",
+    "ontologylab.server.security",
+    "ontologylab.server.settings"
+   ],
+   "entrypoints": []
+  },
+  {
+   "module": "ontologylab.server",
+   "path": "ontologylab/server/__init__.py",
+   "loc": 1,
+   "fan_in": 2,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.server.app",
+   "path": "ontologylab/server/app.py",
+   "loc": 269,
+   "fan_in": 2,
+   "fan_out": 7,
+   "imports": [
+    "ontologylab.paths",
+    "ontologylab.server.ingest_routes",
+    "ontologylab.server.jobs",
+    "ontologylab.server.routes",
+    "ontologylab.server.security",
+    "ontologylab.server.session",
+    "ontologylab.sources"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.server.dependencies",
+   "path": "ontologylab/server/dependencies.py",
+   "loc": 67,
+   "fan_in": 2,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.server.jobs"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.server.ingest_routes",
+   "path": "ontologylab/server/ingest_routes.py",
+   "loc": 73,
+   "fan_in": 1,
+   "fan_out": 6,
+   "imports": [
+    "ontologylab.file_lifecycle",
+    "ontologylab.ingestion_surfaces",
+    "ontologylab.kgstore",
+    "ontologylab.paths",
+    "ontologylab.provenance_outbox",
+    "ontologylab.server.dependencies"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.server.jobs",
+   "path": "ontologylab/server/jobs.py",
+   "loc": 1153,
+   "fan_in": 3,
+   "fan_out": 19,
+   "imports": [
+    "ontologylab",
+    "ontologylab.connectors.allowlist",
+    "ontologylab.connectors.base",
+    "ontologylab.connectors.fulltext",
+    "ontologylab.connectors.paper_api",
+    "ontologylab.engines",
+    "ontologylab.extraction_state",
+    "ontologylab.extractor",
+    "ontologylab.ingestion",
+    "ontologylab.kgstore",
+    "ontologylab.literature",
+    "ontologylab.literature_artifacts",
+    "ontologylab.paths",
+    "ontologylab.provenance",
+    "ontologylab.research_extract",
+    "ontologylab.safety",
+    "ontologylab.searchquery",
+    "ontologylab.selection_types",
+    "ontologylab.trace"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.server.rate_limit",
+   "path": "ontologylab/server/rate_limit.py",
+   "loc": 60,
+   "fan_in": 1,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.server.routes",
+   "path": "ontologylab/server/routes.py",
+   "loc": 2875,
+   "fan_in": 1,
+   "fan_out": 45,
+   "imports": [
+    "ontologylab",
+    "ontologylab.authority_repo",
+    "ontologylab.calibration",
+    "ontologylab.chatstore",
+    "ontologylab.competency",
+    "ontologylab.conformal",
+    "ontologylab.connectors.allowlist",
+    "ontologylab.connectors.base",
+    "ontologylab.connectors.paper_api",
+    "ontologylab.connectors.registry_lookup",
+    "ontologylab.connectors.resources",
+    "ontologylab.connectors.web_crawl",
+    "ontologylab.critic",
+    "ontologylab.engines",
+    "ontologylab.enrichment",
+    "ontologylab.grounded_review",
+    "ontologylab.identity_decisions",
+    "ontologylab.ingestion",
+    "ontologylab.ingestion_shadow",
+    "ontologylab.intent",
+    "ontologylab.keychain",
+    "ontologylab.kgstore",
+    "ontologylab.literature_artifacts",
+    "ontologylab.mcp_server",
+    "ontologylab.mcpb",
+    "ontologylab.merge",
+    "ontologylab.packbuilder",
+    "ontologylab.packdiff",
+    "ontologylab.paths",
+    "ontologylab.proposals",
+    "ontologylab.provenance",
+    "ontologylab.providers",
+    "ontologylab.reconciliation",
+    "ontologylab.schemas",
+    "ontologylab.searchquery",
+    "ontologylab.server",
+    "ontologylab.server.dependencies",
+    "ontologylab.server.jobs",
+    "ontologylab.server.rate_limit",
+    "ontologylab.server.schemas",
+    "ontologylab.server.settings",
+    "ontologylab.sources",
+    "ontologylab.trace",
+    "ontologylab.work_redirects",
+    "ontologylab.work_view"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.server.schemas",
+   "path": "ontologylab/server/schemas.py",
+   "loc": 504,
+   "fan_in": 2,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.connectors.paper_api",
+    "ontologylab.packbuilder",
+    "ontologylab.paths",
+    "ontologylab.searchquery"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.server.security",
+   "path": "ontologylab/server/security.py",
+   "loc": 154,
+   "fan_in": 2,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.server.session",
+   "path": "ontologylab/server/session.py",
+   "loc": 79,
+   "fan_in": 1,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.server.settings",
+   "path": "ontologylab/server/settings.py",
+   "loc": 213,
+   "fan_in": 2,
+   "fan_out": 4,
+   "imports": [
+    "ontologylab.connectors.paper_api",
+    "ontologylab.engines",
+    "ontologylab.paths",
+    "ontologylab.server.schemas"
+   ],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.sources",
+   "path": "ontologylab/sources.py",
+   "loc": 306,
+   "fan_in": 3,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.keychain",
+    "ontologylab.paths"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.trace",
+   "path": "ontologylab/trace.py",
+   "loc": 124,
+   "fan_in": 2,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": [
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.tui",
+   "path": "ontologylab/tui.py",
+   "loc": 133,
+   "fan_in": 0,
+   "fan_out": 0,
+   "imports": [],
+   "entrypoints": []
+  },
+  {
+   "module": "ontologylab.verified_pack_reader",
+   "path": "ontologylab/verified_pack_reader.py",
+   "loc": 227,
+   "fan_in": 4,
+   "fan_out": 2,
+   "imports": [
+    "ontologylab.kgstore",
+    "ontologylab.pack_verifier"
+   ],
+   "entrypoints": [
+    "main",
+    "mcp",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.work_redirects",
+   "path": "ontologylab/work_redirects.py",
+   "loc": 167,
+   "fan_in": 3,
+   "fan_out": 1,
+   "imports": [
+    "ontologylab.authority_repo"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  },
+  {
+   "module": "ontologylab.work_view",
+   "path": "ontologylab/work_view.py",
+   "loc": 173,
+   "fan_in": 3,
+   "fan_out": 3,
+   "imports": [
+    "ontologylab.file_lifecycle",
+    "ontologylab.preferred",
+    "ontologylab.selection_types"
+   ],
+   "entrypoints": [
+    "main",
+    "server"
+   ]
+  }
+ ],
+ "unreachable": [
+  "ontologylab.cutover_compensation",
+  "ontologylab.cutover_readers",
+  "ontologylab.cutover_rehearsal",
+  "ontologylab.cutover_rollback",
+  "ontologylab.cutover_rollback_store",
+  "ontologylab.cutover_rollback_types",
+  "ontologylab.review_decision",
+  "ontologylab.review_decision_ids",
+  "ontologylab.review_decision_schema",
+  "ontologylab.review_decision_store",
+  "ontologylab.review_decision_types",
+  "ontologylab.review_grounding",
+  "ontologylab.serve",
+  "ontologylab.tui"
+ ]
+}

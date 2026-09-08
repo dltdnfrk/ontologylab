@@ -1,0 +1,37 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 2 items
+
+tests/test_engine_defaults.py F.                                         [100%]
+
+=================================== FAILURES ===================================
+_______ test_cli_omitted_engine_is_none_for_critic_search_method_extract _______
+
+    def test_cli_omitted_engine_is_none_for_critic_search_method_extract() -> None:
+        # Given: the four consume-layer parsers that currently invent a default engine
+        parser = build_arg_parser()
+    
+        # When: --engine is omitted
+        critic = parser.parse_args(["critic"])
+        search = parser.parse_args(["search", "q"])
+        extract = parser.parse_args(["extract"])
+        method_extract = parser.parse_args(list(_METHOD_EXTRACT))
+    
+        # Then: the parsed value is None so resolve_engine can apply DEFAULT_ENGINE
+>       assert critic.engine is None
+E       AssertionError: assert 'mock' is None
+E        +  where 'mock' = Namespace(command='critic', engine='mock', model=None, limit=200, batch_size=20, data_dir='/Users/hyunjun/Documents/MUNI/ontologylab/data', func=<function cmd_critic at 0x107ef8220>).engine
+
+tests/test_engine_defaults.py:38: AssertionError
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_engine_defaults.py::test_cli_omitted_engine_is_none_for_critic_search_method_extract
+==================== 1 failed, 1 passed, 1 warning in 0.27s ====================

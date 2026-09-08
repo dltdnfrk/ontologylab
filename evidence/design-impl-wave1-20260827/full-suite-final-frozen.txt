@@ -1,0 +1,34 @@
+Frozen full-suite verification
+==============================
+
+HEAD: 7f94879317ae25d956d6ae028587dacd19ff500e
+TREE: 306bbb6
+WORKTREE: 32d03599eb95
+
+Command:
+uv run --all-extras pytest -p no:cacheprovider
+
+Result:
+2994 passed, 1 skipped, 2 xfailed, 1 warning in 1784.78s (0:29:44)
+FULL_SUITE_EXIT=0
+
+Baseline:
+2962 passed, 1 skipped, 2 xfailed
+
+Related verification at the same frozen product/test/web fingerprint:
+- Affected collect/job/adapter/HTTP set: 92 passed.
+- Final manual QA matrix: 15 passed, 0 failed; G001_QA_PASS through G004_QA_PASS.
+- Focused Ruff on the final regression and ownership-retarget files: all checks passed.
+- Focused basedpyright on those files: 0 errors, 0 warnings, 0 notes.
+- LSP diagnostics on Wave-1 product modules: no errors.
+- Combined basedpyright product-module sweep reports only the 10 pre-existing
+  mcp_server.py TypedDict return errors at lines 1056-1219, already recorded
+  by G003 and outside this wave's changed hunks.
+- HEAD-vs-current Ruff comparison found no new diagnostic codes after cleanup:
+  extractor.py remained empty; routes.py removed one pre-existing BLE001.
+- node --check web/app.js and web/localize.js exited 0.
+
+Isolation:
+- tcp:18899 free after QA.
+- live http://127.0.0.1:8799/healthz returned {"ok":true} and was untouched.
+- No git commit was created; HEAD remains 7f94879.

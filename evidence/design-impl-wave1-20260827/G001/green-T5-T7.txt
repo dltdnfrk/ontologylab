@@ -1,0 +1,15 @@
+E         
+E         Extra items in the left set:
+E         'collect-sample'
+E         Use -v to get more diff
+
+tests/test_wave21_surface_harness.py:255: AssertionError
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_wave21_surface_harness.py::test_collect_sample_writes_no_provenance_job_dir_unlike_collect
+============= 1 failed, 172 passed, 2 xfailed, 1 warning in 24.01s =============

@@ -1,0 +1,9 @@
+h2_count=8
+found '정준 파이프라인' line=32
+found '엔진 슬롯' line=19
+found '편차 목록' line=79
+found '목표 구조' line=104
+found '결정 목록' line=135
+found '제안이며 결정이 아니다' line=150
+found '근거' line=11
+SECTIONS_OK missing=0

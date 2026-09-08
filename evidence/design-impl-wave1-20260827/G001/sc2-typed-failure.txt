@@ -1,0 +1,3 @@
+created=2 conflicts=1 failures=0 documents=2 shadow_queue_table=False
+G001-SC2 OK
+cleanup: rm -rf /tmp/ol-w1-sc2-CzmESl

@@ -1,0 +1,582 @@
+{
+  "lane": "L4-method",
+  "modules": [
+    {
+      "name": "ontologylab.method_commands",
+      "stage": "Verify",
+      "rationale": "Human decide() is the only Method review-write path for occurrence/fragment/link/bridge/gap decisions.",
+      "evidence": "ontologylab/method_commands.py:82",
+      "secondary_stages": [
+        {
+          "stage": "Synthesize",
+          "evidence": "ontologylab/method_commands.py:94",
+          "why": "propose_fragment/propose_link/propose_bridge assemble Method IR instead of living in a synthesize-only module."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_gaps",
+        "ontologylab.method_extract"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/method_commands.py:286",
+          "what": "Missing review_event_id is silently minted via uuid4 instead of requiring an explicit receipt id."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_compiler",
+      "stage": "Synthesize",
+      "rationale": "compile_method is the method-compile stage: snapshot -> gated canonical method.json + receipt.",
+      "evidence": "ontologylab/method_compiler.py:189",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/method_compiler.py:102",
+          "why": "validate_final_artifacts is the G8 integrity check, a verify-shaped gate living inside compile."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_compiler_artifacts",
+        "ontologylab.method_compiler_gates",
+        "ontologylab.method_ir"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/method_compiler.py:212",
+          "what": "provisional_g8 = gate_result(G8, ()) always passes; preview and first assemble treat G8 as success."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_compiler_artifacts",
+      "stage": "Synthesize",
+      "rationale": "build_method emits the compiled Method JSON/source-index dicts that later stages persist and pack.",
+      "evidence": "ontologylab/method_compiler_artifacts.py:113",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.method_ir",
+        "ontologylab.method_ir_codec"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/method_compiler_artifacts.py:132",
+          "what": "Unselected compile defaults release version to 1."
+        },
+        {
+          "evidence": "ontologylab/method_compiler_artifacts.py:189",
+          "what": "Missing workspace name falls back to method_id."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_compiler_contract",
+      "stage": "Synthesize",
+      "rationale": "Typed compile boundary: GateId G0-G8 and CompilerReceipt shared by gates, replay, and persistence.",
+      "evidence": "ontologylab/method_compiler_contract.py:106",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.method_ir"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_compiler_gates",
+      "stage": "Synthesize",
+      "rationale": "evaluate_source_gates runs non-compensatory G0-G6 as the compile-gate transformation.",
+      "evidence": "ontologylab/method_compiler_gates.py:519",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/method_compiler_gates.py:430",
+          "why": "G6 checks human review receipts and reviewer identity, a Verify concern inside compile."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_gaps"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/method_compiler_gates.py:497",
+          "what": "g8() is defined but never called; compile uses always-pass provisional G8 plus validate_final_artifacts instead."
+        },
+        {
+          "evidence": "ontologylab/method_compiler_gates.py:484",
+          "what": "G6 infers human-ness from reviewer string prefixes/suffixes rather than an explicit actor type."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_compiler_replay",
+      "stage": "Synthesize",
+      "rationale": "evaluate_replay is compile gate G7: bounded competency/replay fixtures over compiled method JSON.",
+      "evidence": "ontologylab/method_compiler_replay.py:276",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/method_compiler_replay.py:31",
+          "why": "ReplayReceipt is a grounding/competency check, Verify-shaped, owned by the compiler."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_compiler_gates"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_extract",
+      "stage": "Extract",
+      "rationale": "extract_occurrences is a second LLM extract pipeline producing StatementOccurrence proposals.",
+      "evidence": "ontologylab/method_extract.py:122",
+      "secondary_stages": [
+        {
+          "stage": "Source",
+          "evidence": "ontologylab/method_extract.py:94",
+          "why": "_policy_allows fail-closes on unresolved source-policy snapshots before engine calls."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.extractor",
+        "ontologylab.method_extraction_store"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/method_extract.py:141",
+          "what": "Omitted decode_params silently take extraction_decode_params(engine)."
+        },
+        {
+          "evidence": "ontologylab/engines.py:514",
+          "what": "MockEngine has no method-occurrence marker; method extract on mock falls through to KG _mock_extraction."
+        }
+      ],
+      "engine_slot": {
+        "interface": "ontologylab.models.Engine",
+        "implementations": [
+          "ontologylab.engines.MockEngine",
+          "ontologylab.engines.ClaudeEngine",
+          "ontologylab.engines.CodexEngine",
+          "ontologylab.engines.GeminiEngine",
+          "ontologylab.engines.ApiEngine"
+        ],
+        "insertion_point": "ontologylab/method_extract.py:220"
+      }
+    },
+    {
+      "name": "ontologylab.method_extraction_store",
+      "stage": "infra",
+      "rationale": "MethodExtractionStore is the extraction-run/chunk/occurrence persistence facade over method_sql_extraction.",
+      "evidence": "ontologylab/method_extraction_store.py:163",
+      "secondary_stages": [
+        {
+          "stage": "Extract",
+          "evidence": "ontologylab/method_extraction_store.py:163",
+          "why": "Public API is the Extract-stage write surface (import_occurrence, claim/succeed/fail chunk/run)."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_sql_extraction",
+        "ontologylab.extraction_state"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/method_extraction_store.py:335",
+          "what": "fail_extraction_run is implemented but has zero external callers; extract path only fails chunks."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_gaps",
+      "stage": "Synthesize",
+      "rationale": "detect_gaps is the deterministic Gap step: frozen snapshot -> typed gap proposals.",
+      "evidence": "ontologylab/method_gaps.py:393",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.method_compiler_gates"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_ir",
+      "stage": "infra",
+      "rationale": "Typed MethodIR dataclasses/enums plus parse_method; schema/models, not a pipeline transform.",
+      "evidence": "ontologylab/method_ir.py:205",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.method_ir_codec",
+        "ontologylab.method_compiler_artifacts"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_ir_codec",
+      "stage": "infra",
+      "rationale": "1002-LOC MethodIRCodec is the import-only typed JSON dialect behind parse_method; unused by compile emit.",
+      "evidence": "ontologylab/method_ir_codec.py:77",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.method_ir",
+        "ontologylab.method_compiler_artifacts",
+        "ontologylab.method_compiler_gates"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_mcp",
+      "stage": "Consume",
+      "rationale": "MethodPackReader is the read-only MCP query surface: list/get/trace/list_method_gaps over packed rows.",
+      "evidence": "ontologylab/method_mcp.py:55",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.mcp_server",
+        "ontologylab.method_mcp_sql"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_mcp_publication",
+      "stage": "Consume",
+      "rationale": "publication_authority binds MCP reads to the packed methodology publication receipt.",
+      "evidence": "ontologylab/method_mcp_publication.py:121",
+      "secondary_stages": [
+        {
+          "stage": "Publish",
+          "evidence": "ontologylab/method_mcp_publication.py:121",
+          "why": "Re-validates pack publication hashes/selection; Publish contract checked again at Consume time."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_pack_validation"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_mcp_queries",
+      "stage": "Consume",
+      "rationale": "Typed MCP query envelopes and input bounds (list/get/trace/gaps) with no storage of its own.",
+      "evidence": "ontologylab/method_mcp_queries.py:14",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.method_mcp"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_mcp_rows",
+      "stage": "Consume",
+      "rationale": "canonical_row/release_payloads validate packed compiled_method rows on the MCP read path.",
+      "evidence": "ontologylab/method_mcp_rows.py:19",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.method_pack_rows",
+        "ontologylab.method_release_validation"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_mcp_sql",
+      "stage": "infra",
+      "rationale": "Separate read-only SQLite owner for compiled_method tables; a second MethodPackSql class.",
+      "evidence": "ontologylab/method_mcp_sql.py:15",
+      "secondary_stages": [
+        {
+          "stage": "Consume",
+          "evidence": "ontologylab/method_mcp_sql.py:15",
+          "why": "Only consumed by MethodPackReader MCP queries."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_pack_sql"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_pack",
+      "stage": "Publish",
+      "rationale": "copy_method_releases copies selected method_release rows into the immutable pack and builds the methodology manifest.",
+      "evidence": "ontologylab/method_pack.py:266",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.packbuilder",
+        "ontologylab.method_pack_sql"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_pack_contract",
+      "stage": "Publish",
+      "rationale": "Typed pack-selection boundary (schema/compiler versions + MethodPackSelection) for methodology-v1 publication.",
+      "evidence": "ontologylab/method_pack_contract.py:18",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.method_compiler_artifacts"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_pack_rows",
+      "stage": "Publish",
+      "rationale": "method_row/source_rows assemble canonical pack table tuples from a selected release.",
+      "evidence": "ontologylab/method_pack_rows.py:10",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.method_mcp_rows"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_pack_sql",
+      "stage": "infra",
+      "rationale": "MethodPackSql owns pack-build SQL (read working method_release, write compiled_method); parallel SQL layer.",
+      "evidence": "ontologylab/method_pack_sql.py:16",
+      "secondary_stages": [
+        {
+          "stage": "Publish",
+          "evidence": "ontologylab/method_pack_sql.py:16",
+          "why": "SQL adapter used only by copy_method_releases during pack build."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_mcp_sql",
+        "ontologylab.method_sql_release"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/method_pack_sql.py:64",
+          "what": "snapshot_hash opens a nested MethodUnitOfWork+MethodStore during pack copy instead of a pure SQL read."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_pack_validation",
+      "stage": "Publish",
+      "rationale": "validate_method_pack is the pack-side G8-equivalent: packed tables must match selection hashes and schema.",
+      "evidence": "ontologylab/method_pack_validation.py:122",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.method_mcp_publication",
+        "ontologylab.method_compiler_gates"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_release_store",
+      "stage": "Publish",
+      "rationale": "MethodReleaseStore persists compilation attempts/gates and insert_release of immutable method_release rows.",
+      "evidence": "ontologylab/method_release_store.py:134",
+      "secondary_stages": [
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/method_release_store.py:83",
+          "why": "ReleasePersistence protocol is a storage adapter; SQL lives in method_sql_release."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_sql_release",
+        "ontologylab.method_pack"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_release_validation",
+      "stage": "Publish",
+      "rationale": "canonical_release_envelope is the sole hash-binding of method JSON + source index + compiler receipt.",
+      "evidence": "ontologylab/method_release_validation.py:28",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.method_compiler_artifacts"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_snapshot",
+      "stage": "infra",
+      "rationale": "MethodSnapshot/MethodSnapshotStore freeze workspace rows to canonical JSON for compile/review; storage view.",
+      "evidence": "ontologylab/method_snapshot.py:42",
+      "secondary_stages": [
+        {
+          "stage": "Synthesize",
+          "evidence": "ontologylab/method_snapshot.py:285",
+          "why": "read_compilation_snapshot is the compiler's input boundary."
+        },
+        {
+          "stage": "Source",
+          "evidence": "ontologylab/method_snapshot.py:220",
+          "why": "create_document_policy_snapshot writes source-rights routing records."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_snapshot_payload",
+        "ontologylab.method_sql_release"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/method_snapshot.py:214",
+          "what": "create_workspace always writes status 'draft'; no transition to review_ready/compiled/superseded exists."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_snapshot_payload",
+      "stage": "infra",
+      "rationale": "Pure snapshot_payload assembly from SnapshotRows; no I/O, no stage transform of its own.",
+      "evidence": "ontologylab/method_snapshot_payload.py:30",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.method_snapshot"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_sql_core",
+      "stage": "infra",
+      "rationale": "Private SQLite owner for workspace/policy/fragment/link/bridge/decision writes; parallel to kgstore.",
+      "evidence": "ontologylab/method_sql_core.py:135",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/method_sql_core.py:135",
+          "why": "apply_decision/review_event SQL backs MethodCommands.decide."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_sql_extraction",
+        "ontologylab.kgstore"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_sql_extraction",
+      "stage": "infra",
+      "rationale": "Private SQLite owner for statement_occurrence and extraction run/chunk state; duplicates document lookup SQL.",
+      "evidence": "ontologylab/method_sql_extraction.py:121",
+      "secondary_stages": [
+        {
+          "stage": "Extract",
+          "evidence": "ontologylab/method_sql_extraction.py:121",
+          "why": "SQL backend for MethodExtractionStore."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_sql_core",
+        "ontologylab.method_extraction_store"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_sql_release",
+      "stage": "infra",
+      "rationale": "Private SQLite owner for compilation_attempt/gate, method_release, and snapshot loads.",
+      "evidence": "ontologylab/method_sql_release.py:151",
+      "secondary_stages": [
+        {
+          "stage": "Publish",
+          "evidence": "ontologylab/method_sql_release.py:151",
+          "why": "Persists compiler receipts and releases that pack copy later publishes."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_release_store",
+        "ontologylab.method_pack_sql"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_store",
+      "stage": "infra",
+      "rationale": "Mega-facade: DDL, MethodUnitOfWork, and mixin of validation/commands/extraction/release/snapshot over three SQL cores.",
+      "evidence": "ontologylab/method_store.py:631",
+      "secondary_stages": [
+        {
+          "stage": "Extract",
+          "evidence": "ontologylab/method_store.py:631",
+          "why": "Inherits MethodExtractionStore."
+        },
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/method_store.py:631",
+          "why": "Inherits MethodCommands.decide."
+        },
+        {
+          "stage": "Publish",
+          "evidence": "ontologylab/method_store.py:631",
+          "why": "Inherits MethodReleaseStore.insert_release."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_sql_core",
+        "ontologylab.method_sql_extraction",
+        "ontologylab.method_sql_release",
+        "ontologylab.method_uow",
+        "ontologylab.kgstore"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_uow",
+      "stage": "infra",
+      "rationale": "UnitOfWorkState tracks transaction lifecycle only; actual BEGIN/commit lives in method_store.MethodUnitOfWork.",
+      "evidence": "ontologylab/method_uow.py:8",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.method_store"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.method_validation",
+      "stage": "infra",
+      "rationale": "Shared Method error types, id/hash validators, and persistence record dataclasses; schema/safety helpers.",
+      "evidence": "ontologylab/method_validation.py:286",
+      "secondary_stages": [
+        {
+          "stage": "Source",
+          "evidence": "ontologylab/method_validation.py:291",
+          "why": "create_source_policy writes the rights/allowlist records that method extract consults."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.method_ir"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    }
+  ],
+  "findings": [
+    "Second pipeline, not a reused stage: documents->StatementOccurrence->Fragment->Gap->Bridge->decide->gates->pack->MCP duplicates Extract (ontologylab/method_extract.py:122 vs ontologylab/extractor.py), Verify (ontologylab/method_commands.py:235 decide vs KG review), Publish (ontologylab/method_pack.py:266 vs ontologylab/packbuilder.py:392 and ontologylab/packbuilder.py:599), Consume (ontologylab/method_mcp.py:55 vs mcp_server graph tools), and storage (ontologylab/method_sql_core.py:135, ontologylab/method_sql_extraction.py:121, ontologylab/method_sql_release.py:151, ontologylab/method_pack_sql.py:16, ontologylab/method_mcp_sql.py:15 vs kgstore). Architecture promised reuse of extractor/engines/pack/MCP seams (docs/METHODOLOGY-COMPILER-ARCHITECTURE.md section 10) but shipped a parallel 31-file/8983-LOC stack.",
+    "CONFIRMED dual schema (docs/ENGINE-PIPELINE-AUDIT-2026-08-19.md item 9): compile emit is a loose dict at ontologylab/method_compiler_artifacts.py:185 (payload copied from payload_json at ontologylab/method_compiler_artifacts.py:138, never parse_method/MethodIR). Typed dialect is MethodIR at ontologylab/method_ir.py:205 with MethodFragment.payload Mapping[str, TypedValue] at ontologylab/method_ir.py:118, decoded only by MethodIRCodec.parse_method at ontologylab/method_ir_codec.py:863 (module is 1002 LOC; sole importer ontologylab/method_ir.py:14). compile_method at ontologylab/method_compiler.py:189 calls build_method, not parse_method; parse_method is CLI import-only (ontologylab/main.py:103). Dual unit tables: ontologylab/method_ir_codec.py:19 _UNITS vs ontologylab/method_compiler_gates.py:20 _UNIT_DIMENSIONS (codec has K/L/%/1, gates has h).",
+    "Entrypoints: CLI ontologylab/main.py:122 cmd_method, subparser method at ontologylab/main.py:351 (extract/workspace-create/policy-*/occurrence-import/fragment-import/link-import/bridge-import/review/detect-gaps/compile/decide); build-pack --method-release-id wired through ontologylab/packbuilder.py:392 and ontologylab/packbuilder.py:599 copy_method_releases. MCP PackSession list_methods/get_method/trace_method at ontologylab/mcp_server.py:425, ontologylab/mcp_server.py:432, ontologylab/mcp_server.py:439 plus list_method_gaps at ontologylab/mcp_server.py:449; FastMCP tools at ontologylab/mcp_server.py:1228, ontologylab/mcp_server.py:1236, ontologylab/mcp_server.py:1244, ontologylab/mcp_server.py:1252; resources pack://{pack_id}/method/{method_id} at ontologylab/mcp_server.py:1287 and trace at ontologylab/mcp_server.py:1298. kgstore opens schema at ontologylab/kgstore.py:914. No HTTP routes under ontologylab/server/ for method workspace or compile.",
+    "Hollow/implicit compile+lifecycle: ontologylab/method_compiler_gates.py:497 g8() has zero callers; ontologylab/method_compiler.py:212 inserts always-pass provisional G8. ontologylab/method_snapshot.py:214 freezes workspace status at draft despite ontologylab/method_store.py:56 CHECK allowing review_ready/compiled/superseded. ontologylab/method_extraction_store.py:335 fail_extraction_run has no callers outside its SQL twin. Declared method_bridges.py (architecture section 10) does not exist; bridges enter only via CLI bridge-import (ontologylab/main.py:204) / MethodCommands.propose_bridge at ontologylab/method_commands.py:186.",
+    "Overlapping routing and mega-modules: two classes named MethodPackSql (ontologylab/method_pack_sql.py:16 write vs ontologylab/method_mcp_sql.py:15 read). ontologylab/method_store.py:631 mixes five command mixins plus MethodUnitOfWork at ontologylab/method_store.py:586 while ontologylab/method_uow.py:8 holds only state. ontologylab/method_commands.py:82 owns both Synthesize proposals (ontologylab/method_commands.py:94 and ontologylab/method_commands.py:186) and Verify decide (ontologylab/method_commands.py:235). ontologylab/method_compiler_gates.py:14 imports private method_gaps._dependency_cycles and re-runs cycle detection at ontologylab/method_compiler_gates.py:366, a cross-stage shortcut. Duplicate canonical_hash at ontologylab/method_compiler_gates.py:31 and ontologylab/method_pack_validation.py:32. Duplicate COMPILER_VERSION at ontologylab/method_compiler_artifacts.py:27 and ontologylab/method_pack_contract.py:9. Duplicate _SELECT_DOCUMENT at ontologylab/method_sql_core.py:32 and ontologylab/method_sql_extraction.py:42.",
+    "Engine slot is nameable only on Extract: ontologylab.models.Engine at ontologylab/models.py:285, insertion ontologylab/method_extract.py:220 engine.generate. Compiler is correctly LLM-free. MockEngine at ontologylab/engines.py:514 has no method-occurrence-v1 branch, so the replaceable slot's default mock implementation is a hidden fallback into KG extraction JSON.",
+    "G6 reviewer heuristic at ontologylab/method_compiler_gates.py:484 accepts any name in {human,reviewer} or prefixed human-/reviewer- / suffixed -reviewer, a string-shape stand-in for a typed human actor; ontologylab/method_commands.py:286 also auto-mints review_event_id."
+  ]
+}

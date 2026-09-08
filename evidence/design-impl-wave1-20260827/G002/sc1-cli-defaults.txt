@@ -1,0 +1,8 @@
+usage: ontologylab critic [-h] [--engine ENGINE] [--model MODEL]
+                          [--limit LIMIT] [--batch-size BATCH_SIZE]
+                          [--data-dir DATA_DIR]
+  --engine ENGINE       mock|claude|codex|gemini or api:<provider-id>.
+  --model MODEL         Critic model. Default: the cheap Haiku-class
+                        CRITIC_MODEL tier for the claude engine (advisory
+{'critic': None, 'extract': None, 'search': None}
+G002-SC1 OK

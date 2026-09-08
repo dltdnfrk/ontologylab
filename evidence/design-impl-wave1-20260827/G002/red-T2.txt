@@ -1,0 +1,30 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 1 item
+
+tests/test_competency_release_gate.py F                                  [100%]
+
+=================================== FAILURES ===================================
+_______________________ test_q2_requires_explicit_engine _______________________
+
+    def test_q2_requires_explicit_engine() -> None:
+        import json
+    
+        fixture = json.loads((GOLD_DIR / "cq" / "q2-extraction.json").read_text())
+>       with pytest.raises(TypeError, match="engine"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE TypeError
+
+tests/test_competency_release_gate.py:40: Failed
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_competency_release_gate.py::test_q2_requires_explicit_engine
+========================= 1 failed, 1 warning in 9.61s =========================

@@ -1,0 +1,22 @@
+refactor(ingest): delete the shadow adapter and dual collect path
+
+ingestion_shadow.py (501 lines: mirror, durable shadow_ingest_queue,
+FULL_V2_AUTHORITY/SHADOW_MODE flags, per-item except/continue) is gone, and
+ingestion.py drops the ingest_documents / ingest_documents_batched /
+finalize_shadow_writes / ingest_sample aliases now that every caller uses
+the writer's own names. tests/test_ingestion_shadow_entrypoints.py, which
+pinned shadow internals (spies on shadow_persist, queue rows, flag values,
+source text), is replaced by tests/test_ingest_collect_entrypoints.py:
+every user-visible assertion it carried is kept (documents, observations,
+outbox, DOI canonicalization, second representation on same DOI, typed
+conflict on same bytes/different DOIs, 100-item bound, partial batches,
+caller-transaction safety, secret-free HTTP errors) and a gone-test pins
+that no product file imports the shadow module and ingestion_service.py
+never commits.
+
+Measured: gone-test RED while the module existed
+(evidence/design-impl-wave1-20260827/G001/red-T6.txt), then the whole G001
+set 206 passed / 0 failed; manual QA SC1-SC4 on an isolated :18899 server
+all OK (G001/sc*.txt).
+
+Refs: docs/DESIGN-REVIEW-2026-08-26.md D03/D08; plan G001-T6/T8, Amendment A1

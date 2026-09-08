@@ -1,0 +1,5 @@
+READY data=/tmp/ol-w1-263RMv pid=5257
+--- SC3 POST /api/extract default engine
+HTTP/1.1 202 Accepted
+job_id=extract-20260827-140425 engine=claude
+G002-SC3 OK

@@ -1,0 +1,62 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 4 items
+
+tests/test_ingest_raw_documents.py FFFF                                  [100%]
+
+=================================== FAILURES ===================================
+________________ test_same_doi_new_bytes_second_representation _________________
+
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-26183/test_same_doi_new_bytes_second0')
+
+    def test_same_doi_new_bytes_second_representation(tmp_path: Path) -> None:
+>       from ontologylab.ingestion_service import ingest_raw_documents_and_finalize
+E       ImportError: cannot import name 'ingest_raw_documents_and_finalize' from 'ontologylab.ingestion_service' (/Users/hyunjun/Documents/MUNI/ontologylab/ontologylab/ingestion_service.py)
+
+tests/test_ingest_raw_documents.py:105: ImportError
+_______________________ test_hash_doi_conflict_is_typed ________________________
+
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-26183/test_hash_doi_conflict_is_type0')
+
+    def test_hash_doi_conflict_is_typed(tmp_path: Path) -> None:
+>       from ontologylab.ingestion_service import ingest_raw_documents_and_finalize
+E       ImportError: cannot import name 'ingest_raw_documents_and_finalize' from 'ontologylab.ingestion_service' (/Users/hyunjun/Documents/MUNI/ontologylab/ontologylab/ingestion_service.py)
+
+tests/test_ingest_raw_documents.py:156: ImportError
+_______________________ test_doi_spellings_canonicalize ________________________
+
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-26183/test_doi_spellings_canonicaliz0')
+
+    def test_doi_spellings_canonicalize(tmp_path: Path) -> None:
+>       from ontologylab.ingestion_service import ingest_raw_documents_and_finalize
+E       ImportError: cannot import name 'ingest_raw_documents_and_finalize' from 'ontologylab.ingestion_service' (/Users/hyunjun/Documents/MUNI/ontologylab/ontologylab/ingestion_service.py)
+
+tests/test_ingest_raw_documents.py:209: ImportError
+_________________________ test_batch_above_100_raises __________________________
+
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-26183/test_batch_above_100_raises0')
+
+    def test_batch_above_100_raises(tmp_path: Path) -> None:
+>       from ontologylab.ingestion_service import (
+            MAX_INGEST_BATCH,
+            IngestBatchBoundError,
+            ingest_raw_documents,
+        )
+E       ImportError: cannot import name 'MAX_INGEST_BATCH' from 'ontologylab.ingestion_service' (/Users/hyunjun/Documents/MUNI/ontologylab/ontologylab/ingestion_service.py)
+
+tests/test_ingest_raw_documents.py:257: ImportError
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_ingest_raw_documents.py::test_same_doi_new_bytes_second_representation
+FAILED tests/test_ingest_raw_documents.py::test_hash_doi_conflict_is_typed - ...
+FAILED tests/test_ingest_raw_documents.py::test_doi_spellings_canonicalize - ...
+FAILED tests/test_ingest_raw_documents.py::test_batch_above_100_raises - Impo...
+========================= 4 failed, 1 warning in 0.40s =========================

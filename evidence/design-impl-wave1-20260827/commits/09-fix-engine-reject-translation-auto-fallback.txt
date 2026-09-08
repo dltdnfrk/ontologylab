@@ -1,0 +1,17 @@
+fix(engine): reject the translation engine auto-fallback
+
+POST /api/translate accepted engine="auto" (the schema default) and walked
+["claude","codex","gemini"], swallowing EngineError/ValueError/RuntimeError
+between attempts, so an operator could not tell which engine produced a
+translation or that the one they picked had failed. The candidate loop is gone:
+one engine is resolved through resolve_engine and a failure is a typed 502.
+TranslationRequest.engine defaults to DEFAULT_ENGINE and web/localize.js omits
+the field so the server default applies.
+
+Measured: RED `AssertionError: (['claude', 'codex'], 200)` — the old test pinned
+the two-engine walk (evidence/design-impl-wave1-20260827/G003/red-T3.txt); after,
+attempts == ["claude"] with HTTP 502, and a live curl against an isolated
+:18899 server returns 502 with no translations array
+(G003/sc4-translate-no-auto.txt). node --check web/localize.js passes.
+
+Refs: docs/DESIGN-REVIEW-2026-08-26.md D01/D12; plan G003-T3

@@ -1,0 +1,6 @@
+offline_exit=2
+[ontologylab] REJECTED: host 'example.com' is not on the crawl allowlist; add it to connectors/allowlist.py to permit it explicitly
+unreadable_exit=2
+[ontologylab] FETCH FAILED: could not read 'missing.md' (FileNotFoundError)
+G004-SC2 OK
+cleanup: rm -rf /tmp/ol-w1-g4sc2-0zkMoP

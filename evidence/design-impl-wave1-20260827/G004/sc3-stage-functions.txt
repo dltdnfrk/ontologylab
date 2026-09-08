@@ -1,0 +1,6 @@
+[ontologylab] scanned 0 node(s), 0 pair(s): 0 new candidate(s), 0 already known
+[ontologylab] critic (mock) scored 0/0 pending item(s); 0 disagreement(s) flagged
+[ontologylab] scores are advisory — triage with `ontologylab review --order critic`; approval stays yours
+merge_exit=0 critic_exit=0
+G004-SC3 OK
+cleanup: rm -rf /tmp/ol-w1-g4sc3-LEZGzd

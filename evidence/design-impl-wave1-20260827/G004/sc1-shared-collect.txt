@@ -1,0 +1,8 @@
+[ontologylab] new document rep-36ecc6ed91f3 <- file:///private/tmp/ol-w1-g4fix-mIpVeR/n.md
+[ontologylab] collected 1 document(s) (1 new)
+cli_exit=0
+READY data=/tmp/ol-w1-g4sc1-p57ZO1 pid=6172
+{"ok":true,"documents":1,"created":0,"duplicates":1,"failures":[],"conflicts":[]}
+G004-SC1 OK
+cleanup: killed 6172; port 18899 free; rm -rf /tmp/ol-w1-g4sc1-p57ZO1
+cleanup: rm -rf /tmp/ol-w1-g4fix-mIpVeR

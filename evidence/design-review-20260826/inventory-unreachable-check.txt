@@ -1,0 +1,18 @@
+closure_sizes={"main":139,"server":146,"mcp":90}
+ontologylab.cutover_compensation importers=1 importers_outside_unreachable=0
+ontologylab.cutover_readers importers=0 importers_outside_unreachable=0
+ontologylab.cutover_rehearsal importers=4 importers_outside_unreachable=0
+ontologylab.cutover_rollback importers=0 importers_outside_unreachable=0
+ontologylab.cutover_rollback_store importers=2 importers_outside_unreachable=0
+ontologylab.cutover_rollback_types importers=3 importers_outside_unreachable=0
+ontologylab.review_decision importers=0 importers_outside_unreachable=0
+ontologylab.review_decision_ids importers=3 importers_outside_unreachable=0
+ontologylab.review_decision_schema importers=3 importers_outside_unreachable=0
+ontologylab.review_decision_store importers=1 importers_outside_unreachable=0
+ontologylab.review_decision_types importers=3 importers_outside_unreachable=0
+ontologylab.review_grounding importers=1 importers_outside_unreachable=0
+ontologylab.serve importers=0 importers_outside_unreachable=0
+ontologylab.tui importers=0 importers_outside_unreachable=0
+unreachable_count=14
+method: grep -R --include='*.py' -l -E 'from <mod> import|import <mod>|from <parent> import <short>' ontologylab/ minus self; importer must itself be in .unreachable[] (intra-orphan imports keep a module outside the entrypoint closure)
+UNREACHABLE_OK mismatches=0

@@ -1,0 +1,2 @@
+rows=18 malformed=0
+DEVIATIONS_OK

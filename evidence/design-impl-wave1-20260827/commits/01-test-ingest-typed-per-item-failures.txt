@@ -1,0 +1,16 @@
+test(ingest): require typed per-item collect failures
+
+Collect persisted documents through ingestion_shadow._persist_one, whose
+per-item `except Exception: continue` (ingestion_shadow.py:414) dropped the
+item with at most an optional provenance line; the v2 item writer returns
+typed receipts, so the two acquire paths disagreed on what a failure looks
+like. The new tests in tests/test_ingest_raw_documents.py pin the contract
+collect must meet instead: one failure receipt per item carrying only the
+exception class (never its text), the rest of the batch persisted, the
+writer table unchanged (same DOI + new bytes = second representation on the
+same work; same bytes + two DOIs = typed identity conflict, not persisted),
+batches bounded at 100. Captured RED on HEAD 7f94879 as AttributeError /
+ImportError on the missing names (evidence/design-impl-wave1-20260827/G001/
+red-T1.txt, red-T2.txt), then GREEN.
+
+Refs: docs/DESIGN-REVIEW-2026-08-26.md D03/D04; .omo/plans/design-impl-wave1.md G001-T1/T2

@@ -1,0 +1,350 @@
+{
+  "lane": "L5-pack-mcp",
+  "modules": [
+    {
+      "name": "ontologylab.chatstore",
+      "stage": "Consume",
+      "rationale": "Workspace chat transcript store used by the HTTP chat surface; not part of pack bytes.",
+      "evidence": "ontologylab/chatstore.py:74",
+      "secondary_stages": [
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/chatstore.py:81",
+          "why": "Owns a separate sqlite file and schema so conversation never ships inside a pack."
+        }
+      ],
+      "overlaps": [],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/chatstore.py:221",
+          "what": "Corrupt result_json/steps_json is silently replaced with {} / [] so history still renders."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.mcp_protocol",
+      "stage": "Consume",
+      "rationale": "Newline JSON-RPC framing for the single local MCP stdio transport.",
+      "evidence": "ontologylab/mcp_protocol.py:13",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.mcp_runtime"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.mcp_runtime",
+      "stage": "Consume",
+      "rationale": "In-process MCP tool/resource registry and dispatcher; not a second server.",
+      "evidence": "ontologylab/mcp_runtime.py:152",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.mcp_server", "ontologylab.mcp_protocol"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.mcp_server",
+      "stage": "Consume",
+      "rationale": "The one MCP server: PackSession tools/resources over verified pack snapshots.",
+      "evidence": "ontologylab/mcp_server.py:253",
+      "secondary_stages": [
+        {
+          "stage": "Publish",
+          "evidence": "ontologylab/mcp_server.py:477",
+          "why": "list_packs/try_autoload discover published packs via packbuilder.scan_packs."
+        }
+      ],
+      "overlaps": ["ontologylab.mcp_runtime", "ontologylab.verified_pack_reader", "ontologylab.pack_v2_derive"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/embeddings.py:233",
+          "what": "get_embedder('auto') uses MiniLM when sentence-transformers imports, else HashingEmbedder; uncached HF load also falls back to hash (allow_download default false)."
+        },
+        {
+          "evidence": "ontologylab/rerankers.py:103",
+          "what": "get_reranker('auto') returns CrossEncoder or None; never downloads (HF_HUB_OFFLINE in CrossEncoderReranker)."
+        },
+        {
+          "evidence": "ontologylab/mcp_server.py:715",
+          "what": "Reranker slot is hardcoded get_reranker('auto') with no operator nameable contract."
+        }
+      ],
+      "engine_slot": {
+        "interface": "ontologylab.embeddings.get_embedder(name, allow_download=False) plus session._active_embedder model-match gate",
+        "implementations": [
+          "SentenceTransformerEmbedder",
+          "HashingEmbedder",
+          "None (lexical FTS5 only)"
+        ],
+        "insertion_point": "ontologylab/mcp_server.py:1375"
+      }
+    },
+    {
+      "name": "ontologylab.mcpb",
+      "stage": "Publish",
+      "rationale": "Zip an already-built pack plus a shim that relaunches ontologylab.mcp_server.",
+      "evidence": "ontologylab/mcpb.py:103",
+      "secondary_stages": [
+        {
+          "stage": "Consume",
+          "evidence": "ontologylab/mcpb.py:44",
+          "why": "Bundled server/main.py is only a trampoline into mcp_server.main."
+        }
+      ],
+      "overlaps": ["ontologylab.packbuilder", "ontologylab.mcp_server"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/mcpb.py:55",
+          "what": "Bundling reads manifest.json + existence of pack.sqlite with no verify_pack/activate_pack; tamper is deferred to later MCP load."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.pack_completeness",
+      "stage": "Publish",
+      "rationale": "Extraction-stream completeness gate consumed by the pack builder before export.",
+      "evidence": "ontologylab/pack_completeness.py:102",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.packbuilder", "ontologylab.pack_v2_closure"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/pack_completeness.py:38",
+          "what": "Pre-attribution same-document citations fall back to every candidate extraction_run for that document instead of a typed unknown."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.pack_readiness",
+      "stage": "Publish",
+      "rationale": "Generation/C-036 publication authorization; also a second CLI that builds v2 packs.",
+      "evidence": "ontologylab/pack_readiness.py:82",
+      "secondary_stages": [
+        {
+          "stage": "Publish",
+          "evidence": "ontologylab/pack_readiness.py:142",
+          "why": "python -m ontologylab.pack_readiness --publish calls build_pack with evidence_mode (default full)."
+        }
+      ],
+      "overlaps": ["ontologylab.packbuilder", "ontologylab.pack_v2_closure", "ontologylab.pack_receipt_seal"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.pack_receipt_seal",
+      "stage": "Publish",
+      "rationale": "Re-derives content-addressed Step-7 receipt IDs and the inventory root.",
+      "evidence": "ontologylab/pack_receipt_seal.py:56",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.pack_readiness", "ontologylab.pack_v2_closure"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.pack_source_fingerprint",
+      "stage": "Publish",
+      "rationale": "Live document id/hash witness written into a v2 pack and rechecked on verify.",
+      "evidence": "ontologylab/pack_source_fingerprint.py:17",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.pack_v2_closure", "ontologylab.pack_v2_derive"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/pack_source_fingerprint.py:53",
+          "what": "load_source_fingerprint returns None on any parse/shape error; callers treat absence as mismatch/false rather than a typed refuse at this layer."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.pack_v2_closure",
+      "stage": "Publish",
+      "rationale": "Collects the evidence-self-contained v2 member set, copies tables, and writes evidence bytes.",
+      "evidence": "ontologylab/pack_v2_closure.py:138",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/pack_v2_closure.py:400",
+          "why": "resolve_v2_closure re-reads a packed tree for the standalone validator."
+        }
+      ],
+      "overlaps": ["ontologylab.packbuilder", "ontologylab.pack_readiness", "ontologylab.pack_v2_derive"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.pack_v2_derive",
+      "stage": "Publish",
+      "rationale": "Re-derives v2 counts, exclusions, capabilities, and packed evidence availability.",
+      "evidence": "ontologylab/pack_v2_derive.py:83",
+      "secondary_stages": [
+        {
+          "stage": "Consume",
+          "evidence": "ontologylab/pack_v2_derive.py:187",
+          "why": "resolve_pack_evidence/fact_receipts are called from PackSession query/evidence reads."
+        }
+      ],
+      "overlaps": ["ontologylab.pack_v2_closure", "ontologylab.pack_readiness", "ontologylab.mcp_server"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/pack_v2_derive.py:148",
+          "what": "_derive_capabilities silently returns the unreviewed/base tuple whenever C-036, witness, ledger, or seal does not line up."
+        },
+        {
+          "evidence": "ontologylab/pack_v2_derive.py:268",
+          "what": "_count swallows sqlite3.OperationalError and returns 0, so missing tables look like empty counts."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.pack_v2_manifest",
+      "stage": "Publish",
+      "rationale": "After payloads exist, inventories the tree and writes the owner-read-only v2 manifest.",
+      "evidence": "ontologylab/pack_v2_manifest.py:25",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.packbuilder", "ontologylab.pack_verifier"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.pack_v2_validate",
+      "stage": "Publish",
+      "rationale": "Read-only packed-v2 closure completeness checks invoked from verify_pack.",
+      "evidence": "ontologylab/pack_v2_validate.py:99",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.pack_verifier", "ontologylab.pack_v2_closure"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/pack_v2_validate.py:158",
+          "what": "If a v2 pack does not advertise reviewed/evidence-self-contained and does not claim a closure, _validate returns without checking members."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.pack_verifier",
+      "stage": "Publish",
+      "rationale": "Standalone byte verifier with a typed v1-compatible and v2-strict contract.",
+      "evidence": "ontologylab/pack_verifier.py:495",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.verified_pack_reader", "ontologylab.pack_v2_validate", "ontologylab.packbuilder"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/pack_verifier.py:287",
+          "what": "Missing pack_schema_version defaults to 1, so an unsigned manifest is parsed as legacy v1 rather than refused."
+        }
+      ],
+      "engine_slot": {
+        "interface": "verify_pack(pack_dir, working=None) -> PackVerifyReceipt",
+        "implementations": ["_verify_v1", "_verify_v2"],
+        "insertion_point": "ontologylab/pack_verifier.py:525"
+      }
+    },
+    {
+      "name": "ontologylab.packbuilder",
+      "stage": "Publish",
+      "rationale": "Single build_pack entry that snapshots the verified subgraph; internally forks v1 vs v2.",
+      "evidence": "ontologylab/packbuilder.py:801",
+      "secondary_stages": [
+        {
+          "stage": "Synthesize",
+          "evidence": "ontologylab/packbuilder.py:561",
+          "why": "Build also detects and summarizes communities into the pack."
+        },
+        {
+          "stage": "Consume",
+          "evidence": "ontologylab/packbuilder.py:882",
+          "why": "scan_packs/list_packs is the discovery API used by MCP and HTTP."
+        }
+      ],
+      "overlaps": [
+        "ontologylab.pack_v2_closure",
+        "ontologylab.pack_v2_manifest",
+        "ontologylab.pack_completeness",
+        "ontologylab.pack_readiness",
+        "ontologylab.verified_pack_reader"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/packbuilder.py:365",
+          "what": "evidence_mode is None selects the v1 copy/manifest path; operator CLI/HTTP never pass the flag, so v2 is implicit opt-in via pack_readiness only."
+        }
+      ],
+      "engine_slot": {
+        "interface": "summarizer callable + summary_method label (communities.build_communities)",
+        "implementations": ["extractive (default)", "llm_summarizer via --summarize-engine"],
+        "insertion_point": "ontologylab/packbuilder.py:573"
+      }
+    },
+    {
+      "name": "ontologylab.packdiff",
+      "stage": "Publish",
+      "rationale": "Operator diff of two published packs after verified snapshot activation.",
+      "evidence": "ontologylab/packdiff.py:91",
+      "secondary_stages": [
+        {
+          "stage": "Consume",
+          "evidence": "ontologylab/packdiff.py:98",
+          "why": "Reads facts only through opened_verified_pack."
+        }
+      ],
+      "overlaps": ["ontologylab.verified_pack_reader", "ontologylab.packbuilder"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.serve",
+      "stage": "orphan",
+      "rationale": "Alternate uvicorn launcher; inventory.unreachable (not imported from main/server/mcp).",
+      "evidence": "ontologylab/serve.py:16",
+      "secondary_stages": [
+        {
+          "stage": "Consume",
+          "evidence": "ontologylab/serve.py:79",
+          "why": "Would start the local web app if invoked as ontologylab-serve / python -m ontologylab.serve."
+        }
+      ],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.tui",
+      "stage": "orphan",
+      "rationale": "Generic job status-line helper with fan_in 0; not an MCP/pack consume TUI.",
+      "evidence": "ontologylab/tui.py:21",
+      "secondary_stages": [],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.verified_pack_reader",
+      "stage": "Consume",
+      "rationale": "Verify-copy-reverify serving snapshot; the only honest pack open for MCP/diff/list.",
+      "evidence": "ontologylab/verified_pack_reader.py:142",
+      "secondary_stages": [
+        {
+          "stage": "Publish",
+          "evidence": "ontologylab/verified_pack_reader.py:199",
+          "why": "inspect_verified_manifest is also the list/scan gate for published directories."
+        }
+      ],
+      "overlaps": ["ontologylab.pack_verifier", "ontologylab.mcp_server", "ontologylab.packbuilder"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    }
+  ],
+  "findings": [
+    "TWO publish products, ONE builder with a hidden fork: build_pack/_build_pack_unlocked (packbuilder.py:801/:298) is the only writer, but evidence_mode is None takes v1 (packbuilder.py:365, manifest write :766) while evidence_mode set collects v2 (collect_v2_closure :377, finalize_v2_manifest :764). main.py build-pack parser (main.py:2097) and cmd_build_pack (main.py:1319) never pass evidence_mode; POST /packs/build (routes.py:2714) and chat action build_pack (routes.py:2450) call the same v1 build_pack (routes.py:2730). The v2 publish path is pack_readiness.main --publish (pack_readiness.py:176) defaulting --evidence-mode full (pack_readiness.py:147). Not two builders, but two operator pipelines and no single linear Publish stage.",
+    "packbuilder.py is a mega-module (1002 LOC): verified-subgraph copy, method-pack, communities/summaries, v1+v2 manifest, scan/list, pack_sqlite_path, rewrite guard. Cross-stage shortcut: Synthesize (communities at packbuilder.py:561) runs inside Publish.",
+    "Consume is one server, three support modules: mcp_server.main (mcp_server.py:1320) constructs PackSession (mcp_server.py:253) and McpApp (mcp_server.py:1404). mcp_runtime.McpApp (mcp_runtime.py:152) is the registry; mcp_protocol.run_stdio (mcp_protocol.py:13) is framing; mcpb.build_mcpb (mcpb.py:103) is a zip, not a server. Docstrings still mention FastMCP (mcp_server.py:9,:965) but FastMCP is not imported.",
+    "Audit item 3 (_verified_pack bypass) is NOT present on current MCP named-pack reads. _verified_pack is gone; get_schema named pack uses opened_verified_pack (mcp_server.py:544), resource_* uses _store_for->_activate (mcp_server.py:625/:485), get_staleness ephemeral open uses _activate (mcp_server.py:371), resource_manifest uses inspect_verified_manifest (mcp_server.py:637). Remaining unverified pack-byte reads: mcpb._load_pack_manifest (mcpb.py:55) and scan_packs first-pass json.loads of manifest.json (packbuilder.py:904) before inspect_verified_manifest (packbuilder.py:948).",
+    "Embedder/reranker auto offline contract (audit item 7): embeddings.get_embedder auto (embeddings.py:233) MiniLM-or-HashingEmbedder with HF_HUB_OFFLINE in SentenceTransformerEmbedder (embeddings.py:183); rerankers.get_reranker auto (rerankers.py:103) CrossEncoder-or-None with HF_HUB_OFFLINE (rerankers.py:73). MCP inserts embedder at mcp_server.py:1375 (operator --embedder) and hardcodes reranker auto at mcp_server.py:715. Model mismatch disables vectors (_active_embedder mcp_server.py:723) rather than scoring with the fallback model.",
+    "Import cycle on the v2 publish spine: pack_v2_closure.collect_v2_closure imports authorize_publication (pack_v2_closure.py:144); pack_readiness.main imports pack_v2_closure and packbuilder (pack_readiness.py:170). Second cycle: pack_verifier._validate_packed_v2 imports pack_v2_validate (pack_verifier.py:382); pack_v2_validate imports pack_verifier.ManifestV2 (pack_v2_validate.py:20).",
+    "Duplicated v1/v2 verify implementations live in one slot (pack_verifier.py:525 match) plus a weaker v2 skip (pack_v2_validate.py:158) and silent count/capability degrade (pack_v2_derive.py:268/:148). parse_manifest defaults missing schema version to v1 (pack_verifier.py:287).",
+    "serve.py and tui.py are inventory.unreachable orphans. serve is still a console script (pyproject ontologylab-serve) that would launch the web app (serve.py:16); tui.Tui (tui.py:21) is an unused job status printer, not a pack consume TUI.",
+    "PackSession.document_raw_text (mcp_server.py:942) reads snapshot evidence via resolve_pack_evidence but is not registered in build_mcp_app (mcp_server.py:1049); a Consume API exists beside the tool surface."
+  ]
+}

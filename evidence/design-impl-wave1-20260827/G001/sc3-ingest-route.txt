@@ -1,0 +1,4 @@
+READY data=/tmp/ol-w1-CVmKLH pid=4649
+--- SC3 POST /api/ingest
+HTTP/1.1 200 OK
+G001-SC3 OK

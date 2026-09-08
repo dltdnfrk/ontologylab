@@ -1,0 +1,29 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 18 items
+
+tests/test_ingest_collect_entrypoints.py .................F              [100%]
+
+=================================== FAILURES ===================================
+_________________________ test_shadow_modules_are_gone _________________________
+
+    def test_shadow_modules_are_gone() -> None:
+>       assert importlib.util.find_spec("ontologylab.ingestion_shadow") is None
+E       AssertionError: assert ModuleSpec(name='ontologylab.ingestion_shadow', loader=<_frozen_importlib_external.SourceFileLoader object at 0x10a6c3980>, origin='/Users/hyunjun/Documents/MUNI/ontologylab/ontologylab/ingestion_shadow.py') is None
+E        +  where ModuleSpec(name='ontologylab.ingestion_shadow', loader=<_frozen_importlib_external.SourceFileLoader object at 0x10a6c3980>, origin='/Users/hyunjun/Documents/MUNI/ontologylab/ontologylab/ingestion_shadow.py') = <function find_spec at 0x1022cd120>('ontologylab.ingestion_shadow')
+E        +    where <function find_spec at 0x1022cd120> = <module 'importlib.util' (frozen)>.find_spec
+E        +      where <module 'importlib.util' (frozen)> = importlib.util
+
+tests/test_ingest_collect_entrypoints.py:713: AssertionError
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_ingest_collect_entrypoints.py::test_shadow_modules_are_gone
+=================== 1 failed, 17 passed, 1 warning in 0.76s ====================

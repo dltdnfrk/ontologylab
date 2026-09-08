@@ -1,0 +1,16 @@
+refactor(engine): inject the competency engine at the consume layer
+
+competency._extract_with_mock built its own MockEngine() (competency.py:142),
+the one stage that constructed an engine instead of receiving one. The Q2
+gold fixture is pinned to MockEngine's CamelCase scanner, so the mock use
+stays; only the construction moves. evaluate_q1/q2/q3 and
+run_competency_suite now take `engine` as a required keyword, the CLI entry
+and routes._competency_receipt pass it explicitly, and the gold assertions
+are byte-identical.
+
+Measured: RED `DID NOT RAISE TypeError` for evaluate_q2(fixture) without an
+engine (evidence/design-impl-wave1-20260827/G002/red-T2.txt); 13 passed on
+the release-gate and acceptance files after; `MockEngine()` no longer appears
+in competency.py.
+
+Refs: docs/DESIGN-REVIEW-2026-08-26.md D02; plan G002-T2

@@ -1,0 +1,692 @@
+{
+  "lane": "L2-migration-cutover",
+  "modules": [
+    {
+      "name": "ontologylab.cutover_compensation",
+      "stage": "orphan",
+      "rationale": "Step 9A forward-rollback recovery (redirect/retract/pack) with no main/mcp/server reachability.",
+      "evidence": "ontologylab/cutover_compensation.py:39",
+      "secondary_stages": [
+        {
+          "stage": "cross-cutting",
+          "evidence": "ontologylab/cutover_compensation.py:1",
+          "why": "docstring: privileged additive recovery after forward rollback"
+        },
+        {
+          "stage": "Resolve",
+          "evidence": "ontologylab/cutover_compensation.py:29",
+          "why": "imports work_redirects.record_redirect"
+        },
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/cutover_compensation.py:22",
+          "why": "imports grounded_review.apply_review"
+        },
+        {
+          "stage": "Publish",
+          "evidence": "ontologylab/cutover_compensation.py:28",
+          "why": "imports pack_verifier.verify_pack"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.work_redirects",
+        "ontologylab.grounded_review",
+        "ontologylab.cutover_rollback"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.cutover_readers",
+      "stage": "orphan",
+      "rationale": "All-reader zero-drift proof adapters; inventory.unreachable and tests-only callers.",
+      "evidence": "ontologylab/cutover_readers.py:317",
+      "secondary_stages": [
+        {
+          "stage": "cross-cutting",
+          "evidence": "ontologylab/cutover_readers.py:1",
+          "why": "Step 9A Task 14 generation-bound reader proof"
+        },
+        {
+          "stage": "Consume",
+          "evidence": "ontologylab/cutover_readers.py:239",
+          "why": "observe_mcp_session probes MCP PackSession"
+        },
+        {
+          "stage": "Publish",
+          "evidence": "ontologylab/cutover_readers.py:215",
+          "why": "observe_verified_pack probes pack bytes"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.kgstore",
+        "ontologylab.mcp_server",
+        "ontologylab.server.app",
+        "ontologylab.verified_pack_reader",
+        "ontologylab.pack_verifier"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/cutover_readers.py:334",
+          "what": "_run_probes swallows OSError/sqlite3/RuntimeError/TypeError/KeyError/ValueError into CutoverCode.READER_FAILED"
+        }
+      ],
+      "engine_slot": {
+        "interface": "ReaderKind + observe_* -> ReaderObservation",
+        "implementations": [
+          "observe_kg_store",
+          "observe_cli_graph",
+          "observe_http_query",
+          "observe_verified_pack",
+          "observe_mcp_session",
+          "observe_method_graph"
+        ],
+        "insertion_point": "ontologylab/cutover_readers.py:280"
+      }
+    },
+    {
+      "name": "ontologylab.cutover_rehearsal",
+      "stage": "orphan",
+      "rationale": "Disposable Step 9A cutover state machine (install/advance); no CLI/HTTP insertion.",
+      "evidence": "ontologylab/cutover_rehearsal.py:178",
+      "secondary_stages": [
+        {
+          "stage": "cross-cutting",
+          "evidence": "ontologylab/cutover_rehearsal.py:1",
+          "why": "docstring: disposable cutover rehearsal; never COMMIT"
+        },
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/cutover_rehearsal.py:12",
+          "why": "imports migration.fence_writes"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.migration"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.cutover_rollback",
+      "stage": "orphan",
+      "rationale": "Forward-only rollback/restore contract; fan_in 0, tests-only.",
+      "evidence": "ontologylab/cutover_rollback.py:41",
+      "secondary_stages": [
+        {
+          "stage": "cross-cutting",
+          "evidence": "ontologylab/cutover_rollback.py:1",
+          "why": "Step 9A Task 15 forward-only rollback"
+        },
+        {
+          "stage": "Publish",
+          "evidence": "ontologylab/cutover_rollback.py:104",
+          "why": "apply_v2_authority_mutation wraps post-cutover writes"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.cutover_compensation",
+        "ontologylab.migration"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.cutover_rollback_store",
+      "stage": "orphan",
+      "rationale": "Append-only SQLite tables for rollback receipts/state; only cutover_* importers.",
+      "evidence": "ontologylab/cutover_rollback_store.py:58",
+      "secondary_stages": [
+        {
+          "stage": "cross-cutting",
+          "evidence": "ontologylab/cutover_rollback_store.py:1",
+          "why": "Step 9 rollback contract storage"
+        },
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/cutover_rollback_store.py:20",
+          "why": "file_inventory_hash over inventory root"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.cutover_rollback_types",
+        "ontologylab.cutover_rehearsal"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.cutover_rollback_types",
+      "stage": "orphan",
+      "rationale": "Typed rollback codes/state; unreachable cluster types module.",
+      "evidence": "ontologylab/cutover_rollback_types.py:11",
+      "secondary_stages": [
+        {
+          "stage": "cross-cutting",
+          "evidence": "ontologylab/cutover_rollback_types.py:1",
+          "why": "typed values for forward-only rollback"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.cutover_rollback"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1",
+      "stage": "cross-cutting",
+      "rationale": "Public H1 operator: backup-API copy then historical receipt migration with BEGIN/COMMIT.",
+      "evidence": "ontologylab/h1.py:39",
+      "secondary_stages": [
+        {
+          "stage": "Acquire",
+          "evidence": "ontologylab/h1.py:31",
+          "why": "prepare_h1_copy snapshots sqlite+documents sidecar"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.h1_migrate",
+        "ontologylab.migration_backfill"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/h1.py:100",
+          "what": "_existing_or_copy reuses dest sqlite if already present instead of taking a fresh backup-API snapshot"
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_bytes",
+      "stage": "cross-cutting",
+      "rationale": "Ready Representation bytes for H1 classification; also pulled into mcp/server via h1_existing.",
+      "evidence": "ontologylab/h1_bytes.py:36",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/h1_bytes.py:36",
+          "why": "load_document is imported by live Verify through grounded_review_members -> h1_existing"
+        },
+        {
+          "stage": "Acquire",
+          "evidence": "ontologylab/h1_bytes.py:46",
+          "why": "read_ready_text fetches representation bytes"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.file_lifecycle"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/h1_bytes.py:49",
+          "what": "FileNotReady/PathEscapeError both collapse to UNREADABLE_SOURCE, hiding which failure occurred"
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_classify",
+      "stage": "cross-cutting",
+      "rationale": "Per-anchor H1 classify dispatch (run/chunk/cite/review) on the dest copy.",
+      "evidence": "ontologylab/h1_classify.py:32",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/h1_classify.py:32",
+          "why": "classification is a review-like verified/quarantined decision"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.h1_classify_cite",
+        "ontologylab.h1_bytes"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_classify_cite",
+      "stage": "cross-cutting",
+      "rationale": "Citation/review H1 classification against ready bytes and chunk containment.",
+      "evidence": "ontologylab/h1_classify_cite.py:44",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/h1_classify_cite.py:89",
+          "why": "classify_review grounds historical review anchors"
+        },
+        {
+          "stage": "Extract",
+          "evidence": "ontologylab/h1_classify_cite.py:10",
+          "why": "run_for_representation looks up extraction_runs"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.h1_classify",
+        "ontologylab.h1_existing_cite"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/h1_classify_cite.py:137",
+          "what": "lazy import of expected_cite_ids/verified_citation inside classify_review hides Extract/Verify coupling"
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_cli",
+      "stage": "cross-cutting",
+      "rationale": "Installed CLI subcommand migrate-h1; the only production entrypoint for the H1 family.",
+      "evidence": "ontologylab/h1_cli.py:13",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.h1",
+        "ontologylab.main"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_decisions",
+      "stage": "cross-cutting",
+      "rationale": "Builders for verified/quarantined H1Decision values.",
+      "evidence": "ontologylab/h1_decisions.py:17",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/h1_decisions.py:39",
+          "why": "verified() is the typed H1 accept path"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.h1_types"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_existing",
+      "stage": "cross-cutting",
+      "rationale": "Exact Task-2 run-receipt lookup for H1 family linking; also a live Verify shortcut.",
+      "evidence": "ontologylab/h1_existing.py:25",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/grounded_review_members.py:11",
+          "why": "live fact-member citations import current_run_receipt_id/has_table/selection_* so H1 lookup is on the mcp/server path"
+        },
+        {
+          "stage": "Extract",
+          "evidence": "ontologylab/h1_existing.py:50",
+          "why": "selection_run_receipt reads extraction_run_receipts"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.extraction_receipt_ids",
+        "ontologylab.grounded_review_members"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/h1_existing.py:30",
+          "what": "missing extraction_run_receipts table returns None instead of refusing"
+        },
+        {
+          "evidence": "ontologylab/h1_existing.py:68",
+          "what": "current_run_receipt_id falls back from preferred selection to _linked_run on h1_anchor_receipts"
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_existing_cite",
+      "stage": "cross-cutting",
+      "rationale": "Exact Task-4 citation-receipt lookup used to skip rematerializing H1 citations.",
+      "evidence": "ontologylab/h1_existing_cite.py:22",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/h1_existing_cite.py:41",
+          "why": "verified_citation wraps get_citation_receipt"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.citation",
+        "ontologylab.h1_existing"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/h1_existing_cite.py:25",
+          "what": "missing citation_receipts table returns None (implicit skip)"
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_existing_review",
+      "stage": "cross-cutting",
+      "rationale": "Exact Task-5 grounded-review lookup for H1 review family linking.",
+      "evidence": "ontologylab/h1_existing_review.py:24",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/h1_existing_review.py:13",
+          "why": "imports grounded_review_store current/get/list decisions"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.grounded_review_store",
+        "ontologylab.h1_materialize_review"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/h1_existing_review.py:31",
+          "what": "missing grounded_review_decisions table returns None"
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_finalize",
+      "stage": "cross-cutting",
+      "rationale": "SAVEPOINT classify+materialize+persist for one H1 anchor or run unit.",
+      "evidence": "ontologylab/h1_finalize.py:82",
+      "secondary_stages": [
+        {
+          "stage": "Extract",
+          "evidence": "ontologylab/h1_finalize.py:154",
+          "why": "materialize_run writes extraction receipts when no existing run receipt"
+        },
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/h1_finalize.py:61",
+          "why": "materialize_review on H1ReviewAnchor"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.h1_classify",
+        "ontologylab.h1_materialize",
+        "ontologylab.h1_store"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/h1_finalize.py:152",
+          "what": "existing_run_receipt then materialize_run is a dual write path: reuse live receipts or mint new ones on the dest copy"
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_ids",
+      "stage": "cross-cutting",
+      "rationale": "Deterministic H1 anchor/receipt ids plus hardcoded LEGACY_POLICY.",
+      "evidence": "ontologylab/h1_ids.py:17",
+      "secondary_stages": [
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/h1_ids.py:14",
+          "why": "LEGACY_POLICY = legacy-h1-v1 identity string"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.extraction_receipt_ids"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_inventory",
+      "stage": "cross-cutting",
+      "rationale": "Enumerate every legacy run/chunk/citation/review anchor from dest tables.",
+      "evidence": "ontologylab/h1_inventory.py:41",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.h1_ids"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/h1_inventory.py:64",
+          "what": "missing extraction_runs/chunks/citations/reviews tables yield empty families instead of refusing incomplete source"
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_materialize",
+      "stage": "cross-cutting",
+      "rationale": "Writes Task 2/4 extraction and citation receipts onto the H1 dest copy.",
+      "evidence": "ontologylab/h1_materialize.py:44",
+      "secondary_stages": [
+        {
+          "stage": "Extract",
+          "evidence": "ontologylab/h1_materialize.py:66",
+          "why": "put_extraction_receipts is the live Extract write seam reused on dest"
+        },
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/h1_materialize.py:82",
+          "why": "put_citation_receipts is the live citation write seam"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.extraction_receipts",
+        "ontologylab.citation",
+        "ontologylab.h1_existing"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/h1_materialize.py:67",
+          "what": "ExtractionReceiptRefused becomes None, so finalize remaps to quarantine without surfacing the extract error"
+        },
+        {
+          "evidence": "ontologylab/h1_materialize.py:76",
+          "what": "existing_citation_receipt short-circuits put_citation_receipts"
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_materialize_review",
+      "stage": "cross-cutting",
+      "rationale": "Materialize one grounded ReviewDecision for a verified H1 review anchor.",
+      "evidence": "ontologylab/h1_materialize_review.py:19",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/h1_materialize_review.py:63",
+          "why": "persist_decision writes grounded_review_store rows"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.grounded_review_store",
+        "ontologylab.h1_existing_review"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/h1_materialize_review.py:27",
+          "what": "reuse existing_review when present; otherwise mint a new decision with LEGACY_POLICY"
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_migrate",
+      "stage": "cross-cutting",
+      "rationale": "H1 rehearsal loop: classify every dest-only anchor with SAVEPOINT checkpoints.",
+      "evidence": "ontologylab/h1_migrate.py:34",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.h1_finalize",
+        "ontologylab.migration",
+        "ontologylab.migration_rehearsal"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/h1_migrate.py:43",
+          "what": "phase_complete short-circuits to build_receipt without re-walking anchors"
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_schema",
+      "stage": "cross-cutting",
+      "rationale": "Additive h1_migration_ledger and h1_anchor_receipts tables.",
+      "evidence": "ontologylab/h1_schema.py:56",
+      "secondary_stages": [
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/h1_schema.py:9",
+          "why": "CREATE TABLE IF NOT EXISTS schema statements"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.h1_store",
+        "ontologylab.migration"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_store",
+      "stage": "cross-cutting",
+      "rationale": "Persist H1 classification rows and h1_migration_ledger checkpoints.",
+      "evidence": "ontologylab/h1_store.py:19",
+      "secondary_stages": [
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/h1_store.py:13",
+          "why": "SQLite persistence helper"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.h1_schema",
+        "ontologylab.migration"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/h1_store.py:25",
+          "what": "persist_decision no-ops if anchor_id already stored (silent idempotent skip)"
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.h1_types",
+      "stage": "cross-cutting",
+      "rationale": "Typed H1 families/decisions/refusals; imported by mcp/server via h1_existing.",
+      "evidence": "ontologylab/h1_types.py:14",
+      "secondary_stages": [
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/h1_types.py:14",
+          "why": "enums/dataclasses for H1 boundary"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.migration"
+      ],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.migration",
+      "stage": "cross-cutting",
+      "rationale": "Resumable v2_migration_ledger core (snapshot, phases, fence, post_cutover_write); also a Publish gate.",
+      "evidence": "ontologylab/migration.py:108",
+      "secondary_stages": [
+        {
+          "stage": "Publish",
+          "evidence": "ontologylab/pack_readiness.py:14",
+          "why": "authorize_publication refuses packs while MIGRATION_PHASES incomplete"
+        },
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/migration.py:108",
+          "why": "snapshot_db is SQLite backup-API storage"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.pack_readiness",
+        "ontologylab.pack_v2_derive",
+        "ontologylab.h1_schema"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/migration.py:322",
+          "what": "fence_writes inserts a fence row only if none exists (idempotent implicit skip)"
+        },
+        {
+          "evidence": "ontologylab/migration.py:374",
+          "what": "first apply_v2_authority_mutation silently inserts post_cutover_write marker in the same SAVEPOINT as the caller mutation"
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.migration_backfill",
+      "stage": "cross-cutting",
+      "rationale": "DOI backfill/collision executor on backup copies; execute_doi_backfill is tests-only.",
+      "evidence": "ontologylab/migration_backfill.py:147",
+      "secondary_stages": [
+        {
+          "stage": "Normalize",
+          "evidence": "ontologylab/migration_backfill.py:30",
+          "why": "consumes doi_backfill.plan_doi_backfill and writes documents.doi"
+        },
+        {
+          "stage": "Resolve",
+          "evidence": "ontologylab/migration_backfill.py:31",
+          "why": "record_collision via identity_decisions"
+        },
+        {
+          "stage": "Acquire",
+          "evidence": "ontologylab/migration_backfill.py:78",
+          "why": "prepare_backup_copy is the H1 sidecar snapshot wrapper"
+        }
+      ],
+      "overlaps": [
+        "ontologylab.doi_backfill",
+        "ontologylab.identity_decisions",
+        "ontologylab.authority_repo",
+        "ontologylab.migration"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/migration_backfill.py:191",
+          "what": "_should_infer_arbitrary_uris always returns False (dead D10 branch still present)"
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.migration_rehearsal",
+      "stage": "cross-cutting",
+      "rationale": "Cursor/catch-up rehearsal driver on copies; run_rehearsal callers are tests only.",
+      "evidence": "ontologylab/migration_rehearsal.py:305",
+      "secondary_stages": [],
+      "overlaps": [
+        "ontologylab.migration",
+        "ontologylab.h1_migrate"
+      ],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/migration_rehearsal.py:325",
+          "what": "completed phase is a no-op returning the same receipt hash"
+        }
+      ],
+      "engine_slot": null
+    }
+  ],
+  "findings": [
+    "H1 family split is 18 files / 2435 LOC for one historical-receipt concern (h1.py:129, h1_bytes.py:59, h1_classify.py:125, h1_classify_cite.py:242, h1_cli.py:63, h1_decisions.py:69, h1_existing.py:222, h1_existing_cite.py:164, h1_existing_review.py:177, h1_finalize.py:162, h1_ids.py:54, h1_inventory.py:185, h1_materialize.py:222, h1_materialize_review.py:88, h1_migrate.py:166, h1_schema.py:58, h1_store.py:83, h1_types.py:167) \u2014 generic mega-module sliced by family rather than one typed stage.",
+    "Verdict H1: (a) designed as one-time Step-7 backup-copy historical receipt migration, NOT finished/archivable \u2014 live CLI migrate-h1 is wired at ontologylab/main.py:2285 via ontologylab/h1_cli.py:15; tests/test_h1_migration.py and tests/test_step7_* still call it. Inside the dest copy it is also (c) a parallel write path: h1_finalize.py:152 existing_run_receipt vs h1_materialize.py:66 put_extraction_receipts / h1_materialize.py:82 put_citation_receipts / h1_materialize_review.py:63 persist_decision compete with the live Extract/Verify writers.",
+    "Cross-stage shortcut: ontologylab/grounded_review_members.py:11 imports h1_existing (current_run_receipt_id/has_table/selection_*), pulling h1_bytes/h1_ids/h1_types into mcp/server closures. H1 lookup is therefore (b) a permanent Verify dependency, not an isolated one-time migrator.",
+    "Verdict cutover_*: (a) disposable Step 9A rehearsal that never gained an entrypoint \u2014 inventory.json unreachable lists all six (cutover_compensation/readers/rehearsal/rollback/rollback_store/rollback_types). Callers are tests/test_cutover_rehearsal.py, tests/test_cutover_rollback.py, tests/test_cutover_readers.py only. CutoverPhase.SHADOW_WRITE at ontologylab/cutover_rehearsal.py:20 is the named dual-write phase but is not production. Not (b); not archived because tests still own it; Step 9C production execution is unwired.",
+    "Verdict migration.py: (b) permanent pipeline infrastructure, not archiveable \u2014 pack_readiness.py:14/218 refuses publication with PackReadinessCode.MIGRATING while expand/backfill/validate/enforce are incomplete; pack_v2_derive.py:13/163 reads the same ledger. apply_v2_authority_mutation at ontologylab/migration.py:352 is (c) a second write wrapper that plants post_cutover_write; production callers besides tests are only cutover_rollback.py:104 (itself orphan).",
+    "Verdict migration_backfill.py: (a) copy-only DOI executor. execute_doi_backfill at ontologylab/migration_backfill.py:147 is tests-only (tests/test_migration_backfill.py, tests/test_h1_migration.py, tests/wave21/perf.py). Production H1 uses only prepare_backup_copy at ontologylab/h1.py:25. Sibling ontologylab.doi_backfill.plan_doi_backfill (ontologylab/doi_backfill.py:57) is (b) the permanent read-only Normalize policy; not in this lane.",
+    "Verdict migration_rehearsal.py: (a) tests-only catch-up driver (run_rehearsal at ontologylab/migration_rehearsal.py:305). Production H1 imports only canonical_db_hash at ontologylab/h1_migrate.py:28. Dual ledger defect: v2_migration_ledger (ontologylab/migration.py:5) vs h1_migration_ledger (ontologylab/h1_schema.py:11) plus cutover_state (ontologylab/cutover_rehearsal.py:189) \u2014 three overlapping lifecycle stores.",
+    "Not in this lane but required by the assignment: work_redirects/work_view/reconciliation/identity_decisions are (b) permanent Resolve, not one-time migration. CLI ontologylab/main.py:318 add_parser('reconcile'); HTTP ontologylab/server/routes.py:1603 /reconcile, :1614 inspect, :1627 attach, :1647 retract, :1665 compensate, :1685 resolve-collision. doi_backfill is Normalize policy (b). None of these have a migrate-h1-style archive seam.",
+    "Hidden/implicit fallbacks inside H1: ontologylab/h1.py:100 _existing_or_copy skips snapshot if dest exists; ontologylab/h1_existing.py:68 current_run_receipt_id falls back to _linked_run; has_table gaps at ontologylab/h1_existing.py:30, ontologylab/h1_inventory.py:64, ontologylab/h1_store.py:25 persist_decision silent skip; FileNotReady collapsed at ontologylab/h1_bytes.py:49.",
+    "Overlapping routing: h1_classify.py:9-19 re-exports h1_bytes and h1_classify_cite; cutover_readers.py:280 reader_probes is a six-surface engine slot that re-enters Consume/Publish (kgstore, CLI graph, HTTP query, pack, MCP, method graph) from an unreachable rehearsal module."
+  ]
+}

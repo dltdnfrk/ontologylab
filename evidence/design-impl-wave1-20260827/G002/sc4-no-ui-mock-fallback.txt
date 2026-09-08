@@ -1,0 +1,5 @@
+--- SC4 /api/engines order + dashboard tokens
+["claude","codex","gemini","mock"]
+first_engine=claude rg_exit=1
+G002-SC4 OK
+cleanup: killed 5257; port 18899 free; rm -rf /tmp/ol-w1-263RMv

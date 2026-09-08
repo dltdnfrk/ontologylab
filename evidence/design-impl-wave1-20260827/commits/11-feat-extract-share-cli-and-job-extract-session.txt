@@ -1,0 +1,15 @@
+feat(extract): share CLI and job extract session
+
+main._extract_async and jobs._extract_async were an acknowledged mirror: both
+built provenance, caps, the effective model and the default doc-id set before
+calling run_extraction, so a change to the extract contract had to be made
+twice. extractor.run_extract_job now owns that session setup and returns an
+ExtractionOutcome; the CLI wrapper adds printing, the job wrapper adds the Job
+lock and progress plumbing, and neither reimplements the stage.
+
+Measured: RED `assert "run_extract_job(" in cli_src`
+(evidence/design-impl-wave1-20260827/G004/red-T3.txt), then GREEN inside the
+151-pass set; job cancellation, research-run and extraction-lifecycle suites
+stay green.
+
+Refs: docs/DESIGN-REVIEW-2026-08-26.md D06; plan G004-T2

@@ -1,0 +1,21 @@
+feat(pack): share pack release orchestration
+
+cmd_build_pack and POST /api/packs/build both wrapped build_pack, but only the
+HTTP path registered the pack_release artifact and deleted the pack directory
+when that registration failed — so a CLI-built pack was missing from Artifacts
+and a half-registered pack could survive. packbuilder.build_pack_release now
+owns provenance start/fail/end, the build, and artifact registration with the
+delete-on-failure path; the CLI passes its store so registration is one path
+for both surfaces.
+
+The critic and merge-scan pairs were already thin over critic_review and
+scan_merge_candidates; they gain a regression pin rather than a new wrapper,
+and no services/ package was introduced.
+
+Measured: RED `assert "build_pack_release(" ...` before the wrapper existed
+(evidence/design-impl-wave1-20260827/G004/red-T3.txt), then GREEN; the
+four-entrypoint source pin was retargeted to collect.py rather than deleted and
+is itself mutation-proven — spacing the call to `collect_documents (` fails
+test_four_entrypoints_call_ingest_raw_documents (G004/red-T2-mutation.txt).
+
+Refs: docs/DESIGN-REVIEW-2026-08-26.md D06/D10; plan G004-T3/T4

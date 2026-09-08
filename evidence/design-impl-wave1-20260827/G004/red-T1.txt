@@ -1,0 +1,28 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 2 items
+
+tests/test_collect_service.py F.                                         [100%]
+
+=================================== FAILURES ===================================
+______________ test_cmd_collect_and_routes_call_collect_documents ______________
+
+    def test_cmd_collect_and_routes_call_collect_documents() -> None:
+        cmd_src = _function_source(Path("ontologylab/main.py"), "cmd_collect")
+        route_src = _function_source(Path("ontologylab/server/routes.py"), "collect")
+>       assert "collect_documents(" in cmd_src
+E       assert 'collect_documents(' in 'def cmd_collect(args: argparse.Namespace) -> int:\n    data_dir = Path(args.data_dir)\n    job_dir = paths.new_job_di...tals[\'edges_new\']} new edges (proposed; run "\n        f"`ontologylab review` to verify)"\n    )\n    return 0\n\n\n'
+
+tests/test_collect_service.py:46: AssertionError
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_collect_service.py::test_cmd_collect_and_routes_call_collect_documents
+==================== 1 failed, 1 passed, 1 warning in 0.68s ====================

@@ -1,0 +1,32 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 1 item
+
+tests/test_resolve_engine.py F                                           [100%]
+
+=================================== FAILURES ===================================
+________________ test_consume_modules_call_resolve_engine_only _________________
+
+    def test_consume_modules_call_resolve_engine_only() -> None:
+        # Given: the consume-layer modules that used to pick engines themselves
+        # When: their call graph is walked
+        # Then: get_engine is gone; resolve_engine owns the default policy
+        for path in _CONSUME_MODULES:
+            names = _call_func_names(path)
+>           assert "get_engine" not in names, f"{path.name} still calls get_engine"
+E           AssertionError: main.py still calls get_engine
+E           assert 'get_engine' not in ['Path', 'open', 'add_argument', 'read_bytes', 'loads', '_canonical_json', ...]
+
+tests/test_resolve_engine.py:106: AssertionError
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_resolve_engine.py::test_consume_modules_call_resolve_engine_only
+========================= 1 failed, 1 warning in 0.14s =========================

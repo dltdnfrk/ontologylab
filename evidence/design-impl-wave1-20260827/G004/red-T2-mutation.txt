@@ -1,0 +1,16 @@
+
+=== A: offline gate | ontologylab/collect.py sha=7931576ea9bf occurrences=1
+  unmutated: exit=0 :: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+  mutated 'paths.offline_mode()' -> 'False' (sha=3a3a0dfa5172)
+  MUTATED:  exit=1 :: FAILED tests/test_collect_service.py::test_cli_collect_url_refuses_when_offline
+  MUTATION_KILLED
+  restored sha=7931576ea9bf identical=True
+  after restore: exit=0 :: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+
+=== B: adapter pin | ontologylab/main.py sha=3a2c7c622057 occurrences=1
+  unmutated: exit=0 :: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+  mutated 'collect_documents(' -> 'collect_documents (' (sha=8c2da92aee7b)
+  MUTATED:  exit=1 :: FAILED tests/test_ingest_collect_entrypoints.py::test_four_entrypoints_call_ingest_raw_documents
+  MUTATION_KILLED
+  restored sha=3a2c7c622057 identical=True
+  after restore: exit=0 :: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

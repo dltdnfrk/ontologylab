@@ -1,0 +1,25 @@
+feat(ingest): route collect and research through one writer
+
+cmd_collect, POST /api/collect, POST /api/collect/sample and the research
+worker each reached the store through the legacy ingestion aliases, which
+still fanned out into the shadow adapter. They now call the single
+raw-document writer directly (ingest_raw_documents_and_finalize,
+ingest_raw_documents_batched, ingest_onboarding_sample). The HTTP collect
+body gains additive `failures` and `conflicts` arrays so a per-item
+failure is visible to the dashboard instead of being dropped; `ok` stays
+true when at least one document persisted, false only for batch-level
+rejection. The CLI prints a failures count with error class and source
+URI, never exception text.
+
+The onboarding sample now records provenance under jobs/collect-sample like
+every other acquire (the old path passed provenance=None and guarded every
+log call); /api/jobs is in-memory and the job-dir scan only aggregates
+engine cost, so nothing user-visible changes. The characterization test
+that pinned "sample leaves no job dir" now pins the uniform contract.
+
+Measured: RED KeyError 'failures' on the new collect-body test
+(evidence/design-impl-wave1-20260827/G001/red-T5.txt); 172 passed on the
+collect/research/identity/server sets after; the real-server harness test
+for sample provenance passes with one idempotent dir.
+
+Refs: docs/DESIGN-REVIEW-2026-08-26.md D03/D04/D06; plan G001-T5/T7, Amendment A2

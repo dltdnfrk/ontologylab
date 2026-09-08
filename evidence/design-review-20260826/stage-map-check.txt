@@ -1,0 +1,3 @@
+inventory key=name (criterion text said .module; compared on (.module // .name))
+symmetric_diff=0 invalid_stage=0 missing_primary_evidence=0
+STAGEMAP_OK

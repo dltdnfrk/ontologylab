@@ -1,0 +1,4 @@
+ls_count=183 inv_count=183
+nulls=0
+wc_loc=56875 inv_loc=56875
+INVENTORY_OK

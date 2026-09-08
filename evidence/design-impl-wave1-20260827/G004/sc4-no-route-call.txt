@@ -1,0 +1,2 @@
+route_call_rg_exit=1 gate_inline_rg_exit=1
+G004-SC4 OK

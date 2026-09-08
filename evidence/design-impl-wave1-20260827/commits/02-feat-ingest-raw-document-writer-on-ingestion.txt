@@ -1,0 +1,27 @@
+feat(ingest): move the raw-document writer onto ingestion.py
+
+There were two acquire writers: collect -> ingestion.py -> ingestion_shadow
+(mirror + queue) and the v2 ingest_item service. ingestion.py is now the
+single raw-document orchestration over ingest_item: mapping (item_from_raw),
+hash/DOI conflict detection, DOI projection onto documents, source-artifact
+registration, per-item SAVEPOINT isolation with typed IngestFailure,
+100-item batching with the existing PartialIngestionError cancel/fail
+semantics, and finalize_ingest_writes (commit, reconcile staged files,
+project outbox, quarantine scoped to the current batch).
+
+The committing finalize step deliberately does NOT live in
+ingestion_service.py: tests/test_file_lifecycle.py and
+tests/test_provenance_outbox.py pin that module as a transaction participant
+with no commit/rollback, and a first attempt that put the whole layer there
+failed both pins and grew the module to 1019 lines (plan Amendment A1).
+Sizes after: ingestion.py 564, ingestion_service.py 510. Legacy names
+(ingest_documents, ingest_documents_batched, finalize_shadow_writes,
+ingest_sample) remain as thin aliases of the new writer until callers are
+retargeted; nothing routes through ingestion_shadow any more.
+
+Measured: 126 passed / 2 xfailed on the ingestion, surfaces, lifecycle,
+outbox, identity and server-m8 sets; the only failures are the 9
+shadow-internal pins in tests/test_ingestion_shadow_entrypoints.py, which
+the next unit replaces. RED: G001/red-T3.txt, red-T4.txt.
+
+Refs: docs/DESIGN-REVIEW-2026-08-26.md D03; .omo/plans/design-impl-wave1.md G001-T3/T4 + A1

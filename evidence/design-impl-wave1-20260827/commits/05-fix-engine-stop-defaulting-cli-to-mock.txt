@@ -1,0 +1,16 @@
+fix(engine): stop defaulting CLI engines to mock
+
+`ontologylab critic`, `search` and `method extract` defaulted `--engine` to
+"mock" (main.py:398/1999/2165) while paths.DEFAULT_ENGINE is "claude" and the
+HTTP layer explicitly forbids a mock default (server/schemas.py:80). An
+omitted flag therefore ran the CamelCase scanner on real prose and returned
+zero, which looks exactly like a hard paper. All four CLI `--engine` defaults
+(including top-level extract) are now None and resolve to DEFAULT_ENGINE at
+the call site; `--engine mock` still selects the mock explicitly.
+
+Measured: RED `assert 'mock' is None` for the critic parser
+(evidence/design-impl-wave1-20260827/G002/red-T1.txt), then GREEN; manual QA
+collected a CamelCase note and `extract --engine mock` still produced
+OrderApp / KitchenDisplay / PaymentGateway (G002/sc2-explicit-mock.txt).
+
+Refs: docs/DESIGN-REVIEW-2026-08-26.md D02; plan G002-T1

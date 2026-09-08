@@ -1,0 +1,47 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 1 item
+
+tests/test_ingest_raw_documents.py F                                     [100%]
+
+=================================== FAILURES ===================================
+_______________ test_per_item_exception_is_typed_failure_receipt _______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b965d30>
+tmp_path = PosixPath('/private/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/pytest-of-hyunjun/pytest-26187/test_per_item_exception_is_typ0')
+
+    def test_per_item_exception_is_typed_failure_receipt(
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        import ontologylab.ingestion_service as svc
+    
+        first = _raw(
+            uri="https://doi.org/10.1000/keep.me",
+            text="First document body that must persist.",
+            title="Keep",
+            doi="10.1000/keep.me",
+        )
+        second = _raw(
+            uri="https://doi.org/10.1000/boom.me",
+            text="Second document body that must fail.",
+            title="Boom",
+            doi="10.1000/boom.me",
+        )
+>       real = svc.persist_raw_document
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'ontologylab.ingestion_service' has no attribute 'persist_raw_document'
+
+tests/test_ingest_raw_documents.py:59: AttributeError
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_ingest_raw_documents.py::test_per_item_exception_is_typed_failure_receipt
+========================= 1 failed, 1 warning in 0.08s =========================

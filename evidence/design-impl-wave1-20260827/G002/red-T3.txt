@@ -1,0 +1,32 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 1 item
+
+tests/test_engine_defaults.py F                                          [100%]
+
+=================================== FAILURES ===================================
+_________________ test_settings_engines_never_lists_mock_first _________________
+
+    def test_settings_engines_never_lists_mock_first() -> None:
+        # Given: the settings engine catalog operators see in pickers
+        # When: the list is built
+        infos = engines()
+        names = [info.name for info in infos]
+    
+        # Then: mock is selectable, but never the implied first default
+>       assert names[0] != "mock"
+E       AssertionError: assert 'mock' != 'mock'
+
+tests/test_engine_defaults.py:68: AssertionError
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_engine_defaults.py::test_settings_engines_never_lists_mock_first
+========================= 1 failed, 1 warning in 0.30s =========================

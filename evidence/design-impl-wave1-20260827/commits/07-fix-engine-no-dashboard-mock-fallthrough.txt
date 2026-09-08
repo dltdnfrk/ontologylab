@@ -1,0 +1,18 @@
+fix(engine): do not fall through the dashboard to mock
+
+settings.engines() listed mock first as always-available (settings.py:123) and
+the dashboard picked `preferred || first available`, with `|| "mock"` in the
+extract, research, critic and settings-save paths plus a `value='mock'`
+option injected from catch blocks. Under launchd's PATH every CLI engine can
+report unavailable, and the composer then silently ran mock. Mock is now
+listed last and stays selectable; the pickers choose the settings default, or
+the first available non-mock engine, or leave the select empty as typed
+unavailable; the empty-field paths omit the engine so the server default
+applies (the pattern chat already used).
+
+Measured: RED `assert 'mock' != 'mock'` on engines()[0] and `'|| "mock"' not
+in app.js` (G002/red-T3.txt, red-T4.txt), then GREEN; `/api/engines` on an
+isolated server returns claude first and app.js carries zero mock-fallback
+tokens (G002/sc4-no-ui-mock-fallback.txt); node --check passes.
+
+Refs: docs/DESIGN-REVIEW-2026-08-26.md D02/D12; plan G002-T3/T4

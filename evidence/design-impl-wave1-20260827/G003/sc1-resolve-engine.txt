@@ -1,0 +1,3 @@
+{'none_is_claude': True, 'blank_is_claude': True, 'mock_is_mock': True, 'auto_raises': True, 'nope_raises': True}
+G003-SC1 OK
+G003-SC2 OK

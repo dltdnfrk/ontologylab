@@ -1,0 +1,26 @@
+feat(collect): share CLI and HTTP acquire orchestration
+
+cmd_collect and POST /api/collect each inlined the whole acquire pipeline —
+allowlist gates, connector fetch, file reads, provenance — so the two surfaces
+drifted: HTTP checked paths.offline_mode() and handled MissingSourceKey /
+ResponseTooLarge / redaction, the CLI did neither. `ontologylab collect --url`
+under ONTOLOGYLAB_OFFLINE=1 therefore still reached the network, and an
+unreadable path could traceback instead of exiting typed.
+
+ontologylab/collect.py now owns that orchestration once: CollectInputs ->
+collect_documents(inputs, provenance) -> CollectOutcome, pre-validating every
+input, applying the offline gate when the request needs the network, then
+handing off to the single raw-document writer. Both adapters shrink to parse
+input, open the store, call it, format stdout or JSON; neither contains
+check_url( or check_collect_file( any more, and neither imports the other.
+
+Measured: RED `assert "collect_documents(" in cmd_src` against the inlined
+gates (evidence/design-impl-wave1-20260827/G004/red-T1.txt); the CLI offline
+gate has no natural RED because it arrived with collect.py, so it is pinned by
+mutation instead — neutralising paths.offline_mode() at collect.py:162 fails
+test_cli_collect_url_refuses_when_offline and restoring it passes, byte-identical
+(G004/red-T2-mutation.txt, MUTATION_KILLED). After: 151 passed; manual QA shows
+CLI collect then HTTP collect of the same file returning created:0 duplicates:1,
+and both offline and unreadable input exiting 2 with no traceback.
+
+Refs: docs/DESIGN-REVIEW-2026-08-26.md D06; plan G004-T1/T2

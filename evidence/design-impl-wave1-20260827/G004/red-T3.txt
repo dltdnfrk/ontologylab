@@ -1,0 +1,42 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 2 items
+
+tests/test_pipeline_adapters.py FF                                       [100%]
+
+=================================== FAILURES ===================================
+__________________ test_extract_wrappers_call_run_extract_job __________________
+
+    def test_extract_wrappers_call_run_extract_job() -> None:
+        cli_src = _function_source(Path("ontologylab/main.py"), "_extract_async")
+        jobs_src = _function_source(
+            Path("ontologylab/server/jobs.py"), "_extract_async"
+        )
+>       assert "run_extract_job(" in cli_src
+E       assert 'run_extract_job(' in 'def _extract_async(args: argparse.Namespace, store: KGStore) -> int:\n    data_dir = Path(args.data_dir)\n    job_dir...tals[\'edges_new\']} new edges (proposed; run "\n        f"`ontologylab review` to verify)"\n    )\n    return 0\n\n\n'
+
+tests/test_pipeline_adapters.py:31: AssertionError
+__________________ test_pack_wrappers_call_build_pack_release __________________
+
+    def test_pack_wrappers_call_build_pack_release() -> None:
+        cli_src = _function_source(Path("ontologylab/main.py"), "cmd_build_pack")
+        route_src = _function_source(
+            Path("ontologylab/server/routes.py"), "packs_build"
+        )
+>       assert "build_pack_release(" in cli_src
+E       assert 'build_pack_release(' in 'def cmd_build_pack(args: argparse.Namespace) -> int:\n    try:\n        method_release_ids = reject_duplicate_release...tologylab] serve it: python "\n          + " ".join(serve_args(args.packs_dir, manifest.pack_id)))\n    return 0\n\n\n'
+
+tests/test_pipeline_adapters.py:40: AssertionError
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_pipeline_adapters.py::test_extract_wrappers_call_run_extract_job
+FAILED tests/test_pipeline_adapters.py::test_pack_wrappers_call_build_pack_release
+========================= 2 failed, 1 warning in 0.22s =========================

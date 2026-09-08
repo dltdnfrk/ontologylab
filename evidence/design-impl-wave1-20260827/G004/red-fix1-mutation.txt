@@ -1,0 +1,64 @@
+=== FIX 1 mutation: batch-level _fail("failed", "internal_error") must not leak str(exc)
+
+test: tests/test_ingest_collect_entrypoints.py::test_collect_http_batch_failure_returns_typed_envelope
+target: ontologylab/collect.py batch except -> return _fail("failed", "internal_error")
+
+=== A: unmutated | ontologylab/collect.py sha=7931576ea9bf7e55b06b156fb19c5e3425c4c8d2e5559c80dcade85518e3dd1e
+  shasum -a 256 ontologylab/collect.py
+  7931576ea9bf7e55b06b156fb19c5e3425c4c8d2e5559c80dcade85518e3dd1e  ontologylab/collect.py
+
+  unmutated pytest:
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hyunjun/Documents/MUNI/ontologylab
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 1 item
+
+tests/test_ingest_collect_entrypoints.py .                               [100%]
+
+========================= 1 passed, 1 warning in 0.34s =========================
+
+=== B: mutated leak str(exc) into detail | sha=f42f85c6cad3109b8a46db8d50f5432d7a2821f3d5f412ab2d5952a50dc72022
+  change:
+    except Exception:  # noqa: BLE001
+        return _fail("failed", "internal_error")
+  to:
+    except Exception as exc:  # noqa: BLE001
+        return _fail("failed", str(exc))
+
+  MUTATED pytest:
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+collected 1 item
+
+tests/test_ingest_collect_entrypoints.py F                               [100%]
+
+=================================== FAILURES ===================================
+____________ test_collect_http_batch_failure_returns_typed_envelope ____________
+tests/test_ingest_collect_entrypoints.py:576: in test_collect_http_batch_failure_returns_typed_envelope
+    assert body["detail"] == "internal_error"
+E   AssertionError: assert 'disk I/O err...f3a/kg.sqlite' == 'internal_error'
+E     
+E     - internal_error
+E     + disk I/O error in /secret/ELS-must-never-surface-9f3a/kg.sqlite
+=========================== short test summary info ============================
+FAILED tests/test_ingest_collect_entrypoints.py::test_collect_http_batch_failure_returns_typed_envelope
+========================= 1 failed, 1 warning in 0.29s =========================
+
+=== C: restore from pre-mutation copy
+  cp /tmp/collect.py.fix1.bak ontologylab/collect.py
+  shasum -a 256 ontologylab/collect.py
+  7931576ea9bf7e55b06b156fb19c5e3425c4c8d2e5559c80dcade85518e3dd1e  ontologylab/collect.py
+  cmp: identical=True
+
+  after restore pytest:
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+collected 1 item
+
+tests/test_ingest_collect_entrypoints.py .                               [100%]
+
+========================= 1 passed, 1 warning in 0.24s =========================
+
+MUTATION_KILLED

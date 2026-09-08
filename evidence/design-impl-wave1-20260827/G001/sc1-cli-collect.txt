@@ -1,0 +1,6 @@
+[ontologylab] new document rep-1a5a55065ac4 <- file:///private/tmp/ol-w1-sc1fix-3IOkAT/notes.md
+[ontologylab] collected 1 document(s) (1 new)
+cli_exit=0
+documents=1 document_observations=1 provenance_outbox=1 works=1
+G001-SC1 OK
+cleanup: rm -rf /tmp/ol-w1-sc1-bf00E4 /tmp/ol-w1-sc1fix-3IOkAT

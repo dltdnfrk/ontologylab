@@ -1,0 +1,460 @@
+{
+  "lane": "L1-ingestion",
+  "modules": [
+    {
+      "name": "ontologylab.alias_authority",
+      "stage": "Resolve",
+      "rationale": "Filters which proposal name/alias surfaces may be offered to EPPO/CAS registry lookup; does not acquire or persist documents.",
+      "evidence": "ontologylab/alias_authority.py:49",
+      "secondary_stages": [
+        {
+          "stage": "Extract",
+          "evidence": "ontologylab/alias_authority.py:49",
+          "why": "Only extractor-stamped proposals carry alias_authority; this gate sits on the extraction boundary, not ingest."
+        }
+      ],
+      "overlaps": ["ontologylab.normalization", "ontologylab.registry"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/alias_authority.py:37",
+          "what": "alias_authority is None authorizes name+every alias (pre-4C compatibility), so unattested surfaces can mint registry identity."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.authority",
+      "stage": "infra",
+      "rationale": "Additive v2 Work/Representation/Observation DDL only; no transformation function, applied from KGStore.open.",
+      "evidence": "ontologylab/authority.py:13",
+      "secondary_stages": [
+        {
+          "stage": "Normalize",
+          "evidence": "ontologylab/authority.py:24",
+          "why": "_SCHEMA defines works, work_identifiers, document_observations used as ingest identity tables."
+        },
+        {
+          "stage": "cross-cutting",
+          "evidence": "ontologylab/authority.py:24",
+          "why": "Same script also creates provenance_outbox and v2_migration_ledger."
+        }
+      ],
+      "overlaps": ["ontologylab.authority_repo"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.authority_repo",
+      "stage": "Normalize",
+      "rationale": "Typed Work create plus identifier reserve-observe-assert; the v2 identity write used by ingest_item.",
+      "evidence": "ontologylab/authority_repo.py:125",
+      "secondary_stages": [
+        {
+          "stage": "Resolve",
+          "evidence": "ontologylab/authority_repo.py:24",
+          "why": "IdentifierOwnedConflict / SecondDoiAttachConflict are identity-ownership decisions, not byte acquire."
+        }
+      ],
+      "overlaps": ["ontologylab.identity_decisions", "ontologylab.ingestion_service", "ontologylab.reconciliation"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.doi_backfill",
+      "stage": "Normalize",
+      "rationale": "Read-only exact-resolver DOI backfill classifier for NULL-doi legacy rows (D10 policy).",
+      "evidence": "ontologylab/doi_backfill.py:57",
+      "secondary_stages": [
+        {
+          "stage": "cross-cutting",
+          "evidence": "ontologylab/doi_backfill.py:57",
+          "why": "Only imported by migration_backfill; unused by collect/ingest, so the Normalize policy lives on the cutover path."
+        }
+      ],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.file_lifecycle",
+      "stage": "Acquire",
+      "rationale": "Operation-owned staging of Representation bytes and ready/quarantine reconcile; the file half of ingest, not a second document writer.",
+      "evidence": "ontologylab/file_lifecycle.py:180",
+      "secondary_stages": [
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/file_lifecycle.py:430",
+          "why": "reconcile_files/read_ready_text are reused by extract, citations, h1, pack, and work_view (fan_in=17)."
+        }
+      ],
+      "overlaps": ["ontologylab.ingestion", "ontologylab.ingestion_service", "ontologylab.ingestion_shadow", "ontologylab.ingestion_surfaces", "ontologylab.server.ingest_routes"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/file_lifecycle.py:418",
+          "what": "orphan staging rmdir failures are swallowed with except OSError: pass."
+        },
+        {
+          "evidence": "ontologylab/file_lifecycle.py:499",
+          "what": "ready_byte_length returns 0 on PathEscapeError/OSError, hiding unreadable ready files as empty."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.identity_decisions",
+      "stage": "Resolve",
+      "rationale": "Audited attach/retract/collision operations with actor/reason; human identity decisions, not acquire.",
+      "evidence": "ontologylab/identity_decisions.py:97",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.authority_repo", "ontologylab.reconciliation"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.ingestion",
+      "stage": "Acquire",
+      "rationale": "Production collect persist seam; parallel flow — always delegates to shadow rather than the v2 surface.",
+      "evidence": "ontologylab/ingestion.py:104",
+      "secondary_stages": [
+        {
+          "stage": "Normalize",
+          "evidence": "ontologylab/ingestion.py:73",
+          "why": "finalize_shadow_writes commits, reconciles files, and projects outbox after persist."
+        }
+      ],
+      "overlaps": ["ontologylab.ingestion_service", "ontologylab.ingestion_shadow", "ontologylab.ingestion_surfaces", "ontologylab.server.ingest_routes", "ontologylab.file_lifecycle"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/ingestion.py:110",
+          "what": "ingest_documents hardcodes ingestion_shadow.shadow_persist; no nameable slot to choose the v2 surface."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.ingestion_service",
+      "stage": "Acquire",
+      "rationale": "CANONICAL v2 ingest: one IngestItem → typed receipt via SAVEPOINT; both parallel flows eventually write here.",
+      "evidence": "ontologylab/ingestion_service.py:300",
+      "secondary_stages": [
+        {
+          "stage": "Normalize",
+          "evidence": "ontologylab/ingestion_service.py:168",
+          "why": "Creates/attaches Work, Representation, Observation, and identifiers inside the same item write."
+        }
+      ],
+      "overlaps": ["ontologylab.ingestion", "ontologylab.ingestion_shadow", "ontologylab.ingestion_surfaces", "ontologylab.server.ingest_routes", "ontologylab.file_lifecycle", "ontologylab.authority_repo"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/ingestion_service.py:326",
+          "what": "identifier_owned conflict implicitly retries ingest onto existing_work_id without a new caller decision."
+        },
+        {
+          "evidence": "ontologylab/ingestion_service.py:291",
+          "what": "staged-dir rmdir failures swallowed with except OSError: pass."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.ingestion_shadow",
+      "stage": "Acquire",
+      "rationale": "PARALLEL collect adapter: legacy DOI/hash document identity plus a v2 Observation; FULL_V2_AUTHORITY stays off.",
+      "evidence": "ontologylab/ingestion_shadow.py:391",
+      "secondary_stages": [
+        {
+          "stage": "Normalize",
+          "evidence": "ontologylab/ingestion_shadow.py:333",
+          "why": "_persist_one dedupes by documents.doi/content_hash then calls ingest_item, a second identity policy beside the service."
+        }
+      ],
+      "overlaps": ["ontologylab.ingestion", "ontologylab.ingestion_service", "ontologylab.ingestion_surfaces", "ontologylab.server.ingest_routes", "ontologylab.file_lifecycle"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/ingestion_shadow.py:33",
+          "what": "FULL_V2_AUTHORITY = False hard-wires legacy_compatible dual-write; v2 authority is not a selectable slot."
+        },
+        {
+          "evidence": "ontologylab/ingestion_shadow.py:414",
+          "what": "except Exception: log collect.failed and continue, dropping the document with no receipt."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.ingestion_surfaces",
+      "stage": "Acquire",
+      "rationale": "PARALLEL CLI/HTTP/queue/sample seam over ingest_work_items; production collect does not use this path.",
+      "evidence": "ontologylab/ingestion_surfaces.py:204",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.ingestion", "ontologylab.ingestion_service", "ontologylab.ingestion_shadow", "ontologylab.server.ingest_routes", "ontologylab.file_lifecycle"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/ingestion_surfaces.py:59",
+          "what": "Non-mapping payload becomes an empty IngestItem instead of a parse error, failing later as invalid_item."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.literature",
+      "stage": "Acquire",
+      "rationale": "Scholarly-query planning and citation-neighborhood expansion that drive literature collect, not Work ingest.",
+      "evidence": "ontologylab/literature.py:146",
+      "secondary_stages": [
+        {
+          "stage": "Synthesize",
+          "evidence": "ontologylab/literature.py:146",
+          "why": "LLM query-axis formulation is expansion-shaped work sitting in front of fetch."
+        }
+      ],
+      "overlaps": ["ontologylab.searchquery", "ontologylab.literature_citations"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/literature.py:155",
+          "what": "engine is None returns a raw-topic ScholarlyQuery and continues."
+        },
+        {
+          "evidence": "ontologylab/literature.py:162",
+          "what": "EngineError and empty parse fail open to the same topic fallback."
+        }
+      ],
+      "engine_slot": {
+        "interface": "engine.generate(prompt, model=) -> (raw_text, usage)",
+        "implementations": ["MockEngine", "ClaudeEngine", "CodexEngine", "GeminiEngine", "ApiEngine"],
+        "insertion_point": "ontologylab/literature.py:146"
+      }
+    },
+    {
+      "name": "ontologylab.literature_artifacts",
+      "stage": "Acquire",
+      "rationale": "Writes the merged literature corpus JSONL/summary for one research job; side artifact of collect.",
+      "evidence": "ontologylab/literature_artifacts.py:58",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.literature"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.literature_citations",
+      "stage": "Acquire",
+      "rationale": "Bounded OpenAlex citation-neighborhood fetch of RawDocuments for collect.",
+      "evidence": "ontologylab/literature_citations.py:16",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.literature"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/literature_citations.py:43",
+          "what": "HTTPError/URLError/ResponseTooLarge return None and skip the seed/axis with no typed failure."
+        },
+        {
+          "evidence": "ontologylab/literature_citations.py:56",
+          "what": "parse_openalex TypeError/ValueError returns [] instead of failing the expansion."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.normalization",
+      "stage": "Resolve",
+      "rationale": "Registry lookup that stamps EPPO/CAS/MoA onto extraction proposals; not canonicalization of acquired documents.",
+      "evidence": "ontologylab/normalization.py:119",
+      "secondary_stages": [
+        {
+          "stage": "Extract",
+          "evidence": "ontologylab/normalization.py:119",
+          "why": "Sole importer is extractor; this Resolve step is a cross-stage shortcut off ingest."
+        }
+      ],
+      "overlaps": ["ontologylab.alias_authority", "ontologylab.registry"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/normalization.py:23",
+          "what": "cache_absent pops normalization flags and returns the proposal unchanged, switching the feature off mid-run."
+        },
+        {
+          "evidence": "ontologylab/normalization.py:79",
+          "what": "Same cache_absent early-return for CAS/MoA."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.preferred",
+      "stage": "Normalize",
+      "rationale": "Pure preferred-representation-v1 ranking over a Work's candidates; canonical Representation projection, never stored.",
+      "evidence": "ontologylab/preferred.py:41",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/preferred.py:41",
+          "why": "Ranking is the selection policy later consumed by selection_store / review."
+        }
+      ],
+      "overlaps": ["ontologylab.work_view"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.provenance_outbox",
+      "stage": "cross-cutting",
+      "rationale": "Observation outbox insert plus deterministic JSONL projector; provenance lifecycle, not a pipeline stage transform.",
+      "evidence": "ontologylab/provenance_outbox.py:102",
+      "secondary_stages": [
+        {
+          "stage": "Acquire",
+          "evidence": "ontologylab/provenance_outbox.py:205",
+          "why": "project_outbox is invoked from collect/ingest finalize (ingestion.py, ingest_routes, main cmd_ingest)."
+        }
+      ],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.reconciliation",
+      "stage": "Resolve",
+      "rationale": "Shared CLI/HTTP facade over attach/retract/compensate/collision; duplicates identity_decisions + work_redirects.",
+      "evidence": "ontologylab/reconciliation.py:68",
+      "secondary_stages": [
+        {
+          "stage": "Consume",
+          "evidence": "ontologylab/reconciliation.py:22",
+          "why": "list_state/inspect_work exist so CLI and HTTP return the same dicts."
+        }
+      ],
+      "overlaps": ["ontologylab.identity_decisions", "ontologylab.work_redirects", "ontologylab.work_view", "ontologylab.authority_repo"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.registry",
+      "stage": "Resolve",
+      "rationale": "Mega-module: EPPO/PubChem/MoA import plus RegistryCache/CASRegistryCache lookup used at extract time.",
+      "evidence": "ontologylab/registry.py:652",
+      "secondary_stages": [
+        {
+          "stage": "Source",
+          "evidence": "ontologylab/registry.py:218",
+          "why": "import_eppo/import_pubchem install local identity registries (allowlisted HTTP only for verify_eppo_api)."
+        }
+      ],
+      "overlaps": ["ontologylab.normalization", "ontologylab.alias_authority", "ontologylab.sources"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/registry.py:667",
+          "what": "Missing cache file: resolve() returns None / resolve_with_status cache_absent without failing the run."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.searchquery",
+      "stage": "Acquire",
+      "rationale": "Topic→paper-API query rewrite that precedes collect fetch; parallel to literature.formulate_scholarly_queries.",
+      "evidence": "ontologylab/searchquery.py:174",
+      "secondary_stages": [
+        {
+          "stage": "Synthesize",
+          "evidence": "ontologylab/searchquery.py:204",
+          "why": "Multi-query formulation is expansion-shaped and documented to fail open like expansion."
+        }
+      ],
+      "overlaps": ["ontologylab.literature"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/searchquery.py:184",
+          "what": "engine is None returns the raw topic and the search proceeds."
+        },
+        {
+          "evidence": "ontologylab/searchquery.py:189",
+          "what": "any Exception from engine.generate fail-opens to topic."
+        },
+        {
+          "evidence": "ontologylab/searchquery.py:125",
+          "what": "parse_search_query except Exception returns (None, ''), which then fail-opens to topic."
+        }
+      ],
+      "engine_slot": {
+        "interface": "engine.generate(prompt, model=) -> (raw_text, usage)",
+        "implementations": ["MockEngine", "ClaudeEngine", "CodexEngine", "GeminiEngine", "ApiEngine"],
+        "insertion_point": "ontologylab/searchquery.py:174"
+      }
+    },
+    {
+      "name": "ontologylab.sources",
+      "stage": "Source",
+      "rationale": "Publisher-source registry and credential locators (keychain/env); defines where fulltext evidence comes from.",
+      "evidence": "ontologylab/sources.py:69",
+      "secondary_stages": [
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/sources.py:141",
+          "why": "resolve_source_key is a keychain/env adapter, not an acquire transform."
+        }
+      ],
+      "overlaps": ["ontologylab.registry"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/sources.py:181",
+          "what": "load_sources fail-soft to [] on missing/corrupt JSON, hiding Source-stage failure from collect."
+        },
+        {
+          "evidence": "ontologylab/sources.py:192",
+          "what": "Malformed entries are skipped with continue."
+        },
+        {
+          "evidence": "ontologylab/sources.py:74",
+          "what": "api_key_env is the documented secret fallback when Keychain is unavailable."
+        },
+        {
+          "evidence": "ontologylab/sources.py:262",
+          "what": "migrate_source_keychain_accounts swallows KeychainError and leaves that source unmigrated."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.work_redirects",
+      "stage": "Resolve",
+      "rationale": "Append-only Work merge/compensate redirects and canonical_work projection (alias/merge).",
+      "evidence": "ontologylab/work_redirects.py:85",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.reconciliation"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.work_view",
+      "stage": "Normalize",
+      "rationale": "On-read Work snapshot including computed preferred Representation; canonical view of acquired identity.",
+      "evidence": "ontologylab/work_view.py:84",
+      "secondary_stages": [
+        {
+          "stage": "Consume",
+          "evidence": "ontologylab/work_view.py:84",
+          "why": "server/routes and reconciliation.inspect_work expose the same snapshot as a read API."
+        }
+      ],
+      "overlaps": ["ontologylab.preferred", "ontologylab.reconciliation"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    }
+  ],
+  "findings": [
+    "Two production ingest pipelines: collect (ontologylab/main.py:587, ontologylab/server/routes.py:2066, ontologylab/server/jobs.py:1046) calls ingestion.ingest_documents → ingestion_shadow.shadow_persist; authority ingest (ontologylab/main.py:447, ontologylab/server/ingest_routes.py:25) calls ingestion_surfaces.run_ingest → ingest_work_items. Canonical writer is ingestion_service.ingest_item (ontologylab/ingestion_service.py:300). file_lifecycle is the shared byte half (prepare_representation_payload:180, reconcile_files:430), not a third document flow.",
+    "Shadow is a hidden default engine: ingest_documents hardcodes shadow_persist (ontologylab/ingestion.py:110) while FULL_V2_AUTHORITY = False (ontologylab/ingestion_shadow.py:33); circular imports between ingestion.py and ingestion_shadow.py. Not a nameable slot+contract.",
+    "shadow_persist silently drops documents: except Exception continue at ontologylab/ingestion_shadow.py:414 after logging collect.failed, so collect can finish without a per-item failed receipt.",
+    "registry.py is a mega-module (758 loc) mixing Source install (import_eppo:218, import_pubchem:395, install_starter_moa:369) with Resolve caches (RegistryCache:652, CASRegistryCache:549, MoARegistryCache:606) and HTTP verify_eppo_api:736.",
+    "Duplicate fail-open query engines: searchquery.formulate_search_query (ontologylab/searchquery.py:184) and literature.formulate_scholarly_queries (ontologylab/literature.py:154) both substitute the raw topic when engine is missing or errors; literature also re-exports expand_citation_neighborhood.",
+    "Entity Resolve (alias_authority, normalization, registry) is not on the ingest path: normalization.normalize_proposal is imported only by extractor, while ingest identity is Work/DOI in authority_repo/ingestion_service — overlapping Resolve vocab on a later stage.",
+    "alias_authority.surface_plan (ontologylab/alias_authority.py:37) authorizes all surfaces when classification is missing (legacy SHA-pin compatibility), an implicit fallback against D11.",
+    "sources.load_sources fail-soft to [] (ontologylab/sources.py:181) and resolve_source_key returns None (ontologylab/sources.py:141), so a corrupt/missing publisher registry is indistinguishable from 'no sources configured'.",
+    "Cross-stage ingest shortcut: research_extract.attach_explicit_completeness_variants calls ingest_item directly (ontologylab/research_extract.py:105), bypassing both collect (ingestion.py) and ingest surfaces.",
+    "file_lifecycle fan_in=17 spans Acquire, Extract, Verify, Publish, and Consume; staged-file ownership is not confined to the ingest stage (callers include citation_bind, h1_*, pack_v2_closure, work_view).",
+    "kgstore.insert_document (ontologylab/kgstore.py:2029) remains a third persist path (competency.py) beside shadow dual-write and ingestion_service INSERT INTO documents.",
+    "literature_citations._get_optional (ontologylab/literature_citations.py:43) treats network/HTTP failures as empty expansion, overlapping Verify-shaped citation work with silent Acquire skips.",
+    "doi_backfill.plan_doi_backfill (ontologylab/doi_backfill.py:57) is the Normalize DOI policy but is only reached from migration_backfill, so collect never applies D10 backfill.",
+    "ingestion_service retries identifier_owned conflicts onto the winner Work (ontologylab/ingestion_service.py:326) without an explicit Resolve decision, a cross-stage identity shortcut inside Acquire."
+  ]
+}

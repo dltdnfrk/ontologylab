@@ -1,0 +1,450 @@
+{
+  "lane": "L6-infra-server",
+  "modules": [
+    {
+      "name": "ontologylab",
+      "stage": "infra",
+      "rationale": "Package __init__ exposing only version metadata; no pipeline logic.",
+      "evidence": "ontologylab/__init__.py:7",
+      "secondary_stages": [],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.connectors",
+      "stage": "infra",
+      "rationale": "Package __init__ docstring-only marker for the Acquire connector group.",
+      "evidence": "ontologylab/connectors/__init__.py:1",
+      "secondary_stages": [],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.connectors.allowlist",
+      "stage": "Source",
+      "rationale": "Deny-by-default host/URL/query gates defining which evidence sources may be fetched.",
+      "evidence": "ontologylab/connectors/allowlist.py:112",
+      "secondary_stages": [
+        {"stage": "Acquire", "evidence": "ontologylab/connectors/allowlist.py:265", "why": "check_collect_file gates local staged-file ingestion, an Acquire-time boundary"},
+        {"stage": "infra", "evidence": "ontologylab/connectors/allowlist.py:229", "why": "loggable_collect_inputs bounds/scrubs values logged before validation"}
+      ],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.connectors.base",
+      "stage": "Acquire",
+      "rationale": "Defines the Connector Protocol fetch slot and the RawDocument boundary type for acquire.",
+      "evidence": "ontologylab/connectors/base.py:157",
+      "secondary_stages": [
+        {"stage": "Normalize", "evidence": "ontologylab/connectors/base.py:130", "why": "RawDocument.dedupe_key implements DOI-first work identity for acquired items"},
+        {"stage": "Normalize", "evidence": "ontologylab/connectors/base.py:146", "why": "collapse_duplicates merges same-work batches during ingest"}
+      ],
+      "overlaps": ["ontologylab.connectors.dedup"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.connectors.dedup",
+      "stage": "Normalize",
+      "rationale": "Cross-source same-work merging, the canonical-form dedup step of acquire output.",
+      "evidence": "ontologylab/connectors/dedup.py:103",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.connectors.base"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.connectors.fulltext",
+      "stage": "Acquire",
+      "rationale": "Fetches and flattens full-text XML bytes from allowlisted endpoints.",
+      "evidence": "ontologylab/connectors/fulltext.py:122",
+      "secondary_stages": [
+        {"stage": "Normalize", "evidence": "ontologylab/connectors/fulltext.py:93", "why": "jats_to_text converts fetched JATS XML into canonical flat text"}
+      ],
+      "overlaps": ["ontologylab.connectors.paper_api"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.connectors.paper_api",
+      "stage": "Acquire",
+      "rationale": "The paper-source Connector implementation fetching records across publisher APIs.",
+      "evidence": "ontologylab/connectors/paper_api.py:1634",
+      "secondary_stages": [
+        {"stage": "Source", "evidence": "ontologylab/connectors/paper_api.py:210", "why": "check_source_implemented and fetch_hosts define which paper sources exist"},
+        {"stage": "Normalize", "evidence": "ontologylab/connectors/paper_api.py:1845", "why": "fetch canonicalizes query and re-checks the allowlist before any URL is built"}
+      ],
+      "overlaps": ["ontologylab.connectors.fulltext", "ontologylab.connectors.resources"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.connectors.registry_lookup",
+      "stage": "Resolve",
+      "rationale": "Advisory registry lookup (UniProt/PubChem/ClinVar) resolving proposed entity names for review.",
+      "evidence": "ontologylab/connectors/registry_lookup.py:180",
+      "secondary_stages": [
+        {"stage": "Acquire", "evidence": "ontologylab/connectors/registry_lookup.py:55", "why": "_get performs the bounded HTTP fetch of registry records"}
+      ],
+      "overlaps": ["ontologylab.connectors.resources"],
+      "hidden_fallbacks": [
+        {"evidence": "ontologylab/connectors/registry_lookup.py:66", "what": "Fetch uses urllib.request.urlopen on hardcoded hosts (36-38) and never calls connectors.allowlist.check_url (ontologylab/connectors/allowlist.py:112): an Acquire path outside the deny-by-default allowlist gate, reachable from ontologylab/server/routes.py:1867"}
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.connectors.resources",
+      "stage": "Acquire",
+      "rationale": "Fetches curated bio-resource records (UniProt/MyGene/Ensembl/ChEMBL) by name.",
+      "evidence": "ontologylab/connectors/resources.py:371",
+      "secondary_stages": [
+        {"stage": "Resolve", "evidence": "ontologylab/connectors/resources.py:171", "why": "parse_uniprot resolves a symbol to a registry identifier and match payload"},
+        {"stage": "Synthesize", "evidence": "ontologylab/enrichment.py:114", "why": "lookup feeds enrichment synthesis of verified nodes"}
+      ],
+      "overlaps": ["ontologylab.connectors.registry_lookup"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.connectors.web_crawl",
+      "stage": "Acquire",
+      "rationale": "Fetches explicit allowlisted URLs and converts HTML to text records.",
+      "evidence": "ontologylab/connectors/web_crawl.py:118",
+      "secondary_stages": [
+        {"stage": "Normalize", "evidence": "ontologylab/connectors/web_crawl.py:81", "why": "html_to_text strips markup into the canonical text form"}
+      ],
+      "overlaps": ["ontologylab.connectors.fulltext"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.engines",
+      "stage": "infra",
+      "rationale": "Engine adapter layer: one generate() slot with Mock/Claude/Codex/Gemini/Api implementations and the get_engine factory.",
+      "evidence": "ontologylab/engines.py:890",
+      "secondary_stages": [
+        {"stage": "Verify", "evidence": "ontologylab/engines.py:395", "why": "_mock_critic emits deterministic critic scores for the Verify stage"},
+        {"stage": "Extract", "evidence": "ontologylab/engines.py:285", "why": "_mock_extraction emits deterministic proposed entities/relations for the Extract stage"}
+      ],
+      "overlaps": ["ontologylab.providers"],
+      "hidden_fallbacks": [
+        {"evidence": "ontologylab/main.py:398", "what": "CLI --engine defaults to 'mock' (also ontologylab/main.py:1999 critic, ontologylab/main.py:2165 search): an unset engine silently selects the CamelCase scanner on real prose instead of the declared DEFAULT_ENGINE='claude' (ontologylab/paths.py:20)"}
+      ],
+      "engine_slot": {
+        "interface": "ontologylab.models.Engine Protocol: async generate(prompt, *, model) -> tuple[str, dict] (ontologylab/models.py:285, generate at ontologylab/models.py:292)",
+        "implementations": ["MockEngine (ontologylab/engines.py:483)", "ClaudeEngine (ontologylab/engines.py:534)", "CodexEngine (ontologylab/engines.py:566)", "GeminiEngine (ontologylab/engines.py:594)", "ApiEngine (ontologylab/engines.py:706)"],
+        "insertion_point": "ontologylab/engines.py:890"
+      }
+    },
+    {
+      "name": "ontologylab.evidence",
+      "stage": "Normalize",
+      "rationale": "Classifies each acquired record into a coarse evidence grade (peer_reviewed/preprint/registration/other/unknown).",
+      "evidence": "ontologylab/evidence.py:106",
+      "secondary_stages": [
+        {"stage": "Verify", "evidence": "ontologylab/evidence.py:148", "why": "normalize grades are surfaced to the human reviewer so approval is not blind to record kind"}
+      ],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.http_bound",
+      "stage": "infra",
+      "rationale": "Bound HTTP helper enforcing response-size cap and exact-origin redirect refusal.",
+      "evidence": "ontologylab/http_bound.py:64",
+      "secondary_stages": [],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.keychain",
+      "stage": "infra",
+      "rationale": "macOS Keychain credential read/write/resolve for publisher API keys.",
+      "evidence": "ontologylab/keychain.py:422",
+      "secondary_stages": [
+        {"stage": "cross-cutting", "evidence": "ontologylab/keychain.py:288", "why": "_try_migrate transparently migrates legacy-service secrets to the v2 service"}
+      ],
+      "overlaps": [],
+      "hidden_fallbacks": [
+        {"evidence": "ontologylab/keychain.py:306", "what": "read_key silently falls back to the legacy keychain service (_read_legacy at ontologylab/keychain.py:257) when the native v2 read misses: an implicit credential fallback path"}
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.kgstore",
+      "stage": "infra",
+      "rationale": "Owns the sqlite KG: schema, transactions, and every stage's persistence, but also embeds Verify/Consume/Publish/Resolve/Synthesize logic inline (god-object, see secondary_stages and findings).",
+      "evidence": "ontologylab/kgstore.py:603",
+      "secondary_stages": [
+        {"stage": "cross-cutting", "evidence": "ontologylab/kgstore.py:791", "why": "_migrate (791-918) alters columns for cutover, _migrate_ontology_terms (919-1053) and _backfill_legacy_ontology_terms (1054-1094) migrate the legacy vocabulary: storage-lifecycle DDL lives inside the store"},
+        {"stage": "Verify", "evidence": "ontologylab/kgstore.py:2937", "why": "approve/reject/quarantine/retract_review/compensate_review/approve_with_grounding_waiver/reopen/invalidate_edge (2937-3266), bulk_approve (3267), decide_annotation (3503), record_critic_review (4217): proposal approval and review decisions are store methods, not a stage module"},
+        {"stage": "Consume", "evidence": "ontologylab/kgstore.py:4926", "why": "name_search (4926), semantic_search (4972), vector_search (5102), hybrid_search (5201), graph_query (5310), find_path (5478): search/retrieval implemented as inline SQL inside the store"},
+        {"stage": "Publish", "evidence": "ontologylab/kgstore.py:4751", "why": "verified_subgraph (4751-4772) selects and exports the pack payload: pack-export logic lives in the store"},
+        {"stage": "Resolve", "evidence": "ontologylab/kgstore.py:3357", "why": "record_merge_candidate (3357), merge_nodes (3657-3940), dismiss_merge_candidate (3639): merge/entity-resolution decisions are store methods"},
+        {"stage": "Synthesize", "evidence": "ontologylab/kgstore.py:4352", "why": "upsert_enrichment (4352), list_enrichments (4372), list_communities (4683), write_communities (4720): enrichment and community synthesis state lives in the store"},
+        {"stage": "Extract", "evidence": "ontologylab/kgstore.py:2593", "why": "insert_proposed (2593-2802) validates and persists extraction proposals produced by the Extract stage"},
+        {"stage": "Normalize", "evidence": "ontologylab/kgstore.py:2029", "why": "insert_document (2029-2164) canonicalizes documents, enforcing the DOI-unique identity (idx_documents_doi)"},
+        {"stage": "infra", "evidence": "ontologylab/kgstore.py:703", "why": "open (703-790), _SCHEMA DDL (211-540), install_schema (1294): the legitimate storage/schema core"}
+      ],
+      "overlaps": ["ontologylab.server.routes", "ontologylab.main", "ontologylab.merge", "ontologylab.communities"],
+      "hidden_fallbacks": [
+        {"evidence": "ontologylab/kgstore.py:651", "what": "_vec_available falls back to brute-force cosine when the sqlite-vec extension is absent; same-result but silently degrades the retrieval path"}
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.main",
+      "stage": "Consume",
+      "rationale": "The CLI entrypoint surface; 39 add_parser sites (~42 leaf subcommands) with substantial pipeline logic inlined in cmd_* instead of stage modules.",
+      "evidence": "ontologylab/main.py:2291",
+      "secondary_stages": [
+        {"stage": "Acquire", "evidence": "ontologylab/main.py:483", "why": "cmd_collect runs allowlist gates and connector fetches inline"},
+        {"stage": "Extract", "evidence": "ontologylab/main.py:619", "why": "_extract_async builds Caps/KillSwitch and drives run_extraction inline"},
+        {"stage": "Verify", "evidence": "ontologylab/main.py:724", "why": "cmd_review/approve/reject/quarantine print and drive the human review gate inline"},
+        {"stage": "Publish", "evidence": "ontologylab/main.py:1287", "why": "cmd_build_pack orchestrates pack build and print inline"},
+        {"stage": "Resolve", "evidence": "ontologylab/main.py:1195", "why": "cmd_merge_scan drives merge candidate scan inline"},
+        {"stage": "Synthesize", "evidence": "ontologylab/main.py:122", "why": "cmd_method compiles method workspaces inline"}
+      ],
+      "overlaps": ["ontologylab.server.routes", "ontologylab.server.jobs", "ontologylab.server.ingest_routes"],
+      "hidden_fallbacks": [
+        {"evidence": "ontologylab/main.py:1526", "what": "cmd_search silently falls back to lexical search when the embedder is unavailable or embeddings mismatch"},
+        {"evidence": "ontologylab/main.py:1552", "what": "cmd_search keeps RRF order when the reranker is uncached: silent retrieval degradation"},
+        {"evidence": "ontologylab/main.py:398", "what": "extract --engine default='mock' (also critic 1999, search 2165) silently selects the mock scanner instead of paths.DEFAULT_ENGINE"}
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.models",
+      "stage": "infra",
+      "rationale": "Shared dataclasses (Document, proposals, terms, PackManifest) and the Engine Protocol boundary.",
+      "evidence": "ontologylab/models.py:19",
+      "secondary_stages": [
+        {"stage": "infra", "evidence": "ontologylab/models.py:285", "why": "Engine Protocol declares the engine slot's generate() contract"}
+      ],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.ontology_schema",
+      "stage": "infra",
+      "rationale": "Default ontology definition constants and term IRI/lifecycle vocabulary.",
+      "evidence": "ontologylab/ontology_schema.py:34",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.schemas"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.paths",
+      "stage": "infra",
+      "rationale": "Data/pack/job/registry path derivation, offline kill-switch mode, and engine defaults.",
+      "evidence": "ontologylab/paths.py:40",
+      "secondary_stages": [
+        {"stage": "infra", "evidence": "ontologylab/paths.py:231", "why": "assert_network_allowed enforces the offline egress kill switch"}
+      ],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.provenance",
+      "stage": "cross-cutting",
+      "rationale": "Append-only run provenance JSONL plus status snapshot and usage accounting.",
+      "evidence": "ontologylab/provenance.py:43",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.trace"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.providers",
+      "stage": "infra",
+      "rationale": "API provider registry: load/validate/save credentials with restrictive file modes.",
+      "evidence": "ontologylab/providers.py:216",
+      "secondary_stages": [
+        {"stage": "infra", "evidence": "ontologylab/providers.py:189", "why": "resolve_api_key selects the key source for an engine adapter"}
+      ],
+      "overlaps": ["ontologylab.keychain", "ontologylab.engines"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.safety",
+      "stage": "infra",
+      "rationale": "Run-loop safety primitives: Caps budgets and KillSwitch sentinel/signal handling.",
+      "evidence": "ontologylab/safety.py:26",
+      "secondary_stages": [],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.schemas",
+      "stage": "infra",
+      "rationale": "Bundled ontology preset schema definitions for KGStore.install_schema.",
+      "evidence": "ontologylab/schemas.py:409",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.ontology_schema"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.server",
+      "stage": "infra",
+      "rationale": "Package __init__ docstring-only marker for the FastAPI dashboard server.",
+      "evidence": "ontologylab/server/__init__.py:1",
+      "secondary_stages": [],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.server.app",
+      "stage": "infra",
+      "rationale": "FastAPI app assembly: middleware, session install, router registration, static web UI.",
+      "evidence": "ontologylab/server/app.py:57",
+      "secondary_stages": [
+        {"stage": "Consume", "evidence": "ontologylab/server/app.py:38", "why": "serves the bundled web dashboard as the human consume surface"}
+      ],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.server.dependencies",
+      "stage": "infra",
+      "rationale": "Request-scoped AppDependencies container wiring data_dir, settings, and job registry.",
+      "evidence": "ontologylab/server/dependencies.py:25",
+      "secondary_stages": [],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.server.ingest_routes",
+      "stage": "Acquire",
+      "rationale": "Internal authority-write ingestion endpoints over the shared ingestion seam (run_ingest/collect_sample).",
+      "evidence": "ontologylab/server/ingest_routes.py:25",
+      "secondary_stages": [
+        {"stage": "Normalize", "evidence": "ontologylab/server/ingest_routes.py:46", "why": "reconcile_files + project_outbox complete the normalize lifecycle after ingest"}
+      ],
+      "overlaps": ["ontologylab.main", "ontologylab.server.routes"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.server.jobs",
+      "stage": "Extract",
+      "rationale": "Background extraction job registry; _extract_async is an explicit mirror of main._extract_async.",
+      "evidence": "ontologylab/server/jobs.py:283",
+      "secondary_stages": [
+        {"stage": "Acquire", "evidence": "ontologylab/server/jobs.py:801", "why": "_research_async collect phase runs formulate_scholarly_queries + fetch_sources + ingest fan-out inline"},
+        {"stage": "Synthesize", "evidence": "ontologylab/server/jobs.py:994", "why": "corpus_summary + write_corpus_artifacts synthesize the retrieved corpus before extraction"}
+      ],
+      "overlaps": ["ontologylab.main"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.server.rate_limit",
+      "stage": "infra",
+      "rationale": "In-memory windowed rate limiter for the provider test endpoint.",
+      "evidence": "ontologylab/server/rate_limit.py:26",
+      "secondary_stages": [],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.server.routes",
+      "stage": "Consume",
+      "rationale": "85-route FastAPI surface for the dashboard; search/chat/review/publish endpoints that mostly delegate but with inline pipeline logic in collect/enrich/chat.",
+      "evidence": "ontologylab/server/routes.py:663",
+      "secondary_stages": [
+        {"stage": "Acquire", "evidence": "ontologylab/server/routes.py:1894", "why": "collect implements the full acquire pipeline inline: gate order, connector fan-out, ingest_documents"},
+        {"stage": "Verify", "evidence": "ontologylab/server/routes.py:512", "why": "approve_proposal and the proposal action routes drive the human review gate"},
+        {"stage": "Publish", "evidence": "ontologylab/server/routes.py:2715", "why": "packs_build/packs_build_mcpb orchestrate pack publication"},
+        {"stage": "Resolve", "evidence": "ontologylab/server/routes.py:1378", "why": "merge_scan/merge_candidate_merge and reconcile_* routes drive identity resolution"},
+        {"stage": "Synthesize", "evidence": "ontologylab/server/routes.py:1319", "why": "enrich_nodes and communities routes surface synthesis results"},
+        {"stage": "Extract", "evidence": "ontologylab/server/routes.py:2127", "why": "start_extract/start_research spawn extraction jobs"},
+        {"stage": "Source", "evidence": "ontologylab/server/routes.py:1461", "why": "create_source writes source credentials to the Keychain inline"}
+      ],
+      "overlaps": ["ontologylab.main", "ontologylab.server.ingest_routes", "ontologylab.server.jobs"],
+      "hidden_fallbacks": [
+        {"evidence": "ontologylab/server/routes.py:209", "what": "translate_visible_text iterates claude->codex->gemini in order when engine=='auto': an implicit engine failover chain"},
+        {"evidence": "ontologylab/server/routes.py:2390", "what": "_run_intent calls sibling route functions (search_entities, enrich_nodes, packs_build, start_research) directly: cross-route invocation hides a second dispatch path inside chat"}
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.server.schemas",
+      "stage": "infra",
+      "rationale": "Pydantic request/response models for the HTTP surface.",
+      "evidence": "ontologylab/server/schemas.py:30",
+      "secondary_stages": [],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.server.security",
+      "stage": "infra",
+      "rationale": "Host-header trust checks and cross-site state-change protection for the local server.",
+      "evidence": "ontologylab/server/security.py:45",
+      "secondary_stages": [],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.server.session",
+      "stage": "infra",
+      "rationale": "Single-user session token minting, persistence, and comparison.",
+      "evidence": "ontologylab/server/session.py:33",
+      "secondary_stages": [],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.server.settings",
+      "stage": "infra",
+      "rationale": "Server settings persistence, environment application, engine availability, and cost summary.",
+      "evidence": "ontologylab/server/settings.py:79",
+      "secondary_stages": [
+        {"stage": "Consume", "evidence": "ontologylab/server/settings.py:121", "why": "engines() computes which engine names the UI may offer"}
+      ],
+      "overlaps": ["ontologylab.engines"],
+      "hidden_fallbacks": [
+        {"evidence": "ontologylab/server/settings.py:135", "what": "engines() always lists mock as available, and the chat composer falls through to mock when CLI engines report unavailable: an implicit mock fallback in the consume surface"}
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.trace",
+      "stage": "infra",
+      "rationale": "Structured Step events for job/progress tracing.",
+      "evidence": "ontologylab/trace.py:57",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.provenance"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    }
+  ],
+  "findings": [
+    "kgstore.py (5587 LOC) is a god-object: the single class KGStore (kgstore.py:603) holds logic for 9 of the 11 canonical stages. Verify: approve..invalidate_edge (kgstore.py:2937-3266) + decide_annotation (kgstore.py:3503) + record_critic_review (kgstore.py:4217). Consume: name_search..find_path (kgstore.py:4926-5567). Publish: verified_subgraph pack export (kgstore.py:4751). Resolve: merge_nodes (kgstore.py:3657-3940). Synthesize: communities/enrichments (kgstore.py:4352-4739). Extract: insert_proposed (kgstore.py:2593). Normalize: insert_document (kgstore.py:2029). cross-cutting: migration DDL _migrate (kgstore.py:791-1094). Only Acquire and Source live outside it.",
+    "main.py is a CLI mega-layer, not a thin Consume surface: 39 add_parser call sites (~42 leaf subcommands incl. reconcile x6, method x5, registry x3, provider x4) and 38 in-function lazy imports. Pipeline logic lives in the CLI: cmd_collect re-implements allowlist gates + connector fan-out (ontologylab/main.py:483), _extract_async builds Caps/KillSwitch and drives extraction (ontologylab/main.py:619), cmd_search inlines query expansion + hybrid search (ontologylab/main.py:1497), cmd_build_pack orchestrates publication (ontologylab/main.py:1287).",
+    "server/routes.py has 85 routes and several implement pipeline logic inline instead of delegating: collect re-implements the entire acquire pipeline (gates, fan-out, ingest_documents) at ontologylab/server/routes.py:1894-2090; enrich_proposal does registry lookup inline (ontologylab/server/routes.py:1859); chat/_run_intent re-dispatches through sibling route functions (ontologylab/server/routes.py:2390). Duplicated CLI pairs with different code paths: routes.collect (ontologylab/server/routes.py:1894) vs main.cmd_collect (ontologylab/main.py:483); routes.critic_run (ontologylab/server/routes.py:1296) vs main.cmd_critic (ontologylab/main.py:1048); routes.merge_scan (ontologylab/server/routes.py:1378) vs main.cmd_merge_scan (ontologylab/main.py:1195); routes.packs_build (ontologylab/server/routes.py:2715) vs main.cmd_build_pack (ontologylab/main.py:1287); ingest_routes.ingest_authority (ingest_routes.py:25) vs main.cmd_ingest (ontologylab/main.py:447); server.jobs._extract_async (jobs.py:707) is an acknowledged mirror of main._extract_async (ontologylab/main.py:619).",
+    "Engine slot is well-shaped (models.Engine Protocol generate(prompt,*,model) at ontologylab/models.py:285; Mock/Claude/Codex/Gemini/Api engines at ontologylab/engines.py:483/534/566/594/706; factory get_engine at ontologylab/engines.py:890), but default resolution is split and a hidden fallback exists: ontologylab/paths.py:20 declares DEFAULT_ENGINE='claude' while the CLI --engine defaults to 'mock' (ontologylab/main.py:398, ontologylab/main.py:1999, ontologylab/main.py:2165) and settings.engines() documents the chat composer silently falling through to mock (settings.py:135).",
+    "Acquire slot exists (Connector Protocol at connectors/base.py:157; implementations PaperApiConnector paper_api.py:1634, WebCrawlConnector web_crawl.py:118; fulltext uses module functions not the protocol), but registry_lookup bypasses the Source allowlist: it hardcodes registry hosts (registry_lookup.py:36-38) and fetches via urllib.request.urlopen (registry_lookup.py:66) without connectors.allowlist.check_url (ontologylab/connectors/allowlist.py:112), reachable from the /review/{node_id}/enrich route (ontologylab/server/routes.py:1867).",
+    "Two parallel registry-lookup implementations exist: connectors/resources.py lookup() (resources.py:371, used by enrichment.py:160) and connectors/registry_lookup.py lookup_entity() (registry_lookup.py:180, used by ontologylab/server/routes.py:1867) with overlapping registry coverage (UniProt/PubChem), duplicating Resolve fetch logic.",
+    "main.py cmd_search contains three silent fallbacks in one function: expansion fails open to the raw query (ontologylab/main.py:1523), embedder failure falls back to lexical (ontologylab/main.py:1526), reranker miss keeps RRF order (ontologylab/main.py:1552): hidden retrieval degradation with no typed boundary."
+  ]
+}

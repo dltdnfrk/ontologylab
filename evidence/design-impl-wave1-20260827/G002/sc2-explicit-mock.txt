@@ -1,0 +1,9 @@
+[ontologylab] new document rep-f0c882cebb6d <- file:///private/tmp/ol-w1-g2fix-SxIu41/s.md
+[ontologylab] collected 1 document(s) (1 new)
+collect_exit=0
+[ontologylab] rep-f0c882cebb6d#0: +3 nodes (+0 merged), +2 edges
+[ontologylab] extraction done: 3 new nodes, 2 new edges (proposed; run `ontologylab review` to verify)
+extract_exit=0
+nodes= ['KitchenDisplay', 'OrderApp', 'PaymentGateway']
+G002-SC2 OK
+cleanup: rm -rf /tmp/ol-w1-g2sc2-ZjN5Jj /tmp/ol-w1-g2fix-SxIu41

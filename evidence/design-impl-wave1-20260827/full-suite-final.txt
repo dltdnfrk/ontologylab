@@ -1,0 +1,14 @@
+E           AttributeError: 'module' object at ontologylab.server.jobs has no attribute 'run_extraction'
+
+.venv/lib/python3.12/site-packages/_pytest/monkeypatch.py:97: AttributeError
+=============================== warnings summary ===============================
+tests/conftest.py:8
+  /Users/hyunjun/Documents/MUNI/ontologylab/tests/conftest.py:8: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as _StarletteTestClient
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/qa_round2/test_round2_redteam.py::test_r2_f2_04_identical_values_at_both_check_sites
+FAILED tests/qa_round2/test_round2_redteam.py::test_r2_f3_06_oserror_not_urlerror_hits_collect_failed
+FAILED tests/test_error_disclosure.py::test_a_real_failing_job_records_only_the_summary
+3 failed, 2991 passed, 1 skipped, 2 xfailed, 1 warning in 1543.80s (0:25:43)

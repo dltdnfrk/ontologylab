@@ -1,0 +1,818 @@
+{
+  "lane": "L3-extract-review",
+  "modules": [
+    {
+      "name": "ontologylab.calibration",
+      "stage": "Verify",
+      "rationale": "Fits isotonic/ECE maps of extractor confidence onto review outcomes; annotates the queue and never rewrites stored confidences.",
+      "evidence": "ontologylab/calibration.py:181",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.conformal", "ontologylab.critic", "ontologylab.evaluation"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.citation",
+      "stage": "Verify",
+      "rationale": "Thin savepoint facade over citation bind/store; the live citation receipt API used at extract-write and review grounding.",
+      "evidence": "ontologylab/citation.py:32",
+      "secondary_stages": [
+        {
+          "stage": "Extract",
+          "evidence": "ontologylab/extractor.py:898",
+          "why": "run_extraction persists chunk citations in the same write as proposed facts — Extract→Verify shortcut."
+        }
+      ],
+      "overlaps": ["ontologylab.citation_bind", "ontologylab.citation_store", "ontologylab.grounded_review"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.citation_bind",
+      "stage": "Verify",
+      "rationale": "Builds CitationBinding rows from one extracted chunk; a real construct-vs-verify cut versus citation_verify.",
+      "evidence": "ontologylab/citation_bind.py:33",
+      "secondary_stages": [
+        {
+          "stage": "Extract",
+          "evidence": "ontologylab/citation_bind.py:33",
+          "why": "Only called from persist_chunk_citations during extraction, not from the human-review path."
+        }
+      ],
+      "overlaps": ["ontologylab.citation", "ontologylab.citation_verify"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/citation_bind.py:38",
+          "what": "persist_once returns () when _load_context finds no extraction chunk receipt — citations silently omitted instead of refusing."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.citation_ids",
+      "stage": "Verify",
+      "rationale": "Content-addressed citation_receipt_id/fact_revision_id; mechanical ids slice of the citation concern (60 LOC), not its own stage.",
+      "evidence": "ontologylab/citation_ids.py:9",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.extraction_receipt_ids", "ontologylab.grounded_review_ids"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.citation_schema",
+      "stage": "Verify",
+      "rationale": "DDL+append-only triggers for citation_receipts; mechanical schema slice (61 LOC) of citation Verify, not a separate infra stage.",
+      "evidence": "ontologylab/citation_schema.py:59",
+      "secondary_stages": [
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/citation_schema.py:59",
+          "why": "ensure_* is a storage adapter, but it exists only to persist Verify receipts."
+        }
+      ],
+      "overlaps": ["ontologylab.extraction_receipt_schema", "ontologylab.grounded_review_schema"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.citation_store",
+      "stage": "Verify",
+      "rationale": "Caller-owned put/get/list of citation receipts after verify_binding; 202 LOC store slice sitting under the ~250 cap.",
+      "evidence": "ontologylab/citation_store.py:19",
+      "secondary_stages": [
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/citation_store.py:169",
+          "why": "SQLite insert path is storage, not a second transformation."
+        }
+      ],
+      "overlaps": ["ontologylab.citation", "ontologylab.citation_verify"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.citation_types",
+      "stage": "Verify",
+      "rationale": "Typed boundary for citation receipts/bindings/refusals; the only citation split that is a real contract rather than a LOC cut.",
+      "evidence": "ontologylab/citation_types.py:14",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.extraction_receipt_types", "ontologylab.grounded_review_types"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.citation_verify",
+      "stage": "Verify",
+      "rationale": "Checks bindings against ready Representation bytes/hashes/spans; the verify half of the bind/verify pair (240 LOC, at the cap).",
+      "evidence": "ontologylab/citation_verify.py:61",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.citation_bind", "ontologylab.citation_store"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.communities",
+      "stage": "Synthesize",
+      "rationale": "Partitions the verified subgraph and writes pack-time community summaries (Leiden or label-propagation + extractive/LLM summary).",
+      "evidence": "ontologylab/communities.py:224",
+      "secondary_stages": [
+        {
+          "stage": "Publish",
+          "evidence": "ontologylab/main.py:1312",
+          "why": "Invoked from pack build, not from Extract/Verify; communities are sealed into the pack."
+        }
+      ],
+      "overlaps": [],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/communities.py:57",
+          "what": "community_algorithm() silently reports label_propagation when leidenalg/igraph are missing; detect_communities(algorithm='auto') at :107 uses that."
+        },
+        {
+          "evidence": "ontologylab/communities.py:264",
+          "what": "LLM summarizer exception or None fails open to extractive_summary; pack records method extractive without a failed-LLM flag."
+        }
+      ],
+      "engine_slot": {
+        "interface": "Summarizer via llm_summarizer(engine).generate / community_algorithm slot (leiden|label_propagation)",
+        "implementations": ["extractive_summary", "llm_summarizer(MockEngine|ClaudeEngine|CodexEngine|GeminiEngine|ApiEngine)", "leiden", "label_propagation"],
+        "insertion_point": "ontologylab/communities.py:314"
+      }
+    },
+    {
+      "name": "ontologylab.competency",
+      "stage": "Verify",
+      "rationale": "Frozen Q1/Q2/Q3 release-gate that runs extract→review→pack→query against gold fixtures; a whole-pipeline mega-check, not one stage.",
+      "evidence": "ontologylab/competency.py:626",
+      "secondary_stages": [
+        {
+          "stage": "Extract",
+          "evidence": "ontologylab/competency.py:132",
+          "why": "Q2 drives parse_and_validate_extraction through a hardcoded MockEngine."
+        },
+        {
+          "stage": "Publish",
+          "evidence": "ontologylab/competency.py:41",
+          "why": "Q3 builds a pack via packbuilder.build_pack."
+        }
+      ],
+      "overlaps": ["ontologylab.evaluation", "ontologylab.extractor"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/competency.py:142",
+          "what": "Always constructs MockEngine(); no get_engine slot — mock is not a caller choice."
+        }
+      ],
+      "engine_slot": {
+        "interface": "MockEngine.generate (hardcoded, not get_engine)",
+        "implementations": ["MockEngine"],
+        "insertion_point": "ontologylab/competency.py:142"
+      }
+    },
+    {
+      "name": "ontologylab.conformal",
+      "stage": "Verify",
+      "rationale": "Split-conformal τ from critic scores on rejected items; badges the review queue and has no path to a status change.",
+      "evidence": "ontologylab/conformal.py:142",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.calibration", "ontologylab.critic"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.critic",
+      "stage": "Verify",
+      "rationale": "Second-engine advisory plausibility scores into critic_reviews; sorts/flags the queue and never approves or rejects.",
+      "evidence": "ontologylab/critic.py:222",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.conformal", "ontologylab.calibration"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/main.py:1999",
+          "what": "CLI `ontologylab critic --engine` defaults to mock (hidden CamelCase scorer on real proposals unless overridden)."
+        },
+        {
+          "evidence": "ontologylab/critic.py:62",
+          "what": "resolve_critic_model substitutes CRITIC_MODEL (Haiku-class) when engine_name=='claude' and no explicit model."
+        },
+        {
+          "evidence": "ontologylab/critic.py:268",
+          "what": "engine/parse failure fails open: batch skipped, stats.batches_failed++, loop continues."
+        }
+      ],
+      "engine_slot": {
+        "interface": "Engine.generate (resolved by get_engine at callers; critic_review takes an already-built engine)",
+        "implementations": ["MockEngine", "ClaudeEngine", "CodexEngine", "GeminiEngine", "ApiEngine"],
+        "insertion_point": "ontologylab/critic.py:266"
+      }
+    },
+    {
+      "name": "ontologylab.embeddings",
+      "stage": "Consume",
+      "rationale": "Embedder protocol + hashing/MiniLM backends for hybrid search (and merge cosine); a retrieval engine adapter, not Extract.",
+      "evidence": "ontologylab/embeddings.py:219",
+      "secondary_stages": [
+        {
+          "stage": "Resolve",
+          "evidence": "ontologylab/merge.py:45",
+          "why": "scan_merge_candidates uses cosine/unpack_vector as one ER signal."
+        },
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/embeddings.py:33",
+          "why": "Embedder is a nameable engine adapter reused across Consume and Resolve."
+        }
+      ],
+      "overlaps": ["ontologylab.rerankers", "ontologylab.merge"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/embeddings.py:243",
+          "what": "get_embedder('auto') falls back to HashingEmbedder (lexical n-gram proxy) when sentence-transformers is missing or the offline load fails."
+        }
+      ],
+      "engine_slot": {
+        "interface": "Embedder.embed",
+        "implementations": ["HashingEmbedder", "SentenceTransformerEmbedder"],
+        "insertion_point": "ontologylab/embeddings.py:219"
+      }
+    },
+    {
+      "name": "ontologylab.enrichment",
+      "stage": "Synthesize",
+      "rationale": "Looks up verified nodes in curated resources and queues annotation proposals; no LLM get_engine path.",
+      "evidence": "ontologylab/enrichment.py:114",
+      "secondary_stages": [
+        {
+          "stage": "Acquire",
+          "evidence": "ontologylab/enrichment.py:135",
+          "why": "Default lookup_fn is connectors.resources.lookup (network fetch of registry records)."
+        }
+      ],
+      "overlaps": ["ontologylab.proposals"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/enrichment.py:94",
+          "what": "Missing annotations table is swallowed (except Exception → empty decided set) so enrichment proceeds on predating stores."
+        },
+        {
+          "evidence": "ontologylab/enrichment.py:161",
+          "what": "Per-resource lookup exceptions are recorded and skipped rather than failing the pass."
+        }
+      ],
+      "engine_slot": {
+        "interface": "lookup_fn(resource, name) -> match | raise",
+        "implementations": ["ontologylab.connectors.resources.lookup"],
+        "insertion_point": "ontologylab/enrichment.py:135"
+      }
+    },
+    {
+      "name": "ontologylab.evaluation",
+      "stage": "Verify",
+      "rationale": "Gold-file triple P/R/F1 of store extractions; CLI measurement harness, not a live pipeline stage.",
+      "evidence": "ontologylab/evaluation.py:316",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.competency", "ontologylab.calibration"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.expansion",
+      "stage": "Synthesize",
+      "rationale": "LLM lexical query variants composed into FTS5 MATCH; vocab-listed Synthesize, actually invoked on the Consume search path.",
+      "evidence": "ontologylab/expansion.py:88",
+      "secondary_stages": [
+        {
+          "stage": "Consume",
+          "evidence": "ontologylab/mcp_server.py:821",
+          "why": "Callers are search (CLI --expand, MCP semantic_search_expanded), not Extract/Synthesize of the graph."
+        }
+      ],
+      "overlaps": ["ontologylab.embeddings", "ontologylab.rerankers"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/expansion.py:101",
+          "what": "engine.generate or parse failure returns ([], usage_with_error) — search continues on the raw query."
+        },
+        {
+          "evidence": "ontologylab/main.py:2165",
+          "what": "CLI `ontologylab search --engine` defaults to mock when --expand is set."
+        }
+      ],
+      "engine_slot": {
+        "interface": "Engine.generate (injected; get_engine at callers)",
+        "implementations": ["MockEngine", "ClaudeEngine", "CodexEngine", "GeminiEngine", "ApiEngine"],
+        "insertion_point": "ontologylab/expansion.py:99"
+      }
+    },
+    {
+      "name": "ontologylab.extraction_receipt_ids",
+      "stage": "Extract",
+      "rationale": "SHA-256 plan/run/chunk receipt ids; mechanical ids slice, also imported as a hash helper by citation_ids and selection_ids.",
+      "evidence": "ontologylab/extraction_receipt_ids.py:24",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.citation_ids", "ontologylab.selection_ids"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.extraction_receipt_schema",
+      "stage": "Extract",
+      "rationale": "DDL for extraction_run/chunk receipts; mechanical 74-LOC schema cut of one persist-receipts concern.",
+      "evidence": "ontologylab/extraction_receipt_schema.py:72",
+      "secondary_stages": [
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/extraction_receipt_schema.py:72",
+          "why": "ensure_receipt_schema is storage DDL, not a second transformation."
+        }
+      ],
+      "overlaps": ["ontologylab.citation_schema", "ontologylab.extraction_state"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.extraction_receipt_store",
+      "stage": "Extract",
+      "rationale": "Immutable put_once of run/chunk receipts against ready bytes; 240 LOC — the 250-cap store cut of extraction_receipts.",
+      "evidence": "ontologylab/extraction_receipt_store.py:33",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.extraction_receipts", "ontologylab.extraction_state"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.extraction_receipt_types",
+      "stage": "Extract",
+      "rationale": "Typed ExtractionRunBinding/ChunkSpan/receipt set; real typed boundary of the otherwise mechanical receipt split.",
+      "evidence": "ontologylab/extraction_receipt_types.py:14",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.citation_types", "ontologylab.selection_types"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.extraction_receipts",
+      "stage": "Extract",
+      "rationale": "45-LOC savepoint facade over receipt schema+store; no additional transformation beyond put_extraction_receipts.",
+      "evidence": "ontologylab/extraction_receipts.py:28",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.extraction_receipt_store", "ontologylab.extraction_state"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.extraction_state",
+      "stage": "Extract",
+      "rationale": "SQLite run/chunk lifecycle (plan/claim/succeed/fail) plus re-export of put_extraction_receipts.",
+      "evidence": "ontologylab/extraction_state.py:236",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/extraction_state.py:133",
+          "why": "ensure_schema also installs citation_schema and grounded_review_schema — Extract owning Verify DDL."
+        }
+      ],
+      "overlaps": ["ontologylab.extraction_receipts", "ontologylab.extractor"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.extractor",
+      "stage": "Extract",
+      "rationale": "Chunk/prompt/parse/validate/run loop that writes ProposedEntity/Relation; 930-LOC mega-module and the Extract engine insertion point.",
+      "evidence": "ontologylab/extractor.py:718",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/extractor.py:898",
+          "why": "persist_chunk_citations runs inside the extract write, not after a Verify stage boundary."
+        }
+      ],
+      "overlaps": ["ontologylab.research_extract", "ontologylab.proposals", "ontologylab.citation"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/extractor.py:246",
+          "what": "_locate falls through to alphanumeric-skeleton matching when the token regex misses."
+        },
+        {
+          "evidence": "ontologylab/extractor.py:563",
+          "what": "Relation endpoints naming un-emitted entities mint synthesized=True placeholders, even with no source span."
+        },
+        {
+          "evidence": "ontologylab/extractor.py:825",
+          "what": "EngineError on a chunk is logged and skipped (continue); the run does not fail closed."
+        }
+      ],
+      "engine_slot": {
+        "interface": "Engine.generate (injected; callers resolve via ontologylab.engines.get_engine)",
+        "implementations": ["MockEngine", "ClaudeEngine", "CodexEngine", "GeminiEngine", "ApiEngine"],
+        "insertion_point": "ontologylab/extractor.py:822"
+      }
+    },
+    {
+      "name": "ontologylab.grounded_review",
+      "stage": "Verify",
+      "rationale": "Live append-only ReviewDecision API (apply_review / waiver); 255 LOC facade that still contains _apply/_waive business logic.",
+      "evidence": "ontologylab/grounded_review.py:61",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.review_decision", "ontologylab.kgstore"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.grounded_review_ids",
+      "stage": "Verify",
+      "rationale": "review_decision_id / build_decision hashing; mechanical ids slice, also used by pack_receipt_seal.",
+      "evidence": "ontologylab/grounded_review_ids.py:87",
+      "secondary_stages": [
+        {
+          "stage": "Publish",
+          "evidence": "ontologylab/pack_receipt_seal.py:17",
+          "why": "Pack seal recomputes historical_review_decision_id from the same formula."
+        }
+      ],
+      "overlaps": ["ontologylab.review_decision_ids", "ontologylab.citation_ids"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.grounded_review_members",
+      "stage": "Verify",
+      "rationale": "Loads stored member citations for a review item; 86-LOC mechanical slice of apply_review preflight.",
+      "evidence": "ontologylab/grounded_review_members.py:19",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.grounded_review_preflight", "ontologylab.citation"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.grounded_review_payload",
+      "stage": "Verify",
+      "rationale": "Serializes ReviewDecision to machine_receipt/batch_payload dicts; 62-LOC mechanical slice of the facade.",
+      "evidence": "ontologylab/grounded_review_payload.py:14",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.grounded_review"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.grounded_review_preflight",
+      "stage": "Verify",
+      "rationale": "Loads members, requires citations, asserts legal transitions before a decision is written — a real gate inside the mechanical family.",
+      "evidence": "ontologylab/grounded_review_preflight.py:74",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.review_grounding", "ontologylab.grounded_review_members"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.grounded_review_schema",
+      "stage": "Verify",
+      "rationale": "DDL for grounded_review_decisions/current plus append-only triggers; mechanical 74-LOC schema cut.",
+      "evidence": "ontologylab/grounded_review_schema.py:72",
+      "secondary_stages": [
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/kgstore.py:752",
+          "why": "KGStore.open also ensure_grounded_review_schema — storage mega-module reaching into Verify DDL."
+        }
+      ],
+      "overlaps": ["ontologylab.review_decision_schema", "ontologylab.extraction_state"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.grounded_review_store",
+      "stage": "Verify",
+      "rationale": "Persist/list/current pointer for ReviewDecision rows; 244 LOC store cut at the 250 cap.",
+      "evidence": "ontologylab/grounded_review_store.py:17",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.review_decision_store", "ontologylab.grounded_review"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.grounded_review_types",
+      "stage": "Verify",
+      "rationale": "ReviewAction/ReviewDecision/WaiverRequest typed boundary; the real contract of the grounded_review family.",
+      "evidence": "ontologylab/grounded_review_types.py:11",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.review_decision_types"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.intent",
+      "stage": "Consume",
+      "rationale": "Chat-sentence classifier over a fixed ACTIONS table; uses the Extract engine slot but is a Consume surface, not graph extraction.",
+      "evidence": "ontologylab/intent.py:184",
+      "secondary_stages": [
+        {
+          "stage": "Extract",
+          "evidence": "ontologylab/intent.py:200",
+          "why": "Same Engine.generate contract as extractor; MockEngine routes on INTENT_MARKER_OPEN."
+        }
+      ],
+      "overlaps": ["ontologylab.extractor"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/intent.py:202",
+          "what": "Any engine exception becomes Intent('unknown') rather than failing the request."
+        }
+      ],
+      "engine_slot": {
+        "interface": "Engine.generate (injected; get_engine at server/routes.py chat)",
+        "implementations": ["MockEngine", "ClaudeEngine", "CodexEngine", "GeminiEngine", "ApiEngine"],
+        "insertion_point": "ontologylab/intent.py:200"
+      }
+    },
+    {
+      "name": "ontologylab.merge",
+      "stage": "Resolve",
+      "rationale": "Blocked fuzzy duplicate scan that only proposes merge_candidates for a human; entity-resolution, not Extract/Verify.",
+      "evidence": "ontologylab/merge.py:197",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/merge.py:34",
+          "why": "Pairs land in a human merge/dismiss queue; the scanner itself does not merge."
+        }
+      ],
+      "overlaps": ["ontologylab.embeddings"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.proposals",
+      "stage": "Extract",
+      "rationale": "1229-LOC mega-module: extraction rows → content-addressed OntologyProposal artifacts, plus human verify_ontology_proposal apply.",
+      "evidence": "ontologylab/proposals.py:724",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/proposals.py:1107",
+          "why": "verify_ontology_proposal applies a proposal only with explicit human verification metadata."
+        }
+      ],
+      "overlaps": ["ontologylab.extractor", "ontologylab.grounded_review"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.rerankers",
+      "stage": "Consume",
+      "rationale": "Optional cross-encoder over the RRF shortlist; retrieval engine adapter with silent auto→None degradation.",
+      "evidence": "ontologylab/rerankers.py:91",
+      "secondary_stages": [
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/rerankers.py:35",
+          "why": "Reranker protocol is a replaceable engine adapter for Consume search."
+        }
+      ],
+      "overlaps": ["ontologylab.embeddings", "ontologylab.expansion"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/rerankers.py:107",
+          "what": "get_reranker('auto') returns None on any load failure; caller keeps RRF order with no error."
+        }
+      ],
+      "engine_slot": {
+        "interface": "Reranker.score",
+        "implementations": ["CrossEncoderReranker", "None"],
+        "insertion_point": "ontologylab/rerankers.py:91"
+      }
+    },
+    {
+      "name": "ontologylab.research_extract",
+      "stage": "Extract",
+      "rationale": "Research-run consumer: F9-select ready Representation, bind Task-2 receipts, then run_extraction — three stages in one function.",
+      "evidence": "ontologylab/research_extract.py:133",
+      "secondary_stages": [
+        {
+          "stage": "Normalize",
+          "evidence": "ontologylab/research_extract.py:144",
+          "why": "put_selection_receipt chooses the Work's preferred ready full text before any LLM call."
+        },
+        {
+          "stage": "Acquire",
+          "evidence": "ontologylab/research_extract.py:106",
+          "why": "attach_explicit_completeness_variants calls ingest_item to persist abstract/full-text siblings."
+        }
+      ],
+      "overlaps": ["ontologylab.extractor", "ontologylab.selection", "ontologylab.extraction_receipts"],
+      "hidden_fallbacks": [],
+      "engine_slot": {
+        "interface": "SupportsGenerate.generate on ResearchExtractSession.engine (get_engine at jobs.py, not here)",
+        "implementations": ["MockEngine", "ClaudeEngine", "CodexEngine", "GeminiEngine", "ApiEngine"],
+        "insertion_point": "ontologylab/research_extract.py:159"
+      }
+    },
+    {
+      "name": "ontologylab.review_decision",
+      "stage": "orphan",
+      "rationale": "Unreachable parallel review-decision facade (inventory.unreachable); duplicates grounded_review apply/waiver/preflight.",
+      "evidence": "ontologylab/review_decision.py:36",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/review_decision.py:70",
+          "why": "Would be the Verify decision API if anything imported it; nothing in main/server/mcp does."
+        }
+      ],
+      "overlaps": ["ontologylab.grounded_review", "ontologylab.review_grounding"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.review_decision_ids",
+      "stage": "orphan",
+      "rationale": "Unreachable hashing for review_decision_id/batch_id; mechanical ids of the dead review_decision pipeline.",
+      "evidence": "ontologylab/review_decision_ids.py:61",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/review_decision_ids.py:61",
+          "why": "Same identity concern as grounded_review_ids.review_decision_id."
+        }
+      ],
+      "overlaps": ["ontologylab.grounded_review_ids"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.review_decision_schema",
+      "stage": "orphan",
+      "rationale": "Unreachable DDL for review_decisions; mechanical schema of the dead pipeline (tests-only importer).",
+      "evidence": "ontologylab/review_decision_schema.py:67",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/review_decision_schema.py:67",
+          "why": "Would persist Verify decisions; no entrypoint reaches ensure_review_decision_schema."
+        }
+      ],
+      "overlaps": ["ontologylab.grounded_review_schema"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.review_decision_store",
+      "stage": "orphan",
+      "rationale": "Unreachable put/list of review_decisions rows; store slice of the dead duplicate pipeline.",
+      "evidence": "ontologylab/review_decision_store.py:21",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/review_decision_store.py:21",
+          "why": "Mirrors grounded_review_store.persist_decision."
+        }
+      ],
+      "overlaps": ["ontologylab.grounded_review_store"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.review_decision_types",
+      "stage": "orphan",
+      "rationale": "Unreachable DecisionKind/ReviewDecision types; parallel typed boundary to grounded_review_types.",
+      "evidence": "ontologylab/review_decision_types.py:11",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/review_decision_types.py:62",
+          "why": "Second ReviewDecision dataclass overlapping grounded_review_types.ReviewDecision."
+        }
+      ],
+      "overlaps": ["ontologylab.grounded_review_types"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.review_grounding",
+      "stage": "orphan",
+      "rationale": "Unreachable classify_member over citation receipts or legacy spans; dead twin of grounded_review_preflight.require_grounding.",
+      "evidence": "ontologylab/review_grounding.py:19",
+      "secondary_stages": [
+        {
+          "stage": "Verify",
+          "evidence": "ontologylab/review_grounding.py:19",
+          "why": "Grounding classification belongs in Verify; only review_decision imports it."
+        }
+      ],
+      "overlaps": ["ontologylab.grounded_review_preflight", "ontologylab.citation"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/review_grounding.py:137",
+          "what": "_legacy_grounding_tokens accepts pre-receipt span tokens so uncited facts can still classify as grounded."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.selection",
+      "stage": "Normalize",
+      "rationale": "F9 preferred-Representation receipt facade (put/get/list); Work/Representation identity, not human review — vocab 'selection' under Verify is a name collision.",
+      "evidence": "ontologylab/selection.py:23",
+      "secondary_stages": [
+        {
+          "stage": "Extract",
+          "evidence": "ontologylab/research_extract.py:144",
+          "why": "Only production caller is extract_research_documents, which treats selection as an Extract pre-step."
+        }
+      ],
+      "overlaps": ["ontologylab.research_extract", "ontologylab.selection_store"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.selection_ids",
+      "stage": "Normalize",
+      "rationale": "selection_receipt_id / inventory JSON; mechanical ids slice of F9 selection.",
+      "evidence": "ontologylab/selection_ids.py:66",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.extraction_receipt_ids"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.selection_policy",
+      "stage": "Normalize",
+      "rationale": "Ranks Representation candidates (ready/full-text/grade/source/stage) and select_winner — the only real policy boundary in the selection_* split.",
+      "evidence": "ontologylab/selection_policy.py:195",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.selection_store"],
+      "hidden_fallbacks": [
+        {
+          "evidence": "ontologylab/selection_policy.py:208",
+          "what": "PolicyVersion.V1 returns None unless usable_full_text_rank==0 (no eligible ready full text), which research_extract then raises as SelectionRefused."
+        }
+      ],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.selection_schema",
+      "stage": "Normalize",
+      "rationale": "DDL for preferred-selection receipts; mechanical 41-LOC schema cut.",
+      "evidence": "ontologylab/selection_schema.py:39",
+      "secondary_stages": [
+        {
+          "stage": "infra",
+          "evidence": "ontologylab/selection_schema.py:39",
+          "why": "ensure_selection_schema is storage DDL."
+        }
+      ],
+      "overlaps": ["ontologylab.citation_schema", "ontologylab.extraction_receipt_schema"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.selection_store",
+      "stage": "Normalize",
+      "rationale": "put_once computes inventory via policy and inserts an immutable selection receipt; 131-LOC store slice.",
+      "evidence": "ontologylab/selection_store.py:25",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.selection", "ontologylab.selection_policy"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.selection_types",
+      "stage": "Normalize",
+      "rationale": "PolicyVersion/RepresentationCandidate/SelectionReceipt typed boundary for F9 selection.",
+      "evidence": "ontologylab/selection_types.py:16",
+      "secondary_stages": [],
+      "overlaps": ["ontologylab.extraction_receipt_types"],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    },
+    {
+      "name": "ontologylab.semantic_staleness",
+      "stage": "Publish",
+      "rationale": "Deterministic verified-fact fingerprints and pack baseline marker; consumed again at MCP to compute deltas.",
+      "evidence": "ontologylab/semantic_staleness.py:48",
+      "secondary_stages": [
+        {
+          "stage": "Consume",
+          "evidence": "ontologylab/mcp_server.py:42",
+          "why": "MCP imports baseline_compatible/semantic_deltas to compare a live store against a packed baseline."
+        }
+      ],
+      "overlaps": [],
+      "hidden_fallbacks": [],
+      "engine_slot": null
+    }
+  ],
+  "findings": [
+    "Extract slot is injected, not owned: none of extractor/research_extract/intent/critic/expansion/enrichment/communities call get_engine (ontologylab/engines.py:890). Call sites that feed those stages: ontologylab/main.py:644 (extract CLI), ontologylab/server/jobs.py:731 (extract job), ontologylab/server/jobs.py:1094 (research_extract), ontologylab/main.py:1052 (critic CLI), ontologylab/server/routes.py:1301 (POST /critic/run), ontologylab/main.py:1507 (search --expand), ontologylab/mcp_server.py:821 (semantic_search_expanded), ontologylab/server/routes.py:2345 (chat classify), ontologylab/main.py:1312 (communities llm_summarizer). enrichment.py has no get_engine path (lookup_fn at ontologylab/enrichment.py:135).",
+    "Engine name defaults to mock at CLI critic (ontologylab/main.py:1999) and CLI search-expand (ontologylab/main.py:2165); method-compiler extract also defaults mock (ontologylab/main.py:398). HTTP extract/critic/chat default paths.DEFAULT_ENGINE claude (ontologylab/server/schemas.py:83, ontologylab/server/schemas.py:299, ontologylab/server/schemas.py:399; ontologylab/paths.py:20). ontologylab extract CLI defaults claude (ontologylab/main.py:1868). ontologylab/competency.py:142 hardcodes MockEngine() with no slot. MockEngine itself is selected only when name=='mock' (ontologylab/engines.py:913) and then silently routes by prompt markers (ontologylab/engines.py:506).",
+    "Family splits are mostly mechanical ~250-LOC cuts of one concern, not stage boundaries. citation_* wc-l: citation 84 + bind 257 + ids 60 + schema 61 + store 202 + types 104 + verify 240 = 1008 (real cut: bind vs verify; rest types/ids/schema/store/facade). extraction_receipt_* : receipts 45 + ids 99 + schema 74 + store 240 + types 90 = 548 (store sits at 240; facade is a savepoint re-export). grounded_review_* : facade 255 + ids 149 + members 86 + payload 62 + preflight 206 + schema 74 + store 244 + types 133 = 1209 (store 244 / facade 255 at the cap; members+payload are apply_review slices; preflight is a real gate). review_decision_* + review_grounding: 215+84+69+180+87+174 = 809, same pattern, unreachable. selection_* : facade 53 + ids 116 + policy 213 + schema 41 + store 131 + types 130 = 684 (policy/select_winner is a real ranking boundary; the rest is mechanical).",
+    "review_decision + review_decision_ids + review_decision_schema + review_decision_store + review_decision_types + review_grounding are inventory.json unreachable (orphan) and duplicate the live grounded_review* Verify path used by ontologylab/kgstore.py:3089 _grounded_review. Overlapping flows: two ReviewDecision types (ontologylab/grounded_review_types.py:48 vs ontologylab/review_decision_types.py:62) and two review_decision_id functions (ontologylab/grounded_review_ids.py:43 vs ontologylab/review_decision_ids.py:61).",
+    "critic/calibration/conformal/evaluation are parked advisory math, not a transforming Verify stage. ontologylab/critic.py:11: no code path from a score to a status change; wired CLI ontologylab/main.py:1049 and POST ontologylab/server/routes.py:1297. calibration_report is GET /review/calibration (ontologylab/server/routes.py:428) and never rewrites confidences (ontologylab/calibration.py:24-26). conformal triage is GET /review/triage (ontologylab/server/routes.py:412) with the same no-approve boundary (ontologylab/conformal.py:16-19). evaluation.evaluate_store is CLI-only ontologylab/main.py:1090 — absent from server/mcp. competency.run_competency_suite is a separate HTTP/CLI gold gate (ontologylab/server/routes.py:2707) overlapping evaluation.",
+    "Mega-modules and cross-stage shortcuts violate one-transformation-per-stage: proposals.py 1229 LOC mixes build_ontology_proposals:724 (Extract) with verify_ontology_proposal:1107 (Verify). extractor.py 930 LOC chunks, prompts, parses, writes facts, and persist_chunk_citations at ontologylab/extractor.py:898 (Extract→Verify). research_extract.extract_research_documents:133 calls ingest_item:110 (Acquire/Normalize), put_selection_receipt:148 (Normalize), put_extraction_receipts via _bind_run_receipt:190, then run_extraction:159. extraction_state.ensure_schema:133 installs citation + grounded_review schemas from an Extract module.",
+    "Two Extract entrypoints: run_extraction (ontologylab/extractor.py:718) used by CLI/jobs extract, versus extract_research_documents (ontologylab/research_extract.py:133) used by the research job (ontologylab/server/jobs.py:1094). Duplicated routing into the same engine.generate loop.",
+    "selection_* implements F9 preferred-Representation identity (Normalize) despite canonical Verify vocabulary listing 'selection'. Production insertion is ontologylab/research_extract.py:144 before any LLM call. Fan-in split: selection.py/store reachable from server only; selection_ids/policy/schema/types also from main/mcp via pack seal.",
+    "Hidden algorithm fallbacks outside mock: communities community_algorithm auto→label_propagation (ontologylab/communities.py:57, ontologylab/communities.py:107); embeddings get_embedder('auto')→HashingEmbedder lexical proxy (ontologylab/embeddings.py:234); rerankers get_reranker('auto')→None (ontologylab/rerankers.py:104); extractor span relocate + synthesized endpoints (ontologylab/extractor.py:442, ontologylab/extractor.py:563); citation_bind persist_once returns () when Task-2 receipts are missing (ontologylab/citation_bind.py:38).",
+    "intent is Consume (chat ACTIONS classifier at ontologylab/intent.py:184) sharing the Extract Engine.generate slot; expansion is invoked on Consume search but vocab-classified Synthesize; embeddings/rerankers are Consume engine adapters. The Extract slot is therefore a generic LLM adapter reused across Extract/Verify/Synthesize/Consume rather than a nameable per-stage contract."
+  ]
+}
