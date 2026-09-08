@@ -1,0 +1,33 @@
+{
+  "schema": "ontologylab.official-upstream-license-override.v1",
+  "package": "sqlite-vec",
+  "package_version": "0.1.9",
+  "license_expression": "MIT OR Apache-2.0",
+  "repository": "https://github.com/asg017/sqlite-vec",
+  "tag": "v0.1.9",
+  "tag_api_url": "https://api.github.com/repos/asg017/sqlite-vec/git/ref/tags/v0.1.9",
+  "commit": "e9f598abfa0c06b328d8fe5da9c3760cce74be10",
+  "version_file": {
+    "url": "https://raw.githubusercontent.com/asg017/sqlite-vec/e9f598abfa0c06b328d8fe5da9c3760cce74be10/VERSION",
+    "content": "0.1.9\n",
+    "bytes": 6,
+    "sha256": "e358d84552808a5c0bd6679d690c283b938ebe15c2bd843c898681d093213107"
+  },
+  "licenses": [
+    {
+      "id": "MIT",
+      "path": "LICENSE-MIT",
+      "url": "https://raw.githubusercontent.com/asg017/sqlite-vec/e9f598abfa0c06b328d8fe5da9c3760cce74be10/LICENSE-MIT",
+      "bytes": 1068,
+      "sha256": "6ce72bbe12d975bd5286e5ab0a064c069693300c47bccbc57bec18485f1621ea"
+    },
+    {
+      "id": "Apache-2.0",
+      "path": "LICENSE-APACHE",
+      "url": "https://raw.githubusercontent.com/asg017/sqlite-vec/e9f598abfa0c06b328d8fe5da9c3760cce74be10/LICENSE-APACHE",
+      "bytes": 10931,
+      "sha256": "a38070a94d4afd9cd710e3ce67bd1de78097cfe1784c1f0109ac95d3c196bfdc"
+    }
+  ],
+  "network_at_build": false
+}

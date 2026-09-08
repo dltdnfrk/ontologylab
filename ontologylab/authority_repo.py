@@ -135,6 +135,7 @@ def attach_identifier(
     stage: str = "unknown",
     content_kind: str = "metadata_only",
     begin_before_check: bool = True,
+    fresh_work: bool = False,
     failpoint: Callable[[str], None] | None = None,
 ) -> AttachResult:
     """Reserve an identifier, then record the Observation and assertion.
@@ -169,11 +170,15 @@ def attach_identifier(
                     scheme=scheme, normalized_value=normalized_value,
                     existing_work_id=owner,
                 )
-        existing_doi_row = conn.execute(
-            "SELECT normalized_value FROM work_identifiers WHERE work_id = ? "
-            "AND scheme = 'doi' AND status = 'accepted'",
-            (work_id,),
-        ).fetchone()
+        existing_doi_row = (
+            None
+            if fresh_work
+            else conn.execute(
+                "SELECT normalized_value FROM work_identifiers WHERE work_id = ? "
+                "AND scheme = 'doi' AND status = 'accepted'",
+                (work_id,),
+            ).fetchone()
+        )
         if scheme == "doi" and existing_doi_row is not None and (
             existing_doi_row[0] != normalized_value
         ):
@@ -186,11 +191,15 @@ def attach_identifier(
         # Same identifier on the same Work: reuse the row and add an
         # assertion (invariant 3); a new identifier row is only reserved
         # when this Work does not already own the (scheme, value) pair.
-        existing_same = conn.execute(
-            "SELECT id FROM work_identifiers WHERE work_id = ? AND scheme = ? "
-            "AND normalized_value = ? AND status = 'accepted'",
-            (work_id, scheme, normalized_value),
-        ).fetchone()
+        existing_same = (
+            None
+            if fresh_work
+            else conn.execute(
+                "SELECT id FROM work_identifiers WHERE work_id = ? AND scheme = ? "
+                "AND normalized_value = ? AND status = 'accepted'",
+                (work_id, scheme, normalized_value),
+            ).fetchone()
+        )
         if existing_same is not None:
             identifier_id = existing_same[0]
         else:

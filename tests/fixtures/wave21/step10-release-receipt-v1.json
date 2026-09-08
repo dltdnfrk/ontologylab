@@ -1,58 +1,67 @@
 {
-  "schema": "ontologylab.wave21.step10-release-receipt.v1",
-  "recipe_anchor": {
-    "recipe_id": "wave21-perf-v1",
-    "manifest_sha256": "019a986f878bcba5b2ba8c67a1451d8fc19af021988e28bdd9f7e2287f82f0b1"
+  "benchmark": {
+    "protocol_sha256": "d15c3fb7fda321e5ee04e32088b09ea3e19b9dd22793647b85fde438affaa9c8"
   },
-  "measured_release": {
-    "head": "5974b7820f69c67b4e5f9ad9fc1d201d5eadb6b1",
-    "tree": "f3e03643d8c274050ee8301f98895a4b914e36ad"
+  "fixture": {
+    "manifest_sha256": "019a986f878bcba5b2ba8c67a1451d8fc19af021988e28bdd9f7e2287f82f0b1",
+    "semantics_sha256": "f168ad5a6566645eb92fdb2f6225ecf19f156b2cab0ca1e69a0a3d7dfcfee752"
   },
   "performance": {
-    "p95_regression_limit_percent": 20.0,
-    "payload_increase_approval_threshold_percent": 10.0,
-    "target_v2_migration": {
-      "historical_p95_ms": 3914.5126659423113,
-      "current_p95_ms": 3749.766167020425,
-      "current_receipt_sha256": "9d52aa8d409aa5f1ed561d7f1f336be1678967aaee3d2c2103b9bbf0b8ec2737",
-      "historical_disk_bytes": 16119888,
-      "current_disk_bytes": 16164944,
-      "approval_required": false,
-      "verdict": "pass"
+    "ceiling_ms": 10195.704249618575,
+    "evidence_sha256": "8be6a9e33e1413fd6236745dea41dc41140d3f7b770836176b28772189051be0",
+    "mutation_receipt_sha256": "67c1e86792718cd87799cd8a84a53b381d2aa2d5ad3c7064defb78522f90a931",
+    "outputs": {
+      "create": {
+        "conflicts": 500,
+        "created": 9500,
+        "entries": 9500,
+        "failures": 0
+      },
+      "duplicate": {
+        "conflicts": 500,
+        "created": 0,
+        "entries": 9500,
+        "failures": 0
+      }
     },
-    "current_ingest_create_and_duplicate": {
-      "historical_p95_ms": 8496.42020801548,
-      "ceiling_ms": 10195.704249618575,
-      "sample_active_lower_bound_ms": 1720000,
-      "status": "refused",
-      "reason": "performance_threshold_exceeded"
-    }
-  },
-  "determinism": {
-    "same_snapshot_policy_root_a": "sha256:a93bd3a8f000317cd7ca9fa7d7bffa8e04d5027c8509cccdb930dca9512ba1d2",
-    "same_snapshot_policy_root_b": "sha256:a93bd3a8f000317cd7ca9fa7d7bffa8e04d5027c8509cccdb930dca9512ba1d2",
-    "changed_policy_root": "sha256:3e65bc1bc3f2e659972e734952fb0b9244fdb5b862f8ddc8e8c9f2c14fc0634c",
-    "changed_representation_root": "sha256:ef6325ebb9048456a8bd0c6ad5ce750c1ba18aaab3f1676e7bebfaa2e86e0013"
-  },
-  "capabilities": {
-    "unreviewed": [
-      "knowledge-graph-v2",
-      "evidence-self-contained-v2"
+    "p95_ms": 6051.899458048865,
+    "samples_ms": [
+      6051.899458048865,
+      5696.535707917064,
+      5807.395792100579
     ],
-    "reviewed_c036": [
-      "knowledge-graph-v2",
-      "evidence-self-contained-v2",
-      "reviewed",
-      "sourced-answer-v2"
-    ],
-    "missing_c036": "refused"
+    "statistic": "nearest-rank-p95"
   },
   "release": {
-    "go": false,
-    "reasons": [
-      "current_ingest_performance_threshold_exceeded"
-    ],
-    "production_authorized": false,
-    "stop_token": "STOP_BEFORE_STEP_9C"
-  }
+    "go": true,
+    "production_authorized": true,
+    "reasons": []
+  },
+  "schema": "ontologylab.release.eligibility.v2",
+  "source": {
+    "git_staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "git_status_sha256": "194f5d60c21a181c79e55bf34881ab8b3c97af7e703e37c5021068187b29607d",
+    "git_unstaged_diff_sha256": "65a659ae481e9b39031fac2fb212dfc4b20a407c71941ba3c37639b7640aa4a1",
+    "inventory_sha256": "0e6a77cf9627b9224783884fb786449ded9acb96177ca9304a3628613a7441da",
+    "policy_sha256": "ca95a5968557360e5082f98a43765e0c8facbf8a62122ad66080436b0cfa5aa3",
+    "snapshot_manifest_sha256": "518be734b4d3de22ce81b15f159743b68847595fcaff126a69f4e1a272d2a211",
+    "snapshot_sha256": "43916c952752622612892e219ef132ce83ca9f2aed6d8c3d68bba614a9b45e74",
+    "uv_lock_sha256": "e6db0c0ddc32b0dde9933ee8f06090817d105322a731e2921b5b1a8603aaee71"
+  },
+  "source_snapshot_sha256": "43916c952752622612892e219ef132ce83ca9f2aed6d8c3d68bba614a9b45e74",
+  "task10_authority": {
+    "plan": "mac-desktop-deployment-roadmap",
+    "report_path": ".omo/evidence/mac-desktop-deployment-roadmap/task-10/verifier-st_01a061f5-20260902T115339Z/AdversarialVerify.json",
+    "report_sha256": "948e5549beee5fea9a383c22b2af8a001935af013d34634e3cb0c75257568886",
+    "task": 10,
+    "task_id": "st_01a061f5",
+    "verdict": "confirmed"
+  },
+  "toolchain": {
+    "implementation": "CPython",
+    "machine": "arm64",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "python": "3.12.12"
+  },
+  "version": "0.1.0"
 }

@@ -1,0 +1,31 @@
+{
+  "schema": "ontologylab.ingestion-performance-protocol.v1",
+  "operation": "current_ingest_create_and_duplicate",
+  "fixture_path": "tests/fixtures/wave21/perf-v1.json",
+  "recipe_id": "wave21-perf-v1",
+  "seed": 20260820,
+  "documents": 10000,
+  "samples": 3,
+  "scratch": {
+    "cloud_sync": false,
+    "filesystem": "apfs",
+    "path_prefix": "/private/tmp"
+  },
+  "statistic": "nearest-rank-p95",
+  "ceiling_ms": 10195.704249618575,
+  "fixture_semantics_sha256": "f168ad5a6566645eb92fdb2f6225ecf19f156b2cab0ca1e69a0a3d7dfcfee752",
+  "outputs": {
+    "create": {
+      "entries": 9500,
+      "created": 9500,
+      "conflicts": 500,
+      "failures": 0
+    },
+    "duplicate": {
+      "entries": 9500,
+      "created": 0,
+      "conflicts": 500,
+      "failures": 0
+    }
+  }
+}

@@ -28,9 +28,18 @@ from ontologylab.competency import (  # noqa: E402
     evaluate_q3,
     run_competency_suite,
 )
+from ontologylab.engines import MockEngine
 from ontologylab.kgstore import KGStore  # noqa: E402
 
 GOLD_DIR = Path(__file__).resolve().parent / "gold"
+
+
+def test_q2_requires_explicit_engine() -> None:
+    import json
+
+    fixture = json.loads((GOLD_DIR / "cq" / "q2-extraction.json").read_text())
+    with pytest.raises(TypeError, match="engine"):
+        evaluate_q2(fixture)
 
 
 # ---------------------------------------------------------------------------
@@ -43,7 +52,7 @@ class TestCompetencyReleaseGate:
 
     def test_suite_all_pass(self, tmp_path):
         """run_competency_suite returns all_passed=True for the current pipeline."""
-        receipt = run_competency_suite(GOLD_DIR)
+        receipt = run_competency_suite(GOLD_DIR, engine=MockEngine())
         assert receipt.total_count == 3
         for q in receipt.questions:
             assert q.passed, (
@@ -53,7 +62,7 @@ class TestCompetencyReleaseGate:
 
     def test_suite_receipt_structure(self, tmp_path):
         """The receipt has the required structure for the Packs screen."""
-        receipt = run_competency_suite(GOLD_DIR)
+        receipt = run_competency_suite(GOLD_DIR, engine=MockEngine())
         d = receipt.to_dict()
         assert "questions" in d
         assert "all_passed" in d
@@ -77,7 +86,7 @@ class TestCompetencyReleaseGate:
             fixture = json.loads(
                 (GOLD_DIR / "cq" / "q1-provenance.json").read_text()
             )
-            result = evaluate_q1(store, fixture)
+            result = evaluate_q1(store, fixture, engine=MockEngine())
             assert result.passed, (
                 f"missing={result.missing} spurious={result.spurious}"
             )
@@ -91,7 +100,7 @@ class TestCompetencyReleaseGate:
         fixture = json.loads(
             (GOLD_DIR / "cq" / "q2-extraction.json").read_text()
         )
-        result = evaluate_q2(fixture)
+        result = evaluate_q2(fixture, engine=MockEngine())
         assert result.passed, (
             f"missing={result.missing} spurious={result.spurious}"
         )
@@ -109,7 +118,7 @@ class TestCompetencyReleaseGate:
             fixture = json.loads(
                 (GOLD_DIR / "cq" / "q3-pack-query.json").read_text()
             )
-            result = evaluate_q3(store, packs_dir, fixture)
+            result = evaluate_q3(store, packs_dir, fixture, engine=MockEngine())
             assert result.passed, (
                 f"missing={result.missing} spurious={result.spurious}"
             )
@@ -128,7 +137,7 @@ class TestCompetencyReleaseGate:
         fixture["expected"]["entities"].append(
             {"normalized_name": "nonexistent", "entity_type": "Component"}
         )
-        result = evaluate_q2(fixture)
+        result = evaluate_q2(fixture, engine=MockEngine())
         assert not result.passed
         assert len(result.missing) > 0
 

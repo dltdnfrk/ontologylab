@@ -31,13 +31,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ontologylab.engines import MockEngine
 from ontologylab.extractor import (
     build_extraction_prompt,
     chunk_document,
     parse_and_validate_extraction,
 )
 from ontologylab.kgstore import KGStore, normalize_name
+from ontologylab.models import Engine
 from ontologylab.packbuilder import build_pack
 
 
@@ -129,17 +129,16 @@ def _load_fixture(gold_dir: Path, name: str) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _extract_with_mock(
-    text: str, *, prompt_version: str = "cq-v1"
+def _extract_for_competency(
+    text: str, engine: Engine, *, prompt_version: str = "cq-v1"
 ) -> tuple[list[dict], list[dict]]:
-    """Run MockEngine extraction and return parsed entities/relations.
+    """Run engine extraction and return parsed entities/relations.
 
     Returns dicts with normalized names and relation triples — the
     deterministic output the fixtures pin against.
     """
     schema = _default_schema()
     chunks = chunk_document(text)
-    engine = MockEngine()
 
     all_entities: list[dict] = []
     all_relations: list[dict] = []
@@ -148,7 +147,7 @@ def _extract_with_mock(
 
     for chunk in chunks:
         prompt = build_extraction_prompt(schema, chunk.text)
-        raw, _usage = asyncio.run(engine.generate(prompt))
+        raw, _usage = asyncio.run(engine.generate(prompt, model=None))
         result = parse_and_validate_extraction(
             raw, schema, chunk
         )
@@ -204,7 +203,7 @@ def _extract_with_mock(
 
 
 def evaluate_q1(
-    store: KGStore, fixture: dict[str, Any]
+    store: KGStore, fixture: dict[str, Any], *, engine: Engine
 ) -> QuestionResult:
     """Verify every verified fact traces to its exact source and approval."""
     cfg = fixture["configuration"]
@@ -223,8 +222,8 @@ def evaluate_q1(
     )
 
     # Extract with mock engine
-    entities, relations = _extract_with_mock(
-        doc_cfg["text"], prompt_version=ext_cfg.get("prompt_version", "cq-v1")
+    entities, relations = _extract_for_competency(
+        doc_cfg["text"], engine, prompt_version=ext_cfg.get("prompt_version", "cq-v1")
     )
 
     # Insert proposals
@@ -382,13 +381,13 @@ def evaluate_q1(
 # ---------------------------------------------------------------------------
 
 
-def evaluate_q2(fixture: dict[str, Any]) -> QuestionResult:
+def evaluate_q2(fixture: dict[str, Any], *, engine: Engine) -> QuestionResult:
     """Verify the extractor produces the exact expected entities and relations."""
     cfg = fixture["configuration"]
     doc_cfg = cfg["document"]
     expected = fixture["expected"]
 
-    entities, relations = _extract_with_mock(doc_cfg["text"])
+    entities, relations = _extract_for_competency(doc_cfg["text"], engine)
 
     exp_entities = {
         (e["normalized_name"], e["entity_type"]) for e in expected["entities"]
@@ -450,6 +449,8 @@ def evaluate_q3(
     store: KGStore,
     packs_dir: str | Path,
     fixture: dict[str, Any],
+    *,
+    engine: Engine,
 ) -> QuestionResult:
     """Verify a built pack returns exact answers to user queries."""
     cfg = fixture["configuration"]
@@ -468,8 +469,8 @@ def evaluate_q3(
             raw_text=doc_cfg["text"],
             content_hash="sha256:cq3",
         )
-        entities, relations = _extract_with_mock(
-            doc_cfg["text"], prompt_version=ext_cfg.get("prompt_version", "cq-v1")
+        entities, relations = _extract_for_competency(
+            doc_cfg["text"], engine, prompt_version=ext_cfg.get("prompt_version", "cq-v1")
         )
         from ontologylab.models import ProposedEntity, ProposedRelation
 
@@ -626,6 +627,7 @@ def evaluate_q3(
 def run_competency_suite(
     gold_dir: str | Path,
     *,
+    engine: Engine,
     data_dir: str | Path | None = None,
     packs_dir: str | Path | None = None,
 ) -> Receipt:
@@ -654,13 +656,13 @@ def run_competency_suite(
     store = KGStore.open(data_path / "kg.sqlite")
     try:
         q1_fixture = _load_fixture(gold_path, "q1-provenance")
-        questions.append(evaluate_q1(store, q1_fixture))
+        questions.append(evaluate_q1(store, q1_fixture, engine=engine))
 
         q2_fixture = _load_fixture(gold_path, "q2-extraction")
-        questions.append(evaluate_q2(q2_fixture))
+        questions.append(evaluate_q2(q2_fixture, engine=engine))
 
         q3_fixture = _load_fixture(gold_path, "q3-pack-query")
-        questions.append(evaluate_q3(store, packs_path, q3_fixture))
+        questions.append(evaluate_q3(store, packs_path, q3_fixture, engine=engine))
     finally:
         store.close()
 
@@ -694,7 +696,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    receipt = run_competency_suite(args.gold)
+    from ontologylab.engines import resolve_engine
+
+    receipt = run_competency_suite(args.gold, engine=resolve_engine("mock"))
     print(json.dumps(receipt.to_dict(), indent=2, ensure_ascii=False))
     sys.exit(0 if receipt.all_passed else 1)
 

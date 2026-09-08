@@ -1,0 +1,183 @@
+{
+  "schema": "ontologylab.release-policy.v1",
+  "product": "ontologylab",
+  "version_source": {
+    "file": "pyproject.toml",
+    "format": "semver"
+  },
+  "distribution": {
+    "channel": "internal-only",
+    "public_release": false,
+    "delivery": "sha256-controlled-transfer"
+  },
+  "platform": {
+    "arch": "arm64",
+    "min_macos": "15.0",
+    "intel": false,
+    "universal2": false
+  },
+  "signing": {
+    "identity": "ad-hoc",
+    "developer_id": false,
+    "notarization": false,
+    "direction": "inside-out"
+  },
+  "updates": {
+    "mechanism": "manual-immutable-replacement",
+    "automatic": false
+  },
+  "browser": {
+    "preferred": "aside",
+    "fallback": "default-browser"
+  },
+  "mcp": {
+    "bundled": true,
+    "external_python": false
+  },
+  "migration": {
+    "scope": "canonical-application-support-only",
+    "auto_discovery": false
+  },
+  "approval": {
+    "owners": 1,
+    "roles": [
+      "release-authorization",
+      "migration-approval",
+      "security-exception",
+      "qa-signoff"
+    ]
+  },
+  "qa_targets": [
+    {
+      "role": "macos-15",
+      "os_major": 15,
+      "arch": "arm64",
+      "alias": "MACOS15_QA_HOST"
+    },
+    {
+      "role": "current-major",
+      "os_major": "current",
+      "arch": "arm64",
+      "alias": "MACOS_CURRENT_QA_HOST"
+    }
+  ],
+  "source_inputs": [
+    "pyproject.toml",
+    "uv.lock",
+    "ontologylab",
+    "web",
+    "launcher",
+    "release/licenses",
+    "release/release-policy.json",
+    "release/ingestion-performance-protocol.json",
+    "tests/fixtures/wave21/perf-v1.json",
+    ".github/workflows/macos-candidate.yml",
+    "release/candidate_source_closure.py",
+    "release/candidate_stage.py",
+    "tests/macos_candidate_deployment_support.py",
+    "tests/macos_candidate_source_policy_support.py",
+    "tests/macos_candidate_test_support.py",
+    "tests/test_local_api_auth.py",
+    "tests/test_p0_ui_ux_contract.py",
+    "tests/test_p1_ui_ux_contract.py",
+    "tests/test_p2_ui_ux_contract.py",
+    "tests/test_macos_candidate_build.py",
+    "tests/test_macos_candidate_source_closure.py",
+    "tests/test_macos_candidate_standalone_installer.py",
+    "tests/test_macos_candidate_task12_finalize.py",
+    "tests/test_macos_candidate_task12_publication.py",
+    "LICENSE",
+    "README.md",
+    "release/__init__.py",
+    "release/candidate_build.py",
+    "release/candidate_cli.py",
+    "release/candidate_deployment_overlay.py",
+    "release/candidate_execution.py",
+    "release/candidate_license_override.py",
+    "release/candidate_licenses.py",
+    "release/candidate_receipt.py",
+    "release/candidate_resources.py",
+    "release/candidate_source.py",
+    "release/candidate_tree.py",
+    "release/candidate_types.py",
+    "release/mcp-config.json",
+    "release/pyinstaller/backend-shim.c",
+    "release/pyinstaller/inspect_macho.py",
+    "release/pyinstaller/internal_deployment_entry.py",
+    "release/pyinstaller/ontologylab-internal-deployment.spec",
+    "release/pyinstaller/normalize_manifest.py",
+    "release/pyinstaller/ontologylab-runtime.spec",
+    "release/pyinstaller/runtime_entry.py",
+    "release/pyinstaller/rewrite_zip.py",
+    "release/pyinstaller/write_manifest.py",
+    "release/pyinstaller/write_sbom.py",
+    "release/runtime-build.json",
+    "release/task12_finalize.py",
+    "release/task12_workflow.py",
+    "scripts/build-macos-candidate.sh",
+    "scripts/build-macos-runtime.sh",
+    "tests/fixtures/macos_supervisor/fake_backend.py",
+    "tests/fixtures/macos_supervisor/fake_open.py",
+    "tests/macos_supervisor_support.py",
+    "tests/release_eligibility_fixtures.py",
+    "tests/test_macos_candidate_build_integrity.py",
+    "tests/test_macos_candidate_verifier_repairs.py",
+    "tests/test_macos_runtime_package.py",
+    "tests/test_macos_supervisor.py",
+    "tests/test_release_eligibility_binding.py",
+    "tests/test_release_mutation_evidence.py",
+    "tests/test_release_policy.py",
+    "tests/test_release_policy_cli.py",
+    "tests/test_release_task10_authority.py",
+    "tests/test_retained_evidence_seal.py",
+    "tests/test_sqlite_vec_license_override.py",
+    "tests/test_ingestion_performance.py",
+    "tests/wave21/ingest_perf.py",
+    "tests/wave21/perf.py",
+    "tests/wave21/perf_fixture.py",
+    "docs/MACOS-INTERNAL-DEPLOYMENT.md",
+    "scripts/internal_deployment.py",
+    "scripts/internal_deployment_cli.py",
+    "scripts/internal_deployment_fs.py",
+    "scripts/internal_deployment_quarantine.py",
+    "scripts/internal_deployment_removal.py",
+    "scripts/internal_deployment_removal_apply.py",
+    "scripts/internal_deployment_removal_journal.py",
+    "scripts/internal_deployment_removal_prepare.py",
+    "scripts/internal_deployment_removal_receipt.py",
+    "scripts/internal_deployment_release_authority.py",
+    "scripts/internal_deployment_retention.py",
+    "scripts/internal_deployment_types.py",
+    "scripts/retained_evidence_seal.py",
+    "scripts/ontologylab-internal-install",
+    "scripts/ontologylab-internal-support",
+    "scripts/ontologylab-internal-uninstall",
+    "tests/internal_deployment_anchor_support.py",
+    "tests/test_internal_deployment.py",
+    "tests/test_internal_deployment_anchor_adversarial.py",
+    "tests/test_internal_deployment_anchor_recovery.py",
+    "tests/test_internal_deployment_atomic.py",
+    "tests/test_internal_deployment_prepared_anchor.py",
+    "tests/test_internal_deployment_quarantine.py",
+    "tests/test_internal_deployment_recovery.py",
+    "tests/test_internal_deployment_release_authority.py",
+    "tests/test_internal_deployment_retained.py",
+    "tests/test_internal_deployment_safety.py"
+  ],
+  "task10_authority": {
+    "report_path": ".omo/evidence/mac-desktop-deployment-roadmap/task-10/verifier-st_01a061f5-20260902T115339Z/AdversarialVerify.json",
+    "report_sha256": "948e5549beee5fea9a383c22b2af8a001935af013d34634e3cb0c75257568886",
+    "task": 10,
+    "plan": "mac-desktop-deployment-roadmap",
+    "task_id": "st_01a061f5",
+    "verdict": "confirmed"
+  },
+  "snapshot_manifest_path": "release/source-snapshot.json",
+  "eligibility_receipt_path": "tests/fixtures/wave21/step10-release-receipt-v1.json",
+  "performance_contract": {
+    "fixture_manifest_path": "tests/fixtures/wave21/perf-v1.json",
+    "benchmark_protocol_path": "release/ingestion-performance-protocol.json",
+    "performance_evidence_path": ".omo/evidence/start-work/wave21-ingestion-steps5-10/task-13-performance-receipt.json",
+    "mutation_receipt_path": ".omo/evidence/start-work/wave21-ingestion-steps5-10/task-13-performance-mutation.json"
+  }
+}

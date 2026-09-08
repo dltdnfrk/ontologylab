@@ -1,0 +1,16 @@
+{
+  "architecture": "arm64",
+  "bundle_identifier": "town.neobio.ontologylab.launcher",
+  "entrypoints": {
+    "cli": ["runtime/ontologylab-runtime", "cli"],
+    "desktop": ["ontologylab-serve-desktop"],
+    "internal_deployment": ["../MacOS/ontologylab-internal-deploy"],
+    "mcp": ["runtime/ontologylab-runtime", "mcp"],
+    "server": ["runtime/ontologylab-runtime", "server"]
+  },
+  "format": "onedir",
+  "minimum_macos": "15.0",
+  "network_at_runtime": false,
+  "pyinstaller": "6.16.0",
+  "schema": "ontologylab.runtime-build.v1"
+}

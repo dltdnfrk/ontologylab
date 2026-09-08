@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "ontologylab": {
+      "args": ["mcp"],
+      "command": "../runtime/ontologylab-runtime",
+      "transport": "stdio"
+    }
+  },
+  "schema": "ontologylab.bundled-mcp.v1"
+}
