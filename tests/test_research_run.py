@@ -25,24 +25,27 @@ from __future__ import annotations
 
 import json
 import threading
-import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from ontologylab import paths
+from ontologylab import paths, research_plan, research_spec
+from ontologylab import research_run as research_run_module
 from ontologylab.connectors.base import RawDocument, normalize_doi
 from ontologylab.connectors.paper_api import (
-    SOURCE_ORDER,
     SourceFailure,
     available_sources,
 )
 from ontologylab.kgstore import KGStore
+from ontologylab.provenance import Provenance
+from ontologylab.research_artifacts import ResearchArtifactStore
 from ontologylab.server import jobs as jobs_module
-from ontologylab.server import routes
 from ontologylab.server.app import create_app
-from ontologylab.server.jobs import TERMINAL_STATUSES
+from ontologylab.server.jobs import TERMINAL_STATUSES, Job, JobRegistry
+from ontologylab.server.schemas import ResearchStartInput
 
 TOPIC = "fluorescent probe spectral overlap"
 
@@ -52,7 +55,13 @@ ABSTRACT = (
 ) * 40
 
 
-def _paper(source: str, doi: str | None, *, extra: str = "") -> RawDocument:
+def _paper(
+    source: str,
+    doi: str | None,
+    *,
+    extra: str = "",
+    content_kind: str = "fulltext",
+) -> RawDocument:
     # `normalize_doi` here because the five real parsers apply it before
     # constructing a RawDocument — `dedupe_key` compares `self.doi` as given.
     # A fake that skipped it would be testing a shape no connector produces.
@@ -62,6 +71,7 @@ def _paper(source: str, doi: str | None, *, extra: str = "") -> RawDocument:
         title=f"A study from {source}",
         raw_text=ABSTRACT + extra,
         doi=normalize_doi(doi),
+        content_kind=content_kind,
     )
 
 
@@ -73,7 +83,17 @@ def _fake_fetch(batches, failures=()):
     which is the failure this stub is otherwise here to prevent.
     """
 
-    async def _fetch(sources, query, limit=None, data_dir=None, on_event=None):
+    async def _fetch(
+        sources,
+        query,
+        limit=None,
+        data_dir=None,
+        on_event=None,
+        source_queries=None,
+        search_axis="",
+        query_terms=(),
+    ):
+        del source_queries, search_axis, query_terms
         _fetch.calls.append((tuple(sources), query, limit))
         if on_event is not None:
             for name in sources:
@@ -88,22 +108,139 @@ def _fake_fetch(batches, failures=()):
     return _fetch
 
 
+def _need(
+    kind: research_spec.EvidenceNeedKind,
+    description: str,
+) -> research_spec.EvidenceNeed:
+    return research_spec.build_evidence_need(
+        research_spec.EvidenceNeedDraft(
+            kind,
+            description,
+            True,
+            research_spec.ContentClass.FULLTEXT,
+        )
+    )
+
+
+def _axis(
+    name: str,
+    query: str,
+    need_ids: tuple[str, ...],
+) -> research_plan.NeedLinkedAxis:
+    return research_plan.NeedLinkedAxis(
+        axis=name,
+        query=query,
+        terms=(query,),
+        need_ids=need_ids,
+        dependencies=(),
+        source_queries=(("crossref", query),),
+    )
+
+
+def _planned_reading(
+    needs: tuple[research_spec.EvidenceNeed, ...],
+    axes: tuple[research_plan.NeedLinkedAxis, ...],
+) -> research_plan.PlannerReading:
+    return research_plan.PlannerReading(
+        goal=TOPIC,
+        evidence_needs=needs,
+        assumptions=(),
+        axes=axes,
+        degraded_reason=None,
+    )
+
+
+def _install_planner(
+    monkeypatch: pytest.MonkeyPatch,
+    reading: research_plan.PlannerReading,
+) -> None:
+    async def _plan(topic, engine, *, sources, model=None, max_queries=4):
+        del engine, model
+        assert topic == TOPIC
+        assert sources == ("crossref",)
+        assert max_queries >= 1
+        return reading, {"calls": 1}
+
+    monkeypatch.setattr(
+        research_run_module,
+        "formulate_research_plan",
+        _plan,
+        raising=False,
+    )
+
+
+def _axis_fetch(documents_by_query: dict[str, list[RawDocument]]):
+    async def _fetch(
+        sources,
+        query,
+        limit=None,
+        data_dir=None,
+        on_event=None,
+        source_queries=None,
+        search_axis="",
+        query_terms=(),
+    ):
+        del data_dir, source_queries, query_terms
+        _fetch.calls.append((tuple(sources), query, limit, search_axis))
+        documents = [
+            replace(
+                document,
+                source="crossref",
+                all_sources=("crossref",),
+                search_axis=search_axis,
+                search_query=query,
+                search_axes=(search_axis,),
+                search_queries=(query,),
+            )
+            for document in documents_by_query.get(query, [])
+        ]
+        if on_event is not None:
+            for source in sources:
+                on_event("source_start", source, None)
+            on_event("source_ok", "crossref", len(documents))
+        return ([(("crossref"), documents)] if documents else []), []
+
+    _fetch.calls = []
+    return _fetch
+
+
 def _client(tmp_path: Path) -> TestClient:
     data_dir = tmp_path / "data"
     return TestClient(create_app(data_dir=data_dir))
 
 
-def _await_terminal(job, timeout: float = 30.0) -> None:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline and job.status not in TERMINAL_STATUSES:
-        time.sleep(0.02)
+def _jobs(client: TestClient) -> JobRegistry:
+    app = client.app
+    assert isinstance(app, FastAPI)
+    jobs = app.state.jobs
+    assert isinstance(jobs, JobRegistry)
+    return jobs
+
+
+def _job(client: TestClient, job_id: str) -> Job:
+    job = _jobs(client).get(job_id)
+    assert job is not None
+    return job
+
+
+def _await_terminal(job: Job, timeout: float = 30.0) -> None:
+    thread = job._thread
+    assert thread is not None
+    thread.join(timeout)
+    assert not thread.is_alive()
+    assert job.status in TERMINAL_STATUSES
 
 
 def _run(client: TestClient, **body):
-    payload = {"topic": TOPIC, "engine": "mock", **body}
+    payload = {
+        "topic": TOPIC,
+        "engine": "mock",
+        "citation_expansion": False,
+        **body,
+    }
     started = client.post("/api/research", json=payload).json()
     assert started.get("ok") is True, started
-    job = client.app.state.jobs.get(started["job_id"])
+    job = _job(client, started["job_id"])
     _await_terminal(job)
     return job
 
@@ -118,7 +255,12 @@ def _provenance(data_dir: Path) -> list[dict]:
 
 
 def _steps(data_dir: Path) -> list[str]:
-    return [line.get("step") for line in _provenance(data_dir)]
+    steps: list[str] = []
+    for line in _provenance(data_dir):
+        step = line.get("step")
+        if isinstance(step, str):
+            steps.append(step)
+    return steps
 
 
 # --------------------------------------------------------------------------
@@ -129,7 +271,7 @@ def _steps(data_dir: Path) -> list[str]:
 def test_a_topic_becomes_documents_and_then_proposals(tmp_path, monkeypatch) -> None:
     data_dir = tmp_path / "data"
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch([("crossref", [_paper("crossref", "10.1/a")])]),
     )
@@ -152,7 +294,7 @@ def test_a_topic_becomes_documents_and_then_proposals(tmp_path, monkeypatch) -> 
 def test_the_job_is_one_job_not_two(tmp_path, monkeypatch) -> None:
     """Two jobs would mean two entries in the listing and two cost rows."""
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch([("crossref", [_paper("crossref", "10.1/a")])]),
     )
@@ -167,7 +309,7 @@ def test_the_job_is_one_job_not_two(tmp_path, monkeypatch) -> None:
 
 def test_both_phases_report_progress(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch([("crossref", [_paper("crossref", "10.1/a")])]),
     )
@@ -189,7 +331,7 @@ def test_the_status_vocabulary_is_unchanged(tmp_path, monkeypatch) -> None:
     updates again.
     """
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch([("crossref", [_paper("crossref", "10.1/a")])]),
     )
@@ -204,7 +346,7 @@ def test_the_phase_is_reported_separately_from_the_status(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch([("crossref", [_paper("crossref", "10.1/a")])]),
     )
@@ -224,7 +366,7 @@ def test_duplicates_across_sources_collapse_to_one_document(
     """Five sources answering about one paper must not store five rows."""
     data_dir = tmp_path / "data"
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch(
             [
@@ -250,7 +392,7 @@ def test_every_implemented_source_is_queried_by_default(
     tmp_path, monkeypatch
 ) -> None:
     fake = _fake_fetch([("crossref", [_paper("crossref", "10.1/a")])])
-    monkeypatch.setattr(jobs_module, "fetch_sources", fake)
+    monkeypatch.setattr(research_run_module, "fetch_sources", fake)
     client = _client(tmp_path)
 
     _run(client)
@@ -262,9 +404,210 @@ def test_every_implemented_source_is_queried_by_default(
     assert query == TOPIC
 
 
+def test_direct_research_forwards_every_execution_control(
+    tmp_path, monkeypatch
+) -> None:
+    client = _client(tmp_path)
+    captured: dict[str, ResearchStartInput] = {}
+
+    def create_research(**kwargs):
+        captured.update(kwargs)
+        return type("Started", (), {"job_id": "research-controls"})()
+
+    monkeypatch.setattr(_jobs(client), "create_research", create_research)
+    body = {
+        "topic": TOPIC,
+        "sources": ["crossref"],
+        "limit": 7,
+        "max_queries": 2,
+        "fulltext": False,
+        "citation_expansion": False,
+        "citation_seed_count": 1,
+        "citation_limit": 9,
+        "engine": "mock",
+        "model": "contract-model",
+        "max_engine_calls": 3,
+        "time_budget": 45.0,
+        "seed": 17,
+    }
+
+    response = client.post("/api/research", json=body)
+
+    assert response.json() == {
+        "ok": True,
+        "job_id": "research-controls",
+        "status": "running",
+    }
+    assert set(captured) == {"start_input"}
+    start_input = captured["start_input"]
+    assert isinstance(start_input, ResearchStartInput)
+    assert start_input.topic == body["topic"]
+    assert start_input.controls.to_json_value() == {
+        key: value for key, value in body.items() if key != "topic"
+    }
+
+
+def test_research_queries_multiple_api_axes_before_extracting(
+    tmp_path, monkeypatch
+) -> None:
+    first = _need(
+        research_spec.EvidenceNeedKind.MECHANISM,
+        "hardening mechanism",
+    )
+    second = _need(
+        research_spec.EvidenceNeedKind.RESULT,
+        "survival outcome",
+    )
+    _install_planner(
+        monkeypatch,
+        _planned_reading(
+            (first, second),
+            (
+                _axis(
+                    "process",
+                    "Geneva 11 apple rootstock hardening",
+                    (first.need_id,),
+                ),
+                _axis(
+                    "outcome",
+                    "apple rootstock acclimatization survival",
+                    (second.need_id,),
+                ),
+            ),
+        ),
+    )
+    fake = _axis_fetch(
+        {
+            "Geneva 11 apple rootstock hardening": [
+                _paper("crossref", "10.1/process")
+            ],
+            "apple rootstock acclimatization survival": [
+                _paper("crossref", "10.1/outcome")
+            ],
+        }
+    )
+    monkeypatch.setattr(research_run_module, "fetch_sources", fake)
+    client = _client(tmp_path)
+
+    job = _run(
+        client,
+        sources=["crossref"],
+        max_queries=2,
+    )
+
+    assert job.status == "complete"
+    assert [query for _sources, query, _limit, _axis_name in fake.calls] == [
+        "Geneva 11 apple rootstock hardening",
+        "apple rootstock acclimatization survival",
+    ]
+    replay = ResearchArtifactStore(
+        tmp_path / "data" / "jobs" / job.job_id
+    ).load()
+    summary = json.loads(
+        (
+            tmp_path
+            / "data"
+            / "jobs"
+            / job.job_id
+            / "literature-corpus-summary.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert len(replay.plans) == 2
+    assert replay.plans[1].parent_plan_id == replay.plans[0].plan_id
+    assert len(replay.acquisitions) == 2
+    assessment = summary["acquisition_assessment"]
+    assert assessment["stop_reason"] is None
+    assert all(
+        occupancy["occupied"]
+        for occupancy in assessment["need_occupancy"]
+        if occupancy["mandatory"]
+    )
+
+
+def test_research_never_reexecutes_a_semantically_repeated_axis(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = _need(research_spec.EvidenceNeedKind.MECHANISM, "mechanism")
+    second = _need(research_spec.EvidenceNeedKind.RESULT, "result")
+    duplicate_query = "same executable query"
+    _install_planner(
+        monkeypatch,
+        _planned_reading(
+            (first, second),
+            (
+                _axis("mechanism", duplicate_query, (first.need_id,)),
+                _axis("result", duplicate_query, (second.need_id,)),
+            ),
+        ),
+    )
+    fake = _axis_fetch(
+        {duplicate_query: [_paper("crossref", "10.1/repeated")]}
+    )
+    monkeypatch.setattr(research_run_module, "fetch_sources", fake)
+
+    job = _run(
+        _client(tmp_path),
+        sources=["crossref"],
+        max_queries=2,
+        fulltext=False,
+    )
+
+    assert job.status == "complete", job.error
+    assert [call[1] for call in fake.calls] == [duplicate_query]
+    assert any("budget_exhausted" in line for line in job.progress)
+
+
+def test_research_enforces_lineage_wide_query_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    needs = tuple(
+        _need(research_spec.EvidenceNeedKind.RESULT, f"need {index}")
+        for index in range(3)
+    )
+    queries = tuple(f"query {index}" for index in range(3))
+    _install_planner(
+        monkeypatch,
+        _planned_reading(
+            needs,
+            tuple(
+                _axis(
+                    f"axis-{index}",
+                    query,
+                    (needs[index].need_id,),
+                )
+                for index, query in enumerate(queries)
+            ),
+        ),
+    )
+    fake = _axis_fetch(
+        {
+            query: [_paper("crossref", f"10.1/budget-{index}")]
+            for index, query in enumerate(queries)
+        }
+    )
+    monkeypatch.setattr(research_run_module, "fetch_sources", fake)
+
+    job = _run(
+        _client(tmp_path),
+        sources=["crossref"],
+        max_queries=2,
+        fulltext=False,
+    )
+
+    assert job.status == "complete", job.error
+    assert [call[1] for call in fake.calls] == list(queries[:2])
+    replay = ResearchArtifactStore(
+        tmp_path / "data" / "jobs" / job.job_id
+    ).load()
+    assert len(replay.plans) == 2
+    assert sum(len(plan.axes) for plan in replay.plans) == 2
+
+
 def test_an_explicit_source_list_is_respected(tmp_path, monkeypatch) -> None:
     fake = _fake_fetch([("arxiv", [_paper("arxiv", None)])])
-    monkeypatch.setattr(jobs_module, "fetch_sources", fake)
+    monkeypatch.setattr(research_run_module, "fetch_sources", fake)
     client = _client(tmp_path)
 
     _run(client, sources=["arxiv"])
@@ -301,7 +644,7 @@ def test_older_documents_are_not_extracted_on_this_run(
         store.close()
 
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch([("crossref", [_paper("crossref", "10.1/new")])]),
     )
@@ -329,11 +672,25 @@ def test_the_extraction_budget_is_not_spent_by_the_collect_phase(
     """
     data_dir = tmp_path / "data"
 
-    async def _slow_fetch(sources, query, limit=None, data_dir=None, on_event=None):
-        time.sleep(1.1)
+    async def _slow_fetch(
+        sources,
+        query,
+        limit=None,
+        data_dir=None,
+        on_event=None,
+        source_queries=None,
+        search_axis="",
+        query_terms=(),
+    ):
+        del source_queries, search_axis, query_terms
         return [("crossref", [_paper("crossref", "10.1/a")])], []
 
-    monkeypatch.setattr(jobs_module, "fetch_sources", _slow_fetch)
+    monkeypatch.setattr(research_run_module, "fetch_sources", _slow_fetch)
+    monkeypatch.setattr(
+        Provenance,
+        "elapsed_s",
+        property(lambda _provenance: 1.1),
+    )
     client = _client(tmp_path)
 
     job = _run(client, time_budget=1.0)
@@ -360,7 +717,7 @@ def test_one_dead_source_does_not_discard_the_others(tmp_path, monkeypatch) -> N
     """Semantic Scholar 429s unauthenticated clients aggressively."""
     data_dir = tmp_path / "data"
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch(
             [("crossref", [_paper("crossref", "10.1/a")])],
@@ -386,7 +743,7 @@ def test_a_failing_source_does_not_leak_its_error_text_to_the_browser(
     """H2 reaches here: a paper API's error carries the request URL."""
     secret = "https://api.elsevier.com/?apiKey=ELS-never-shown"
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch(
             [("crossref", [_paper("crossref", "10.1/a")])],
@@ -407,7 +764,7 @@ def test_all_sources_failing_is_a_failed_job_not_a_crash(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch([], [SourceFailure(name, "HTTP 429", "fetch_failed")
                          for name in available_sources()]),
@@ -420,7 +777,37 @@ def test_all_sources_failing_is_a_failed_job_not_a_crash(
     # 배너를 그리고, 아무것도 못 가져온 런에 그 배너는 거짓이다.
     assert job.status == "failed"
     assert job.error == jobs_module.NO_SOURCES_SUMMARY
-    assert any("no source answered" in line for line in job.progress)
+    assert any("no usable source" in line for line in job.progress)
+
+
+def test_abstract_only_research_is_not_extracted(
+    tmp_path, monkeypatch
+) -> None:
+    data_dir = tmp_path / "data"
+    abstract = _paper(
+        "crossref", "10.1/abstract", content_kind="abstract"
+    )
+    monkeypatch.setattr(
+        research_run_module,
+        "fetch_sources",
+        _fake_fetch([("crossref", [abstract])]),
+    )
+    client = _client(tmp_path)
+
+    job = _run(client)
+
+    assert job.status == "failed"
+    assert job.error == jobs_module.NO_SOURCES_SUMMARY
+    assert any("no_usable_source" in line for line in job.progress)
+    assert "extract.doc" not in _steps(data_dir)
+    store = KGStore.open(paths.kg_db_path(data_dir))
+    try:
+        proposals = store.conn.execute(
+            "SELECT COUNT(*) FROM nodes"
+        ).fetchone()[0]
+    finally:
+        store.close()
+    assert proposals == 0
 
 
 # --------------------------------------------------------------------------
@@ -514,11 +901,14 @@ def test_a_second_research_run_is_refused_while_one_is_going(
     """Two runs on one topic pay twice for the same extraction."""
     gate = threading.Event()
 
-    async def _held_fetch(sources, query, limit=None, data_dir=None, on_event=None):
+    async def _held_fetch(
+        sources, query, limit=None, data_dir=None, on_event=None, **kwargs
+    ):
+        del kwargs
         gate.wait(20)
         return [("crossref", [_paper("crossref", "10.1/a")])], []
 
-    monkeypatch.setattr(jobs_module, "fetch_sources", _held_fetch)
+    monkeypatch.setattr(research_run_module, "fetch_sources", _held_fetch)
     client = _client(tmp_path)
 
     first = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()
@@ -529,14 +919,14 @@ def test_a_second_research_run_is_refused_while_one_is_going(
     assert second["ok"] is False
     assert second["error_kind"] == "busy"
     assert second["job_id"] == first["job_id"], "the caller is told which run"
-    _await_terminal(client.app.state.jobs.get(first["job_id"]))
+    _await_terminal(_job(client, first["job_id"]))
 
 
 def test_a_new_run_is_allowed_once_the_previous_one_finishes(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch([("crossref", [_paper("crossref", "10.1/a")])]),
     )
@@ -546,7 +936,7 @@ def test_a_new_run_is_allowed_once_the_previous_one_finishes(
     second = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()
 
     assert second["ok"] is True
-    _await_terminal(client.app.state.jobs.get(second["job_id"]))
+    _await_terminal(_job(client, second["job_id"]))
 
 
 def test_an_extraction_job_does_not_block_a_research_run(
@@ -554,7 +944,7 @@ def test_an_extraction_job_does_not_block_a_research_run(
 ) -> None:
     """The guard is about duplicate research, not about serialising the server."""
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch([("crossref", [_paper("crossref", "10.1/a")])]),
     )
@@ -564,7 +954,7 @@ def test_an_extraction_job_does_not_block_a_research_run(
     body = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()
 
     assert body["ok"] is True
-    _await_terminal(client.app.state.jobs.get(body["job_id"]))
+    _await_terminal(_job(client, body["job_id"]))
 
 
 # --------------------------------------------------------------------------
@@ -581,19 +971,22 @@ def test_cancelling_during_collect_stops_before_anything_is_stored(
     entered = threading.Event()
     release = threading.Event()
 
-    async def _held_fetch(sources, query, limit=None, data_dir=None, on_event=None):
+    async def _held_fetch(
+        sources, query, limit=None, data_dir=None, on_event=None, **kwargs
+    ):
+        del kwargs
         entered.set()
         release.wait(20)
         return [("crossref", [_paper("crossref", "10.1/a")])], []
 
-    monkeypatch.setattr(jobs_module, "fetch_sources", _held_fetch)
+    monkeypatch.setattr(research_run_module, "fetch_sources", _held_fetch)
     client = _client(tmp_path)
 
     job_id = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()["job_id"]
     assert entered.wait(20)
     client.post(f"/api/jobs/{job_id}/cancel")
     release.set()
-    job = client.app.state.jobs.get(job_id)
+    job = _job(client, job_id)
     _await_terminal(job)
 
     assert job.status == "cancelled"
@@ -638,20 +1031,28 @@ def test_cancelling_during_extraction_stops_spending_engine_calls(
             return await self._inner.generate(prompt, model=model)
 
     engine = _GatedEngine()
-    monkeypatch.setattr(jobs_module, "get_engine", lambda *a, **k: engine)
+    need = _need(research_spec.EvidenceNeedKind.GENERAL, "current evidence")
+    _install_planner(
+        monkeypatch,
+        _planned_reading((need,), (_axis("current", TOPIC, (need.need_id,)),)),
+    )
+    monkeypatch.setattr(jobs_module, "resolve_engine", lambda *a, **k: engine)
     # Long enough to chunk more than once, so a second engine call exists
     # to be skipped. (Chunking targets 1500 tokens x 4 chars.)
     long_paper = _paper("crossref", "10.1/long", extra=ABSTRACT * 3)
     monkeypatch.setattr(
-        jobs_module, "fetch_sources", _fake_fetch([("crossref", [long_paper])])
+        research_run_module, "fetch_sources", _fake_fetch([("crossref", [long_paper])])
     )
     client = _client(tmp_path)
 
-    job_id = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()["job_id"]
+    job_id = client.post(
+        "/api/research",
+        json={"topic": TOPIC, "engine": "mock", "sources": ["crossref"]},
+    ).json()["job_id"]
     assert engine.entered.wait(20), "extraction never reached the engine"
     client.post(f"/api/jobs/{job_id}/cancel")
     engine.release.set()
-    job = client.app.state.jobs.get(job_id)
+    job = _job(client, job_id)
     _await_terminal(job)
 
     assert engine.calls == 1, (
@@ -676,13 +1077,13 @@ def test_an_uncancelled_research_run_spends_more_than_one_call(
         return await inner.generate(prompt, model=model)
 
     monkeypatch.setattr(
-        jobs_module, "get_engine",
+        jobs_module, "resolve_engine",
         lambda *a, **k: type("E", (), {"name": lambda s: "mock",
                                        "generate": staticmethod(_counting)})(),
     )
     long_paper = _paper("crossref", "10.1/long", extra=ABSTRACT * 3)
     monkeypatch.setattr(
-        jobs_module, "fetch_sources", _fake_fetch([("crossref", [long_paper])])
+        research_run_module, "fetch_sources", _fake_fetch([("crossref", [long_paper])])
     )
     client = _client(tmp_path)
 
@@ -703,7 +1104,7 @@ def test_a_run_that_finished_is_never_labelled_cancelled(
     pay for the same documents again.
     """
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch([("crossref", [_paper("crossref", "10.1/a")])]),
     )
@@ -724,19 +1125,22 @@ def test_a_cancelled_research_run_is_not_reported_complete(
     entered = threading.Event()
     release = threading.Event()
 
-    async def _held_fetch(sources, query, limit=None, data_dir=None, on_event=None):
+    async def _held_fetch(
+        sources, query, limit=None, data_dir=None, on_event=None, **kwargs
+    ):
+        del kwargs
         entered.set()
         release.wait(20)
         return [("crossref", [_paper("crossref", "10.1/a")])], []
 
-    monkeypatch.setattr(jobs_module, "fetch_sources", _held_fetch)
+    monkeypatch.setattr(research_run_module, "fetch_sources", _held_fetch)
     client = _client(tmp_path)
 
     job_id = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()["job_id"]
     entered.wait(20)
     client.post(f"/api/jobs/{job_id}/cancel")
     release.set()
-    job = client.app.state.jobs.get(job_id)
+    job = _job(client, job_id)
     _await_terminal(job)
 
     assert job.status == "cancelled"
@@ -751,7 +1155,7 @@ def test_a_cancelled_research_run_is_not_reported_complete(
 def test_the_topic_is_bounded_in_the_permanent_record(tmp_path, monkeypatch) -> None:
     """M2 applies to the research run's own log line too."""
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch([("crossref", [_paper("crossref", "10.1/a")])]),
     )
@@ -777,7 +1181,7 @@ def test_a_research_run_is_counted_by_the_cost_summary(
     server was actually writing to.
     """
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch([("crossref", [_paper("crossref", "10.1/a")])]),
     )
@@ -816,16 +1220,19 @@ def test_a_totals_key_the_extractor_never_reports_does_not_kill_the_run(
     entered = threading.Event()
     release = threading.Event()
 
-    async def _held_fetch(sources, query, limit=None, data_dir=None, on_event=None):
+    async def _held_fetch(
+        sources, query, limit=None, data_dir=None, on_event=None, **kwargs
+    ):
+        del kwargs
         entered.set()
         release.wait(20)
         return [("crossref", [_paper("crossref", "10.1/a")])], []
 
-    monkeypatch.setattr(jobs_module, "fetch_sources", _held_fetch)
+    monkeypatch.setattr(research_run_module, "fetch_sources", _held_fetch)
     client = _client(tmp_path)
 
     job_id = client.post("/api/research", json={"topic": TOPIC, "engine": "mock"}).json()["job_id"]
-    job = client.app.state.jobs.get(job_id)
+    job = _job(client, job_id)
     assert entered.wait(20)
     with job._lock:
         job.totals["documents_collected"] = 0
@@ -842,7 +1249,7 @@ def test_the_job_dir_is_named_for_the_stage_not_the_topic(
 ) -> None:
     """M1: a topic string must never become a path component."""
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch([("crossref", [_paper("crossref", "10.1/a")])]),
     )

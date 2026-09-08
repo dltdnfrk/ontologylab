@@ -12,7 +12,7 @@ Three properties are load-bearing here:
 * The model picks a name out of a fixed table. It never returns code, a
   URL, or a query to run, so what a sentence can reach is an edit to
   `intent.ACTIONS` rather than an emergent property of a prompt.
-* Research from chat goes through `start_research`, inheriting every gate
+* Research from chat goes through the shared research service, inheriting every gate
   instead of becoming a second, laxer entrance to the same fan-out.
 * A mutating action is never run by classification alone.
 """
@@ -28,6 +28,9 @@ from fastapi.testclient import TestClient
 from ontologylab import paths
 from ontologylab.chatstore import MAX_TURNS, ChatStore
 from ontologylab.intent import ACTIONS, Intent, requires_confirmation
+from ontologylab.kgstore import KGStore
+from ontologylab.models import ProposedEntity
+from ontologylab.research_spec import InteractionDecision
 from ontologylab.server import routes
 from ontologylab.server.app import create_app
 
@@ -210,28 +213,76 @@ def test_a_mutating_action_is_not_run_by_classification(client) -> None:
 
 
 def test_a_failed_pack_build_is_blocked_not_a_success_bubble(client, monkeypatch) -> None:
-    """packs_build can refuse with {ok: false} (e.g. the completeness gate).
-
-    The chat branch used to stamp kind "pack" on that refusal, and the
-    bubble then always said a pack was made — a fake success.
-    """
-    _classify_as(monkeypatch, Intent("build_pack", params={}, reading="…"))
-    monkeypatch.setattr(
-        routes,
-        "packs_build",
-        lambda **_: {
-            "ok": False,
-            "detail": "extraction incomplete: 2 of 5 chunks finished",
-            "error_code": "incomplete_extraction",
-        },
+    """Both entry points refuse a real fact with unknown extraction completion."""
+    store = KGStore.open(client.app.state.data_dir / "kg.sqlite")
+    try:
+        doc, _ = store.insert_document(
+            source_kind="upload",
+            source_uri="file:///incomplete-pack.txt",
+            title="Incomplete pack source",
+            raw_text="RateLimiter",
+            content_hash="sha256:incomplete-pack",
+        )
+        entity = ProposedEntity(
+            id="incomplete-pack-node", entity_type="Component", name="RateLimiter"
+        )
+        store.insert_proposed(
+            [entity], [], source_doc_id=doc.id,
+            extractor_engine="mock", prompt_version="extract-v1",
+        )
+        store.approve(entity.id)
+    finally:
+        store.close()
+    _classify_as(
+        monkeypatch, Intent("build_pack", params={"name": "refused"}, reading="…")
     )
+    direct = client.post("/api/packs/build", json={"name": "refused"})
+    assert direct.status_code == 200
+    refused = direct.json()
     body = client.post(
         "/api/chat",
         json={"message": "팩 만들어줘", "engine": "mock", "confirmed": True},
     ).json()
 
     assert body["result"]["kind"] == "blocked"
-    assert "extraction incomplete" in body["result"]["detail"]
+    assert refused["ok"] is False
+    assert body["result"]["ok"] is False
+    assert refused["error_code"] == "incomplete_extraction"
+    assert body["result"]["error_code"] == refused["error_code"]
+    assert refused["extraction_completeness"]
+    assert body["result"]["extraction_completeness"] == refused["extraction_completeness"]
+    assert body["steps"][-1]["status"] == "failed"
+    assert client.get("/api/packs").json()["packs"] == []
+
+
+def test_http_and_chat_pack_builds_publish_unique_packs(client, monkeypatch) -> None:
+    """The same requested name must not overwrite either published pack."""
+    direct = client.post("/api/packs/build", json={"name": "shared"})
+    assert direct.status_code == 200
+    assert direct.json()["ok"] is True
+    _classify_as(
+        monkeypatch, Intent("build_pack", params={"name": "shared"}, reading="…")
+    )
+    chat = client.post(
+        "/api/chat",
+        json={"message": "팩 만들어줘", "engine": "mock", "confirmed": True},
+    )
+    assert chat.status_code == 200
+    result = chat.json()["result"]
+    assert result["kind"] == "pack"
+    assert result["ok"] is True
+    direct_manifest = direct.json()["manifest"]
+    chat_manifest = result["manifest"]
+    assert direct_manifest["pack_id"] != chat_manifest["pack_id"]
+    assert direct_manifest["source_job_id"]
+    assert chat_manifest["source_job_id"]
+    assert direct_manifest["source_job_id"] != chat_manifest["source_job_id"]
+    published = {
+        pack["pack_id"]: pack for pack in client.get("/api/packs").json()["packs"]
+    }
+    assert set(published) == {direct_manifest["pack_id"], chat_manifest["pack_id"]}
+    for manifest in (direct_manifest, chat_manifest):
+        assert published[manifest["pack_id"]]["counts"] == manifest["counts"]
 
 
 def test_an_unanswered_confirmation_is_not_a_turn(client) -> None:
@@ -252,19 +303,34 @@ def test_an_unanswered_confirmation_is_not_a_turn(client) -> None:
 # --------------------------------------------------------------------------
 
 
-def test_research_from_chat_actually_starts_a_run(client, monkeypatch) -> None:
+@pytest.mark.parametrize(
+    "decision",
+    [InteractionDecision.EXECUTE, InteractionDecision.DECOMPOSE],
+)
+def test_research_from_chat_actually_starts_a_run(
+    client, monkeypatch, decision
+) -> None:
     _classify_as(
-        monkeypatch, Intent("research", params={"topic": "TP53"}, reading="…")
+        monkeypatch,
+        Intent(
+            "research",
+            params={"topic": "TP53"},
+            reading="…",
+            interaction_decision=decision,
+        ),
     )
     started = {}
 
-    def fake_start(*, deps, body):
+    def fake_start(*, deps, start_input):
         assert deps.data_dir == client.app.state.data_dir
-        started["topic"] = body.topic
-        started["engine"] = body.engine
+        started["topic"] = start_input.topic
+        started["origin"] = start_input.origin.value
+        started["policy"] = start_input.interaction_policy.value
+        started["decision"] = start_input.interaction_decision.value
+        started["engine"] = start_input.controls.engine
         return {"ok": True, "job_id": "research-1", "status": "running"}
 
-    monkeypatch.setattr(routes, "start_research", fake_start, raising=True)
+    monkeypatch.setattr(routes, "_start_research", fake_start, raising=True)
 
     body = client.post(
         "/api/chat", json={"message": "TP53 찾아줘", "engine": "mock"}
@@ -275,7 +341,13 @@ def test_research_from_chat_actually_starts_a_run(client, monkeypatch) -> None:
     }
     # The topic reaches the runner intact, and the run uses the engine the
     # conversation is using rather than the request schema's default.
-    assert started == {"topic": "TP53", "engine": "mock"}
+    assert started == {
+        "topic": "TP53",
+        "origin": "chat",
+        "policy": "chat_selective",
+        "decision": decision.value,
+        "engine": "mock",
+    }
 
 
 def test_research_from_chat_is_refused_by_the_same_gates(
@@ -332,6 +404,51 @@ def test_research_without_a_topic_asks_rather_than_searching(
 
     assert body["result"]["error_kind"] == "shape"
     assert body["steps"][-1]["detail"] == "no_topic"
+
+
+@pytest.mark.parametrize(
+    ("decision", "error_kind"),
+    [
+        (InteractionDecision.CLARIFY, "clarify"),
+        (InteractionDecision.ABSTAIN, "abstain"),
+    ],
+)
+def test_blocked_research_keeps_compiler_reading_without_creating_a_job(
+    client, monkeypatch, decision, error_kind
+) -> None:
+    # Given: the compiler blocks a research action with an accountable reading
+    _classify_as(
+        monkeypatch,
+        Intent(
+            "research",
+            params={"topic": "TP53"},
+            reading="compiler-reading",
+            interaction_decision=decision,
+        ),
+    )
+    calls = 0
+
+    def forbidden_start(*, deps, start_input):
+        nonlocal calls
+        del deps, start_input
+        calls += 1
+        raise AssertionError("blocked research created a job")
+
+    monkeypatch.setattr(routes, "_start_research", forbidden_start, raising=True)
+
+    # When: the blocked turn is answered and reloaded from the transcript
+    body = client.post(
+        "/api/chat", json={"message": "TP53 찾아줘", "engine": "mock"}
+    ).json()
+    [turn] = client.get("/api/chat/history").json()["turns"]
+
+    # Then: reading/decision survive and no job boundary is crossed
+    assert calls == 0
+    assert body["reading"] == "compiler-reading"
+    assert body["result"]["interaction_decision"] == error_kind
+    assert turn["reading"] == "compiler-reading"
+    assert turn["result"]["interaction_decision"] == error_kind
+    assert turn["job_id"] is None
 
 
 # --------------------------------------------------------------------------
@@ -435,8 +552,10 @@ def test_a_turn_that_started_a_run_carries_its_job(client, monkeypatch) -> None:
         monkeypatch, Intent("research", params={"topic": "TP53"}, reading="…")
     )
     monkeypatch.setattr(
-        routes, "start_research",
-        lambda *, deps, body: {"ok": True, "job_id": "research-1"},
+        routes, "_start_research",
+        lambda *, deps, start_input: {
+            "ok": True, "job_id": "research-1"
+        },
         raising=True,
     )
 
@@ -648,10 +767,10 @@ def test_the_originating_question_reaches_a_screen() -> None:
     and shipped with tests, a docstring and no caller — so the run detail
     still showed only `research-20260728-071805`.
     """
-    from pathlib import Path
+    from ontologylab import web_assets
 
-    script = Path("web/app.js").read_text(encoding="utf-8")
-    markup = Path("web/index.html").read_text(encoding="utf-8")
+    script = web_assets.read_asset_text("app.js")
+    markup = web_assets.read_asset_text("index.html")
 
     assert "/asked" in script, "no caller for the endpoint"
     assert 'id="job-asked"' in markup, "nowhere to render it"

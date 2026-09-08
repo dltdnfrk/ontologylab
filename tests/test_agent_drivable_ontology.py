@@ -16,11 +16,11 @@ import re
 
 import pytest
 
-from ontologylab.server.app import WEB_DIR
+from ontologylab import web_assets
 
-MARKUP = (WEB_DIR / "index.html").read_text(encoding="utf-8")
-SCRIPT = (WEB_DIR / "app.js").read_text(encoding="utf-8")
-STYLE = (WEB_DIR / "style.css").read_text(encoding="utf-8")
+MARKUP = web_assets.read_asset_text("index.html")
+SCRIPT = web_assets.read_asset_text("app.js")
+STYLE = web_assets.read_asset_text("style.css")
 
 # Every value the ontology panel renders that an authority or a reviewer
 # typed. If one of these is interpolated raw, the panel executes it.
@@ -36,8 +36,10 @@ UNTRUSTED = (
 )
 
 
-def _js_files() -> list:
-    return sorted(WEB_DIR.glob("*.js"))
+def _js_files() -> list[str]:
+    return sorted(
+        path for path in web_assets.asset_paths() if path.endswith(".js")
+    )
 
 
 # --------------------------------------------------------------------------
@@ -45,8 +47,8 @@ def _js_files() -> list:
 # --------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("path", _js_files(), ids=lambda p: p.name)
-def test_no_shipped_script_carries_a_control_byte_separator(path) -> None:
+@pytest.mark.parametrize("name", _js_files())
+def test_no_shipped_script_carries_a_control_byte_separator(name: str) -> None:
     """Given the shipped scripts, When scanned, Then no NUL byte is present.
 
     `s.tool + "\\0" + s.action` embedded a raw 0x00 in the source. It keys a
@@ -54,9 +56,9 @@ def test_no_shipped_script_carries_a_control_byte_separator(path) -> None:
     every editor that reads it, and a copy through any text pipeline silently
     changes the key. An escaped textual separator does the same job.
     """
-    data = path.read_bytes()
+    data = web_assets.read_asset_bytes(name)
 
-    assert b"\x00" not in data, f"{path.name} carries a literal NUL byte"
+    assert b"\x00" not in data, f"{name} carries a literal NUL byte"
 
 
 def test_the_step_key_separator_is_an_escaped_textual_one() -> None:

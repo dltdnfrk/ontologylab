@@ -82,7 +82,7 @@ def _seed(data_dir: Path, text: str = TEXT) -> None:
 
 def _gate(monkeypatch) -> _GatedEngine:
     engine = _GatedEngine()
-    monkeypatch.setattr(jobs_module, "get_engine", lambda *a, **k: engine)
+    monkeypatch.setattr(jobs_module, "resolve_engine", lambda *a, **k: engine)
     return engine
 
 

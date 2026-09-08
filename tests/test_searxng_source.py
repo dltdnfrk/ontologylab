@@ -127,13 +127,12 @@ def test_an_unconfigured_instance_is_refused_with_a_usable_message(
 def test_an_unconfigured_install_does_not_collect_a_failure_per_run(
     monkeypatch,
 ) -> None:
-    """Not running a SearXNG is a choice, not a fault — the same reason an
-    unconnected publisher source stays out of the default fan-out."""
+    """SearXNG is explicit-only even when its address is configured."""
     monkeypatch.delenv(SEARXNG_URL_ENV, raising=False)
     assert SEARXNG_SOURCE not in available_sources()
 
     monkeypatch.setenv(SEARXNG_URL_ENV, "http://localhost:8080")
-    assert SEARXNG_SOURCE in available_sources()
+    assert SEARXNG_SOURCE not in available_sources()
 
 
 def test_a_misconfigured_url_is_reported_rather_than_silently_dropped(
@@ -458,9 +457,9 @@ def test_the_no_json_failure_says_what_to_change() -> None:
 
 def test_the_browser_names_the_json_failure_too() -> None:
     """A kind the browser has no word for renders as the raw string."""
-    from pathlib import Path
+    from ontologylab import web_assets
 
-    source = Path("web/app.js").read_text(encoding="utf-8")
+    source = web_assets.read_asset_text("app.js")
     fail_map = source.split("var FAIL_KO = {", 1)[1].split("};", 1)[0]
 
     assert "no_json" in fail_map
@@ -473,12 +472,11 @@ def test_every_source_has_a_name_the_trace_can_show() -> None:
     `Europe PMC 조회 5`, because the trace's label map had been written
     from the default fan-out and never revisited when sources were added.
     """
-    from pathlib import Path
-
     from ontologylab.connectors.paper_api import SOURCE_ORDER
+    from ontologylab import web_assets
 
-    source = Path("web/app.js").read_text(encoding="utf-8")
-    tool_map = source.split("var TOOL_KO = {", 1)[1].split("};", 1)[0]
+    source = web_assets.read_asset_text("app.js")
+    tool_map = source.split("tools: {", 1)[1].split("},", 1)[0]
 
     missing = [name for name in SOURCE_ORDER if f"{name}:" not in tool_map]
     assert not missing, f"the trace would show raw ids for: {missing}"

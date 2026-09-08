@@ -21,7 +21,6 @@ from fastapi.testclient import TestClient
 from ontologylab.engines import EngineError
 from ontologylab.kgstore import KGStore, KGStoreError
 from ontologylab.paths import NetworkBlocked
-from ontologylab.server import routes
 from ontologylab.server.app import create_app
 from ontologylab.server.jobs import summarize_failure
 
@@ -106,7 +105,7 @@ def test_a_real_failing_job_records_only_the_summary(tmp_path, monkeypatch) -> N
     async def _explode(*args, **kwargs):
         raise OSError(f"HTTP 429 from https://api.elsevier.com/?apiKey={SECRET}")
 
-    monkeypatch.setattr("ontologylab.server.jobs.run_extraction", _explode)
+    monkeypatch.setattr("ontologylab.server.jobs.run_extract_job", _explode)
     registry = JobRegistry(tmp_path / "data")
     # A document must exist, or extraction returns before reaching the engine.
     store = KGStore.open(paths_kg(tmp_path))
@@ -179,7 +178,7 @@ def test_chunk_engine_error_is_redacted_from_job_status(
         store.close()
 
     engine = _LeakingChunkEngine()
-    monkeypatch.setattr(jobs_module, "get_engine", lambda *args, **kwargs: engine)
+    monkeypatch.setattr(jobs_module, "resolve_engine", lambda *args, **kwargs: engine)
     registry = JobRegistry(data_dir)
     job = registry.create(
         engine="mock",

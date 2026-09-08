@@ -34,7 +34,7 @@ def test_every_api_route_requires_session(tmp_path: Path) -> None:
     client = drop_test_session(TestClient(app))
     routes = [route for route in _api_routes(app) if route.path.startswith("/api/")]
 
-    assert len(routes) == 86, [
+    assert len(routes) == 88, [
         (route.path, sorted(route.methods or ())) for route in routes
     ]
 
@@ -45,8 +45,10 @@ def test_every_api_route_requires_session(tmp_path: Path) -> None:
     for route in routes:
         path = _concrete_path(route.path)
         for method in sorted(route.methods or ()):
-            kwargs = {"json": {}} if method not in {"GET", "HEAD", "OPTIONS"} else {}
-            response = client.request(method, path, **kwargs)
+            if method in {"GET", "HEAD", "OPTIONS"}:
+                response = client.request(method, path)
+            else:
+                response = client.request(method, path, json={})
             assert response.status_code == 401, (
                 method,
                 route.path,

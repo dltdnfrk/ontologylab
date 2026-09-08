@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from urllib.error import URLError
 
 import pytest
 
@@ -248,20 +249,13 @@ def _connect(tmp_path, monkeypatch, key: str = KEY) -> None:
     ("source", "fixture", "header"),
     [
         (ELSEVIER_SOURCE, ELSEVIER_FIXTURE, "X-ELS-APIKey"),
-        (SPRINGER_SOURCE, SPRINGER_FIXTURE, "X-API-Key"),
         (CORE_SOURCE, CORE_FIXTURE, "Authorization"),
     ],
 )
 def test_the_key_goes_in_the_documented_header_never_the_url(
     tmp_path, monkeypatch, source, fixture, header
 ) -> None:
-    """A key in a query string reaches four durable sinks at once.
-
-    The offline-refusal message, `provenance.jsonl`, `status.json`'s
-    `last_payload`, and the job log are all written by code that does not
-    know a URL might be a secret. Elsevier and Springer both accept a query
-    parameter; this is the test that says we do not use it.
-    """
+    """Header-capable publisher keys never enter a URL."""
     seen = {}
 
     def _capture(url, headers=None):
@@ -280,6 +274,36 @@ def test_the_key_goes_in_the_documented_header_never_the_url(
     assert KEY not in seen["url"], f"the key reached the URL: {seen['url']}"
     assert any(KEY in value for value in seen["headers"].values()), seen["headers"]
     assert header in seen["headers"]
+
+
+def test_springer_uses_query_transport_inside_the_redacted_http_seam(
+    tmp_path, monkeypatch
+) -> None:
+    seen = {}
+
+    def _capture(url, headers=None, query_key=None):
+        seen["url"] = url
+        seen["headers"] = headers or {}
+        seen["query_key"] = query_key
+        return SPRINGER_FIXTURE
+
+    monkeypatch.setattr(paper_api, "_http_get_text", _capture)
+    _connect(tmp_path, monkeypatch)
+
+    docs = asyncio.run(
+        PaperApiConnector().fetch(
+            {
+                "source": SPRINGER_SOURCE,
+                "query": "knowledge graphs",
+                "data_dir": tmp_path,
+            }
+        )
+    )
+
+    assert docs
+    assert KEY not in seen["url"]
+    assert KEY not in seen["headers"].values()
+    assert seen["query_key"] == ("api_key", KEY)
 
 
 def test_the_header_actually_reaches_the_outgoing_request(monkeypatch) -> None:
@@ -513,6 +537,40 @@ def test_an_oversized_publisher_response_is_a_typed_refusal(
     assert response.json()["error_kind"] == "too_large"
 
 
+def test_direct_collect_redacts_query_credentials_from_failures(
+    tmp_path, monkeypatch
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from ontologylab.server.app import create_app
+
+    canary = KEY
+    data_dir = tmp_path / "data"
+    _connect(data_dir, monkeypatch)
+    monkeypatch.setattr(
+        paper_api,
+        "_http_get_text",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            URLError(
+                "failed https://api.springernature.com/meta/v2/json"
+                f"?q=x&api_key={canary}"
+            )
+        ),
+    )
+    client = TestClient(create_app(data_dir=data_dir))
+
+    response = client.post(
+        "/api/collect",
+        json={"paper_queries": ["q"], "paper_source": SPRINGER_SOURCE},
+    )
+
+    assert response.status_code == 200
+    assert canary not in response.text
+    for path in data_dir.rglob("*"):
+        if path.is_file():
+            assert canary.encode() not in path.read_bytes()
+
+
 def test_an_unconnected_publisher_is_not_queried_by_default(tmp_path) -> None:
     """Three permanent `unconfigured` rows on every run would be noise for a
     feature the user has not opted into."""
@@ -521,6 +579,22 @@ def test_an_unconnected_publisher_is_not_queried_by_default(tmp_path) -> None:
         "biorxiv", "pubmed",
         "clinicaltrials",
     ]
+
+
+def test_configured_searxng_remains_explicit_only(
+    tmp_path, monkeypatch
+) -> None:
+    """Automatic research is scholarly-API-only.
+
+    SearXNG remains available when explicitly selected, but configuring its
+    address must not silently add generic web results to every research run.
+    """
+    monkeypatch.setenv(
+        paper_api.SEARXNG_URL_ENV,
+        "http://127.0.0.1:8080",
+    )
+
+    assert paper_api.SEARXNG_SOURCE not in available_sources(tmp_path)
 
 
 def test_a_connected_publisher_joins_the_default_set(tmp_path, monkeypatch) -> None:
@@ -537,19 +611,24 @@ def test_a_connected_publisher_joins_the_default_set(tmp_path, monkeypatch) -> N
 
 
 def test_the_keyed_set_is_derived_from_the_auth_table() -> None:
-    """A source added to the dispatch table but not to `_SOURCE_AUTH` would
-    otherwise be queried anonymously, silently."""
-    assert KEYED_SOURCES == frozenset(paper_api._SOURCE_AUTH)
+    """Every required key has exactly one transport contract."""
+    assert KEYED_SOURCES == (
+        frozenset(paper_api._SOURCE_AUTH)
+        | frozenset(paper_api._SOURCE_QUERY_AUTH)
+    )
     assert KEYED_SOURCES <= set(SOURCE_ORDER)
     assert KEYED_SOURCES == {ELSEVIER_SOURCE, SPRINGER_SOURCE, CORE_SOURCE}
 
 
-def test_every_keyed_source_has_a_header_builder_and_a_parser() -> None:
+def test_every_keyed_source_has_an_auth_transport_and_a_parser() -> None:
     for name in KEYED_SOURCES:
         assert name in paper_api._SOURCE_DISPATCH
-        headers = paper_api._SOURCE_AUTH[name]("SAMPLE")
-        assert any("SAMPLE" in value for value in headers.values())
-        assert all(isinstance(value, str) for value in headers.values())
+        if name in paper_api._SOURCE_AUTH:
+            headers = paper_api._SOURCE_AUTH[name]("SAMPLE")
+            assert any("SAMPLE" in value for value in headers.values())
+            assert all(isinstance(value, str) for value in headers.values())
+        else:
+            assert paper_api._SOURCE_QUERY_AUTH[name] == "api_key"
 
 
 def test_no_builder_puts_the_key_in_the_url_by_construction() -> None:

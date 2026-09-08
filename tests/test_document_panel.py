@@ -254,13 +254,14 @@ def _run_mark_spans(text: str, items: list[dict]) -> str:
     import json
     import shutil
     import subprocess
-    from pathlib import Path
+
+    from ontologylab import web_assets
 
     node = shutil.which("node")
     if node is None:
         pytest.skip("node is not installed")
 
-    source = Path("web/app.js").read_text(encoding="utf-8")
+    source = web_assets.read_asset_text("app.js")
     body = source.split("  function markSpans", 1)[1]
     body = "function markSpans" + body.split("\n  function ", 1)[0]
 
@@ -346,9 +347,10 @@ def test_document_text_is_escaped_everywhere_it_is_drawn() -> None:
     fetched. Every path from `text` into innerHTML goes through escapeHtml.
     """
     import re
-    from pathlib import Path
 
-    source = Path("web/app.js").read_text(encoding="utf-8")
+    from ontologylab import web_assets
+
+    source = web_assets.read_asset_text("app.js")
     body = source.split("function markSpans", 1)[1].split("\n  function ", 1)[0]
 
     for match in re.finditer(r"text\.slice\(", body):

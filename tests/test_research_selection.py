@@ -8,8 +8,10 @@ from pathlib import Path
 
 import pytest
 
+from ontologylab import paths, research_plan, research_spec
+from ontologylab import research_run as research_run_module
 from ontologylab.engines import MockEngine
-from ontologylab.extractor import TOTALS_KEYS
+from ontologylab.extractor import TOTALS_KEYS, ExtractionOutcome
 from ontologylab.file_lifecycle import content_hash_for
 from ontologylab.kgstore import KGStore
 from ontologylab.provenance import Provenance
@@ -17,6 +19,7 @@ from ontologylab.research_extract import (
     ResearchExtractSession,
     extract_research_documents,
 )
+from ontologylab.server.app import create_app
 from tests.test_preferred_selection import (
     DOI,
     PMC_BODY,
@@ -166,7 +169,6 @@ def test_research_http_selects_pmc_from_publisher_and_pmc_fake(
     from ontologylab import paths
     from ontologylab.connectors.base import RawDocument, normalize_doi
     from ontologylab.selection_types import PolicyVersion
-    from ontologylab.server import jobs as jobs_module
     from ontologylab.server.app import create_app
 
     doi = normalize_doi(DOI)
@@ -193,7 +195,17 @@ def test_research_http_selects_pmc_from_publisher_and_pmc_fake(
         content_kind="fulltext",
     )
 
-    async def _fetch(sources, query, limit=None, data_dir=None, on_event=None):
+    async def _fetch(
+        sources,
+        query,
+        limit=None,
+        data_dir=None,
+        on_event=None,
+        source_queries=None,
+        search_axis="",
+        query_terms=(),
+    ):
+        del source_queries, search_axis, query_terms
         if on_event is not None:
             for name in sources:
                 on_event("source_start", name, None)
@@ -201,7 +213,7 @@ def test_research_http_selects_pmc_from_publisher_and_pmc_fake(
             on_event("source_ok", "pmc", 1)
         return [("publisher", [publisher]), ("pmc", [pmc])], []
 
-    monkeypatch.setattr(jobs_module, "fetch_sources", _fetch)
+    monkeypatch.setattr(research_run_module, "fetch_sources", _fetch)
     data_dir = tmp_path / "data"
     app = create_app(data_dir=data_dir)
     client = TestClient(app)
@@ -244,3 +256,170 @@ def test_research_http_selects_pmc_from_publisher_and_pmc_fake(
         assert source_doc_ids(store) == {selected}
     finally:
         store.close()
+
+
+def test_stop_no_usable_source_never_enters_extraction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from fastapi.testclient import TestClient
+
+
+    need = research_spec.build_evidence_need(
+        research_spec.EvidenceNeedDraft(
+            research_spec.EvidenceNeedKind.MECHANISM,
+            "mechanism evidence",
+            True,
+            research_spec.ContentClass.FULLTEXT,
+        )
+    )
+    reading = research_plan.PlannerReading(
+        "mechanism goal",
+        (need,),
+        (),
+        (
+            research_plan.NeedLinkedAxis(
+                "mechanism",
+                "mechanism query",
+                ("mechanism",),
+                (need.need_id,),
+                (),
+                (("crossref", "mechanism query"),),
+            ),
+        ),
+        None,
+    )
+
+    async def _plan(*args, **kwargs):
+        del args, kwargs
+        return reading, {"calls": 1}
+
+    async def _fetch(*args, **kwargs):
+        del args, kwargs
+        return [], []
+
+    extraction_calls = 0
+
+    async def _extract(*args, **kwargs):
+        nonlocal extraction_calls
+        del args, kwargs
+        extraction_calls += 1
+        return ExtractionOutcome("")
+
+    monkeypatch.setattr(
+        research_run_module,
+        "formulate_research_plan",
+        _plan,
+        raising=False,
+    )
+    monkeypatch.setattr(research_run_module, "fetch_sources", _fetch)
+    monkeypatch.setattr(research_run_module, "extract_research_documents", _extract)
+    data_dir = tmp_path / "data-stop"
+    app = create_app(data_dir=data_dir)
+    client = TestClient(app)
+    started = client.post(
+        "/api/research",
+        json={
+            "topic": "mechanism goal",
+            "sources": ["crossref"],
+            "engine": "mock",
+            "fulltext": False,
+            "citation_expansion": False,
+            "max_queries": 1,
+        },
+    ).json()
+    job = app.state.jobs.get(started["job_id"])
+    assert job is not None and job._thread is not None
+    job._thread.join(timeout=30)
+
+    assert job.status == "failed"
+    assert job.error is not None and "no_usable_source" in job.error
+    assert extraction_calls == 0
+
+
+def test_extraction_receives_exact_ingestion_result_document_ids(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from tests.test_research_run import (
+        TOPIC,
+        _axis,
+        _axis_fetch,
+        _install_planner,
+        _need,
+        _paper,
+        _planned_reading,
+    )
+
+    data_dir = tmp_path / "data-exact-ids"
+    stale_store = KGStore.open(paths.kg_db_path(data_dir))
+    try:
+        stale, _created = stale_store.insert_document(
+            source_kind="upload",
+            source_uri="file:///stale.txt",
+            title="stale",
+            raw_text="LegacyThing calls OldThing.",
+            content_hash="sha256:" + "d" * 64,
+        )
+    finally:
+        stale_store.close()
+    need = _need(research_spec.EvidenceNeedKind.GENERAL, "current evidence")
+    _install_planner(
+        monkeypatch,
+        _planned_reading(
+            (need,),
+            (_axis("current", "current query", (need.need_id,)),),
+        ),
+    )
+    monkeypatch.setattr(
+        research_run_module,
+        "fetch_sources",
+        _axis_fetch(
+            {"current query": [_paper("crossref", "10.1/current")]}
+        ),
+    )
+    real_ingest = research_run_module.ingest_raw_documents_batched
+    ingested_ids: tuple[str, ...] = ()
+
+    def _ingest(*args, **kwargs):
+        nonlocal ingested_ids
+        result = real_ingest(*args, **kwargs)
+        ingested_ids = result.document_ids
+        return result
+
+    extracted_ids: tuple[str, ...] = ()
+
+    async def _extract(_store, document_ids, _session):
+        nonlocal extracted_ids
+        extracted_ids = document_ids
+        return ExtractionOutcome("")
+
+    monkeypatch.setattr(
+        research_run_module,
+        "ingest_raw_documents_batched",
+        _ingest,
+    )
+    monkeypatch.setattr(research_run_module, "extract_research_documents", _extract)
+    app = create_app(data_dir=data_dir)
+    client = TestClient(app)
+    started = client.post(
+        "/api/research",
+        json={
+            "topic": TOPIC,
+            "sources": ["crossref"],
+            "engine": "mock",
+            "fulltext": False,
+            "citation_expansion": False,
+            "max_queries": 1,
+        },
+    ).json()
+    job = app.state.jobs.get(started["job_id"])
+    assert job is not None and job._thread is not None
+    job._thread.join(timeout=30)
+
+    assert job.status == "complete", job.error
+    assert extracted_ids == ingested_ids
+    assert extracted_ids
+    assert stale.id not in extracted_ids

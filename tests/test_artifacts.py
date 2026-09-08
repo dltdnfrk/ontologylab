@@ -260,10 +260,9 @@ def test_the_ui_shows_a_hint_for_each_empty_group() -> None:
     "릴리스" heading with nothing under it. Each group now shows its own
     empty hint unless both are empty (then the big empty-state card speaks).
     """
-    from ontologylab.server.app import WEB_DIR
+    from ontologylab import web_assets
 
-    script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
-    assert "수집한 문서가 없어요" in script
-    assert "빌드한 팩이 없어요" in script
+    script = web_assets.read_asset_text("app.js")
+    assert script.count("artifact-empty-hint") >= 2
     assert "docs.length === 0 && hasAny" in script
     assert "releases.length === 0 && hasAny" in script

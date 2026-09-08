@@ -81,7 +81,7 @@ def test_fully_successful_extraction_job_ends_complete(tmp_path, monkeypatch) ->
     doc_id = _insert_document(
         data_dir, "The PaymentGateway uses the DatabaseService."
     )
-    monkeypatch.setattr(jobs_module, "get_engine", lambda *args, **kwargs: MockEngine(0))
+    monkeypatch.setattr(jobs_module, "resolve_engine", lambda *args, **kwargs: MockEngine(0))
     registry = JobRegistry(data_dir)
 
     job = _create(registry, doc_id)
@@ -98,7 +98,7 @@ def test_engine_factory_failure_is_redacted_and_failed(tmp_path, monkeypatch) ->
     def fail_factory(*args, **kwargs):
         raise EngineError("factory detail must not escape")
 
-    monkeypatch.setattr(jobs_module, "get_engine", fail_factory)
+    monkeypatch.setattr(jobs_module, "resolve_engine", fail_factory)
     registry = JobRegistry(data_dir)
 
     job = _create(registry, doc_id)
@@ -115,7 +115,7 @@ def test_partial_chunk_failure_job_status_matches_durable_run(
     doc_id = _insert_document(data_dir)
     assert len(chunk_document(_LONG_TEXT)) == 4
     engine = _FailSecondChunkOnce()
-    monkeypatch.setattr(jobs_module, "get_engine", lambda *args, **kwargs: engine)
+    monkeypatch.setattr(jobs_module, "resolve_engine", lambda *args, **kwargs: engine)
     registry = JobRegistry(data_dir)
 
     job = _create(registry, doc_id)
@@ -151,7 +151,7 @@ def test_off_schema_chunk_output_marks_job_and_run_failed(
             return "```json\nnot-json\n```", {"elapsed": 0.0}
 
     monkeypatch.setattr(
-        jobs_module, "get_engine", lambda *args, **kwargs: _MalformedEngine()
+        jobs_module, "resolve_engine", lambda *args, **kwargs: _MalformedEngine()
     )
     registry = JobRegistry(data_dir)
 

@@ -24,17 +24,13 @@ _ROOT = str(Path(__file__).resolve().parent.parent)
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-try:
-    from fastapi.testclient import TestClient
-except ImportError:  # pragma: no cover
-    TestClient = None  # type: ignore[assignment]
-
-if TestClient is None:
-    pytest.skip("fastapi is not installed", allow_module_level=True)
+pytest.importorskip("fastapi.testclient", reason="fastapi is not installed")
+from fastapi.testclient import TestClient  # noqa: E402
 
 from ontologylab.kgstore import KGStore  # noqa: E402
 from ontologylab.models import ProposedEntity  # noqa: E402
-from ontologylab.server.app import WEB_DIR, create_app  # noqa: E402
+from ontologylab import web_assets  # noqa: E402
+from ontologylab.server.app import create_app  # noqa: E402
 
 
 def _client(tmp_path: Path, n: int) -> TestClient:
@@ -146,7 +142,7 @@ def test_proposals_bad_cursor_is_400(tmp_path: Path) -> None:
 
 def test_review_ui_row_cap() -> None:
     """The UI's first render must never exceed 100 rows (DoD)."""
-    script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
+    script = web_assets.read_asset_text("app.js")
     size = re.search(r"var reviewPageSize = (\d+);", script)
     assert size is not None, "reviewPageSize constant must exist"
     assert int(size.group(1)) <= 100
@@ -157,15 +153,48 @@ def test_review_ui_row_cap() -> None:
 
 
 def test_review_scroll_listener_catches_the_real_scroll_container() -> None:
-    """The page scrolls inside <main> (overflow-y: auto), not the window.
+    """The explicit, keyboard-activatable button executes bounded pagination."""
+    from tests.test_review_request_ownership import _run
 
-    A window listener never fired on wheel — the smoke test (2026-08-06)
-    reproduced scroll-to-bottom loading nothing. The hook must be attached
-    at document level in the capture phase so it sees any container's
-    scroll.
-    """
-    script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
-    assert re.search(
-        r'document\.addEventListener\("scroll", reviewMaybeLoadMore, \{\s*capture: true',
+    script = web_assets.read_asset_text("app.js")
+    markup = web_assets.read_asset_text("index.html")
+    assert re.search(r'<button[^>]*id="review-more-btn"[^>]*>', markup)
+    binding = re.search(
+        r'\$\("#review-more-btn"\)\.addEventListener\("click", [^\n]+\);',
         script,
-    ), "scroll hook must be document-level capture, not window"
+    )
+    assert binding is not None
+    source = """
+configure([page("first-", 2, 5, "page &2")]);
+await loadProposals();
+var button = $("#review-more-btn"), listeners = {};
+button.addEventListener = function (type, handler) { listeners[type] = handler; };
+"""
+    source += binding.group(0)
+    source += """
+var cursorPath = Q + "&cursor=page%20%262";
+var gate = deferred();
+queue(cursorPath, [gate.promise]);
+var arrived = reached(cursorPath);
+var pending = listeners.click({target: button});
+await arrived;
+var during = snapshot();
+await listeners.click({target: button});
+gate.resolve(page("last-", 3, 5));
+await pending;
+var complete = snapshot();
+await listeners.click({target: button});
+console.log(JSON.stringify({during: during, complete: complete, after: snapshot()}));
+"""
+    observed = _run(source)
+    assert observed["during"]["rows"] == ["first-0", "first-1"]
+    assert observed["during"]["loading"] is True
+    assert observed["during"]["moreDisabled"] is True
+    complete = observed["complete"]
+    expected = ["first-0", "first-1", "last-0", "last-1", "last-2"]
+    assert complete["rows"] == complete["dom"] == expected
+    assert complete["progress"] == [5, 5]
+    assert complete["more"] is False and complete["next"] is None
+    assert complete["loading"] is False and complete["spinner"] is False
+    assert complete["unexpected"] == []
+    assert observed["after"] == complete

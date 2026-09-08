@@ -19,6 +19,7 @@ is halfway through must keep meaning what it meant.
 
 from __future__ import annotations
 
+from html.parser import HTMLParser
 import os
 
 import pytest
@@ -269,10 +270,10 @@ def test_the_settings_screen_can_change_the_ontology() -> None:
     An API with no caller is the state `/api/jobs/{id}/asked` shipped in
     earlier this session, so the wiring is checked rather than assumed.
     """
-    from pathlib import Path
+    from ontologylab import web_assets
 
-    markup = Path("web/index.html").read_text(encoding="utf-8")
-    script = Path("web/app.js").read_text(encoding="utf-8")
+    markup = web_assets.read_asset_text("index.html")
+    script = web_assets.read_asset_text("app.js")
 
     assert 'id="schema-active"' in markup
     assert 'id="schema-presets"' in markup
@@ -281,17 +282,69 @@ def test_the_settings_screen_can_change_the_ontology() -> None:
     assert "data-schema-activate" in script, "no way back to an earlier one"
 
 
-def test_the_screen_says_switching_does_not_re_type_the_queue() -> None:
-    """The property that makes this safe mid-review is invisible unless
-    stated: someone with 1,406 pending proposals needs to know they are not
-    about to be re-interpreted."""
-    from pathlib import Path
+def test_the_screen_says_switching_does_not_re_type_the_queue(
+    client, tmp_path,
+) -> None:
+    """Keep visible guidance and prove its promise through the real API."""
+    from ontologylab import web_assets
 
-    markup = Path("web/index.html").read_text(encoding="utf-8")
-    panel = markup.split('id="schema-active"', 1)[1].split("</div>", 3)[-1]
+    class Guidance(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.after_presets = False
+            self.in_help = False
+            self.text: list[str] = []
 
-    assert "이미 쌓인 제안은 그대로" in markup
-    assert "새로 추출하는 것부터" in markup
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            attributes = dict(attrs)
+            if attributes.get("id") == "schema-presets":
+                self.after_presets = True
+            if attributes.get("id") == "schema-installed":
+                self.after_presets = False
+            if tag == "p" and self.after_presets:
+                self.in_help = "form-help" in (attributes.get("class") or "").split()
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag == "p":
+                self.in_help = False
+
+        def handle_data(self, data: str) -> None:
+            if self.in_help:
+                self.text.append(data)
+
+    guidance = Guidance()
+    guidance.feed(web_assets.read_asset_text("index.html"))
+    assert "".join(guidance.text).strip(), "schema controls need visible help"
+    data = tmp_path / "data" / "kg.sqlite"
+    with KGStore.open(data) as store:
+        document, _ = store.insert_document(
+            source_kind="upload", source_uri="file:///schema-guidance.txt",
+            title="schema guidance", raw_text="TP53 is a tumor suppressor.",
+            content_hash="schema-guidance",
+        )
+        store.insert_proposed(
+            [ProposedEntity(
+                id="schema-guidance-node", entity_type="Concept", name="TP53",
+                confidence=0.9, source_span=SourceSpan(0, 4),
+            )],
+            [], source_doc_id=document.id, extractor_engine="mock",
+        )
+        before = dict(store.conn.execute(
+            "SELECT * FROM nodes WHERE id='schema-guidance-node'"
+        ).fetchone())
+    queue = client.get("/api/proposals?kind=node&limit=10").json()["items"]
+    response = client.post("/api/schema", json={"preset": "biomedical"})
+    assert response.status_code == 200
+    assert response.json()["active"]["schema_label"] == "biomed-v1"
+    assert client.get("/api/proposals?kind=node&limit=10").json()["items"] == queue
+    with KGStore.open(data) as store:
+        after = dict(store.conn.execute(
+            "SELECT * FROM nodes WHERE id='schema-guidance-node'"
+        ).fetchone())
+        active = store.active_schema_version()["id"]
+    assert after == before
+    assert after["status"] == "proposed"
+    assert after["schema_version_id"] != active
 
 
 # --------------------------------------------------------------------------

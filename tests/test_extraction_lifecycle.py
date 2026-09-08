@@ -144,7 +144,7 @@ def test_effective_provider_default_is_run_identity_and_provenance(
 
     engine = _CountingMock()
     engine._model = "provider-default-v2"
-    monkeypatch.setattr(jobs_module, "get_engine", lambda *args, **kwargs: engine)
+    monkeypatch.setattr(jobs_module, "resolve_engine", lambda *args, **kwargs: engine)
     registry = JobRegistry(data_dir)
     job_dir = tmp_path / "job-default-model"
     job = Job(

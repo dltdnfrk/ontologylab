@@ -29,6 +29,7 @@ from ontologylab.connectors.paper_api import (
     KEYED_SOURCES,
     OPENALEX_SOURCE,
     OPTIONAL_KEY_SOURCES,
+    PUBMED_SOURCE,
     SEMANTIC_SCHOLAR_SOURCE,
     SOURCE_ORDER,
     _with_query_key,
@@ -89,9 +90,12 @@ def test_the_three_categories_do_not_overlap() -> None:
     assert CONNECTABLE_SOURCES <= set(SOURCE_ORDER)
 
 
-def test_the_rate_limited_pair_is_the_optional_set() -> None:
-    """Named rather than inferred: these are the two that measured 429."""
-    assert OPTIONAL_KEY_SOURCES == {OPENALEX_SOURCE, SEMANTIC_SCHOLAR_SOURCE}
+def test_optional_keys_cover_rate_limits_and_pubmed_throughput() -> None:
+    assert OPTIONAL_KEY_SOURCES == {
+        OPENALEX_SOURCE,
+        SEMANTIC_SCHOLAR_SOURCE,
+        PUBMED_SOURCE,
+    }
 
 
 def test_an_optional_source_stays_available_with_no_key(tmp_path) -> None:
@@ -161,7 +165,9 @@ def test_no_key_means_an_anonymous_request_not_a_refusal(
         fetch_sources(list(OPTIONAL_KEY_SOURCES), "crispr", 3, tmp_path)
     )
 
-    assert len(sent) == 2, "both were still attempted"
+    assert len(sent) == len(OPTIONAL_KEY_SOURCES), (
+        "every optional source was still attempted"
+    )
     for request in sent:
         assert "api_key=" not in request.full_url
         assert request.get_header("X-api-key") is None
@@ -339,9 +345,9 @@ def test_the_form_offers_the_connectable_sources_and_no_free_text() -> None:
     """
     import re
 
-    from ontologylab.server.app import WEB_DIR
+    from ontologylab import web_assets
 
-    markup = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+    markup = web_assets.read_asset_text("index.html")
 
     # The rule is "chosen from a list", not one exact spelling of the tag —
     # an earlier version matched `<select id="source-id">` literally and

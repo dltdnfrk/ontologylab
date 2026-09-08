@@ -113,7 +113,14 @@ def test_collect_file_then_documents_lists_it(tmp_path: Path) -> None:
         "/api/collect", json={"files": [str(_sample_file(tmp_path))]}
     )
     assert resp.status_code == 200
-    assert resp.json() == {"ok": True, "documents": 1, "created": 1, "duplicates": 0}
+    assert resp.json() == {
+        "ok": True,
+        "documents": 1,
+        "created": 1,
+        "duplicates": 0,
+        "failures": [],
+        "conflicts": [],
+    }
 
     listed = client.get("/api/documents").json()
     assert listed["count"] == 1
@@ -132,8 +139,28 @@ def test_collect_duplicate_file_counts_duplicates(tmp_path: Path) -> None:
     assert client.post("/api/collect", json={"files": [sample]}).json()["created"] == 1
 
     again = client.post("/api/collect", json={"files": [sample]}).json()
-    assert again == {"ok": True, "documents": 1, "created": 0, "duplicates": 1}
+    assert again == {
+        "ok": True,
+        "documents": 1,
+        "created": 0,
+        "duplicates": 1,
+        "failures": [],
+        "conflicts": [],
+    }
     assert client.get("/api/documents").json()["count"] == 1
+
+
+def test_collect_body_reports_failures_and_conflicts_keys(tmp_path: Path) -> None:
+    client, _, _ = _make_client(tmp_path)
+    resp = client.post(
+        "/api/collect", json={"files": [str(_sample_file(tmp_path))]}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["created"] == 1
+    assert body["failures"] == []
+    assert body["conflicts"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -199,7 +226,14 @@ def test_collect_crossref_allowlisted_query_ingests(
         json={"paper_queries": ["databases"], "paper_source": "crossref"},
     )
     assert resp.status_code == 200
-    assert resp.json() == {"ok": True, "documents": 1, "created": 1, "duplicates": 0}
+    assert resp.json() == {
+        "ok": True,
+        "documents": 1,
+        "created": 1,
+        "duplicates": 0,
+        "failures": [],
+        "conflicts": [],
+    }
     listed = client.get("/api/documents").json()
     assert listed["count"] == 1
     document = listed["documents"][0]
@@ -245,6 +279,8 @@ def test_collect_same_doi_with_changed_abstract_creates_representation(
         "documents": 1,
         "created": 1,
         "duplicates": 0,
+        "failures": [],
+        "conflicts": [],
     }
     assert client.get("/api/documents").json()["count"] == 2
 
@@ -285,7 +321,14 @@ def test_collect_paper_query_with_canned_atom(tmp_path: Path, monkeypatch) -> No
     )
     resp = client.post("/api/collect", json={"paper_queries": ["databases"]})
     assert resp.status_code == 200
-    assert resp.json() == {"ok": True, "documents": 2, "created": 2, "duplicates": 0}
+    assert resp.json() == {
+        "ok": True,
+        "documents": 2,
+        "created": 2,
+        "duplicates": 0,
+        "failures": [],
+        "conflicts": [],
+    }
 
     listed = client.get("/api/documents").json()
     assert listed["count"] == 2
@@ -299,26 +342,21 @@ def test_collect_paper_query_with_canned_atom(tmp_path: Path, monkeypatch) -> No
 # ---------------------------------------------------------------------------
 
 
-def test_extract_default_engine_is_settings_default_not_mock(tmp_path: Path) -> None:
-    """A body-less POST /api/extract must follow the settings default engine.
-
-    The API used to default `engine` to "mock" while CLI/settings default to
-    claude — an engine-less request ran a CamelCase scanner on real prose and
-    reported zero proposals as a result instead of a misconfiguration.
-    """
+def test_extract_default_engine_is_offline_mock_on_first_run(tmp_path: Path) -> None:
+    """A body-less first-run extraction cannot spawn a live CLI or provider."""
     client, _, _ = _make_client(tmp_path)
     resp = client.post("/api/extract", json={})
     assert resp.status_code == 202
     job_id = resp.json()["job_id"]
     jobs = client.get("/api/jobs").json()["jobs"]
     job = next(j for j in jobs if j["job_id"] == job_id)
-    assert job["engine"] == DEFAULT_ENGINE
+    assert job["engine"] == "mock"
     client.post(f"/api/jobs/{job_id}/cancel")
 
-    # Same contract at the schema-binding seam for the other two engines:
-    # an omitted engine must bind the settings default, never "mock".
+    # Passive-capable dashboard flows share the offline first-run default;
+    # advisory critic scoring remains an explicitly triggered live action.
     from ontologylab.server import schemas
-    assert schemas.ResearchRequest.model_fields["engine"].default == DEFAULT_ENGINE
+    assert schemas.ResearchRequest.model_fields["engine"].default == "mock"
     assert schemas.CriticRunRequest.model_fields["engine"].default == DEFAULT_ENGINE
 
 

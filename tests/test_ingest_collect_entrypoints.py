@@ -1,37 +1,36 @@
-"""Wave 2.1 Step 6D: production entrypoints share one shadow adapter."""
-
 from __future__ import annotations
 
+import importlib.util
 import io
 import json
 import sqlite3
+from collections.abc import Callable, Sequence
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
+from ontologylab import research_run as research_run_module
+from ontologylab.collect import SAMPLE_DOC_TEXT, SAMPLE_DOC_TITLE
 from ontologylab.connectors.base import RawDocument
-from ontologylab.ingestion import ingest_documents
-from ontologylab.ingestion_shadow import (
-    FULL_V2_AUTHORITY,
-    MAX_SHADOW_BATCH,
-    SAMPLE_OPERATION_KEY,
+from ontologylab.ingestion import (
+    MAX_INGEST_BATCH,
     SAMPLE_SOURCE_URI,
-    SHADOW_MODE,
-    ShadowBatchBoundError,
-    load_shadow_queue,
-    shadow_persist,
+    IngestBatchBoundError,
+    IngestionResult,
+    ingest_raw_documents,
+    ingest_raw_documents_and_finalize,
 )
 from ontologylab.kgstore import KGStore
 from ontologylab.main import main
 from ontologylab.paths import kg_db_path
 from ontologylab.provenance import Provenance
 from ontologylab.provenance_outbox import load_outbox_events
-from ontologylab.server.routes import SAMPLE_DOC_TEXT, SAMPLE_DOC_TITLE
-
 
 SECRET = "ELS-must-never-surface-9f3a"
+SAMPLE_OPERATION_KEY = "collect.sample:sample://onboarding/order-system"
 
 
 def _open(data_dir: Path) -> KGStore:
@@ -47,7 +46,7 @@ def _raw(
     *,
     uri: str,
     text: str,
-    title: str = "Shadow",
+    title: str = "Collect",
     doi: str | None = None,
     source: str = "upload",
     source_kind: str = "upload",
@@ -63,7 +62,7 @@ def _raw(
     )
 
 
-def _provenance(tmp_path: Path, name: str = "collect-shadow") -> Provenance:
+def _provenance(tmp_path: Path, name: str = "collect") -> Provenance:
     return Provenance(str(tmp_path / "jobs" / name), seed=0)
 
 
@@ -113,30 +112,17 @@ def _function_source(path: Path, func_name: str) -> str:
     return text[start:end]
 
 
-def test_adapter_is_legacy_compatible_shadow_not_full_v2() -> None:
-    assert SHADOW_MODE == "legacy_compatible"
-    assert FULL_V2_AUTHORITY is False
-    assert MAX_SHADOW_BATCH == 100
-    assert SAMPLE_SOURCE_URI == "sample://onboarding/order-system"
-    assert SAMPLE_OPERATION_KEY == (
-        "collect.sample:sample://onboarding/order-system"
-    )
+def _product_py_files() -> list[Path]:
+    return [
+        path
+        for path in Path("ontologylab").rglob("*.py")
+        if "__pycache__" not in path.parts
+    ]
 
 
-def test_cli_collect_traverses_adapter_and_mirrors_observation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_cli_collect_writes_document_observation_and_outbox(
+    tmp_path: Path,
 ) -> None:
-    import ontologylab.ingestion_shadow as shadow
-
-    calls: list[int] = []
-    real = shadow.shadow_persist
-
-    def wrapped(*args: Any, **kwargs: Any) -> Any:
-        calls.append(1)
-        return real(*args, **kwargs)
-
-    monkeypatch.setattr(shadow, "shadow_persist", wrapped)
-
     data_dir = tmp_path / "cli-data"
     data_dir.mkdir()
     fixture = tmp_path / "cli-notes.md"
@@ -145,7 +131,6 @@ def test_cli_collect_traverses_adapter_and_mirrors_observation(
         encoding="utf-8",
     )
     assert _cli_collect(data_dir, fixture) == 0
-    assert calls == [1]
 
     store = KGStore.open(kg_db_path(data_dir), read_only=True)
     try:
@@ -159,20 +144,7 @@ def test_cli_collect_traverses_adapter_and_mirrors_observation(
         store.close()
 
 
-def test_http_collect_preserves_legacy_shape_and_mirrors_v2(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import ontologylab.ingestion_shadow as shadow
-
-    calls: list[int] = []
-    real = shadow.shadow_persist
-
-    def wrapped(*args: Any, **kwargs: Any) -> Any:
-        calls.append(1)
-        return real(*args, **kwargs)
-
-    monkeypatch.setattr(shadow, "shadow_persist", wrapped)
-
+def test_http_collect_returns_counts_and_writes_v2_rows(tmp_path: Path) -> None:
     data_dir = tmp_path / "http-data"
     data_dir.mkdir()
     fixture = tmp_path / "http-notes.md"
@@ -181,13 +153,12 @@ def test_http_collect_preserves_legacy_shape_and_mirrors_v2(
         response = client.post("/api/collect", json={"files": [str(fixture)]})
     assert response.status_code == 200
     body = response.json()
-    assert body == {
-        "ok": True,
-        "documents": 1,
-        "created": 1,
-        "duplicates": 0,
-    }
-    assert calls == [1]
+    assert body["ok"] is True
+    assert body["documents"] == 1
+    assert body["created"] == 1
+    assert body["duplicates"] == 0
+    assert body["failures"] == []
+    assert body["conflicts"] == []
 
     store = KGStore.open(kg_db_path(data_dir), read_only=True)
     try:
@@ -198,44 +169,63 @@ def test_http_collect_preserves_legacy_shape_and_mirrors_v2(
         store.close()
 
 
-def test_research_worker_ingestion_uses_the_same_adapter(
+def test_research_worker_persists_doi_and_observation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    jobs_src = Path("ontologylab/server/jobs.py").read_text(encoding="utf-8")
-    assert "result = ingest_documents(store, raw_docs, provenance)" in jobs_src
-    persist_region = jobs_src.split("if job._cancelled.is_set():", 2)[-1]
-    assert "store.insert_document(" not in persist_region
+    from fastapi.testclient import TestClient
 
-    import ontologylab.ingestion_shadow as shadow
-
-    calls: list[int] = []
-    real = shadow.shadow_persist
-
-    def wrapped(*args: Any, **kwargs: Any) -> Any:
-        calls.append(1)
-        return real(*args, **kwargs)
-
-    monkeypatch.setattr(shadow, "shadow_persist", wrapped)
+    from ontologylab.extractor import ExtractionOutcome
+    from ontologylab.server import jobs as jobs_module
+    from ontologylab.server.app import create_app
 
     data_dir = tmp_path / "research-data"
-    store = _open(data_dir)
+    paper = _raw(
+        uri="https://doi.org/10.1000/research.one",
+        text="The RiskEngine reports to the FraudDetector.\n",
+        title="Research paper",
+        doi="10.1000/research.one",
+        source="crossref",
+        source_kind="paper_api",
+    )
+
+    async def fake_fetch(*args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+        return [("crossref", [paper])], []
+
+    async def fake_extract(*args: Any, **kwargs: Any) -> ExtractionOutcome:
+        del args, kwargs
+        return ExtractionOutcome("")
+
+    monkeypatch.setattr(research_run_module, "fetch_sources", fake_fetch)
+    monkeypatch.setattr(
+        research_run_module,
+        "extract_research_documents",
+        fake_extract,
+    )
+    app = create_app(data_dir=data_dir, packs_dir=tmp_path / "packs")
+    with TestClient(app) as client:
+        client.get("/")
+        started = client.post(
+            "/api/research",
+            json={
+                "topic": "research adapter",
+                "sources": ["crossref"],
+                "engine": "mock",
+                "fulltext": False,
+                "citation_expansion": False,
+            },
+        ).json()
+        assert started["ok"] is True
+        job = app.state.jobs.get(started["job_id"])
+        assert job is not None and job._thread is not None
+        job._thread.join(timeout=30)
+        assert job.status == "failed"
+        assert job.error == jobs_module.NO_SOURCES_SUMMARY
+
+    store = KGStore.open(
+        kg_db_path(data_dir), read_only=True, immutable=False
+    )
     try:
-        result = ingest_documents(
-            store,
-            [
-                _raw(
-                    uri="https://doi.org/10.1000/research.one",
-                    text="The RiskEngine reports to the FraudDetector.\n",
-                    title="Research paper",
-                    doi="10.1000/research.one",
-                    source="crossref",
-                    source_kind="paper_api",
-                )
-            ],
-            _provenance(tmp_path, "research-1"),
-        )
-        assert result.created_count == 1
-        assert calls == [1]
         docs = store.list_documents()
         assert docs[0].doi == "10.1000/research.one"
         assert _count(store.conn, "work_identifiers") == 1
@@ -249,20 +239,9 @@ def test_research_worker_ingestion_uses_the_same_adapter(
         store.close()
 
 
-def test_collect_sample_keeps_uri_and_mirrors_through_adapter(
+def test_collect_sample_keeps_uri_and_is_idempotent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import ontologylab.ingestion_shadow as shadow
-
-    calls: list[str] = []
-    real = shadow.shadow_persist
-
-    def wrapped(*args: Any, **kwargs: Any) -> Any:
-        operation = kwargs.get("operation_id")
-        calls.append(str(operation))
-        return real(*args, **kwargs)
-
-    monkeypatch.setattr(shadow, "shadow_persist", wrapped)
     insert_calls: list[str] = []
     real_insert = KGStore.insert_document
 
@@ -276,7 +255,6 @@ def test_collect_sample_keeps_uri_and_mirrors_through_adapter(
         Path("ontologylab/server/routes.py"), "collect_sample"
     )
     assert "insert_document" not in sample_src
-    assert "ingest_sample" in sample_src or "shadow_ingest_sample" in sample_src
 
     data_dir = tmp_path / "sample-data"
     data_dir.mkdir()
@@ -291,7 +269,6 @@ def test_collect_sample_keeps_uri_and_mirrors_through_adapter(
     assert again.json()["created"] is False
     assert again.json()["document_id"] == body["document_id"]
     assert insert_calls == []
-    assert calls == [SAMPLE_OPERATION_KEY, SAMPLE_OPERATION_KEY]
 
     store = KGStore.open(kg_db_path(data_dir), read_only=True)
     try:
@@ -311,26 +288,103 @@ def test_collect_sample_keeps_uri_and_mirrors_through_adapter(
         store.close()
 
 
-def test_four_entrypoints_share_one_adapter_symbol() -> None:
-    main_src = Path("ontologylab/main.py").read_text(encoding="utf-8")
-    routes_src = Path("ontologylab/server/routes.py").read_text(encoding="utf-8")
-    jobs_src = Path("ontologylab/server/jobs.py").read_text(encoding="utf-8")
-    ingest_src = Path("ontologylab/ingestion.py").read_text(encoding="utf-8")
-    assert "ingest_documents(" in _function_source(
+def test_four_entrypoints_call_ingest_raw_documents(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from ontologylab.extractor import ExtractionOutcome
+    from ontologylab.server.app import create_app
+
+    paper = _raw(
+        uri="https://doi.org/10.1000/research.entrypoint",
+        text="The ResearchGateway records the EvidenceDocument.\n",
+        title="Research entrypoint",
+        doi="10.1000/research.entrypoint",
+        source="crossref",
+        source_kind="paper_api",
+    )
+    monkeypatch.setattr(
+        research_run_module,
+        "fetch_sources",
+        AsyncMock(return_value=([("crossref", [paper])], [])),
+    )
+    monkeypatch.setattr(
+        research_run_module,
+        "extract_research_documents",
+        AsyncMock(return_value=ExtractionOutcome("")),
+    )
+    real_ingest = research_run_module.ingest_raw_documents_batched
+    observed_document_ids: list[tuple[str, ...]] = []
+
+    def observe_ingest(
+        store: KGStore,
+        documents: Sequence[RawDocument],
+        provenance: Provenance,
+        *,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> IngestionResult:
+        result = real_ingest(
+            store,
+            documents,
+            provenance,
+            should_cancel=should_cancel,
+        )
+        observed_document_ids.append(result.document_ids)
+        return result
+
+    monkeypatch.setattr(
+        research_run_module,
+        "ingest_raw_documents_batched",
+        observe_ingest,
+    )
+    data_dir = tmp_path / "research-entrypoint-data"
+    app = create_app(data_dir=data_dir, packs_dir=tmp_path / "packs")
+    with TestClient(app) as client:
+        started = client.post(
+            "/api/research",
+            json={
+                "topic": "research ingestion entrypoint",
+                "sources": ["crossref"],
+                "engine": "mock",
+                "fulltext": False,
+                "citation_expansion": False,
+            },
+        ).json()
+        job = app.state.jobs.get(started["job_id"])
+        assert job is not None and job._thread is not None
+        job._thread.join(timeout=30)
+        assert not job._thread.is_alive()
+
+    assert len(observed_document_ids) == 1
+    [document_ids] = observed_document_ids
+    store = KGStore.open(
+        kg_db_path(data_dir), read_only=True, immutable=False
+    )
+    try:
+        stored_ids = tuple(document.id for document in store.list_documents())
+        assert stored_ids == document_ids
+    finally:
+        store.close()
+
+    assert "ingest_raw_documents_and_finalize(" in _function_source(
+        Path("ontologylab/collect.py"), "collect_documents"
+    )
+    assert "collect_documents(" in _function_source(
         Path("ontologylab/main.py"), "cmd_collect"
     )
-    assert "ingest_documents(" in _function_source(
+    assert "collect_documents(" in _function_source(
         Path("ontologylab/server/routes.py"), "collect"
     )
-    assert "ingest_documents(" in jobs_src
-    assert "shadow_persist" in ingest_src
-    assert "insert_document" not in _function_source(
-        Path("ontologylab/ingestion.py"), "ingest_documents"
+    assert "collect_onboarding_sample(" in _function_source(
+        Path("ontologylab/server/routes.py"), "collect_sample"
     )
-    assert "shadow_persist" in Path("ontologylab/ingestion_shadow.py").read_text(
-        encoding="utf-8"
+    assert "ingest_onboarding_sample(" in _function_source(
+        Path("ontologylab/collect.py"), "collect_onboarding_sample"
     )
-    del main_src, routes_src
+    for path in _product_py_files():
+        assert "ingestion_shadow" not in path.read_text(encoding="utf-8"), path
 
 
 def test_installed_cli_collect_writes_legacy_row_and_observation(
@@ -362,7 +416,7 @@ def test_representable_outcome_has_matching_observation_and_outbox(
 ) -> None:
     store = _open(tmp_path / "rep")
     try:
-        result = shadow_persist(
+        result = ingest_raw_documents(
             store,
             [
                 _raw(
@@ -402,7 +456,7 @@ def test_richer_same_doi_new_bytes_create_second_representation(
 ) -> None:
     store = _open(tmp_path / "richer")
     try:
-        first = ingest_documents(
+        first = ingest_raw_documents_and_finalize(
             store,
             [
                 _raw(
@@ -415,7 +469,7 @@ def test_richer_same_doi_new_bytes_create_second_representation(
             ],
             _provenance(tmp_path, "richer-1"),
         )
-        second = ingest_documents(
+        second = ingest_raw_documents_and_finalize(
             store,
             [
                 _raw(
@@ -446,19 +500,16 @@ def test_richer_same_doi_new_bytes_create_second_representation(
             )
         }
         assert len(work_ids) == 1
-        assert load_shadow_queue(store.conn) == ()
         assert _count(store.conn, "documents") == 2
     finally:
         store.close()
 
 
-def test_conflicting_different_doi_same_bytes_is_queued_and_typed(
-    tmp_path: Path,
-) -> None:
+def test_conflicting_different_doi_same_bytes_is_typed(tmp_path: Path) -> None:
     store = _open(tmp_path / "conflict")
     try:
         shared = "Identical body shared by two distinct registered works."
-        result = ingest_documents(
+        result = ingest_raw_documents(
             store,
             [
                 _raw(
@@ -491,8 +542,6 @@ def test_conflicting_different_doi_same_bytes_is_queued_and_typed(
         assert result.conflicts[0].incoming_doi == "10.1000/seam.b"
         assert result.conflicts[0].existing_doi == "10.1000/seam.a"
         assert len(store.list_documents()) == 2
-        queued = load_shadow_queue(store.conn)
-        assert any(item.reason == "conflict" for item in queued)
         schemes = {
             row[0]
             for row in store.conn.execute(
@@ -524,7 +573,7 @@ def test_doi_spellings_canonicalize_to_one_work(tmp_path: Path) -> None:
         )
         last = None
         for index, spelling in enumerate(spellings):
-            last = ingest_documents(
+            last = ingest_raw_documents(
                 store,
                 [
                     _raw(
@@ -558,17 +607,17 @@ def test_doi_spellings_canonicalize_to_one_work(tmp_path: Path) -> None:
         store.close()
 
 
-def test_safe_errors_do_not_leak_exception_text(
+def test_collect_http_failure_does_not_leak_exception_text(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import ontologylab.ingestion_shadow as shadow
+    from ontologylab import ingestion
 
     def boom(*_args: Any, **_kwargs: Any) -> Any:
-        raise sqlite3.OperationalError(
+        raise RuntimeError(
             f"disk I/O error in /secret/{SECRET}/kg.sqlite"
         )
 
-    monkeypatch.setattr(shadow, "shadow_persist", boom)
+    monkeypatch.setattr(ingestion, "persist_raw_document", boom)
     data_dir = tmp_path / "leak-data"
     data_dir.mkdir()
     fixture = tmp_path / "leak-notes.md"
@@ -579,11 +628,40 @@ def test_safe_errors_do_not_leak_exception_text(
     body = response.json()
     dumped = json.dumps(body)
     assert SECRET not in dumped
-    assert "OperationalError" not in dumped
+    assert SECRET not in response.text
     assert "/secret/" not in dumped
+    assert body["failures"][0]["error_class"] == "RuntimeError"
+
+
+def test_collect_http_batch_failure_returns_typed_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(*_args: Any, **_kwargs: Any) -> Any:
+        raise RuntimeError(
+            f"disk I/O error in /secret/{SECRET}/kg.sqlite"
+        )
+
+    monkeypatch.setattr(
+        "ontologylab.collect.ingest_raw_documents_and_finalize",
+        boom,
+    )
+    data_dir = tmp_path / "batch-leak-data"
+    data_dir.mkdir()
+    fixture = tmp_path / "batch-leak-notes.md"
+    fixture.write_text("batch leak probe\n", encoding="utf-8")
+    with _client(tmp_path, data_dir) as client:
+        response = client.post("/api/collect", json={"files": [str(fixture)]})
+    assert response.status_code == 200
+    body = response.json()
+    dumped = json.dumps(body)
     assert body["ok"] is False
     assert body["error_kind"] == "failed"
     assert body["detail"] == "internal_error"
+    assert SECRET not in dumped
+    assert "/secret/" not in dumped
+    assert "OperationalError" not in dumped
+    assert "RuntimeError" not in dumped
+    assert "Traceback" not in dumped
 
 
 def test_batch_above_100_is_rejected(tmp_path: Path) -> None:
@@ -597,13 +675,12 @@ def test_batch_above_100_is_rejected(tmp_path: Path) -> None:
                 source="crossref",
                 source_kind="paper_api",
             )
-            for index in range(MAX_SHADOW_BATCH + 1)
+            for index in range(MAX_INGEST_BATCH + 1)
         ]
-        with pytest.raises(ShadowBatchBoundError):
-            ingest_documents(store, docs, _provenance(tmp_path, "bound"))
+        with pytest.raises(IngestBatchBoundError):
+            ingest_raw_documents(store, docs, _provenance(tmp_path, "bound"))
         assert _count(store.conn, "documents") == 0
         assert _count(store.conn, "document_observations") == 0
-        assert load_shadow_queue(store.conn) == ()
     finally:
         store.close()
 
@@ -632,7 +709,7 @@ def test_partial_batch_remains_honest(tmp_path: Path) -> None:
     store = _open(tmp_path / "partial")
     try:
         shared = "shared-bytes-for-partial-honesty"
-        result = ingest_documents(
+        result = ingest_raw_documents(
             store,
             [
                 _raw(
@@ -665,21 +742,19 @@ def test_partial_batch_remains_honest(tmp_path: Path) -> None:
         assert result.conflicts[0].incoming_doi == "10.1000/partial.b"
         assert _count(store.conn, "documents") == 2
         assert _count(store.conn, "document_observations") == 2
-        assert any(item.reason == "conflict" for item in load_shadow_queue(store.conn))
     finally:
         store.close()
 
 
-def test_adapter_never_commits_or_rolls_back_caller_transaction(
+def test_writer_never_commits_or_rolls_back_caller_transaction(
     tmp_path: Path,
 ) -> None:
-    adapter_src = Path("ontologylab/ingestion_shadow.py").read_text(encoding="utf-8")
-    assert "conn.commit(" not in adapter_src
-    assert "conn.rollback(" not in adapter_src
+    service_src = Path("ontologylab/ingestion_service.py").read_text(encoding="utf-8")
+    assert "conn.commit(" not in service_src
     store = _open(tmp_path / "tx")
     try:
         store.conn.execute("SAVEPOINT caller")
-        result = shadow_persist(
+        result = ingest_raw_documents(
             store,
             [
                 _raw(
@@ -690,7 +765,7 @@ def test_adapter_never_commits_or_rolls_back_caller_transaction(
                     source_kind="paper_api",
                 )
             ],
-            None,
+            _provenance(tmp_path, "op-tx"),
             operation_id="op-tx",
         )
         assert result.created_count == 1
@@ -701,7 +776,6 @@ def test_adapter_never_commits_or_rolls_back_caller_transaction(
         assert _count(store.conn, "works") == 0
         assert _count(store.conn, "document_observations") == 0
         assert _count(store.conn, "provenance_outbox") == 0
-        assert load_shadow_queue(store.conn) == ()
     finally:
         store.close()
 
@@ -709,7 +783,7 @@ def test_adapter_never_commits_or_rolls_back_caller_transaction(
 def test_content_hash_is_not_work_authority(tmp_path: Path) -> None:
     store = _open(tmp_path / "hash")
     try:
-        result = ingest_documents(
+        result = ingest_raw_documents(
             store,
             [
                 _raw(
@@ -740,3 +814,33 @@ def test_content_hash_is_not_work_authority(tmp_path: Path) -> None:
         ).fetchone()[0] == 0
     finally:
         store.close()
+
+
+def test_sample_uri_and_batch_bound_are_stable() -> None:
+    assert SAMPLE_SOURCE_URI == "sample://onboarding/order-system"
+    assert MAX_INGEST_BATCH == 100
+
+
+def test_authority_ingest_route_still_uses_run_ingest() -> None:
+    src = Path("ontologylab/server/ingest_routes.py").read_text(encoding="utf-8")
+    assert "run_ingest(" in src
+    assert "ingestion_shadow" not in src
+
+
+def test_shadow_modules_are_gone() -> None:
+    assert importlib.util.find_spec("ontologylab.ingestion_shadow") is None
+    leftover = [
+        path
+        for path in Path("ontologylab").rglob("*")
+        if "__pycache__" not in path.parts
+        and "ingestion_shadow" in path.name
+    ]
+    assert leftover == []
+    for path in _product_py_files():
+        assert "ingestion_shadow" not in path.read_text(encoding="utf-8"), path
+    assert "shadow" not in Path("ontologylab/ingestion.py").read_text(
+        encoding="utf-8"
+    )
+    assert "conn.commit(" not in Path(
+        "ontologylab/ingestion_service.py"
+    ).read_text(encoding="utf-8")

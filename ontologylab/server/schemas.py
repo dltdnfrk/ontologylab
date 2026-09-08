@@ -4,21 +4,45 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
+from ontologylab import research_run_types as _research_run_types
+from ontologylab.connectors.paper_api import (
+    DEFAULT_HARVEST_LIMIT as PAPER_DEFAULT_HARVEST_LIMIT,
+)
 from ontologylab.connectors.paper_api import (
     DEFAULT_LIMIT as PAPER_DEFAULT_LIMIT,
+)
+from ontologylab.connectors.paper_api import (
     DEFAULT_PAPER_SOURCE,
+)
+from ontologylab.connectors.paper_api import (
+    MAX_HARVEST_LIMIT as PAPER_MAX_HARVEST_LIMIT,
+)
+from ontologylab.connectors.paper_api import (
     MAX_LIMIT as PAPER_MAX_LIMIT,
 )
+from ontologylab.offline_policy import OFFLINE_LAUNCH_POLICY, TranslationAction
 from ontologylab.paths import (
     DEFAULT_ACTOR,
     DEFAULT_ENGINE,
     DEFAULT_MAX_ENGINE_CALLS,
-    DEFAULT_MODEL,
     DEFAULT_SEED,
     DEFAULT_TIME_BUDGET_S,
 )
+from ontologylab.searchquery import (
+    DEFAULT_SEARCH_QUERIES,
+    MAX_SEARCH_QUERIES,
+)
+
+ResearchStartInput = _research_run_types.ResearchStartInput
+build_research_start_input = _research_run_types.build_research_start_input
 
 
 class CollectRequest(BaseModel):
@@ -42,15 +66,27 @@ class ResearchRequest(BaseModel):
 
     topic: str
     sources: list[str] = Field(default_factory=list)
-    limit: int = Field(PAPER_DEFAULT_LIMIT, ge=1, le=PAPER_MAX_LIMIT)
+    limit: int = Field(
+        PAPER_DEFAULT_HARVEST_LIMIT,
+        ge=1,
+        le=PAPER_MAX_HARVEST_LIMIT,
+    )
+    max_queries: int = Field(
+        DEFAULT_SEARCH_QUERIES,
+        ge=1,
+        le=MAX_SEARCH_QUERIES,
+    )
     # Fetch open-access full text where it exists, instead of stopping at
     # the abstract. Default on: the body is where methods and measurements
     # live, and an abstract states conclusions without the evidence for
     # them. It costs one extra request per open-access hit and a much
     # larger extraction budget, so it remains switchable.
     fulltext: bool = True
-    engine: str = DEFAULT_ENGINE
-    model: Optional[str] = None
+    citation_expansion: bool = True
+    citation_seed_count: int = Field(3, ge=0, le=3)
+    citation_limit: int = Field(15, ge=0, le=50)
+    engine: str = OFFLINE_LAUNCH_POLICY.default_engine
+    model: str | None = OFFLINE_LAUNCH_POLICY.default_model
     max_engine_calls: int = Field(DEFAULT_MAX_ENGINE_CALLS, ge=1)
     time_budget: float = Field(DEFAULT_TIME_BUDGET_S, gt=0)
     seed: int = DEFAULT_SEED
@@ -59,11 +95,10 @@ class ResearchRequest(BaseModel):
 class ExtractRequest(BaseModel):
     """Start a background extraction job (Extraction Jobs screen)."""
 
-    # Settings/CLI default (claude). Never "mock" here: an engine-less request
-    # used to run a CamelCase scanner on real prose and report zero proposals
-    # as if that were a result. Mock stays selectable by name for dev/tests.
-    engine: str = DEFAULT_ENGINE
-    model: Optional[str] = None
+    # The bundled first run is an offline onboarding path. Real engines remain
+    # explicit selections; an omitted engine must never spawn a CLI or provider.
+    engine: str = OFFLINE_LAUNCH_POLICY.default_engine
+    model: str | None = OFFLINE_LAUNCH_POLICY.default_model
     doc_ids: list[str] = Field(default_factory=list)
     max_engine_calls: int = Field(DEFAULT_MAX_ENGINE_CALLS, ge=1)
     time_budget: float = Field(DEFAULT_TIME_BUDGET_S, gt=0)
@@ -134,18 +169,19 @@ class PackBuildRequest(BaseModel):
 
 
 class EngineInfo(BaseModel):
-    """Availability info for one engine adapter."""
+    """Availability and validated model catalogue for one engine adapter."""
 
     name: str
     available: bool
     default_model: Optional[str] = None
+    models: list[str] = Field(default_factory=list)
 
 
 class Settings(BaseModel):
     """Persisted local defaults for extraction / review."""
 
-    default_engine: str = DEFAULT_ENGINE
-    default_model: Optional[str] = DEFAULT_MODEL
+    default_engine: str = OFFLINE_LAUNCH_POLICY.default_engine
+    default_model: str | None = OFFLINE_LAUNCH_POLICY.default_model
     data_dir: Optional[str] = None
     packs_dir: Optional[str] = None
     # Where the user's own SearXNG lives, if they run one. A setting rather
@@ -285,11 +321,20 @@ class CriticRunRequest(BaseModel):
 
 
 class TranslationRequest(BaseModel):
-    """Translate visible prose for the Korean browser UI."""
+    """One explicit live-engine translation action from the browser."""
 
+    action: TranslationAction
     texts: list[str] = Field(min_length=1, max_length=50)
-    engine: str = "auto"
-    model: Optional[str] = None
+    engine: str = Field(min_length=1)
+    model: str | None = None
+
+    @field_validator("engine")
+    @classmethod
+    def validate_live_engine(cls, engine: str) -> str:
+        selected = engine.strip()
+        if selected == OFFLINE_LAUNCH_POLICY.default_engine:
+            raise ValueError("translation requires an explicitly selected live engine")
+        return selected
 
     @field_validator("texts")
     @classmethod
@@ -329,6 +374,101 @@ class MergeDismiss(BaseModel):
     note: Optional[str] = None
 
 
+class ResearchEvidenceNeedSummary(BaseModel):
+    model_config = ConfigDict(frozen=True, strict=True)
+
+    need_id: str
+    kind: str
+    description: str
+    mandatory: bool
+    minimum_content: str
+
+
+class ResearchEligibleDocumentArtifact(BaseModel):
+    model_config = ConfigDict(frozen=True, strict=True, extra="ignore")
+
+    document_id: str
+    content_class: str
+
+
+class ResearchNeedOccupancyArtifact(BaseModel):
+    model_config = ConfigDict(frozen=True, strict=True, extra="ignore")
+
+    need_id: str
+    kind: str
+    mandatory: bool
+    minimum_content: str
+    occupied: bool
+    eligible_documents: list[ResearchEligibleDocumentArtifact]
+
+
+class ResearchAcquisitionArtifact(BaseModel):
+    model_config = ConfigDict(frozen=True, strict=True, extra="ignore")
+
+    recommendation: str
+    stop_reason: str | None
+    need_occupancy: list[ResearchNeedOccupancyArtifact]
+
+
+class ResearchAcquisitionEnvelope(BaseModel):
+    model_config = ConfigDict(frozen=True, strict=True, extra="ignore")
+
+    artifact_id: str
+    plan_id: str
+    payload: ResearchAcquisitionArtifact
+
+
+class ResearchNeedOccupancySummary(BaseModel):
+    model_config = ConfigDict(frozen=True, strict=True)
+
+    need_id: str
+    kind: str
+    mandatory: bool
+    minimum_content: str
+    occupied: bool
+    eligible_document_count: int
+
+
+class ResearchPostExtractionCounts(BaseModel):
+    model_config = ConfigDict(frozen=True, strict=True)
+
+    support: dict[str, int]
+    contradiction: dict[str, int]
+
+
+class ResearchPostExtractionArtifact(BaseModel):
+    model_config = ConfigDict(frozen=True, strict=True, extra="ignore")
+
+    counts: ResearchPostExtractionCounts
+
+
+class ResearchPostExtractionEnvelope(BaseModel):
+    model_config = ConfigDict(frozen=True, strict=True, extra="ignore")
+
+    artifact_id: str
+    plan_id: str
+    payload: ResearchPostExtractionArtifact
+
+
+class ResearchSummary(BaseModel):
+    model_config = ConfigDict(frozen=True, strict=True)
+
+    spec_id: str
+    current_plan_id: str
+    acquisition_assessment_id: str | None
+    post_extraction_assessment_id: str | None
+    goal: str
+    evidence_needs: list[ResearchEvidenceNeedSummary]
+    assumptions: list[str]
+    current_plan_version: int
+    parent_plan_id: str | None
+    degraded_reason: str | None
+    need_occupancy: list[ResearchNeedOccupancySummary]
+    recommendation: str | None
+    stop_reason: str | None
+    post_extraction_counts: ResearchPostExtractionCounts | None
+
+
 class JobStatus(BaseModel):
     """Status snapshot of one background extraction job (Extraction Jobs screen)."""
 
@@ -359,6 +499,9 @@ class JobStatus(BaseModel):
     # the job detail renders comes from here. Omitting it from the response
     # model would drop it silently, exactly like `steps` above.
     sources: list[dict[str, Any]] = Field(default_factory=list)
+    corpus_available: bool = False
+    research_summary: ResearchSummary | None = None
+    research_summary_error: str | None = None
     error: Optional[str] = None
 
 
@@ -482,4 +625,3 @@ class SchemaInstall(BaseModel):
     description: Optional[str] = None
     entity_types: Optional[list[dict[str, Any]]] = None
     relation_types: Optional[list[dict[str, Any]]] = None
-

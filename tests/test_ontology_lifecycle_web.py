@@ -7,6 +7,7 @@ function, whose defaults are `Query` objects rather than values (CLAUDE.md).
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from ontologylab import web_assets
 from ontologylab.kgstore import KGStore
 from ontologylab.server.app import create_app
 
@@ -72,6 +74,20 @@ def test_schema_route_and_static_app_already_serve_the_settings_screen(
     assert schema.status_code == 200 and schema.json()["active"]["schema_label"]
     assert client.get("/static/app.js").status_code == 200
     assert client.get("/").status_code == 200
+
+
+def test_root_uses_the_current_app_cache_generation(tmp_path: Path) -> None:
+    """Changed dashboard logic must not reuse the previous cached bundle."""
+    client, _ = _client(tmp_path)
+
+    html = client.get("/").text
+
+    app_hash = next(
+        entry.sha256 for entry in web_assets.manifest_entries(web_assets.resource_root())
+        if entry.path == "app.js"
+    )
+    assert f'/static/app.js?v={app_hash}' in html
+    assert not re.search(r'/static/app\.js\?v=\d+["\']', html)
 
 
 def test_term_detail_carries_definition_lifecycle_and_provenance(

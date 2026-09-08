@@ -1,45 +1,13 @@
-"""Wave 2.1 Step 1 Goal G002 — direct-service ingestion identity
-characterization tests.
+"""Direct-service ingestion identity characterization tests.
 
-Scope: `KGStore.insert_document` / `normalize_doi`, called directly (no CLI,
-HTTP, worker, or MCP surface — those belong to G003). Every assertion below
-reads machine-consumed state back out of sqlite or the filesystem: row
-counts, `doi`/`content_hash` columns, ids, and bytes on disk. None of it
-asserts prose.
+Scope: `KGStore.insert_document` / `normalize_doi`, called directly without
+the CLI, HTTP, worker, or MCP surfaces. Assertions read machine-consumed
+state from SQLite or the filesystem rather than pinning prose.
 
-Four scenarios, each traced to the audit report
-(`docs/OMO-INGESTION-WAVE-2.1-MASS-ULW-INTEGRATED-ANALYSIS-2026-08-20.md`
-and `.omo/mass-ulw/20260820-ingestion-integration/{02-current-code,
-03-audit-evidence,07-synthesis-blueprint}.md`):
-
-1. Same DOI / new bytes — a currently GREEN, deliberately-pinned invariant:
-   DOI identity wins over representation bytes, so the second write is a
-   dedupe hit and the richer text is discarded. This is a Step-1
-   characterization of that existing contract, not a defect: Step 2
-   (Work/Representation) is the step permitted to change it.
-
-2. Different DOI / same bytes — Step 2 typed contract: the content-hash
-   fallback refuses to merge two different explicit DOIs with a typed
-   `DocumentIdentityConflict` (recorded per-document at the ingest seam);
-   materializing both as two documents stays pinned xfail for the v2
-   schema step.
-
-3. Populated legacy resolver DOI — a currently RED gap owned by Step 5
-   (C-023): `_migrate` adds the nullable `doi` column without backfilling
-   it, so a pre-migration row keeps `doi IS NULL` and a same-DOI reinsert
-   is not recognized. Step 2 pins the backfill POLICY as the read-only
-   planner in `ontologylab.doi_backfill`; execution waits for Step 5's
-   cursor/ledger/collision machinery.
-
-4. Registered terminal-parenthesis DOI — fixed in Step 2 (C-029):
-   identifier-field normalization preserves the registered terminal `)`
-   (e.g. `10.1002/0471221929.ch26(vii)`), so the round-trip test is plain
-   GREEN and the old defect-characterization pair is retired.
-
-Each RED case is asserted as a named defect receipt (`xfail(strict=True)`,
-reason references the audit-report code), never presented as GREEN, per the
-G002 evidence contract: a test that passes by reproducing a defect is
-characterization metadata, not release evidence.
+The scenarios cover same-DOI representations, conflicting explicit DOIs,
+legacy DOI backfill, and registered DOI punctuation. Remaining unsupported
+schema behavior is represented by strict xfail rather than reported as
+release evidence.
 """
 
 from __future__ import annotations
@@ -219,10 +187,10 @@ def test_conflict_truth_table_preserves_existing_dedupe(tmp_path) -> None:
 
 def test_ingest_batch_survives_and_records_the_typed_conflict(tmp_path) -> None:
     """Step 2 seam contract: a conflicting document must not kill the batch;
-    ingest_documents records one typed conflict entry and persists the rest.
+    ingest_raw_documents_and_finalize records one typed conflict entry and persists the rest.
     """
     from ontologylab.connectors.base import RawDocument
-    from ontologylab.ingestion import ingest_documents
+    from ontologylab.ingestion import ingest_raw_documents_and_finalize
     from ontologylab.provenance import Provenance
 
     store = KGStore.open(tmp_path / "kg.sqlite")
@@ -246,7 +214,7 @@ def test_ingest_batch_survives_and_records_the_typed_conflict(tmp_path) -> None:
                 doi="10.1000/seam.c",
             ),
         ]
-        result = ingest_documents(
+        result = ingest_raw_documents_and_finalize(
             store, docs, Provenance(str(tmp_path / "jobs"), seed=1)
         )
         assert result.document_count == 2

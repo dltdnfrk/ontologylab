@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from ontologylab.engines import resolve_available
+from ontologylab.offline_policy import OFFLINE_LAUNCH_POLICY
 from ontologylab.paths import (
-    DEFAULT_ENGINE,
     DEFAULT_MODEL,
     ROOT,
     default_data_dir,
@@ -60,10 +60,22 @@ def _legacy_settings_path() -> Path:
 
 def default_settings() -> Settings:
     return Settings(
-        default_engine=DEFAULT_ENGINE,
-        default_model=DEFAULT_MODEL,
+        default_engine=OFFLINE_LAUNCH_POLICY.default_engine,
+        default_model=OFFLINE_LAUNCH_POLICY.default_model,
         data_dir=str(default_data_dir()),
         packs_dir=str(default_packs_dir()),
+    )
+
+
+def with_runtime_paths(
+    settings: Settings, data_dir: Path, packs_dir: Path
+) -> Settings:
+    """Project the exact paths owned by a running app into its public settings."""
+    return settings.model_copy(
+        update={
+            "data_dir": str(Path(data_dir).resolve()),
+            "packs_dir": str(Path(packs_dir).resolve()),
+        }
     )
 
 
@@ -119,26 +131,18 @@ def save_settings(settings: Settings, data_dir: Path | None = None) -> Settings:
 
 
 def engines() -> list[EngineInfo]:
-    infos: list[EngineInfo] = [
-        EngineInfo(name="mock", available=True, default_model=None)
-    ]
+    infos = [EngineInfo(name="mock", available=True, default_model=None, models=[])]
     for name, cli_name in _ENGINE_CLI_NAMES.items():
-        infos.append(
-            EngineInfo(
-                name=name,
-                # The same lookup the engine itself uses. A bare shutil.which
-                # here answered a different question than the one the caller
-                # is asking — "is it on PATH" rather than "can this server run
-                # it" — and under launchd's PATH those diverge. Every CLI
-                # engine then reported unavailable, the browser disabled them
-                # in every picker, and the chat composer's engine fell through
-                # to mock: the one engine that finds nothing in a biomedical
-                # abstract. Nothing errored. The extraction simply came back
-                # empty, which is also what a hard paper looks like.
-                available=resolve_available(cli_name),
-                default_model=_DEFAULT_MODELS.get(name),
-            )
-        )
+        default_model = _DEFAULT_MODELS.get(name)
+        models: list[str] = []
+        if isinstance(default_model, str):
+            models.append(default_model)
+        infos.append(EngineInfo(
+            name=name,
+            available=resolve_available(cli_name),
+            default_model=default_model,
+            models=models,
+        ))
     return infos
 
 

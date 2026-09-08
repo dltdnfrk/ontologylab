@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from ontologylab import web_assets
 from ontologylab.server.app import create_app
 
 
@@ -47,7 +48,7 @@ def test_translate_route_returns_korean_without_mutating_input(
     data_dir.mkdir()
     engine = _TranslationEngine()
     monkeypatch.setattr(
-        "ontologylab.engines.get_engine",
+        "ontologylab.engines.resolve_engine",
         lambda *args, **kwargs: engine,
     )
     client = TestClient(create_app(data_dir=data_dir))
@@ -58,7 +59,11 @@ def test_translate_route_returns_korean_without_mutating_input(
 
     response = client.post(
         "/api/translate",
-        json={"texts": original, "engine": "claude"},
+        json={
+            "action": "translate_visible",
+            "texts": original,
+            "engine": "claude",
+        },
     )
 
     assert response.status_code == 200
@@ -70,7 +75,7 @@ def test_translate_route_returns_korean_without_mutating_input(
     assert "JSON" in engine.prompt
 
 
-def test_translate_route_falls_back_to_next_available_engine(
+def test_translate_does_not_walk_fallback_engines(
     tmp_path: Path, monkeypatch
 ) -> None:
     data_dir = tmp_path / "data"
@@ -78,31 +83,35 @@ def test_translate_route_falls_back_to_next_available_engine(
     working = _BareTranslationEngine()
     attempts: list[str] = []
 
-    def fake_get_engine(name: str, *args, **kwargs):
+    def fake_resolve_engine(name: str, *args, **kwargs):
         attempts.append(name)
         return _UnavailableEngine() if name == "claude" else working
 
-    monkeypatch.setattr("ontologylab.engines.get_engine", fake_get_engine)
+    monkeypatch.setattr("ontologylab.engines.resolve_engine", fake_resolve_engine)
     client = TestClient(create_app(data_dir=data_dir))
 
     response = client.post(
         "/api/translate",
         json={
+            "action": "translate_visible",
             "texts": [
                 "This study investigates breast cancer treatment.",
                 "ovarian tumor tissue",
-            ]
+            ],
+            "engine": "claude",
         },
     )
 
-    assert response.status_code == 200, (response.json(), attempts)
-    assert attempts == ["claude", "codex"]
+    assert attempts == ["claude"] and response.status_code == 502, (
+        attempts,
+        response.status_code,
+    )
 
 
 def test_browser_localizer_targets_prose_not_identifiers() -> None:
     repo = Path(__file__).resolve().parents[1]
     script = """
-const localizer = require("./web/localize.js");
+const localizer = require("./ontologylab/web/localize.js");
 const cases = [
   ["This study investigates breast cancer treatment.", true],
   ["ovarian tumor tissue", true],
@@ -157,7 +166,7 @@ for (const [value, expected] of labels) {
 def test_browser_ui_utils_strip_markup_and_avoid_graph_label_collisions() -> None:
     repo = Path(__file__).resolve().parents[1]
     script = r"""
-const ui = require("./web/ui-utils.js");
+const ui = require("./ontologylab/web/ui-utils.js");
 if (ui.plainText("<i>BRCA1</i> &amp; <b>PARP</b>") !== "BRCA1 & PARP") {
   throw new Error("document markup leaked");
 }
@@ -200,9 +209,8 @@ if (labels.includes("overlap")) {
 
 
 def test_graph_and_document_renderers_use_localized_safe_labels() -> None:
-    root = Path(__file__).resolve().parents[1]
-    app = (root / "web" / "app.js").read_text(encoding="utf-8")
-    index = (root / "web" / "index.html").read_text(encoding="utf-8")
+    app = web_assets.read_asset_text("app.js")
+    index = web_assets.read_asset_text("index.html")
 
     assert "uiUtils.visibleGraphLabelIds" in app
     assert "label.style.fontSize =" in app
@@ -216,34 +224,32 @@ def test_graph_and_document_renderers_use_localized_safe_labels() -> None:
 def test_browser_chat_session_rotates_without_deleting_history() -> None:
     repo = Path(__file__).resolve().parents[1]
     script = """
-const createChatSession = require("./web/chat-session.js");
+const createChatSession = require("./ontologylab/web/chat-session.js");
 const values = ["session-a", "session-b"];
 const memory = new Map();
 const root = {
   crypto: { randomUUID: () => values.shift() },
-  sessionStorage: {
+  localStorage: {
     getItem: (key) => memory.get(key) || null,
     setItem: (key, value) => memory.set(key, value),
   },
+  addEventListener: () => {},
 };
 const session = createChatSession(root);
 if (session.current() !== "session-a") throw new Error("missing initial session");
-if (!session.startsNewOnEntry("sources", "home")) {
-  throw new Error("research-to-home did not start a session");
-}
-if (session.startsNewOnEntry("home", "sources")) {
-  throw new Error("leaving home started a session");
-}
-if (session.startsNewOnEntry(null, "home")) {
-  throw new Error("initial render started a second session");
+if (session.startsNewOnEntry("sources", "home")) {
+  throw new Error("tab navigation split the conversation");
 }
 if (session.historyPath() !== "/api/chat/history?session_id=session-a") {
   throw new Error("history is not scoped");
 }
 const payload = session.attach({ message: "첫 작업" });
 if (payload.session_id !== "session-a") throw new Error("message is not scoped");
+if (!session.list()[0].title.includes("첫 작업")) throw new Error("missing automatic title");
 if (session.startNew() !== "session-b") throw new Error("session did not rotate");
-if (memory.size !== 1) throw new Error("starting a session deleted stored data");
+if (!session.rename("session-b", "후속 검토")) throw new Error("rename failed");
+if (session.list()[0].title !== "후속 검토") throw new Error("rename not persisted");
+if (memory.size !== 1) throw new Error("session metadata split across stores");
 """
 
     result = subprocess.run(

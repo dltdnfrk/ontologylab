@@ -1,18 +1,17 @@
-"""Advisory entity enrichment (science-skills slice 2).
+"""Advisory exact-match entity enrichment.
 
-A proposed entity's name is looked up in the registry its kind maps to
-(UniProt for Gene/Protein, PubChem for Drug, ClinVar for Variant), and
-what the registry says is stored beside the review evidence so the human
-can confirm the entity is real before approving. Advisory only: nothing
-here can change a status.
+A proposed entity's name is looked up through the curated resource its kind
+maps to (UniProt for Gene/Protein and ChEMBL for Drug), and the exact-match
+answer is stored beside the review evidence so the human can confirm it
+before approving. Advisory only: nothing here can change a status.
 
-These tests pin the lookups (with the network boundary stubbed), the
-type mapping, the store round-trip, and the API surface.
+The legacy parser tests remain to pin their guarded transport and shape
+handling, while runtime tests pin exact-resource dispatch, store round-trip,
+and the API surface.
 """
 
 from __future__ import annotations
 
-import json
 import time
 from pathlib import Path
 
@@ -21,11 +20,12 @@ import pytest
 from ontologylab.connectors import registry_lookup
 from ontologylab.connectors.registry_lookup import (
     REGISTRY_FOR_TYPE,
-    lookup_entity,
-    lookup_uniprot,
-    lookup_pubchem,
     lookup_clinvar,
+    lookup_entity,
+    lookup_pubchem,
+    lookup_uniprot,
 )
+from ontologylab.connectors.resources import ResourceMatch
 from ontologylab.kgstore import KGStore
 from ontologylab.models import ProposedEntity
 
@@ -65,9 +65,42 @@ def test_type_mapping_is_fixed_per_kind() -> None:
     assert REGISTRY_FOR_TYPE == {
         "Gene": "uniprot",
         "Protein": "uniprot",
-        "Drug": "pubchem",
-        "Variant": "clinvar",
+        "Drug": "chembl",
     }
+
+
+def test_review_lookup_uses_the_exact_resource_seam(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given: a result from the curated exact-match resource adapter, while
+    # the legacy free-text transport is made fatal
+    calls: list[tuple[str, str]] = []
+
+    def exact_lookup(resource: str, name: str) -> ResourceMatch | None:
+        calls.append((resource, name))
+        if resource != "uniprot":
+            return None
+        return ResourceMatch(
+            resource="uniprot",
+            external_id="P51587",
+            record_url="https://www.uniprot.org/uniprotkb/P51587",
+            matched_name="BRCA2",
+            facts={"organism": "Homo sapiens"},
+        )
+
+    def raw_get(_url: str) -> bytes:
+        raise AssertionError("legacy raw registry transport was called")
+
+    monkeypatch.setattr(registry_lookup, "lookup", exact_lookup, raising=False)
+    monkeypatch.setattr(registry_lookup, "_get", raw_get)
+
+    # When: the review surface asks for advisory enrichment
+    hits = lookup_entity("BRCA2", "Gene")
+
+    # Then: only exact, field-qualified resources are consulted
+    assert calls
+    assert hits[0].identifier == "P51587"
+    assert hits[0].label == "BRCA2"
 
 
 def test_uniprot_lookup_extracts_accession_and_description(monkeypatch) -> None:
@@ -118,27 +151,28 @@ def test_uniprot_lookup_unwraps_the_value_wrapped_full_name(monkeypatch) -> None
 
 
 def test_lookup_entity_maps_kind_to_registry(monkeypatch) -> None:
-    _monkey_http(
-        monkeypatch,
-        {
-            "rest.uniprot.org": UNIPROT_HIT,
-            "pubchem.ncbi.nlm.nih.gov": PUBCHEM_HIT,
-            "esearch.fcgi": CLINVAR_ESEARCH,
-            "esummary.fcgi": CLINVAR_SUMMARY,
-        },
-    )
+    def exact_lookup(resource: str, name: str) -> ResourceMatch | None:
+        return ResourceMatch(
+            resource=resource,
+            external_id=f"id:{name}",
+            record_url="https://example.invalid/record",
+            matched_name=name,
+        )
+
+    monkeypatch.setattr(registry_lookup, "lookup", exact_lookup)
     assert lookup_entity("BRCA2", "Gene")[0].registry == "uniprot"
-    assert lookup_entity("Olaparib", "Drug")[0].registry == "pubchem"
-    assert lookup_entity("BRCA2 c.5946delT", "Variant")[0].registry == "clinvar"
+    assert lookup_entity("Olaparib", "Drug")[0].registry == "chembl"
+    assert lookup_entity("BRCA2 c.5946delT", "Variant") == []
     # Kinds without a registry are skipped, not invented
     assert lookup_entity("breast cancer", "Disease") == []
 
 
 def test_a_failed_lookup_carries_the_failure_key(monkeypatch) -> None:
-    def fake(url: str) -> bytes:
-        raise ValueError("timeout")
+    def fake(resource: str, name: str) -> ResourceMatch | None:
+        del resource, name
+        raise TimeoutError
 
-    monkeypatch.setattr(registry_lookup, "_get", fake)
+    monkeypatch.setattr(registry_lookup, "lookup", fake)
     (hit,) = lookup_entity("BRCA2", "Gene")
     assert hit.error == "timeout"
     assert hit.identifier == ""
@@ -177,15 +211,18 @@ def test_enrich_api_stores_and_returns(monkeypatch, tmp_path: Path) -> None:
 
     from ontologylab.server.app import create_app
 
-    _monkey_http(
-        monkeypatch,
-        {
-            "rest.uniprot.org": UNIPROT_HIT,
-            "pubchem.ncbi.nlm.nih.gov": PUBCHEM_HIT,
-            "esearch.fcgi": CLINVAR_ESEARCH,
-            "esummary.fcgi": CLINVAR_SUMMARY,
-        },
-    )
+    def exact_lookup(resource: str, name: str) -> ResourceMatch | None:
+        assert resource == "uniprot"
+        assert name == "BRCA2"
+        return ResourceMatch(
+            resource="uniprot",
+            external_id="Q86YC2",
+            record_url="https://www.uniprot.org/uniprotkb/Q86YC2",
+            matched_name="Partner and localizer of BRCA2",
+            facts={"organism": "Homo sapiens"},
+        )
+
+    monkeypatch.setattr(registry_lookup, "lookup", exact_lookup)
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     store = KGStore.open(data_dir / "kg.sqlite")
@@ -216,7 +253,7 @@ def test_enrich_api_stores_and_returns(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_enrich_api_skips_kinds_without_a_registry(
-    monkeypatch, tmp_path: Path
+    tmp_path: Path,
 ) -> None:
     from fastapi.testclient import TestClient
 

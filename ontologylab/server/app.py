@@ -11,10 +11,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, Response
 
-from ontologylab.paths import ROOT, default_data_dir, default_packs_dir
+from ontologylab.paths import default_data_dir, default_packs_dir
+from ontologylab.server.entity_routes import router as entity_router
 from ontologylab.server.ingest_routes import router as ingest_router
 from ontologylab.server.jobs import JobRegistry
 from ontologylab.server.routes import router
@@ -33,9 +33,9 @@ from ontologylab.server.session import (
     presented_session_token,
     tokens_match,
 )
-
-WEB_DIR = ROOT / "web"
-INDEX_HTML = WEB_DIR / "index.html"
+from ontologylab.storage_compatibility import require_writer_compatible
+from ontologylab.storage_types import StorageCompatibilityRefused
+from ontologylab.web_assets import content_type, verify_assets
 
 # The working DB has two writers: the per-job extraction thread
 # (server/jobs.py) and whatever the dashboard is doing in a request handler.
@@ -65,24 +65,33 @@ def create_app(
         openapi_url=None,
     )
 
-    resolved = Path(data_dir) if data_dir is not None else default_data_dir()
+    resolved = (
+        Path(data_dir) if data_dir is not None else default_data_dir()
+    ).resolve()
+    if packs_dir is not None:
+        resolved_packs = Path(packs_dir).resolve()
+    elif data_dir is not None:
+        resolved_packs = resolved.parent / "packs"
+    else:
+        resolved_packs = default_packs_dir().resolve()
+    storage = require_writer_compatible(
+        resolved / "kg.sqlite", packs_dir=resolved_packs,
+    )
+    if not storage.starts_without_migration:
+        raise StorageCompatibilityRefused(storage)
+    app.state.storage_preflight = storage
+
     secret = install_session(resolved)
     app.state.data_dir = resolved
     app.state.session_token = secret.token
     app.state.session_token_path = secret.path
-
-    if packs_dir is not None:
-        resolved_packs = Path(packs_dir)
-    elif data_dir is not None:
-        resolved_packs = resolved.parent / "packs"
-    else:
-        resolved_packs = default_packs_dir()
     app.state.packs_dir = resolved_packs
 
     # Construction performs G002 startup recovery for this app's store.
     app.state.jobs = JobRegistry(resolved)
 
     app.include_router(router)
+    app.include_router(entity_router)
     app.include_router(ingest_router)
 
     @app.exception_handler(RequestValidationError)
@@ -152,16 +161,32 @@ def create_app(
             },
         )
 
-    if WEB_DIR.is_dir():
-        app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
+    # Dashboard assets are package resources (ontologylab.web), verified
+    # against the committed manifest once here: a missing, tampered, or
+    # unlisted file fails app construction instead of serving a partial UI.
+    # The verified bytes are then served from memory, so /static answers
+    # identically from a checkout, a wheel, or a zip — and nothing outside
+    # the manifest set is reachable (path lookup, not filesystem lookup).
+    assets = verify_assets()
+
+    @app.get("/static/{asset_path:path}", include_in_schema=False)
+    async def static_asset(asset_path: str) -> Response:
+        """Serve one manifest-listed asset; anything else is a 404."""
+        body = assets.content.get(asset_path)
+        if body is None:
+            return Response(status_code=404)
+        return Response(content=body, media_type=content_type(asset_path))
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz() -> dict[str, bool]:
         return {"ok": True}
 
     @app.get("/", include_in_schema=False)
-    async def index() -> FileResponse:
-        return FileResponse(str(INDEX_HTML))
+    async def index() -> Response:
+        return Response(
+            content=assets.content["index.html"],
+            media_type=content_type("index.html"),
+        )
 
     # Local single-user app: the UI iterates often, and browsers apply
     # heuristic caching to /static (Last-Modified only) — which kept serving

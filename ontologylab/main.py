@@ -21,44 +21,29 @@ import argparse
 import asyncio
 import json
 import os
+import sqlite3
 import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from urllib.error import URLError
-from xml.etree.ElementTree import ParseError
+from typing import assert_never
 
 from ontologylab import paths
-from ontologylab.connectors.allowlist import (
-    NotAllowlisted,
-    check_collect_file,
-    check_paper_query,
-    check_url,
-    loggable_collect_inputs,
-)
-from ontologylab.connectors.base import RawDocument
+from ontologylab.collect import CollectInputs, CollectOutcome, collect_documents
+from ontologylab.connectors.allowlist import loggable_collect_inputs
 from ontologylab.connectors.paper_api import (
     DEFAULT_LIMIT,
     DEFAULT_PAPER_SOURCE,
-    PaperApiConnector,
-    UnsupportedPaperSource,
-    check_source_implemented,
 )
-from ontologylab.connectors.web_crawl import WebCrawlConnector
-from ontologylab.engines import EngineError, engine_name_arg, get_engine
+from ontologylab.engines import EngineError, engine_name_arg, resolve_engine
 from ontologylab.expansion import expand_query
-from ontologylab.extraction_state import (
-    effective_extractor_model,
-    recover_running_once,
-)
+from ontologylab.extraction_state import recover_running_once
 from ontologylab.extractor import (
     TOTALS_KEYS,
     extraction_decode_params,
     extraction_doc_ids,
-    run_extraction,
+    run_extract_job,
 )
-from ontologylab.ingestion import ingest_documents
-from ontologylab.ingestion_shadow import ShadowBatchBoundError
 from ontologylab.kgstore import EndpointNotVerified, KGStore, KGStoreError
 from ontologylab.method_ir import (
     MethodIR, StatementOccurrence, canonical_json_bytes, parse_method,
@@ -69,7 +54,8 @@ from ontologylab.method_pack import (
     reject_duplicate_release_ids,
 )
 from ontologylab.method_store import MethodError, MethodStore, MethodUnitOfWork
-from ontologylab.packbuilder import PackBuildError, build_pack
+from ontologylab.method_validation import MethodValidationError
+from ontologylab.packbuilder import PackBuildError, build_pack_release
 from ontologylab.provenance import Provenance
 from ontologylab.safety import Caps, KillSwitch
 
@@ -127,8 +113,9 @@ def cmd_method(args: argparse.Namespace) -> int:
         if command == "extract":
             from ontologylab.method_extract import extract_occurrences
 
-            engine = get_engine(
-                args.engine, model=args.model, data_dir=Path(args.data_dir),
+            engine = resolve_engine(
+                args.engine, model=args.model,
+                data_dir=Path(args.data_dir),
                 decode_params={},
             )
             caps = Caps(SimpleNamespace(
@@ -194,6 +181,13 @@ def cmd_method(args: argparse.Namespace) -> int:
                         args.workspace_id, fragment,
                         generator="offline-import", parser_version="method-v1",
                     )
+                try:
+                    for evidence in ir.field_evidence:
+                        method.add_fragment_evidence(evidence)
+                except sqlite3.IntegrityError as exc:
+                    raise MethodValidationError(
+                        "invalid fragment evidence"
+                    ) from exc
             elif command == "link-import":
                 ir = _canonical_method(args.file)
                 for link in ir.links:
@@ -395,7 +389,7 @@ def _add_method_parser(sub: argparse._SubParsersAction) -> None:
     extract.add_argument("--workspace-id", required=True)
     extract.add_argument("--document-id", required=True)
     extract.add_argument("--policy-snapshot-id", required=True)
-    extract.add_argument("--engine", default="mock")
+    extract.add_argument("--engine", default=None)
     extract.add_argument("--model")
     extract.add_argument("--processor", required=True)
     extract.add_argument("--region", required=True)
@@ -480,13 +474,33 @@ def cmd_ingest(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _print_collect_failure(outcome: CollectOutcome) -> int:
+    detail = outcome.detail or ""
+    match outcome.error_kind:
+        case "rejected":
+            if detail.startswith("nothing to collect"):
+                print(f"[ontologylab] {detail}")
+            else:
+                print(f"[ontologylab] REJECTED: {detail}", file=sys.stderr)
+        case "unsupported":
+            print(f"[ontologylab] UNSUPPORTED: {detail}", file=sys.stderr)
+        case "offline":
+            print(f"[ontologylab] REJECTED: {detail}", file=sys.stderr)
+        case "unconfigured" | "too_large" | "failed":
+            print(f"[ontologylab] collect failed: {detail}", file=sys.stderr)
+        case "fetch_failed":
+            print(f"[ontologylab] FETCH FAILED: {detail}", file=sys.stderr)
+        case None:
+            print("[ontologylab] collect failed: internal_error", file=sys.stderr)
+        case unreachable:
+            assert_never(unreachable)
+    return 2
+
+
 def cmd_collect(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir)
     job_dir = paths.new_job_dir(data_dir, "collect")
     provenance = Provenance(str(job_dir), seed=0)
-    # Bounded for the same reason as the route's copy: `collect.start` is
-    # logged before the gates, so these values have passed no validation yet
-    # (M2 — see `loggable_collect_inputs`).
     provenance.log(
         "collect.start",
         {
@@ -495,119 +509,39 @@ def cmd_collect(args: argparse.Namespace) -> int:
             "paper_queries": loggable_collect_inputs(args.paper_query or []),
         },
     )
-
-    if not (args.url or args.file or args.paper_query):
-        print(
-            "[ontologylab] nothing to collect: pass --url, --file, "
-            "and/or --paper-query"
-        )
-        return 2
-
-    # Mixed-run pre-validation: every gate for every input is checked BEFORE
-    # any fetch, so one rejected/unsupported input can never let an earlier
-    # input reach the network first (zero network I/O on failure).
-    try:
-        for url in args.url:
-            check_url(url)
-        for file_arg in args.file or []:
-            check_collect_file(file_arg, data_dir)
-        for paper_query in args.paper_query or []:
-            check_paper_query(args.paper_source, paper_query)
-            check_source_implemented(args.paper_source)
-    except NotAllowlisted as exc:
-        provenance.log("collect.rejected", {"error": str(exc)})
-        print(f"[ontologylab] REJECTED: {exc}", file=sys.stderr)
-        return 2
-    except UnsupportedPaperSource as exc:
-        provenance.log("collect.unsupported", {"error": str(exc)})
-        print(f"[ontologylab] UNSUPPORTED: {exc}", file=sys.stderr)
-        return 2
-
-    def _run_connector(connector, spec: dict) -> list[RawDocument] | None:
-        """Fetch via one connector; None means logged failure (exit 2).
-
-        NotAllowlisted / UnsupportedPaperSource are re-checked in-fetch as
-        defense in depth; URLError (incl. HTTPError) and Atom ParseError are
-        fetch failures — all must end as a clean CLI error, never an
-        uncaught traceback.
-        """
-        try:
-            return asyncio.run(connector.fetch(spec))
-        except NotAllowlisted as exc:
-            provenance.log("collect.rejected", {"error": str(exc)})
-            print(f"[ontologylab] REJECTED: {exc}", file=sys.stderr)
-        except UnsupportedPaperSource as exc:
-            provenance.log("collect.unsupported", {"error": str(exc)})
-            print(f"[ontologylab] UNSUPPORTED: {exc}", file=sys.stderr)
-        except (URLError, ParseError) as exc:
-            provenance.log("collect.fetch_failed", {"error": str(exc)})
-            print(f"[ontologylab] FETCH FAILED: {exc}", file=sys.stderr)
-        except (ValueError, OSError) as exc:
-            provenance.log("collect.failed", {"error": str(exc)})
-            print(f"[ontologylab] collect failed: {exc}", file=sys.stderr)
-        return None
-
-    raw_docs: list[RawDocument] = []
-    if args.url:
-        fetched = _run_connector(WebCrawlConnector(), {"urls": args.url})
-        if fetched is None:
-            return 2
-        raw_docs.extend(fetched)
-    for paper_query in args.paper_query or []:
-        fetched = _run_connector(
-            PaperApiConnector(),
-            {
-                "source": args.paper_source,
-                "query": paper_query,
-                "limit": args.limit,
-                "data_dir": data_dir,
-            },
-        )
-        if fetched is None:
-            return 2
-        raw_docs.extend(fetched)
-    for file_arg in args.file or []:
-        path = Path(file_arg)
-        raw_docs.append(
-            RawDocument(
-                source_kind="upload",
-                source_uri=path.resolve().as_uri(),
-                title=path.stem,
-                raw_text=path.read_text(encoding="utf-8"),
-            )
-        )
-    if not raw_docs:
-        provenance.log("collect.end", {"documents": 0, "created": 0})
+    outcome = collect_documents(
+        CollectInputs(
+            urls=tuple(args.url or ()),
+            files=tuple(args.file or ()),
+            paper_queries=tuple(args.paper_query or ()),
+            paper_source=args.paper_source,
+            limit=args.limit,
+            data_dir=data_dir,
+        ),
+        provenance=provenance,
+    )
+    if not outcome.ok:
+        return _print_collect_failure(outcome)
+    if not outcome.entries and not outcome.failures:
         print("[ontologylab] no documents matched: inputs fetched cleanly "
               "but yielded zero documents")
         return 0
-
-    store = _open_store(args)
-    try:
-        result = ingest_documents(store, raw_docs, provenance)
-        for entry in result.entries:
-            state = "new" if entry.created else "duplicate"
-            print(
-                f"[ontologylab] {state} document {entry.document.id} "
-                f"<- {entry.document.source_uri}"
-            )
-    except ShadowBatchBoundError:
-        provenance.log("collect.rejected", {"error": "batch_limit"})
+    for entry in outcome.entries:
+        state = "new" if entry.created else "duplicate"
         print(
-            "[ontologylab] REJECTED: batch exceeds 100 documents",
-            file=sys.stderr,
+            f"[ontologylab] {state} document {entry.document.id} "
+            f"<- {entry.document.source_uri}"
         )
-        return 2
-    except Exception:
-        provenance.log("collect.failed", {"error": "internal_error"})
-        print("[ontologylab] collect failed: internal_error", file=sys.stderr)
-        return 2
-    finally:
-        store.close()
     print(
-        f"[ontologylab] collected {result.document_count} document(s) "
-        f"({result.created_count} new)"
+        f"[ontologylab] collected {outcome.documents} document(s) "
+        f"({outcome.created} new)"
     )
+    if outcome.failures:
+        print(f"[ontologylab] {len(outcome.failures)} failure(s)")
+        for failure in outcome.failures:
+            print(
+                f"[ontologylab] {failure.error_class} <- {failure.source_uri}"
+            )
     return 0
 
 
@@ -619,19 +553,9 @@ def cmd_collect(args: argparse.Namespace) -> int:
 async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
     data_dir = Path(args.data_dir)
     job_dir = paths.new_job_dir(data_dir, "extract")
-    provenance = Provenance(str(job_dir), seed=args.seed)
-    caps_config = SimpleNamespace(
-        iterations=0,  # no iteration cap; time/call budgets govern
-        time_budget_s=args.time_budget,
-        max_engine_calls=args.max_engine_calls,
-    )
-    caps = Caps(caps_config)
     kill_switch = KillSwitch(str(job_dir))
     kill_switch.install()
 
-    # Only a stated choice is passed down: absent flags mean "no selection",
-    # which lets the API engines apply their pinned default and keeps the CLI
-    # engines (which have no sampling flag) usable as before.
     decode_params = {
         key: value
         for key, value in (
@@ -641,9 +565,9 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
         if value is not None
     } or None
     try:
-        engine = get_engine(
+        engine = resolve_engine(
             args.engine,
-            args.model,
+            model=args.model,
             seed=args.seed,
             data_dir=data_dir,
             decode_params=decode_params,
@@ -653,21 +577,12 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
         return 1
 
     recover_running_once(store.conn)
-    effective_model = effective_extractor_model(engine, args.model)
     doc_ids = args.doc_ids or extraction_doc_ids(store)
     if not doc_ids:
         print("[ontologylab] no unprocessed documents to extract")
+        kill_switch.uninstall()
         return 0
 
-    provenance.log(
-        "extract.start",
-        {
-            "engine": args.engine,
-            "model": effective_model,
-            "decode_params": decode_params,
-            "doc_ids": doc_ids,
-        },
-    )
     totals = dict.fromkeys(TOTALS_KEYS, 0)
 
     def _accumulate(stats: dict[str, int]) -> None:
@@ -675,28 +590,26 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
             totals[key] += stats[key]
 
     def _print(message: str) -> None:
-        # Engine errors are the only progress line that belongs on stderr;
-        # they are the ones a caller redirecting stdout still needs to see.
         stream = sys.stderr if "engine error" in message else sys.stdout
         print(message, file=stream)
 
-    stopped_reason = await run_extraction(
+    stopped_reason = await run_extract_job(
         store,
-        engine,
-        provenance,
-        caps,
-        doc_ids,
-        extractor_engine=args.engine,
-        extractor_model=effective_model,
+        engine=engine,
+        engine_name=engine.name(),
+        model=args.model,
+        job_dir=job_dir,
+        seed=args.seed,
+        doc_ids=doc_ids,
+        max_engine_calls=args.max_engine_calls,
+        time_budget=args.time_budget,
+        decode_params=extraction_decode_params(engine),
         on_progress=_print,
         on_stats=_accumulate,
         should_abort=lambda: (
             "kill switch triggered" if kill_switch.triggered() else ""
         ),
-        decode_params=extraction_decode_params(engine),
     )
-
-    provenance.log("extract.end", {"totals": totals, "stopped": stopped_reason})
     kill_switch.uninstall()
     if stopped_reason:
         print(f"[ontologylab] extraction stopped early: {stopped_reason}")
@@ -1049,7 +962,10 @@ def cmd_critic(args: argparse.Namespace) -> int:
     from ontologylab.critic import critic_review, resolve_critic_model
 
     critic_model = resolve_critic_model(args.engine, args.model)
-    engine = get_engine(args.engine, critic_model, data_dir=Path(args.data_dir))
+    engine = resolve_engine(
+        args.engine, model=critic_model,
+        data_dir=Path(args.data_dir),
+    )
     store = _open_store(args)
     try:
         stats = asyncio.run(
@@ -1295,51 +1211,37 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir)
     job_dir = paths.new_job_dir(data_dir, "build-pack")
     provenance = Provenance(str(job_dir), seed=0)
-    provenance.log(
-        "build_pack.start",
-        {
-            "name": args.name,
-            "allow_incomplete_extraction": args.allow_incomplete_extraction,
-            "operator_intent": args.override_intent,
-        },
-    )
     summarizer = None
     summary_method = "extractive"
     if args.summarize_engine:
         from ontologylab.communities import llm_summarizer
 
         summarizer = llm_summarizer(
-            get_engine(
-                args.summarize_engine, args.summarize_model, data_dir=data_dir
+            resolve_engine(
+                args.summarize_engine, model=args.summarize_model, data_dir=data_dir
             ),
             model=args.summarize_model,
         )
         summary_method = f"llm:{args.summarize_engine}"
+    store = _open_store(args)
     try:
-        manifest = build_pack(
+        manifest = build_pack_release(
             paths.kg_db_path(data_dir),
             args.packs_dir,
             args.name,
-            source_job_id=job_dir.name,
-            provenance_jsonl=provenance.jsonl_path,
+            provenance=provenance,
             summarizer=summarizer,
             summary_method=summary_method,
             allow_incomplete_extraction=args.allow_incomplete_extraction,
             incomplete_extraction_intent=args.override_intent,
             method_release_ids=method_release_ids,
+            store=store,
         )
     except (PackBuildError, OSError) as exc:
-        payload = {"error": str(exc)}
-        summary = getattr(exc, "summary", None)
-        if summary is not None:
-            payload["extraction_completeness"] = summary
-        provenance.log("build_pack.failed", payload)
         print(f"[ontologylab] ERROR: {exc}", file=sys.stderr)
         return 2
-    provenance.log(
-        "build_pack.end",
-        {"pack_id": manifest.pack_id, "counts": manifest.counts},
-    )
+    finally:
+        store.close()
     print(f"[ontologylab] built pack {manifest.pack_id}")
     print(json.dumps(manifest.counts, indent=2))
     from ontologylab.mcp_server import serve_args
@@ -1504,8 +1406,9 @@ def cmd_search(args: argparse.Namespace) -> int:
         variants: list[str] = []
         if args.expand:
             try:
-                engine = get_engine(
-                    args.engine, args.model, data_dir=Path(args.data_dir)
+                engine = resolve_engine(
+                    args.engine, model=args.model,
+                    data_dir=Path(args.data_dir),
                 )
                 variants, usage = asyncio.run(
                     expand_query(args.query, engine, model=args.model)
@@ -1789,7 +1692,7 @@ def cmd_provider_test(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
-    engine = get_engine(f"api:{provider.id}", args.model, data_dir=data_dir)
+    engine = resolve_engine(f"api:{provider.id}", model=args.model, data_dir=data_dir)
     start = time.monotonic()
     try:
         text, _usage = asyncio.run(
@@ -1865,7 +1768,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_ingest.set_defaults(func=cmd_ingest)
 
     p_extract = sub.add_parser("extract", help="LLM-extract proposed entities/relations.")
-    p_extract.add_argument("--engine", default=paths.DEFAULT_ENGINE,
+    p_extract.add_argument("--engine", default=None,
                            type=engine_name_arg, metavar="ENGINE",
                            help="mock|claude|codex|gemini or api:<provider-id> "
                                 "(see `ontologylab provider`).")
@@ -1996,7 +1899,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Pre-score pending proposals with a second model (advisory "
              "only: sorts the queue and flags disagreements; never approves).",
     )
-    p_critic.add_argument("--engine", default="mock",
+    p_critic.add_argument("--engine", default=None,
                           type=engine_name_arg, metavar="ENGINE",
                           help="mock|claude|codex|gemini or api:<provider-id>.")
     p_critic.add_argument(
@@ -2162,7 +2065,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_search.add_argument("--expand", action="store_true",
                           help="Expand the query with LLM lexical variants "
                                "(fails open to plain lexical search).")
-    p_search.add_argument("--engine", default="mock",
+    p_search.add_argument("--engine", default=None,
                           type=engine_name_arg, metavar="ENGINE",
                           help="mock|claude|codex|gemini or api:<provider-id>.")
     p_search.add_argument("--model", default=None)

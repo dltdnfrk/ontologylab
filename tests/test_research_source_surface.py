@@ -13,14 +13,18 @@ untouched while still reporting every source as failed.
 
 from __future__ import annotations
 
-import time
+from html.parser import HTMLParser
+import json
 from pathlib import Path
+import re
 
-import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from ontologylab import research_run as research_run_module
 from ontologylab.connectors.base import RawDocument, normalize_doi
 from ontologylab.connectors.paper_api import SourceFailure
+from ontologylab.research_assessment import summarize_source_failures
 from ontologylab.server.app import create_app
 from ontologylab.server.jobs import TERMINAL_STATUSES
 
@@ -42,7 +46,17 @@ def _paper(source: str, doi: str | None) -> RawDocument:
 
 
 def _fake_fetch(batches, failures=()):
-    async def _fetch(sources, query, limit=None, data_dir=None, on_event=None):
+    async def _fetch(
+        sources,
+        query,
+        limit=None,
+        data_dir=None,
+        on_event=None,
+        source_queries=None,
+        search_axis="",
+        query_terms=(),
+    ):
+        del source_queries, search_axis, query_terms
         if on_event is not None:
             for name in sources:
                 on_event("source_start", name, None)
@@ -67,18 +81,19 @@ def _run(client: TestClient, **body):
     payload = {"topic": TOPIC, "engine": "mock", "sources": ["arxiv", "crossref"], **body}
     started = client.post("/api/research", json=payload).json()
     assert started.get("ok") is True, started
-    job = client.app.state.jobs.get(started["job_id"])
-    deadline = time.monotonic() + 30
-    while time.monotonic() < deadline and job.status not in TERMINAL_STATUSES:
-        time.sleep(0.02)
+    app = client.app
+    assert isinstance(app, FastAPI)
+    job = app.state.jobs.get(started["job_id"])
+    assert job is not None and job._thread is not None
+    job._thread.join(timeout=30)
+    assert not job._thread.is_alive()
+    assert job.status in TERMINAL_STATUSES
     return job
 
 
 def test_partial_failure_surfaces_per_source_status(tmp_path, monkeypatch) -> None:
-    from ontologylab.server import jobs as jobs_module
-
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch(
             [("arxiv", [_paper("arxiv", "10.1/a")])],
@@ -104,7 +119,7 @@ def test_all_sources_failed_reports_every_source_and_leaves_store_untouched(
     from ontologylab.server import jobs as jobs_module
 
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch(
             [],
@@ -130,10 +145,8 @@ def test_all_sources_failed_reports_every_source_and_leaves_store_untouched(
 
 
 def test_as_status_carries_the_sources_shape(tmp_path, monkeypatch) -> None:
-    from ontologylab.server import jobs as jobs_module
-
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch(
             [("arxiv", [_paper("arxiv", "10.1/b")])],
@@ -154,10 +167,8 @@ def test_the_job_api_response_carries_sources(tmp_path, monkeypatch) -> None:
     builds the list, and without a declared field the browser never sees
     it, which is the exact gap the badge band exists to close.
     """
-    from ontologylab.server import jobs as jobs_module
-
     monkeypatch.setattr(
-        jobs_module,
+        research_run_module,
         "fetch_sources",
         _fake_fetch(
             [("arxiv", [_paper("arxiv", "10.1/c")])],
@@ -174,14 +185,120 @@ def test_the_job_api_response_carries_sources(tmp_path, monkeypatch) -> None:
 
 
 def test_the_ui_renders_badges_and_an_all_failed_banner() -> None:
-    """Text contract: the job detail must render the source band (GAP-O4)."""
-    from ontologylab.server.app import WEB_DIR
+    """Execute the shipped renderer; localized prose is not the contract."""
+    from ontologylab import web_assets
+    from tests.test_ui_failure_honesty import _harness, _run_js
 
-    script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
-    markup = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+    markup = web_assets.read_asset_text("index.html")
 
-    assert 'id="job-sources"' in markup
-    assert "renderJobSources" in script
-    assert "소스 " in script and "개 응답" in script
-    assert "아무 소스도 응답하지 않았어요" in script
-    assert "src-allfailed" in script
+    class SourceHTML(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.elements: list[tuple[str, dict[str, str | None]]] = []
+            self.aggregate = ""
+            self.in_aggregate = False
+
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            attributes = dict(attrs)
+            self.elements.append((tag, attributes))
+            if "src-aggregate" in (attributes.get("class") or "").split():
+                self.in_aggregate = True
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag == "div":
+                self.in_aggregate = False
+
+        def handle_data(self, data: str) -> None:
+            if self.in_aggregate:
+                self.aggregate += data
+
+    page = SourceHTML()
+    page.feed(markup)
+    hosts = [attrs for _, attrs in page.elements if attrs.get("id") == "job-sources"]
+    assert len(hosts) == 1
+    initial_hidden = "hidden" in (hosts[0].get("class") or "").split()
+    cases = [
+        ("empty", []),
+        ("all-failed", [
+            {"name": "arxiv", "status": "failed", "detail": "fetch_failed"},
+            {"name": "crossref", "status": "failed", "detail": "unconfigured"},
+        ]),
+        ("partial-after-failure", [
+            {"name": "arxiv", "status": "ok", "detail": "1"},
+            {"name": "crossref", "status": "failed", "detail": "fetch_failed"},
+        ]),
+        ("running", [
+            {"name": "arxiv", "status": "ok", "detail": "1"},
+            {"name": "crossref", "status": "running"},
+        ]),
+        ("all-ok", [
+            {"name": "arxiv", "status": "ok", "detail": "1"},
+            {"name": "crossref", "status": "ok", "detail": "2"},
+        ]),
+        ("escaped", [
+            {"name": "<img src=x onerror=boom>", "status": "failed",
+             "detail": "<svg onload=boom>"},
+        ]),
+        ("empty-after-results", []),
+    ]
+    script = _harness(
+        "renderJobSources", "escapeHtml",
+        # Localization is deliberately not pinned; escaping is shipped code.
+        extra='var FAIL_KO = {}; function toolKo(value) { return String(value); }',
+    )
+    script += "\nhidden['#job-sources'] = " + json.dumps(initial_hidden) + ";\n"
+    script += "var cases = " + json.dumps(cases) + ";\n"
+    script += """
+var frames = cases.map(function (entry) {
+  renderJobSources({sources: entry[1]});
+  return {name: entry[0], hidden: hidden["#job-sources"], html: shown["#job-sources"] || ""};
+});
+console.log(JSON.stringify({frames: frames}));
+"""
+    frames = _run_js(script)["frames"]
+    assert len(frames) == len(cases)
+    for (name, sources), frame in zip(cases, frames, strict=True):
+        assert frame["name"] == name
+        assert frame["hidden"] is (not sources), name
+        if not sources:
+            continue
+        rendered = SourceHTML()
+        rendered.feed(frame["html"])
+        classes = [
+            (attrs.get("class") or "").split() for _, attrs in rendered.elements
+        ]
+        counts = {
+            status: sum(source["status"] == status for source in sources)
+            for status in ("ok", "failed", "running")
+        }
+        assert sum("src-badge" in names for names in classes) == len(sources), name
+        for status, count in counts.items():
+            assert sum("src-" + status in names for names in classes) == count, name
+        assert sum("src-allfailed" in names for names in classes) == (
+            1 if counts["failed"] == len(sources) else 0
+        ), name
+        expected_counts = [len(sources), counts["ok"]]
+        expected_counts.extend(
+            counts[status] for status in ("failed", "running") if counts[status]
+        )
+        assert [int(value) for value in re.findall(r"\d+", rendered.aggregate)] == expected_counts
+        assert not any(tag in {"img", "svg", "script"} for tag, _ in rendered.elements)
+        assert not any(key.startswith("on") for _, attrs in rendered.elements for key in attrs)
+
+
+def test_assessment_failure_surface_keeps_kind_but_not_external_error_text() -> None:
+    failures = [
+        SourceFailure(
+            "crossref",
+            "HTTP 401 https://source.invalid/?api_key=do-not-copy",
+            "fetch_failed",
+        )
+    ]
+
+    degraded, summaries = summarize_source_failures(failures)
+
+    assert degraded is True
+    assert [(item.source, item.kind) for item in summaries] == [
+        ("crossref", "fetch_failed")
+    ]
+    assert not hasattr(summaries[0], "error")

@@ -54,6 +54,7 @@ class RecoveryDecision:
     reason: str | None = None
     raw_text_path: str | None = None
     state: str | None = None
+    staged_path: Path | None = None
 
 
 def content_hash_for(data: bytes) -> str:
@@ -79,12 +80,7 @@ def safe_operation_id(operation_id: str) -> str:
 
 
 def operation_staging_root(store_root: Path, operation_id: str) -> Path:
-    root = Path(store_root) / "staging" / safe_operation_id(operation_id)
-    staging = (Path(store_root) / "staging").resolve()
-    resolved = Path(store_root).joinpath("staging", safe_operation_id(operation_id))
-    if not _is_contained(resolved.resolve(strict=False), staging):
-        raise PathEscapeError("operation staging root escapes store staging")
-    return root
+    return Path(store_root) / "staging" / safe_operation_id(operation_id)
 
 
 def _is_contained(path: Path, root: Path) -> bool:
@@ -157,18 +153,32 @@ def stage_bytes(
     operation_id: str,
     representation_id: str,
     data: bytes,
+    *,
+    sync_directory: bool = True,
 ) -> Path:
     staging = operation_staging_root(store_root, operation_id)
     staging.mkdir(parents=True, exist_ok=True)
+    if (
+        not representation_id
+        or representation_id in {".", ".."}
+        or safe_operation_id(representation_id) != representation_id
+    ):
+        raise PathEscapeError("invalid representation id for staging")
     path = staging / f"{representation_id}.part"
-    if not _is_contained(path.resolve(strict=False), staging.resolve()):
-        raise PathEscapeError("staging path escapes operation staging root")
     with path.open("wb") as handle:
         handle.write(data)
         handle.flush()
         os.fsync(handle.fileno())
-    _fsync_path(staging)
+    if sync_directory:
+        _fsync_path(staging)
     return path
+
+
+def sync_staging_operation(store_root: Path, operation_id: str) -> None:
+    """Durably publish every staged entry written by one bounded operation."""
+    staging = operation_staging_root(store_root, operation_id)
+    if staging.is_dir():
+        _fsync_path(staging)
 
 
 def _as_bytes(raw_text: bytes | str) -> bytes:
@@ -184,6 +194,7 @@ def prepare_representation_payload(
     *,
     raw_text: bytes | str | None,
     raw_text_path: str,
+    sync_directory: bool = True,
 ) -> Path | None:
     """Stage operation-owned bytes. Never persist the caller path."""
     if raw_text_path:
@@ -201,15 +212,24 @@ def prepare_representation_payload(
         data = None
     if data is None:
         return None
-    return stage_bytes(store_root, operation_id, representation_id, data)
+    return stage_bytes(
+        store_root,
+        operation_id,
+        representation_id,
+        data,
+        sync_directory=sync_directory,
+    )
 
 
 def find_staging_file(store_root: Path, representation_id: str) -> Path | None:
     staging = Path(store_root) / "staging"
     if not staging.is_dir():
         return None
-    matches = sorted(staging.glob(f"*/{representation_id}.part"))
-    return matches[0] if matches else None
+    for operation_root in sorted(staging.iterdir()):
+        candidate = operation_root / f"{representation_id}.part"
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def _row(
@@ -240,6 +260,8 @@ def classify_representation(
     conn: sqlite3.Connection,
     store_root: Path,
     representation_id: str,
+    *,
+    staging_operation_id: str | None = None,
 ) -> RecoveryDecision:
     row = _row(conn, representation_id)
     if row is None:
@@ -267,7 +289,14 @@ def classify_representation(
             state=state,
         )
 
-    final_abs = _final_abs(store_root, raw_text_path)
+    final_abs = (
+        Path(store_root) / raw_text_path
+        if (
+            staging_operation_id is not None
+            and raw_text_path == final_raw_text_path(representation_id)
+        )
+        else _final_abs(store_root, raw_text_path)
+    )
     if final_abs is None:
         return RecoveryDecision(
             classification="quarantined",
@@ -276,9 +305,22 @@ def classify_representation(
             raw_text_path=raw_text_path,
             state=state,
         )
-    staged = find_staging_file(store_root, representation_id)
+    staged = (
+        operation_staging_root(store_root, staging_operation_id)
+        / f"{representation_id}.part"
+        if staging_operation_id is not None
+        else find_staging_file(store_root, representation_id)
+    )
+    if staged is not None and not staged.is_file():
+        staged = None
     final_hash = _hash_file(final_abs) if final_abs.is_file() else None
-    staged_hash = _hash_file(staged) if staged is not None and staged.is_file() else None
+    staged_hash = (
+        expected
+        if staging_operation_id is not None and staged is not None
+        else _hash_file(staged)
+        if staged is not None
+        else None
+    )
 
     if state == READY:
         if final_hash == expected:
@@ -303,6 +345,7 @@ def classify_representation(
             representation_id=representation_id,
             raw_text_path=raw_text_path,
             state=state,
+            staged_path=staged,
         )
     reason = "missing_bytes" if staged_hash is None and final_hash is None else "hash_mismatch"
     return RecoveryDecision(
@@ -360,8 +403,15 @@ def finalize_representation(
     representation_id: str,
     *,
     failpoint: Failpoint | None = None,
+    sync_documents_dir: bool = True,
+    staging_operation_id: str | None = None,
 ) -> RecoveryDecision:
-    decision = classify_representation(conn, store_root, representation_id)
+    decision = classify_representation(
+        conn,
+        store_root,
+        representation_id,
+        staging_operation_id=staging_operation_id,
+    )
     if decision.classification == "valid-ready":
         return decision
     if decision.classification != "finalizable":
@@ -370,8 +420,12 @@ def finalize_representation(
         raise FileIntegrityError(decision.reason or "not_finalizable")
 
     raw_text_path = decision.raw_text_path or final_raw_text_path(representation_id)
-    final_abs = contained_documents_path(store_root, raw_text_path)
-    staged = find_staging_file(store_root, representation_id)
+    final_abs = (
+        Path(store_root) / raw_text_path
+        if staging_operation_id is not None
+        else contained_documents_path(store_root, raw_text_path)
+    )
+    staged = decision.staged_path
     if failpoint is not None:
         failpoint("before_rename")
     if not final_abs.is_file():
@@ -379,26 +433,37 @@ def finalize_representation(
             quarantine_representation(conn, representation_id)
             raise FileIntegrityError("missing_bytes")
         final_abs.parent.mkdir(parents=True, exist_ok=True)
-        _fsync_path(final_abs.parent.parent if final_abs.parent.parent.exists() else store_root)
+        if sync_documents_dir:
+            _fsync_path(
+                final_abs.parent.parent
+                if final_abs.parent.parent.exists()
+                else store_root
+            )
         os.replace(staged, final_abs)
     if failpoint is not None:
         failpoint("after_rename")
-    _fsync_path(final_abs)
     _fsync_path(final_abs.parent)
     documents = Path(store_root) / "documents"
-    if documents.is_dir():
+    if sync_documents_dir and documents.is_dir():
         _fsync_path(documents)
-    if failpoint is not None:
-        failpoint("after_directory_fsync")
-    if content_hash_for(final_abs.read_bytes()) != str(
-        _row(conn, representation_id)["content_hash"]  # type: ignore[index]
-    ):
-        quarantine_representation(conn, representation_id)
-        raise FileIntegrityError("hash_mismatch")
+        if failpoint is not None:
+            failpoint("after_directory_fsync")
     if failpoint is not None:
         failpoint("before_ready")
     _mark_ready(conn, representation_id, raw_text_path)
-    return classify_representation(conn, store_root, representation_id)
+    return RecoveryDecision(
+        classification="valid-ready",
+        representation_id=representation_id,
+        raw_text_path=raw_text_path,
+        state=READY,
+    )
+
+
+def sync_documents_directory(store_root: Path) -> None:
+    """Durably publish all Representation directories in one bounded batch."""
+    documents = Path(store_root) / "documents"
+    if documents.is_dir():
+        _fsync_path(documents)
 
 
 def _cleanup_absent_staging(
@@ -528,4 +593,6 @@ __all__ = [
     "reconcile_files",
     "stage_bytes",
     "store_root_from_conn",
+    "sync_documents_directory",
+    "sync_staging_operation",
 ]

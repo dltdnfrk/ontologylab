@@ -9,6 +9,7 @@ policy end-to-end through the CLI.
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 
@@ -127,6 +128,33 @@ def test_parse_europepmc_contract():
     assert "<h4>" not in first.raw_text  # markup stripped
     assert first.source_uri == "https://doi.org/10.1093/nar/gkab1112"
     assert second.source_uri == "https://europepmc.org/abstract/PPR/PPR999"
+
+
+@pytest.mark.parametrize(
+    ("year_fields", "expected_year"),
+    [
+        pytest.param({"pubYear": "2016"}, 2016, id="fair-year"),
+        pytest.param({"pubYear": "2020"}, 2020, id="numpy-year"),
+        pytest.param({}, None, id="missing"),
+        pytest.param({"pubYear": None}, None, id="null"),
+        pytest.param({"pubYear": ""}, None, id="empty"),
+        pytest.param({"pubYear": "unknown"}, None, id="invalid-text"),
+        pytest.param({"pubYear": "2020-09-16"}, None, id="date-not-year"),
+        pytest.param({"pubYear": "2020.5"}, None, id="fractional-text"),
+        pytest.param({"pubYear": {}}, None, id="object"),
+        pytest.param({"pubYear": []}, None, id="array"),
+    ],
+)
+def test_parse_europepmc_retains_publication_year(year_fields, expected_year):
+    payload = json.loads(EUROPEPMC_FIXTURE)
+    payload["resultList"]["result"][0].update(year_fields)
+
+    first, second = parse_europepmc(json.dumps(payload))
+
+    assert first.year == expected_year
+    assert first.doi == "10.1093/nar/gkab1112"
+    assert first.source == "europepmc"
+    assert second.year is None
 
 
 @pytest.mark.parametrize(

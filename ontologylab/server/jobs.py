@@ -18,22 +18,19 @@ concern and is intentionally skipped here (budgets still govern).
 from __future__ import annotations
 
 import asyncio
-import json
+import logging
+import sqlite3
 import threading
 import time
-from contextlib import suppress
 from collections import deque
+from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
-from types import SimpleNamespace
-from typing import Any, Optional
+from typing import Any
 
-from ontologylab import paths
-from ontologylab.connectors.allowlist import loggable_collect_inputs
-from ontologylab.connectors.base import collapse_duplicates
-from ontologylab.connectors.fulltext import enrich_with_fulltext
-from ontologylab.connectors.paper_api import SOURCE_ORDER, fetch_sources
-from ontologylab.engines import EngineError, get_engine
+from ontologylab import paths, research_spec
+from ontologylab.engines import EngineError, resolve_engine
 from ontologylab.extraction_state import (
     effective_extractor_model,
     recover_running_once,
@@ -43,26 +40,35 @@ from ontologylab.extractor import (
     ExtractionOutcome,
     extraction_decode_params,
     extraction_doc_ids,
-    run_extraction,
+    run_extract_job,
 )
-from ontologylab.ingestion import ingest_documents
-from ontologylab.research_extract import (
-    ResearchExtractSession,
-    extract_research_documents,
+from ontologylab.kgstore import KGStore, KGStoreError
+from ontologylab.models import Engine
+from ontologylab.paths import NetworkBlocked
+from ontologylab.provenance import Provenance
+from ontologylab.research_artifact_codec import (
+    decode_job_pointer_snapshot,
+    encode_job_pointer_snapshot,
+)
+from ontologylab.research_artifact_types import (
+    ResearchArtifactError,
+    ResearchArtifactPointers,
+)
+from ontologylab.research_run import run_research
+from ontologylab.research_run_types import (
+    ResearchRunCallbacks,
+    ResearchRunInput,
+    ResearchStartInput,
+    SourceEventDetail,
 )
 from ontologylab.selection_types import SelectionRefused
+from ontologylab.trace import Step, source_step
 
 # A research run where every source failed. Returned by `_research_async`
 # instead of "" so the terminal transition can call it what it is — storing
 # `complete` used to paint "리서치 완료!" over a run that produced nothing.
 RESEARCH_NO_SOURCES = "no-source-answered"
-NO_SOURCES_SUMMARY = "no source answered"
-from ontologylab.kgstore import KGStore, KGStoreError
-from ontologylab.paths import NetworkBlocked
-from ontologylab.provenance import Provenance
-from ontologylab.searchquery import formulate_search_query
-from ontologylab.safety import Caps
-from ontologylab.trace import Step, source_step
+NO_SOURCES_SUMMARY = "research stopped: no_usable_source"
 
 _PROGRESS_MAXLEN = 50
 
@@ -75,6 +81,8 @@ MAX_RETAINED_JOBS = 20
 # A job in one of these is done and may be evicted. `cancelled` belongs here:
 # the worker has stopped, so retaining it forever would defeat the bound.
 TERMINAL_STATUSES = frozenset({"complete", "failed", "cancelled"})
+
+logger = logging.getLogger(__name__)
 
 
 class JobAlreadyRunning(Exception):
@@ -129,7 +137,7 @@ class Job:
     job_id: str
     kind: str
     engine: str
-    model: Optional[str]
+    model: str | None
     started_ts: float
     # Which half of a research run is executing: "collect" | "extract" | "".
     # Deliberately NOT a fourth `status` value. The dashboard detects a
@@ -138,7 +146,7 @@ class Job:
     # automatic review-queue refresh from ever firing again.
     phase: str = ""
     status: str = "running"  # running | complete | failed | cancelled
-    finished_ts: Optional[float] = None
+    finished_ts: float | None = None
     totals: dict[str, int] = field(default_factory=_new_totals)
     # Per-source status of a research run's collect fan-out: source name ->
     # {"status": "running"|"ok"|"failed", "detail": ...}. Fed by the same
@@ -151,10 +159,16 @@ class Job:
     # would make the screen and the log disagree about how far back a run
     # can be read.
     steps: deque = field(default_factory=lambda: deque(maxlen=_PROGRESS_MAXLEN))
-    error: Optional[str] = None
+    error: str | None = None
     # The question that started a research run (topic), kept on the durable
     # run row so history can say *why* a run ran. Extract jobs leave it None.
-    ask: Optional[str] = None
+    ask: str | None = None
+    research_pointers: ResearchArtifactPointers | None = None
+    research_summary_cache: research_spec.JsonObject | None = field(
+        default=None, repr=False
+    )
+    research_summary_root: str | None = field(default=None, repr=False)
+    research_summary_error: str | None = field(default=None, repr=False)
     # True when this Job was restored from the runs table at registry startup:
     # dead, no worker, empty progress — the history GAP-O2 exists to keep,
     # exempt from eviction so a restart never re-empties the jobs screen.
@@ -168,10 +182,10 @@ class Job:
     )
     # The worker, kept so a caller can wait for it to notice a cancellation.
     # `create` used to build this and drop it, leaving nothing to join.
-    _thread: Optional[threading.Thread] = field(default=None, repr=False)
+    _thread: threading.Thread | None = field(default=None, repr=False)
     # Registry back-reference so every visible change can wake SSE waiters.
     # Optional: a bare Job (unit tests) works without a registry.
-    _registry: Optional["JobRegistry"] = field(default=None, repr=False)
+    _registry: JobRegistry | None = field(default=None, repr=False)
 
     def cancel(self) -> bool:
         """Ask the worker to stop; return False if it already finished.
@@ -251,7 +265,9 @@ class Job:
             }
 
 
-def _source_event_line(kind: str, source: str, detail: object) -> str:
+def _source_event_line(
+    kind: str, source: str, detail: SourceEventDetail,
+) -> str:
     """One human-readable line per per-source event.
 
     The job log is what the dashboard streams, so these strings are the
@@ -319,10 +335,25 @@ class JobRegistry:
                     error = "interrupted by server restart"
                     row["status"], row["error"] = status, error
                     store.run_upsert(row)
+                persisted_engine = row.get("engine")
+                try:
+                    ask, research_pointers = decode_job_pointer_snapshot(
+                        row.get("ask")
+                    )
+                except ResearchArtifactError:
+                    ask, research_pointers = None, None
+                    logger.warning(
+                        "ignored invalid persisted research pointers for job %s",
+                        row.get("id"),
+                    )
                 job = Job(
                     job_id=row["id"],
                     kind=row["kind"],
-                    engine=row.get("engine"),
+                    engine=(
+                        persisted_engine
+                        if isinstance(persisted_engine, str)
+                        else ""
+                    ),
                     model=row.get("model"),
                     started_ts=row["started_ts"],
                     phase=row.get("phase", ""),
@@ -330,7 +361,8 @@ class JobRegistry:
                     finished_ts=row.get("finished_ts"),
                     totals=dict(row.get("totals") or {}),
                     error=error,
-                    ask=row.get("ask"),
+                    ask=ask,
+                    research_pointers=research_pointers,
                     persisted=True,
                 )
                 with self._lock:
@@ -360,7 +392,7 @@ class JobRegistry:
                 "finished_ts": job.finished_ts,
                 "error": job.error,
                 "totals": dict(job.totals),
-                "ask": job.ask,
+                "ask": encode_job_pointer_snapshot(job.ask, job.research_pointers),
             }
         try:
             store = KGStore.open(paths.kg_db_path(self.data_dir))
@@ -368,8 +400,12 @@ class JobRegistry:
                 store.run_upsert(snapshot)
             finally:
                 store.close()
-        except (KGStoreError, OSError):
-            pass
+        except (KGStoreError, OSError, sqlite3.Error) as exc:
+            logger.warning(
+                "job persistence skipped for %s: %s",
+                job.job_id,
+                type(exc).__name__,
+            )
 
     def touch(self) -> None:
         """Record a visible change and wake any waiting stream clients."""
@@ -393,8 +429,9 @@ class JobRegistry:
         coroutine_factory,
         *,
         engine: str,
-        model: Optional[str],
+        model: str | None,
         exclusive: bool = False,
+        ask: str | None = None,
         **params: Any,
     ) -> Job:
         """Register a job of any kind, start its worker, and return it.
@@ -419,7 +456,7 @@ class JobRegistry:
             engine=engine,
             model=model,
             started_ts=time.time(),
-            ask=params.get("topic"),
+            ask=ask,
             _registry=self,
         )
         with self._lock:
@@ -456,7 +493,7 @@ class JobRegistry:
         self,
         *,
         engine: str,
-        model: Optional[str],
+        model: str | None,
         doc_ids: list[str],
         max_engine_calls: int,
         time_budget: float,
@@ -477,15 +514,7 @@ class JobRegistry:
     def create_research(
         self,
         *,
-        topic: str,
-        sources: list[str],
-        limit: Optional[int],
-        engine: str,
-        model: Optional[str],
-        max_engine_calls: int,
-        time_budget: float,
-        seed: int,
-        fulltext: bool = True,
+        start_input: ResearchStartInput,
     ) -> Job:
         """Register a collect-then-extract run over one topic.
 
@@ -495,19 +524,15 @@ class JobRegistry:
         two extract *exactly* what phase one collected, which is where the
         token saving comes from.
         """
+        controls = start_input.controls
         return self._spawn(
             "research",
             self._research_async,
-            engine=engine,
-            model=model,
+            engine=controls.engine,
+            model=controls.model,
             exclusive=True,
-            topic=topic,
-            sources=list(sources),
-            limit=limit,
-            fulltext=fulltext,
-            max_engine_calls=max_engine_calls,
-            time_budget=time_budget,
-            seed=seed,
+            ask=start_input.topic,
+            start_input=start_input,
         )
 
     def _running_locked(self, kind: str) -> Job | None:
@@ -607,7 +632,9 @@ class JobRegistry:
         the badge row and the log would drift apart.
         """
 
-        def report(kind: str, source: str, detail: object) -> None:
+        def report(
+            kind: str, source: str, detail: SourceEventDetail,
+        ) -> None:
             step = source_step(kind, source, detail)
             job.record(step)
             with job._lock:
@@ -694,15 +721,7 @@ class JobRegistry:
         `_run` derives the terminal status from this rather than from the
         cancellation flag, which can be set after the last unit of work.
         """
-        provenance = Provenance(str(job_dir), seed=seed)
-        caps = Caps(
-            SimpleNamespace(
-                iterations=0,  # no iteration cap; time/call budgets govern
-                time_budget_s=time_budget,
-                max_engine_calls=max_engine_calls,
-            )
-        )
-        engine = get_engine(job.engine, job.model, seed=seed, data_dir=self.data_dir)
+        engine = resolve_engine(job.engine, model=job.model, seed=seed, data_dir=self.data_dir)
         effective_model = effective_extractor_model(engine, job.model)
         with job._lock:
             job.model = effective_model
@@ -716,47 +735,29 @@ class JobRegistry:
                 job.log("[ontologylab] no unprocessed documents to extract")
                 return ""
 
-            provenance.log(
-                "extract.start",
-                {"engine": job.engine, "model": job.model, "doc_ids": doc_ids},
-            )
-
             def _accumulate(stats: dict[str, int]) -> None:
-                # `job.totals` is read by the SSE thread, so every write to it
-                # takes the job's lock. Accumulation stays here rather than in
-                # `run_extraction` precisely so the shared loop never has to
-                # know one caller's locking discipline.
                 with job._lock:
                     for key in job.totals:
-                        # `.get`, not `stats[key]`: a missing key would raise
-                        # KeyError inside the worker, where `_run`'s broad
-                        # except turns any exception into a failed job. The
-                        # collect phase's documents would already be in the
-                        # store, so a bookkeeping mismatch would discard a
-                        # run's real work — loud data loss, not a silent bug.
                         job.totals[key] += stats.get(key, 0)
 
-            stopped_reason = await run_extraction(
+            stopped_reason = await run_extract_job(
                 store,
-                engine,
-                provenance,
-                caps,
-                doc_ids,
-                extractor_engine=job.engine,
-                extractor_model=effective_model,
+                engine=engine,
+                engine_name=job.engine,
+                model=effective_model,
+                job_dir=job_dir,
+                seed=seed,
+                doc_ids=doc_ids,
+                max_engine_calls=max_engine_calls,
+                time_budget=time_budget,
+                decode_params=extraction_decode_params(engine),
                 on_progress=job.log,
                 on_stats=_accumulate,
-                # The seam `run_extraction` exposes for exactly this: the CLI
-                # passes its kill switch here, the server passes the job's
-                # cancellation. Checked between chunks and before each engine
-                # call, so a cancelled run stops without a partial write.
                 should_abort=job.cancel_reason,
-                decode_params=extraction_decode_params(engine),
             )
 
             with job._lock:
                 totals = dict(job.totals)
-            provenance.log("extract.end", {"totals": totals, "stopped": stopped_reason})
             if stopped_reason:
                 job.log(f"[ontologylab] extraction stopped early: {stopped_reason}")
             if stopped_reason.chunk_failed:
@@ -777,223 +778,56 @@ class JobRegistry:
         job: Job,
         job_dir: Path,
         *,
-        topic: str,
-        sources: list[str],
-        limit: Optional[int],
-        max_engine_calls: int,
-        time_budget: float,
-        seed: int,
-        fulltext: bool = True,
+        start_input: ResearchStartInput,
     ) -> str:
-        """Collect a topic across sources, then extract exactly what arrived.
+        """Adapt the canonical Research service to the job lifecycle."""
+        controls = start_input.controls
 
-        The two phases share one provenance run, so `cost_summary()` reports
-        a research run's cost as one number — which is what it costs.
-        """
-        provenance = Provenance(str(job_dir), seed=seed)
-        provenance.log(
-            "research.start",
-            {
-                "topic": loggable_collect_inputs([topic]),
-                "sources": sources,
-                "limit": limit,
-            },
+        def engine_factory() -> Engine:
+            return resolve_engine(
+                job.engine,
+                model=job.model,
+                seed=controls.seed,
+                data_dir=self.data_dir,
+            )
+
+        def on_model_resolved(model: str | None) -> None:
+            with job._lock:
+                job.model = model
+
+        def on_stats(stats: Mapping[str, int]) -> None:
+            with job._lock:
+                for key in (
+                    "nodes_new",
+                    "nodes_merged",
+                    "edges_new",
+                    "edges_merged",
+                ):
+                    job.totals[key] += stats.get(key, 0)
+
+        def on_artifacts_changed(
+            pointers: ResearchArtifactPointers,
+        ) -> None:
+            with job._lock:
+                job.research_pointers = pointers
+            self.persist(job)
+
+        result = await run_research(
+            ResearchRunInput(start_input, self.data_dir, job_dir),
+            engine_factory=engine_factory,
+            callbacks=ResearchRunCallbacks(
+                on_phase=job.set_phase,
+                on_progress=job.log,
+                on_source_event=self._source_event(job),
+                on_model_resolved=on_model_resolved,
+                on_stats=on_stats,
+                on_artifacts_changed=on_artifacts_changed,
+                abort_reason=job.cancel_reason,
+            ),
         )
-
-        # sqlite connections are thread-bound: the worker owns this one for
-        # both phases. Route stores belong to their request's application.
-        store = KGStore.open(paths.kg_db_path(self.data_dir))
-        try:
-            # ---------------- phase 1: collect ----------------
-            job.set_phase("collect")
-            if job._cancelled.is_set():
-                job.log("[ontologylab] cancelled before collecting")
-                return job.cancel_reason()
-
-            # The topic is what a person typed; the query is what a keyword
-            # index can answer. Sending the former verbatim is what returned
-            # Muon g-2 papers for an apple-rootstock question — arXiv matched
-            # "G-11" as "g"+"11", Crossref matched the Korean ending
-            # "에 대해서". Ask the engine to write the query first.
-            try:
-                query_engine = get_engine(
-                    job.engine, job.model, seed=seed, data_dir=self.data_dir
-                )
-                with job._lock:
-                    job.model = effective_extractor_model(query_engine, job.model)
-            except EngineError as exc:
-                # Not fatal here. The extract phase resolves the engine again
-                # and will fail loudly if it is genuinely unusable; the search
-                # just goes ahead unformulated rather than the run dying at
-                # the first step.
-                query_engine = None
-                job.log(f"[ontologylab] engine unavailable for query: {exc}")
-            search_query, query_usage = await formulate_search_query(
-                topic, query_engine, model=job.model
-            )
-            provenance.log(
-                "research.query",
-                {"topic": topic, "query": search_query, "usage": query_usage},
-            )
-            if query_usage.get("error"):
-                # Say so rather than let a raw-topic search look like a
-                # formulated one. A silent fallback is how the old behaviour
-                # stayed invisible for so long.
-                job.log(
-                    f"[ontologylab] query not reformulated "
-                    f"({query_usage['error']}); searching the topic as typed"
-                )
-            else:
-                job.log(f"[ontologylab] searching for: {search_query}")
-                if query_usage.get("notes"):
-                    job.log(f"[ontologylab] {query_usage['notes']}")
-
-            # `data_dir` reaches the connector so a keyed publisher source can
-            # resolve its credential; the keyless five ignore it.
-            batches, failures = await fetch_sources(
-                sources, search_query, limit, self.data_dir,
-                on_event=self._source_event(job),
-            )
-            for failure in failures:
-                # The source name and the kind of failure are safe to show;
-                # the exception text is not (H2) — it goes to provenance.
-                #
-                # No job log line here: `on_event` already announced this
-                # failure as it happened. Writing it again put every failed
-                # source in the log twice — invisible while the log was
-                # prose scrolling past, one duplicated row per failure the
-                # moment a screen drew one row per step.
-                provenance.log(
-                    "research.source_failed",
-                    {"source": failure.source, "kind": failure.kind,
-                     "error": failure.error},
-                )
-            if not batches and failures:
-                job.log("[ontologylab] no source answered; nothing to extract")
-                provenance.log("research.end", {"documents": 0, "created": 0})
-                return RESEARCH_NO_SOURCES
-
-            fetched_docs = tuple(
-                doc for _source, group in batches for doc in group
-            )
-            raw_docs = collapse_duplicates(batches, SOURCE_ORDER)
-            job.log(
-                f"[ontologylab] collected {len(raw_docs)} document(s) from "
-                f"{len(batches)} source(s)"
-            )
-
-            if fulltext:
-                # After de-duplication, so one request per surviving work
-                # rather than one per source that mentioned it.
-                enriched, ft_stats = await asyncio.to_thread(
-                    enrich_with_fulltext, raw_docs
-                )
-                raw_docs = enriched
-                provenance.log("collect.fulltext", ft_stats)
-                if ft_stats["eligible"]:
-                    job.log(
-                        f"[ontologylab] full text for {ft_stats['fetched']}"
-                        f"/{ft_stats['eligible']} open-access document(s)"
-                    )
-
-            if job._cancelled.is_set():
-                # Stop before writing: nothing is extracted yet, so the run
-                # costs nothing and leaves the store as it was.
-                job.log("[ontologylab] cancelled before storing documents")
-                return job.cancel_reason()
-
-            result = ingest_documents(store, raw_docs, provenance)
-            doc_ids = list(result.document_ids)
-            job.log(
-                f"[ontologylab] stored {result.created_count} new document(s), "
-                f"{result.duplicate_count} already known"
-            )
-
-            if not doc_ids:
-                job.log("[ontologylab] nothing collected; no extraction to run")
-                return ""
-
-            # ---------------- phase 2: extract ----------------
-            job.set_phase("extract")
-            if job._cancelled.is_set():
-                job.log("[ontologylab] cancelled before extracting")
-                return job.cancel_reason()
-
-            # `doc_ids` is passed explicitly and is never allowed to fall back
-            # to `unprocessed_doc_ids(store)`. That query is global: it would
-            # pull in documents from older runs and from any run executing
-            # right now, spending this topic's budget on them.
-            #
-            # The time budget is measured from the extraction's own start.
-            # `Caps` reads the clock from `provenance.elapsed_s`, which runs
-            # from the job's creation — five paper APIs at a 30s timeout
-            # could otherwise consume the extraction budget before the first
-            # chunk, and the run would report itself budget-exhausted having
-            # extracted nothing.
-            caps = Caps(
-                SimpleNamespace(
-                    iterations=0,
-                    time_budget_s=time_budget + provenance.elapsed_s,
-                    max_engine_calls=max_engine_calls,
-                )
-            )
-            engine = get_engine(
-                job.engine, job.model, seed=seed, data_dir=self.data_dir
-            )
-            effective_model = effective_extractor_model(engine, job.model)
-            with job._lock:
-                job.model = effective_model
-            provenance.log(
-                "extract.start",
-                {"engine": job.engine, "model": effective_model, "doc_ids": doc_ids},
-            )
-
-            def _accumulate(stats: dict[str, int]) -> None:
-                with job._lock:
-                    for key in job.totals:
-                        job.totals[key] += stats.get(key, 0)
-
-            decode = extraction_decode_params(engine)
-            stopped_reason = await extract_research_documents(
-                store,
-                tuple(doc_ids),
-                ResearchExtractSession(
-                    engine=engine,
-                    provenance=provenance,
-                    caps=caps,
-                    extractor_engine=job.engine,
-                    extractor_model=effective_model or "",
-                    on_progress=job.log,
-                    on_stats=_accumulate,
-                    should_abort=job.cancel_reason,
-                    decode_params_json=(
-                        json.dumps(decode, sort_keys=True) if decode else "{}"
-                    ),
-                    raw_documents=fetched_docs,
-                ),
-            )
-
-            with job._lock:
-                totals = dict(job.totals)
-            provenance.log(
-                "research.end",
-                {"documents": len(raw_docs), "created": result.created_count,
-                 "totals": totals, "stopped": stopped_reason},
-            )
-            if stopped_reason:
-                job.log(f"[ontologylab] extraction stopped early: {stopped_reason}")
-            if stopped_reason.chunk_failed:
-                job.log(
-                    f"[ontologylab] research failed: {ENGINE_FAILURE_SUMMARY}"
-                )
-            else:
-                job.log(
-                    f"[ontologylab] research done: {totals['nodes_new']} new nodes, "
-                    f"{totals['edges_new']} new edges (proposed; review to verify)"
-                )
-            return stopped_reason
-        finally:
-            store.close()
+        if result.extraction_outcome is None:
+            return RESEARCH_NO_SOURCES
+        return result.extraction_outcome
 
 
 __all__ = ["Job", "JobAlreadyRunning", "JobRegistry"]

@@ -242,6 +242,8 @@ def test_concurrent_exclusive_creates_admit_exactly_one(tmp_path) -> None:
     import threading as _threading
 
     from ontologylab.server.jobs import JobAlreadyRunning
+    from ontologylab.research_spec import InteractionDecision, ResearchOrigin
+    from ontologylab.server.schemas import build_research_start_input
 
     registry = JobRegistry(tmp_path)
     gate = _threading.Event()
@@ -260,8 +262,23 @@ def test_concurrent_exclusive_creates_admit_exactly_one(tmp_path) -> None:
         start.wait(10)
         try:
             job = registry.create_research(
-                topic="t", sources=["arxiv"], limit=1, engine="mock",
-                model=None, max_engine_calls=1, time_budget=5.0, seed=0,
+                start_input=build_research_start_input(
+                    topic="t",
+                    origin=ResearchOrigin.DIRECT_API,
+                    interaction_decision=InteractionDecision.EXECUTE,
+                    sources=["arxiv"],
+                    limit=1,
+                    max_queries=1,
+                    fulltext=True,
+                    citation_expansion=False,
+                    citation_seed_count=0,
+                    citation_limit=0,
+                    engine="mock",
+                    model=None,
+                    max_engine_calls=1,
+                    time_budget=5.0,
+                    seed=0,
+                )
             )
         except JobAlreadyRunning as exc:
             with lock:

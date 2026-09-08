@@ -9,54 +9,64 @@ review → build → serve status from the browser, no CLI required.
 
 from __future__ import annotations
 
-import asyncio
 import dataclasses
 import json
 import logging
-import shutil
 import sqlite3
 import time
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator, Optional
-from urllib.error import URLError
-from xml.etree.ElementTree import ParseError
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import ValidationError
 
 from ontologylab import paths
+from ontologylab.chatstore import MAX_TURNS, ChatStore
+from ontologylab.collect import (
+    CollectInputs,
+    CollectOutcome,
+    collect_documents,
+    collect_onboarding_sample,
+)
 from ontologylab.connectors.allowlist import (
     NotAllowlisted,
-    check_collect_file,
     check_paper_query,
-    check_url,
     loggable_collect_inputs,
 )
-from ontologylab.connectors.base import RawDocument
 from ontologylab.connectors.paper_api import (
-    DEFAULT_LIMIT as PAPER_DEFAULT_LIMIT,
-    DEFAULT_PAPER_SOURCE,
-    PAPER_SOURCE_LABELS,
     CONNECTABLE_SOURCES,
+    DEFAULT_PAPER_SOURCE,
     KEYED_SOURCES,
-    SOURCE_ORDER,
-    MissingSourceKey,
-    ResponseTooLarge,
+    PAPER_SOURCE_LABELS,
     PaperApiConnector,
+    SEARXNG_SOURCE,
+    SOURCE_ORDER,
     UnsupportedPaperSource,
+    # Passive-safe: environment-only read with pure URL validation. The
+    # public `available_sources` cannot answer this because it resolves
+    # publisher keys through the Keychain, which a passive read must not do.
+    _searxng_base_url,
     available_sources,
     check_source_implemented,
-    resolve_source_key,
+)
+from ontologylab.connectors.paper_api import (
+    DEFAULT_HARVEST_LIMIT as PAPER_DEFAULT_HARVEST_LIMIT,
 )
 from ontologylab.connectors.resources import (
     ORGANISM,
     RESOURCE_LABELS,
     RESOURCE_ORDER,
 )
-from ontologylab.connectors.web_crawl import WebCrawlConnector
-from ontologylab.ingestion import ingest_documents, ingest_sample
-from ontologylab.ingestion_shadow import ShadowBatchBoundError
+from ontologylab.keychain import (
+    KeychainError,
+    delete_key,
+    keychain_available,
+    read_key,
+    write_key,
+)
 from ontologylab.kgstore import (
     EndpointNotVerified,
     GroundingPreflightError,
@@ -67,11 +77,19 @@ from ontologylab.kgstore import (
     UnknownItem,
     XrefValidationError,
 )
+from ontologylab.literature_artifacts import CORPUS_FILENAME
 from ontologylab.mcp_server import serve_args
+from ontologylab.offline_policy import configured_source_ids, passive_source_view
 from ontologylab.packbuilder import (
     PackBuildError,
-    build_pack,
+    build_pack_release,
     scan_packs,
+)
+from ontologylab.paths import (
+    DEFAULT_MAX_ENGINE_CALLS,
+    DEFAULT_TIME_BUDGET_S,
+    NetworkBlocked,
+    kg_db_path,
 )
 from ontologylab.proposals import (
     OntologyProposalError,
@@ -81,11 +99,7 @@ from ontologylab.proposals import (
     verify_ontology_proposal,
     verify_request_from_dict,
 )
-from ontologylab.paths import (
-    DEFAULT_MAX_ENGINE_CALLS,
-    DEFAULT_TIME_BUDGET_S,
-    kg_db_path,
-)
+from ontologylab.provenance import Provenance
 from ontologylab.providers import (
     Provider,
     ProviderError,
@@ -96,33 +110,24 @@ from ontologylab.providers import (
     remove_provider,
     resolve_api_key,
 )
+from ontologylab.research_artifacts import (
+    ResearchArtifactError,
+    ResearchArtifactStore,
+)
+from ontologylab.research_spec import (
+    InteractionDecision,
+    JsonObject,
+    ResearchOrigin,
+)
+from ontologylab.searchquery import DEFAULT_SEARCH_QUERIES
+from ontologylab.server import entity_actions
+from ontologylab.server import settings as settings_mod
+from ontologylab.server.dependencies import AppDependencies, AppDependency
+from ontologylab.server.jobs import Job, JobAlreadyRunning, summarize_failure
 from ontologylab.server.rate_limit import (
     RateLimitExceeded,
     check_provider_test_limit,
 )
-from ontologylab.chatstore import MAX_TURNS, ChatStore
-from ontologylab.provenance import Provenance
-from ontologylab.trace import Step
-from ontologylab.keychain import (
-    KeychainError,
-    delete_key,
-    keychain_available,
-    read_key,
-    write_key,
-)
-from ontologylab.sources import (
-    Source,
-    SourceError,
-    add_source,
-    get_source,
-    load_sources,
-    remove_source,
-    source_public,
-    validate_source,
-)
-from ontologylab.server import settings as settings_mod
-from ontologylab.server.dependencies import AppDependencies, AppDependency
-from ontologylab.server.jobs import JobAlreadyRunning
 from ontologylab.server.schemas import (
     AnnotationDecision,
     ChatMessage,
@@ -142,7 +147,17 @@ from ontologylab.server.schemas import (
     ProviderCreate,
     ProviderModel,
     ProviderTestResult,
+    ReconcileAttachRequest,
+    ReconcileCompensateRequest,
+    ReconcileResolveCollisionRequest,
+    ReconcileRetractRequest,
+    ResearchAcquisitionEnvelope,
+    ResearchEvidenceNeedSummary,
+    ResearchNeedOccupancySummary,
+    ResearchPostExtractionEnvelope,
     ResearchRequest,
+    ResearchStartInput,
+    ResearchSummary,
     SchemaInstall,
     Settings,
     SourceCreate,
@@ -151,12 +166,22 @@ from ontologylab.server.schemas import (
     TermRename,
     TermXrefCreate,
     TermXrefReview,
-    ReconcileAttachRequest,
-    ReconcileCompensateRequest,
-    ReconcileResolveCollisionRequest,
-    ReconcileRetractRequest,
     TranslationRequest,
+    build_research_start_input,
 )
+from ontologylab.sources import (
+    Source,
+    SourceError,
+    add_source,
+    canonical_keychain_account,
+    get_source,
+    load_sources,
+    remove_source,
+    save_sources,
+    source_public,
+    validate_source,
+)
+from ontologylab.trace import Step
 
 if TYPE_CHECKING:  # `Intent` is only ever a type here — importing it at
     from ontologylab.intent import Intent  # runtime would be a cycle.
@@ -177,16 +202,27 @@ def _open_store(deps: AppDependencies) -> KGStore:
 
 
 @router.get("/engines", response_model=list[EngineInfo])
-def get_engines() -> list[EngineInfo]:
-    return settings_mod.engines()
+def get_engines(deps: AppDependency) -> list[EngineInfo]:
+    """Return the complete engine/model catalogue used by browser selects."""
+    engines = settings_mod.engines()
+    engines.extend(
+        EngineInfo(
+            name=f"api:{provider.id}",
+            available=resolve_api_key(provider) is not None,
+            default_model=provider.models[0] if provider.models else None,
+            models=list(provider.models),
+        )
+        for provider in load_providers(deps.data_dir)
+    )
+    return engines
 
 
 @router.post("/translate")
 async def translate_visible_text(
     deps: AppDependency, body: TranslationRequest
-) -> dict[str, list[str]]:
+) -> dict[str, list[str] | bool | str]:
     """Translate browser-visible prose without changing stored evidence."""
-    from ontologylab.engines import EngineError, extract_fenced_block, get_engine
+    from ontologylab.engines import EngineError, extract_fenced_block, resolve_engine
 
     prompt = (
         "Translate each JSON string below into natural Korean for a research "
@@ -198,38 +234,38 @@ async def translate_visible_text(
         f"{json.dumps(body.texts, ensure_ascii=False)}\n"
         "</translation-items>"
     )
-    candidates = (
-        ["claude", "codex", "gemini"]
-        if body.engine == "auto"
-        else [body.engine]
-    )
-    for candidate in candidates:
+    try:
+        engine = resolve_engine(body.engine, model=body.model, data_dir=deps.data_dir)
+        raw, _usage = await engine.generate(prompt, model=body.model)
         try:
-            engine = get_engine(candidate, body.model, data_dir=deps.data_dir)
-            raw, _usage = await engine.generate(prompt, model=body.model)
-            try:
-                translated = json.loads(raw)
-            except json.JSONDecodeError:
-                translated = json.loads(extract_fenced_block(raw))
-            if (
-                not isinstance(translated, list)
-                or len(translated) != len(body.texts)
-                or any(not isinstance(text, str) for text in translated)
-            ):
-                raise ValueError("translation count mismatch")
-            return {"translations": translated}
-        except (
-            EngineError,
-            json.JSONDecodeError,
-            TypeError,
-            ValueError,
-            RuntimeError,
-        ) as exc:
-            _log.warning(
-                "translation engine %s failed: %s",
-                candidate,
-                type(exc).__name__,
-            )
+            translated = json.loads(raw)
+        except json.JSONDecodeError:
+            translated = json.loads(extract_fenced_block(raw))
+        if (
+            not isinstance(translated, list)
+            or len(translated) != len(body.texts)
+            or any(not isinstance(text, str) for text in translated)
+        ):
+            raise ValueError("translation count mismatch")
+        return {"translations": translated}
+    except NetworkBlocked:
+        return {
+            "ok": False,
+            "error_kind": "offline",
+            "detail": "오프라인 모드에서는 실시간 번역 엔진을 사용할 수 없습니다.",
+        }
+    except (
+        EngineError,
+        json.JSONDecodeError,
+        TypeError,
+        ValueError,
+        RuntimeError,
+    ) as exc:
+        _log.warning(
+            "translation engine %s failed: %s",
+            body.engine,
+            type(exc).__name__,
+        )
 
     raise HTTPException(
         status_code=502,
@@ -250,7 +286,7 @@ def get_paper_sources(deps: AppDependency) -> dict[str, Any]:
     source with no key connected is implemented but not usable, and offering
     it as an ordinary choice would hand the user a guaranteed failure.
     """
-    usable = set(available_sources(deps.data_dir))
+    configured = configured_source_ids(load_sources(deps.data_dir))
     return {
         "sources": [
             {
@@ -263,8 +299,18 @@ def get_paper_sources(deps: AppDependency) -> dict[str, Any]:
                 # key on the settings screen.
                 "keyed": source in KEYED_SOURCES,
                 "connectable": source in CONNECTABLE_SOURCES,
-                "key_present": bool(resolve_source_key(source, deps.data_dir)),
-                "available": source in usable,
+                # Passive inventory reports configuration only. Reading the
+                # Keychain belongs to the explicit collect/credential action.
+                "key_present": source in configured,
+                # SearXNG is configured by address, not credential: offering
+                # it with no instance set would hand the user a guaranteed
+                # failure. The check reads the environment and validates the
+                # URL string only — no socket, no Keychain.
+                "available": (
+                    bool(_searxng_base_url())
+                    if source == SEARXNG_SOURCE
+                    else source not in KEYED_SOURCES or source in configured
+                ),
             }
             for source in SOURCE_ORDER
         ],
@@ -274,7 +320,11 @@ def get_paper_sources(deps: AppDependency) -> dict[str, Any]:
 
 @router.get("/settings", response_model=Settings)
 def get_settings(deps: AppDependency) -> Settings:
-    return settings_mod.load_settings(deps.data_dir)
+    return settings_mod.with_runtime_paths(
+        settings_mod.load_settings(deps.data_dir),
+        deps.data_dir,
+        deps.packs_dir,
+    )
 
 
 @router.put("/settings", response_model=Settings)
@@ -289,12 +339,32 @@ def put_settings(deps: AppDependency, new_settings: Settings) -> Settings:
     """
     from ontologylab.connectors.allowlist import check_searxng_base_url
 
+    catalogue = {engine.name: engine for engine in get_engines(deps)}
+    selected = catalogue.get(new_settings.default_engine)
+    if selected is None:
+        raise HTTPException(status_code=400, detail="등록된 엔진을 선택해야 합니다.")
+    # API providers publish an explicit model allowlist. CLI engines do not:
+    # their installed version may accept models newer than this build, so the
+    # browser offers known defaults but the server must not reject a valid CLI
+    # model merely because it was released later.
+    if (
+        selected.name.startswith("api:")
+        and new_settings.default_model
+        and new_settings.default_model not in selected.models
+    ):
+        raise HTTPException(status_code=400, detail="선택한 프로바이더에 등록된 모델을 선택해야 합니다.")
+
     if new_settings.searxng_url:
         try:
             check_searxng_base_url(new_settings.searxng_url)
         except NotAllowlisted as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-    saved = settings_mod.save_settings(new_settings, deps.data_dir)
+    runtime_settings = settings_mod.with_runtime_paths(
+        new_settings,
+        deps.data_dir,
+        deps.packs_dir,
+    )
+    saved = settings_mod.save_settings(runtime_settings, deps.data_dir)
     # Takes effect now, not at the next restart. A setting that only
     # applies after a restart is one people conclude does not work.
     settings_mod.apply_to_environment(saved)
@@ -361,7 +431,7 @@ def delete_provider(deps: AppDependency, provider_id: str) -> dict[str, Any]:
 async def test_provider(deps: AppDependency, provider_id: str) -> ProviderTestResult:
     """One-shot ping via ApiEngine. Errors (incl. missing key) are returned as
     ``ok:false`` with a redacted message — the key is never leaked."""
-    from ontologylab.engines import EngineError, get_engine
+    from ontologylab.engines import EngineError, resolve_engine
 
     try:
         check_provider_test_limit(provider_id)
@@ -375,21 +445,21 @@ async def test_provider(deps: AppDependency, provider_id: str) -> ProviderTestRe
     provider = get_provider(deps.data_dir, provider_id)
     if provider is None:
         return ProviderTestResult(
-            ok=False, error=f"등록되지 않은 프로바이더예요: {provider_id}"
+            ok=False, error=f"등록되지 않은 프로바이더입니다: {provider_id}"
         )
     if resolve_api_key(provider) is None:
         return ProviderTestResult(
             ok=False,
             error=(
-                "전용 환경변수가 설정되지 않았어요. "
-                "키를 넣고 서버를 다시 시작해주세요."
+                "전용 환경변수가 설정되지 않았습니다. "
+                "키를 설정한 뒤 서버를 다시 시작해야 합니다."
             ),
         )
-    engine = get_engine(f"api:{provider_id}", data_dir=deps.data_dir)
+    engine = resolve_engine(f"api:{provider_id}", data_dir=deps.data_dir)
     start = time.monotonic()
     try:
         text, _usage = await engine.generate(
-            "ping — reply with the single word: pong"
+            "ping — reply with the single word: pong", model=None
         )
     except EngineError as exc:
         return ProviderTestResult(ok=False, error=str(exc))
@@ -652,47 +722,6 @@ def reopen_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]
 # ---------------------------------------------------------------------------
 # Entity-centric review (W11 — read-only aggregation for one entity)
 # ---------------------------------------------------------------------------
-
-
-@router.get("/search")
-def search_entities(deps: AppDependency,
-    q: str = Query(..., min_length=1, max_length=200),
-    limit: int = Query(8, ge=1, le=25),
-) -> dict[str, Any]:
-    """Name search across the graph, for the command palette.
-
-    `KGStore.entity_lookup` has existed since the MCP server was written and
-    was reachable only from there and the CLI — the browser had no way to
-    ask "where is this entity?" at all, which is why the dashboard's only
-    navigation was clicking through ten tabs.
-
-    Proposals are included. The palette's most useful question during a
-    review session is "have I seen this name before?", and answering it
-    only for already-approved nodes would hide precisely the items the
-    reviewer is deciding about right now. `status` rides along so the
-    caller can show which is which.
-    """
-    store = _open_store(deps)
-    try:
-        matches = store.name_search(q, limit=limit, include_proposed=True)
-    except KGStoreError:
-        # An unparseable query is an empty result, not a 500: this runs on
-        # every keystroke.
-        matches = []
-    finally:
-        store.close()
-    return {
-        "results": [
-            {
-                "id": item["id"],
-                "name": item["name"],
-                "entity_type": item["entity_type"],
-                "status": item["status"],
-                "score": item.get("match_score"),
-            }
-            for item in matches
-        ]
-    }
 
 
 @router.get("/provenance/{kind}/{item_id}")
@@ -1290,10 +1319,10 @@ def get_graph_neighbors(deps: AppDependency,
 @router.post("/critic/run")
 async def critic_run(deps: AppDependency, body: CriticRunRequest) -> dict[str, Any]:
     from ontologylab.critic import critic_review, resolve_critic_model
-    from ontologylab.engines import get_engine
+    from ontologylab.engines import resolve_engine
 
     critic_model = resolve_critic_model(body.engine, body.model)
-    engine = get_engine(body.engine, critic_model, data_dir=deps.data_dir)
+    engine = resolve_engine(body.engine, model=critic_model, data_dir=deps.data_dir)
     store = _open_store(deps)
     try:
         stats = await critic_review(
@@ -1308,30 +1337,6 @@ async def critic_run(deps: AppDependency, body: CriticRunRequest) -> dict[str, A
 # ---------------------------------------------------------------------------
 # Merge review (W7 — candidates from scan, decisions by human)
 # ---------------------------------------------------------------------------
-
-
-@router.post("/enrich")
-def enrich_nodes(deps: AppDependency, limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
-    """Look verified nodes up in the curated resources; queue what matches.
-
-    Synchronous and capped. Unlike a research run this makes at most
-    `limit x resources` small requests against keyless endpoints, so there
-    is no job to poll — and a cap the caller sets is easier to reason about
-    than a background task they have to remember is running.
-    """
-    from ontologylab.enrichment import enrich
-
-    store = _open_store(deps)
-    try:
-        report = enrich(store, limit=limit)
-        return {"ok": True, **report.as_dict()}
-    except Exception as exc:
-        # Same discipline as the fan-out: name the kind, not the text. These
-        # endpoints are keyless, but the message can still quote a URL.
-        return {"ok": False, "error_kind": "failed",
-                "detail": f"enrichment failed: {type(exc).__name__}"}
-    finally:
-        store.close()
 
 
 @router.get("/annotations")
@@ -1448,8 +1453,12 @@ MAX_SOURCE_KEY_LEN = 4096
 
 @router.get("/sources")
 def list_sources(deps: AppDependency) -> dict[str, Any]:
-    """Connected publisher sources. Presence only — never a key value."""
-    return {"sources": [source_public(s) for s in load_sources(deps.data_dir)]}
+    """Configured publisher sources without passively opening Keychain."""
+    return {
+        "sources": [
+            passive_source_view(source) for source in load_sources(deps.data_dir)
+        ]
+    }
 
 
 @router.post("/sources")
@@ -1474,7 +1483,9 @@ def create_source(deps: AppDependency, body: SourceCreate) -> dict[str, Any]:
     # every publisher the same account name, so connecting a second publisher
     # overwrote the first one's key and then that single key was sent to all
     # three vendors. One account per publisher, one key per account.
-    account = body.keychain_account or (f"ontologylab.{body.id}" if key else "")
+    account = body.keychain_account or (
+        canonical_keychain_account(body.id) if key else ""
+    )
     source = Source(
         id=body.id,
         role=body.role,
@@ -1517,6 +1528,34 @@ def create_source(deps: AppDependency, body: SourceCreate) -> dict[str, Any]:
     return {"ok": True, "source": source_public(source)}
 
 
+@router.post("/sources/{source_id}/test")
+async def test_source_credential(
+    deps: AppDependency, source_id: str
+) -> dict[str, Any]:
+    """Probe one configured source without persisting returned documents.
+
+    The response carries only a typed HTTP-class outcome. Upstream URLs,
+    headers, response bodies, and credentials never cross this boundary.
+    """
+    from urllib.error import HTTPError
+
+    if source_id not in CONNECTABLE_SOURCES:
+        raise HTTPException(status_code=404, detail="unknown paper source")
+    try:
+        await PaperApiConnector().fetch({
+            "source": source_id,
+            "query": "ontology",
+            "limit": 1,
+            "data_dir": deps.data_dir,
+        })
+    except HTTPError as exc:
+        status = exc.code if exc.code in {401, 429} else 503
+        return {"ok": False, "verification_status": status}
+    except Exception:
+        return {"ok": False, "verification_status": 503}
+    return {"ok": True, "verification_status": 200}
+
+
 @router.delete("/sources/{source_id}")
 def delete_source(deps: AppDependency, source_id: str) -> dict[str, Any]:
     """Disconnect a source. The stored key is left alone.
@@ -1541,11 +1580,22 @@ def forget_source_key(deps: AppDependency, source_id: str) -> dict[str, Any]:
 
     Separated from the row deletion because it is the destructive half, and
     because a user rotating a key wants exactly this and nothing else.
+
+    The now-dangling Keychain locator is cleared from the row as part of
+    the same explicit action, so the passive config-only inventory reads
+    the truth — "not connected" — without reopening the Keychain. The row
+    itself stays: its id, role, and label are the reconnection placeholder.
     """
     source = get_source(deps.data_dir, source_id)
     if source is None or not source.keychain_account:
         return {"ok": True, "forgotten": False, "reason": "no stored key"}
-    return {"ok": True, "forgotten": delete_key(source.keychain_account)}
+    forgotten = delete_key(source.keychain_account)
+    cleared = dataclasses.replace(source, keychain_account="")
+    save_sources(
+        deps.data_dir,
+        [cleared if s.id == source_id else s for s in load_sources(deps.data_dir)],
+    )
+    return {"ok": True, "forgotten": forgotten}
 
 
 # ---------------------------------------------------------------------------
@@ -1612,7 +1662,10 @@ def reconcile_inspect(deps: AppDependency, work_id: str) -> dict[str, Any]:
     try:
         return inspect_work(store.conn, work_id)
     except Exception as exc:
-        raise HTTPException(status_code=_reconcile_status(exc), detail=f"{type(exc).__name__}: {exc}") from exc
+        raise HTTPException(
+            status_code=_reconcile_status(exc),
+            detail=summarize_failure(exc),
+        ) from exc
     finally:
         store.close()
 
@@ -1632,7 +1685,10 @@ def reconcile_attach(deps: AppDependency, body: ReconcileAttachRequest) -> dict[
         store.conn.commit()
         return result
     except Exception as exc:
-        raise HTTPException(status_code=_reconcile_status(exc), detail=f"{type(exc).__name__}: {exc}") from exc
+        raise HTTPException(
+            status_code=_reconcile_status(exc),
+            detail=summarize_failure(exc),
+        ) from exc
     finally:
         store.close()
 
@@ -1650,7 +1706,10 @@ def reconcile_retract(deps: AppDependency, body: ReconcileRetractRequest) -> dic
         store.conn.commit()
         return result
     except Exception as exc:
-        raise HTTPException(status_code=_reconcile_status(exc), detail=f"{type(exc).__name__}: {exc}") from exc
+        raise HTTPException(
+            status_code=_reconcile_status(exc),
+            detail=summarize_failure(exc),
+        ) from exc
     finally:
         store.close()
 
@@ -1670,7 +1729,10 @@ def reconcile_compensate(deps: AppDependency, body: ReconcileCompensateRequest) 
         store.conn.commit()
         return result
     except Exception as exc:
-        raise HTTPException(status_code=_reconcile_status(exc), detail=f"{type(exc).__name__}: {exc}") from exc
+        raise HTTPException(
+            status_code=_reconcile_status(exc),
+            detail=summarize_failure(exc),
+        ) from exc
     finally:
         store.close()
 
@@ -1691,7 +1753,10 @@ def reconcile_resolve_collision(
         store.conn.commit()
         return result
     except Exception as exc:
-        raise HTTPException(status_code=_reconcile_status(exc), detail=f"{type(exc).__name__}: {exc}") from exc
+        raise HTTPException(
+            status_code=_reconcile_status(exc),
+            detail=summarize_failure(exc),
+        ) from exc
     finally:
         store.close()
 
@@ -1761,7 +1826,7 @@ def _enrich_artifacts(store: KGStore, rows: list[dict[str, Any]]) -> list[dict[s
         chunk = doc_ids[start:start + 500]
         placeholders = ",".join("?" * len(chunk))
         for d in store.conn.execute(
-            f"SELECT id, title, source_uri, content_hash FROM documents "
+            f"SELECT id, title, source_uri, fetched_ts, content_hash FROM documents "
             f"WHERE id IN ({placeholders})",
             chunk,
         ):
@@ -1774,6 +1839,7 @@ def _enrich_artifacts(store: KGStore, rows: list[dict[str, Any]]) -> list[dict[s
             doc = docs.get(doc_id)
             item["title"] = doc["title"] if doc else None
             item["source_uri"] = doc["source_uri"] if doc else None
+            item["fetched_ts"] = doc["fetched_ts"] if doc else None
             item["content_hash"] = doc["content_hash"] if doc else None
         out.append(item)
     return out
@@ -1883,6 +1949,45 @@ def enrich_proposal(deps: AppDependency, node_id: str) -> dict[str, Any]:
         store.close()
 
 
+def _collect_http_body(outcome: CollectOutcome) -> dict[str, Any]:
+    if not outcome.ok and not (
+        outcome.failures or outcome.conflicts or outcome.entries
+    ):
+        return {
+            "ok": False,
+            "error_kind": outcome.error_kind,
+            "detail": outcome.detail,
+        }
+    body: dict[str, Any] = {
+        "ok": outcome.ok,
+        "documents": outcome.documents,
+        "created": outcome.created,
+        "duplicates": outcome.duplicates,
+        "failures": [
+            {
+                "source_uri": failure.source_uri,
+                "error_class": failure.error_class,
+                "kind": failure.kind,
+            }
+            for failure in outcome.failures
+        ],
+        "conflicts": [
+            {
+                "source_uri": conflict.source_uri,
+                "incoming_doi": conflict.incoming_doi,
+                "existing_doc_id": conflict.existing_doc_id,
+                "existing_doi": conflict.existing_doi,
+                "content_hash": conflict.content_hash,
+            }
+            for conflict in outcome.conflicts
+        ],
+    }
+    if not outcome.ok:
+        body["error_kind"] = outcome.error_kind
+        body["detail"] = outcome.detail
+    return body
+
+
 @router.post("/collect")
 def collect(deps: AppDependency, body: CollectRequest) -> dict[str, Any]:
     """Run a collect synchronously, mirroring main.cmd_collect's gate order.
@@ -1892,9 +1997,6 @@ def collect(deps: AppDependency, body: CollectRequest) -> dict[str, Any]:
     """
     job_dir = paths.new_job_dir(deps.data_dir, "collect")
     provenance = Provenance(str(job_dir), seed=0)
-    # Logged before the gates so a rejected attempt still leaves a trace,
-    # and bounded because that ordering means these values have passed no
-    # validation yet (M2 — see `loggable_collect_inputs`).
     provenance.log(
         "collect.start",
         {
@@ -1903,200 +2005,26 @@ def collect(deps: AppDependency, body: CollectRequest) -> dict[str, Any]:
             "paper_queries": loggable_collect_inputs(body.paper_queries),
         },
     )
-
-    if not (body.urls or body.files or body.paper_queries):
-        detail = (
-            "nothing to collect: pass urls, files, and/or paper_queries"
-        )
-        provenance.log("collect.rejected", {"error": detail})
-        return {"ok": False, "error_kind": "rejected", "detail": detail}
-
-    # Mixed-run pre-validation (mirrors cmd_collect): every gate for every
-    # input is checked BEFORE any fetch, so one rejected/unsupported input
-    # can never let an earlier input reach the network first.
-    try:
-        for url in body.urls:
-            check_url(url)
-        for file_arg in body.files:
-            check_collect_file(file_arg, deps.data_dir)
-        for paper_query in body.paper_queries:
-            check_paper_query(body.paper_source, paper_query)
-            check_source_implemented(body.paper_source)
-    except NotAllowlisted as exc:
-        provenance.log("collect.rejected", {"error": str(exc)})
-        return {"ok": False, "error_kind": "rejected", "detail": str(exc)}
-    except UnsupportedPaperSource as exc:
-        provenance.log("collect.unsupported", {"error": str(exc)})
-        return {"ok": False, "error_kind": "unsupported", "detail": str(exc)}
-
-    # Offline is checked HERE — after the allowlist gate, before any fetch.
-    #
-    # After, because `NotAllowlisted` above logs `collect.rejected`, and
-    # offline mode is the normal resting state for this system. Checking
-    # offline first would mean that for as long as the kill switch is on,
-    # every allowlist violation returns before it is recorded — the audit
-    # trail for a security boundary would go silent exactly while the system
-    # is at its most locked down. A boundary violation must be logged
-    # regardless of whether the network was reachable.
-    #
-    # Before the fetch, because the connectors raise `NetworkBlocked` per
-    # source. Under a fan-out's `return_exceptions=True` that arrives five
-    # times and reads as "five sources failed" — a network problem — instead
-    # of "the operator turned egress off". The per-fetch
-    # `assert_network_allowed` stays as defence in depth.
-    # Only a request that would actually leave the machine is refused: the
-    # kill switch governs egress, and collecting a local file is not egress.
-    needs_network = bool(body.urls or body.paper_queries)
-    if needs_network and paths.offline_mode():
-        detail = (
-            "offline mode (ONTOLOGYLAB_OFFLINE) blocks network collection; "
-            "unset it to fetch, or collect local files instead"
-        )
-        provenance.log("collect.offline", {"error": detail})
-        return {"ok": False, "error_kind": "offline", "detail": detail}
-
-    error: dict[str, Any] | None = None
-
-    def _run_connector(connector, spec: dict) -> list[RawDocument] | None:
-        """Fetch via one connector; None means a logged, returnable failure.
-
-        NotAllowlisted / UnsupportedPaperSource are re-checked in-fetch as
-        defense in depth; URLError (incl. HTTPError) and Atom ParseError
-        are fetch failures — all must end as a clean JSON error, never a
-        500 (with no network, URL fetches fail here as fetch_failed).
-        """
-        nonlocal error
-        try:
-            return asyncio.run(connector.fetch(spec))
-        except NotAllowlisted as exc:
-            provenance.log("collect.rejected", {"error": str(exc)})
-            error = {"ok": False, "error_kind": "rejected", "detail": str(exc)}
-        except UnsupportedPaperSource as exc:
-            provenance.log("collect.unsupported", {"error": str(exc)})
-            error = {"ok": False, "error_kind": "unsupported", "detail": str(exc)}
-        except MissingSourceKey as exc:
-            # Ordinary first-use, not a fault: the user picked a publisher
-            # they have not connected. `_classify` already names this kind for
-            # the research path, and this route's docstring promises the same
-            # typed answer — it raised a 500 instead.
-            provenance.log("collect.unconfigured", {"error": str(exc)})
-            error = {"ok": False, "error_kind": "unconfigured", "detail": str(exc)}
-        except ResponseTooLarge as exc:
-            provenance.log("collect.too_large", {"error": str(exc)})
-            error = {"ok": False, "error_kind": "too_large", "detail": str(exc)}
-        except (URLError, ParseError) as exc:
-            provenance.log("collect.fetch_failed", {"error": str(exc)})
-            error = {"ok": False, "error_kind": "fetch_failed", "detail": str(exc)}
-        except (ValueError, OSError) as exc:
-            provenance.log("collect.failed", {"error": str(exc)})
-            error = {"ok": False, "error_kind": "fetch_failed", "detail": str(exc)}
-        return None
-
-    raw_docs: list[RawDocument] = []
-    if body.urls:
-        fetched = _run_connector(WebCrawlConnector(), {"urls": body.urls})
-        if fetched is None:
-            return error or {"ok": False, "error_kind": "fetch_failed",
-                             "detail": "web crawl failed"}
-        raw_docs.extend(fetched)
-    for paper_query in body.paper_queries:
-        fetched = _run_connector(
-            PaperApiConnector(),
-            {
-                "source": body.paper_source,
-                "query": paper_query,
-                "limit": body.limit,
-                # Without this the connector cannot find the registry, so a
-                # keyed source is refused as `unconfigured` even when its key
-                # is connected — the research path passed it, this one did
-                # not, and the two disagreed about the same configuration.
-                "data_dir": deps.data_dir,
-            },
-        )
-        if fetched is None:
-            return error or {"ok": False, "error_kind": "fetch_failed",
-                             "detail": "paper API fetch failed"}
-        raw_docs.extend(fetched)
-    for file_arg in body.files:
-        path = Path(file_arg)
-        try:
-            raw_text = path.read_text(encoding="utf-8")
-        except (OSError, ValueError) as exc:
-            # The strerror stays off the wire (it can quote arbitrary OS
-            # paths/messages); the file name + error kind are actionable
-            # without it. Same discipline as jobs.summarize_failure.
-            provenance.log("collect.fetch_failed", {"error": str(exc)})
-            return {
-                "ok": False,
-                "error_kind": "fetch_failed",
-                "detail": f"could not read '{path.name}' ({type(exc).__name__})",
-            }
-        raw_docs.append(
-            RawDocument(
-                source_kind="upload",
-                source_uri=path.resolve().as_uri(),
-                title=path.stem,
-                raw_text=raw_text,
-            )
-        )
-
-    if not raw_docs:
-        provenance.log("collect.end", {"documents": 0, "created": 0})
-        return {"ok": True, "documents": 0, "created": 0, "duplicates": 0}
-
-    store = _open_store(deps)
-    try:
-        result = ingest_documents(store, raw_docs, provenance)
-    except ShadowBatchBoundError:
-        provenance.log("collect.rejected", {"error": "batch_limit"})
-        return {
-            "ok": False,
-            "error_kind": "rejected",
-            "detail": "batch exceeds 100 documents",
-        }
-    except Exception:
-        provenance.log("collect.failed", {"error": "internal_error"})
-        return {"ok": False, "error_kind": "failed", "detail": "internal_error"}
-    finally:
-        store.close()
-    return {
-        "ok": True,
-        "documents": result.document_count,
-        "created": result.created_count,
-        "duplicates": result.duplicate_count,
-    }
-
-
-# Onboarding sample for the dashboard "따라하기" journey: a bundled static
-# document, no network, no filesystem path. Idempotent — re-posting dedupes
-# on content_hash exactly like any other collect. Collect/extract may be
-# automated for onboarding; APPROVAL never is (HITL).
-SAMPLE_DOC_TITLE = "샘플 — 우리 가게 주문 시스템"
-SAMPLE_DOC_TEXT = """\
-# 우리 가게 주문 시스템 이야기
-
-손님이 주문하면 OrderApp 이 주문을 받아서 KitchenDisplay 로 전달해요.
-KitchenDisplay 는 조리 순서를 정하려고 PriorityQueue 를 사용해요.
-결제는 PaymentGateway 가 처리하고, 영수증은 ReceiptPrinter 가 출력해요.
-단골 관리는 MemberDatabase 가 담당하고, OrderApp 은 주문 내역을
-MemberDatabase 에 기록해요. 쿠폰 발급은 CouponEngine 이 맡는데,
-CouponEngine 은 MemberDatabase 의 방문 기록을 참고해요.
-매출 집계는 SalesReport 가 매일 밤 정리해요.
-"""
+    outcome = collect_documents(
+        CollectInputs(
+            urls=tuple(body.urls),
+            files=tuple(body.files),
+            paper_queries=tuple(body.paper_queries),
+            paper_source=body.paper_source,
+            limit=body.limit,
+            data_dir=deps.data_dir,
+        ),
+        provenance=provenance,
+    )
+    return _collect_http_body(outcome)
 
 
 @router.post("/collect/sample")
 def collect_sample(deps: AppDependency) -> dict[str, Any]:
     """Ingest the bundled onboarding sample document (offline, idempotent)."""
-    raw = RawDocument(
-        source_kind="upload",
-        source_uri="sample://onboarding/order-system",
-        title=SAMPLE_DOC_TITLE,
-        raw_text=SAMPLE_DOC_TEXT,
-    )
     store = _open_store(deps)
     try:
-        return ingest_sample(store, title=raw.title or SAMPLE_DOC_TITLE, text=raw.raw_text)
+        return collect_onboarding_sample(store)
     finally:
         store.close()
 
@@ -2130,11 +2058,36 @@ def start_research(deps: AppDependency, body: ResearchRequest) -> dict[str, Any]
     mirrors `collect`'s gate order exactly: shape, then allowlist, then
     offline.
     """
-    # Default to what can actually be queried: the keyless five plus any
-    # publisher source that is connected. An explicit list is honoured as
-    # given, so asking for `elsevier` without a key still answers with a
-    # typed `unconfigured` rather than silently dropping it.
-    sources = body.sources or available_sources(deps.data_dir)
+    start_input = build_research_start_input(
+        topic=body.topic,
+        origin=ResearchOrigin.DIRECT_API,
+        interaction_decision=InteractionDecision.EXECUTE,
+        sources=body.sources,
+        limit=body.limit,
+        max_queries=body.max_queries,
+        fulltext=body.fulltext,
+        citation_expansion=body.citation_expansion,
+        citation_seed_count=body.citation_seed_count,
+        citation_limit=body.citation_limit,
+        engine=body.engine,
+        model=body.model,
+        max_engine_calls=body.max_engine_calls,
+        time_budget=body.time_budget,
+        seed=body.seed,
+    )
+    return _start_research(deps=deps, start_input=start_input)
+
+
+def _start_research(
+    *, deps: AppDependencies, start_input: ResearchStartInput
+) -> dict[str, Any]:
+    body = start_input.controls
+    topic = start_input.topic
+    # Default to scholarly APIs that answer anonymously plus connected
+    # publishers. Generic SearXNG web results remain explicit-only. An
+    # explicit list is honoured as given, so asking for `elsevier` without
+    # a key still answers with typed `unconfigured`.
+    sources = list(body.sources) or available_sources(deps.data_dir)
 
     def _record(step: str, payload: dict[str, Any]) -> None:
         """Write a refusal to provenance, creating its run dir on demand.
@@ -2155,13 +2108,13 @@ def start_research(deps: AppDependency, body: ResearchRequest) -> dict[str, Any]
         provenance = Provenance(str(rejects), seed=0)
         provenance.log(
             step,
-            {"topic": loggable_collect_inputs([body.topic]),
+            {"topic": loggable_collect_inputs([topic]),
              "sources": sources, **payload},
         )
 
     try:
         for source in sources:
-            check_paper_query(source, body.topic)
+            check_paper_query(source, topic)
             check_source_implemented(source)
     except NotAllowlisted as exc:
         _record("research.rejected", {"error": str(exc)})
@@ -2188,17 +2141,7 @@ def start_research(deps: AppDependency, body: ResearchRequest) -> dict[str, Any]
     # requests both pass. `create_research` decides under the same lock that
     # registers the job, and says no by raising.
     try:
-        job = deps.jobs.create_research(
-            topic=body.topic,
-            sources=sources,
-            limit=body.limit,
-            fulltext=body.fulltext,
-            engine=body.engine,
-            model=body.model,
-            max_engine_calls=body.max_engine_calls,
-            time_budget=body.time_budget,
-            seed=body.seed,
-        )
+        job = deps.jobs.create_research(start_input=start_input)
     except JobAlreadyRunning as exc:
         return {
             "ok": False,
@@ -2216,15 +2159,7 @@ def start_research(deps: AppDependency, body: ResearchRequest) -> dict[str, Any]
 # Chat — one sentence in, one accountable answer out
 # ---------------------------------------------------------------------------
 
-# Every parameter of a called route has to be supplied by name here, even
-# when a default exists. A FastAPI route is a plain function whose defaults
-# are `Query(...)` *objects*, so calling `search_entities(q=query)` bound a
-# `Query` instance as `limit` and the search reached sqlite as
-# `Error binding parameter 4: type 'Query' is not supported` — a 500 in
-# chat, and for `enrich` a permanent "enrichment failed" that looked like a
-# resource being down. `test_chat_supplies_every_query_parameter` keeps the
-# next one from being added the same way.
-#
+# Chat dispatches ordinary actions, not HTTP handlers with Query markers.
 # The value matches what the browser draws (`hits.slice(0, 8)`): asking the
 # store for more than the bubble shows is work nobody sees.
 CHAT_SEARCH_LIMIT = 8
@@ -2240,7 +2175,7 @@ def _open_chat_store(deps: AppDependencies) -> ChatStore:
 
 def _record_turn(
     body: ChatMessage, payload: dict[str, Any], deps: AppDependencies
-) -> Optional[str]:
+) -> str | None:
     """Write one turn to the transcript, or return None if that failed.
 
     Deliberately never raises. The transcript is a convenience — being able
@@ -2264,7 +2199,7 @@ def _record_turn(
             )
         finally:
             store.close()
-    except Exception:
+    except (OSError, OverflowError, TypeError, ValueError, sqlite3.Error):
         # Not raising is deliberate; being silent was not. The catch stays
         # broad because anything here — a locked file, a full disk, a
         # payload json cannot encode — is still less important than the
@@ -2304,7 +2239,7 @@ async def chat(deps: AppDependency, body: ChatMessage) -> dict[str, Any]:
     # Imported here, like the other engine-using routes: `intent` imports
     # `engines`, and `engines` is heavy enough that the module graph is kept
     # lazy on purpose.
-    from ontologylab.engines import EngineError, get_engine
+    from ontologylab.engines import EngineError, resolve_engine
     from ontologylab.intent import ACTIONS, classify
 
     trace: list[Step] = []
@@ -2321,7 +2256,7 @@ async def chat(deps: AppDependency, body: ChatMessage) -> dict[str, Any]:
         return payload
 
     try:
-        engine = get_engine(body.engine, body.model, data_dir=deps.data_dir)
+        engine = resolve_engine(body.engine, model=body.model, data_dir=deps.data_dir)
     except EngineError as exc:
         trace.append(Step(body.engine, "classify", "failed", "unavailable"))
         return reply(False, error_kind="unsupported",
@@ -2367,33 +2302,55 @@ async def chat(deps: AppDependency, body: ChatMessage) -> dict[str, Any]:
 
 
 def _run_intent(
-    intent: "Intent", trace: list[Step], body: ChatMessage, deps: AppDependencies
+    intent: Intent, trace: list[Step], body: ChatMessage, deps: AppDependencies
 ) -> dict[str, Any]:
     """Perform one already-classified, already-confirmed action."""
     action, params = intent.action, intent.params
 
     if action == "research":
         topic = params.get("topic", "").strip()
+        if intent.interaction_decision in {
+            InteractionDecision.CLARIFY, InteractionDecision.ABSTAIN
+        }:
+            decision = intent.interaction_decision.value
+            detail = (
+                "which topic should I search for?"
+                if intent.interaction_decision is InteractionDecision.CLARIFY
+                else "I cannot start research for that request."
+            )
+            trace.append(Step(
+                "ontologylab", "research", "failed", decision
+            ))
+            return {
+                "kind": "blocked",
+                "error_kind": decision,
+                "interaction_decision": decision,
+                "detail": detail,
+            }
         if not topic:
             trace.append(
                 Step("ontologylab", "research", "failed", "no_topic")
             )
             return {"kind": "blocked", "error_kind": "shape",
                     "detail": "which topic should I search for?"}
-        # Through `start_research`, not around it. Every gate — allowlist,
-        # unsupported source, offline, already-running — lives there, and a
-        # second path into the fan-out would be a second, laxer entrance to
-        # the same network calls.
-        # Pass the Field defaults explicitly — basedpyright does not treat
-        # pydantic Field(...) defaults as optional constructor args here.
-        started = start_research(deps=deps, body=ResearchRequest(
+        start_input = build_research_start_input(
             topic=topic,
+            origin=ResearchOrigin.CHAT,
+            interaction_decision=intent.interaction_decision,
+            sources=[],
             engine=body.engine,
             model=body.model,
-            limit=PAPER_DEFAULT_LIMIT,
+            limit=PAPER_DEFAULT_HARVEST_LIMIT,
+            max_queries=DEFAULT_SEARCH_QUERIES,
+            fulltext=True,
+            citation_expansion=True,
+            citation_seed_count=3,
+            citation_limit=15,
             max_engine_calls=DEFAULT_MAX_ENGINE_CALLS,
             time_budget=DEFAULT_TIME_BUDGET_S,
-        ))
+            seed=paths.DEFAULT_SEED,
+        )
+        started = _start_research(deps=deps, start_input=start_input)
         if not started.get("ok"):
             trace.append(Step(
                 "ontologylab", "research", "failed",
@@ -2409,14 +2366,23 @@ def _run_intent(
             trace.append(Step("store", "search", "failed", "no_query"))
             return {"kind": "blocked", "error_kind": "shape",
                     "detail": "which name should I look for?"}
-        found = search_entities(deps=deps, q=query, limit=CHAT_SEARCH_LIMIT)
+        found = entity_actions.search_entities(
+            data_dir=deps.data_dir, query=query, limit=CHAT_SEARCH_LIMIT
+        )
         trace.append(
             Step("store", "search", "ok", str(len(found.get("results", []))))
         )
         return {"kind": "search", "query": query, **found}
 
     if action == "enrich":
-        result = enrich_nodes(deps=deps, limit=CHAT_ENRICH_LIMIT)
+        result = entity_actions.enrich_nodes(
+            data_dir=deps.data_dir, limit=CHAT_ENRICH_LIMIT
+        )
+        if result.get("ok") is False:
+            trace.append(
+                Step("resources", "lookup", "failed", result.get("error_kind", "refused"))
+            )
+            return {"kind": "blocked", **result}
         trace.append(
             Step("resources", "lookup", "ok", str(result.get("proposed", 0)))
         )
@@ -2426,7 +2392,7 @@ def _run_intent(
         # name is required (min_length=1); chat may omit it — fall back
         # rather than hand pydantic a None that becomes a 422 mid-turn.
         pack_name = (params.get("name") or "").strip() or "chat-pack"
-        built = packs_build(deps=deps, body=PackBuildRequest(name=pack_name))
+        built = _build_pack_result(deps=deps, body=PackBuildRequest(name=pack_name))
         if built.get("ok") is False:
             # A refused build (completeness gate, existing name, …) is not
             # a pack. kind "pack" made the bubble claim success regardless.
@@ -2502,9 +2468,119 @@ def chat_history_clear(deps: AppDependency) -> dict[str, Any]:
         store.close()
 
 
+def _research_summary(
+    deps: AppDependencies, job: Job
+) -> tuple[JsonObject | None, str | None]:
+    pointers = job.research_pointers
+    if job.kind != "research" or pointers is None:
+        return None, None
+    with job._lock:
+        if job.research_summary_root == pointers.root_hash:
+            return job.research_summary_cache, job.research_summary_error
+    job_dir = paths.jobs_dir(deps.data_dir) / job.job_id
+    error = None
+    try:
+        replay = ResearchArtifactStore(job_dir).load()
+        if replay.pointers() != pointers:
+            error = "artifact_pointer_mismatch"
+            summary_value = None
+        else:
+            current = replay.plans[-1]
+            acquisition = None
+            acquisition_id = None
+            if replay.acquisitions:
+                envelope = ResearchAcquisitionEnvelope.model_validate_json(
+                    replay.acquisitions[-1].path.read_bytes()
+                )
+                if envelope.plan_id == current.plan_id:
+                    acquisition = envelope.payload
+                    acquisition_id = envelope.artifact_id
+            post = None
+            post_id = None
+            if replay.post_extraction is not None:
+                envelope = ResearchPostExtractionEnvelope.model_validate_json(
+                    replay.post_extraction.path.read_bytes()
+                )
+                if envelope.plan_id == current.plan_id:
+                    post = envelope.payload
+                    post_id = envelope.artifact_id
+            summary = ResearchSummary(
+                spec_id=replay.spec.spec_id,
+                current_plan_id=current.plan_id,
+                acquisition_assessment_id=acquisition_id,
+                post_extraction_assessment_id=post_id,
+                goal=replay.spec.goal,
+                evidence_needs=[
+                    ResearchEvidenceNeedSummary(
+                        need_id=need.need_id,
+                        kind=need.kind.value,
+                        description=need.description,
+                        mandatory=need.mandatory,
+                        minimum_content=need.minimum_content.value,
+                    )
+                    for need in replay.spec.evidence_needs
+                ],
+                assumptions=list(replay.spec.assumptions),
+                current_plan_version=current.plan_version,
+                parent_plan_id=current.parent_plan_id,
+                degraded_reason=(
+                    None
+                    if current.degraded_reason is None
+                    else current.degraded_reason.value
+                ),
+                need_occupancy=(
+                    []
+                    if acquisition is None
+                    else [
+                        ResearchNeedOccupancySummary(
+                            need_id=item.need_id,
+                            kind=item.kind,
+                            mandatory=item.mandatory,
+                            minimum_content=item.minimum_content,
+                            occupied=item.occupied,
+                            eligible_document_count=len(item.eligible_documents),
+                        )
+                        for item in acquisition.need_occupancy
+                    ]
+                ),
+                recommendation=(
+                    None if acquisition is None else acquisition.recommendation
+                ),
+                stop_reason=(
+                    None if acquisition is None else acquisition.stop_reason
+                ),
+                post_extraction_counts=(None if post is None else post.counts),
+            )
+            summary_value = summary.model_dump(mode="json")
+    except (OSError, ResearchArtifactError, ValidationError):
+        summary_value = None
+        error = "artifact_unavailable"
+    with job._lock:
+        job.research_summary_cache = summary_value
+        job.research_summary_root = pointers.root_hash
+        job.research_summary_error = error
+    return summary_value, error
+
+
+def _job_status(deps: AppDependencies, job: Job) -> dict[str, Any]:
+    status = job.as_status()
+    corpus_path = (
+        paths.jobs_dir(deps.data_dir)
+        / job.job_id
+        / CORPUS_FILENAME
+    )
+    status["corpus_available"] = (
+        job.kind == "research" and corpus_path.is_file()
+    )
+    summary, summary_error = _research_summary(deps, job)
+    status["research_summary"] = summary
+    status["research_summary_error"] = summary_error
+    return status
+
+
 @router.get("/jobs")
 def list_jobs(deps: AppDependency) -> dict[str, Any]:
-    return {"jobs": [job.as_status() for job in deps.jobs.list()]}
+    return {"jobs": [_job_status(deps, job) for job in deps.jobs.list()]}
 
 
 @router.get("/jobs/{job_id}/asked")
@@ -2526,6 +2602,25 @@ def job_asked(deps: AppDependency, job_id: str) -> dict[str, Any]:
         store.close()
 
 
+@router.get("/jobs/{job_id}/corpus")
+def download_job_corpus(
+    deps: AppDependency,
+    job_id: str,
+) -> FileResponse:
+    """Download one completed research job's merged literature corpus."""
+    job = deps.jobs.get(job_id)
+    if job is None or job.kind != "research":
+        raise HTTPException(status_code=404, detail="research job not found")
+    corpus_path = paths.jobs_dir(deps.data_dir) / job_id / CORPUS_FILENAME
+    if not corpus_path.is_file():
+        raise HTTPException(status_code=404, detail="corpus not available")
+    return FileResponse(
+        corpus_path,
+        media_type="application/x-ndjson",
+        filename=f"{job_id}-literature-corpus.jsonl",
+    )
+
+
 @router.post("/jobs/{job_id}/cancel")
 def cancel_job(deps: AppDependency, job_id: str) -> dict[str, Any]:
     """Ask a running job to stop at its next checkpoint.
@@ -2542,7 +2637,7 @@ def cancel_job(deps: AppDependency, job_id: str) -> dict[str, Any]:
         return {"ok": True, "cancelled": False, "reason": "unknown job"}
     if not job.cancel():
         return {"ok": True, "cancelled": False, "reason": f"already {job.status}"}
-    return {"ok": True, "cancelled": True, "job": job.as_status()}
+    return {"ok": True, "cancelled": True, "job": _job_status(deps, job)}
 
 
 # Seconds each stream iteration waits for a change before emitting a
@@ -2585,7 +2680,12 @@ async def stream_jobs(deps: AppDependency,
                 continue
             last_seen = version
             payload = json.dumps(
-                {"jobs": [job.as_status() for job in registry.list()]},
+                {
+                    "jobs": [
+                        _job_status(deps, job)
+                        for job in registry.list()
+                    ]
+                },
                 ensure_ascii=False,
             )
             yield "event: jobs\ndata: " + payload + "\n\n"
@@ -2606,7 +2706,7 @@ def get_job(deps: AppDependency, job_id: str) -> JobStatus:
     job = deps.jobs.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"unknown job {job_id!r}")
-    return JobStatus(**job.as_status())
+    return JobStatus(**_job_status(deps, job))
 
 
 # ---------------------------------------------------------------------------
@@ -2640,84 +2740,65 @@ def get_competency_receipt(deps: AppDependency) -> dict[str, Any]:
     return _competency_receipt()
 
 
+def _competency_gold_dir() -> Path | None:
+    """The checkout's competency fixtures, or None in an installed runtime.
+
+    The fixtures live in the source tree (``tests/gold``); wheels and the
+    bundled desktop runtime do not ship them. A passive read must degrade
+    to a typed "not bundled" answer instead of raising FileNotFoundError.
+    """
+    candidate = Path(__file__).resolve().parent.parent.parent / "tests" / "gold"
+    if (candidate / "cq").is_dir():
+        return candidate
+    return None
+
+
 def _competency_receipt() -> dict[str, Any]:
     """Run the competency suite in a throwaway store and return the receipt."""
+    gold_dir = _competency_gold_dir()
+    if gold_dir is None:
+        return {"available": False, "reason": "fixtures_not_bundled"}
     from ontologylab.competency import run_competency_suite
+    from ontologylab.engines import resolve_engine
 
-    gold_dir = Path(__file__).resolve().parent.parent.parent / "tests" / "gold"
-    receipt = run_competency_suite(gold_dir)
-    return receipt.to_dict()
+    receipt = run_competency_suite(gold_dir, engine=resolve_engine("mock"))
+    return {"available": True, **receipt.to_dict()}
 
 
 @router.post("/packs/build")
 def packs_build(deps: AppDependency, body: PackBuildRequest) -> dict[str, Any]:
+    return _build_pack_result(deps, body)
+
+
+def _build_pack_result(
+    deps: AppDependencies, body: PackBuildRequest,
+) -> dict[str, Any]:
     job_dir = paths.new_job_dir(deps.data_dir, "build-pack")
     provenance = Provenance(str(job_dir), seed=0)
-    provenance.log(
-        "build_pack.start",
-        {
-            "name": body.name,
-            "allow_incomplete_extraction": body.allow_incomplete_extraction,
-            "operator_intent": body.override_intent,
-        },
-    )
-    # Zero collected documents / zero verified rows is still a buildable
-    # (empty) pack: ensure the working DB exists before handing it over.
-    _open_store(deps).close()
+    store = _open_store(deps)
     try:
-        manifest = build_pack(
+        manifest = build_pack_release(
             kg_db_path(deps.data_dir),
             deps.packs_dir,
             body.name,
-            source_job_id=job_dir.name,
-            provenance_jsonl=provenance.jsonl_path,
+            provenance=provenance,
             allow_incomplete_extraction=body.allow_incomplete_extraction,
             incomplete_extraction_intent=body.override_intent,
+            store=store,
         )
     except (PackBuildError, OSError) as exc:
-        # Only IncompleteExtractionError carries .summary; getattr keeps
-        # the OSError branch typed without a hasattr-narrowing cast.
         summary = getattr(exc, "summary", None)
-        failure: dict[str, Any] = {"error": str(exc)}
-        if summary is not None:
-            failure["extraction_completeness"] = summary
-        provenance.log("build_pack.failed", failure)
         return {
             "ok": False,
-            "detail": str(exc),
+            "detail": summarize_failure(exc),
             "error_code": getattr(exc, "code", "pack_build_error"),
             **(
                 {"extraction_completeness": summary}
                 if summary is not None else {}
             ),
         }
-    # A built pack is a consumable release: register it in the artifacts
-    # library so the Artifacts screen can list it next to source docs.
-    try:
-        store = _open_store(deps)
-        try:
-            store.register_artifact(
-                kind="pack_release",
-                filename=manifest.pack_id,
-                run_id=job_dir.name,
-            )
-        finally:
-            store.close()
-    except (KGStoreError, OSError, sqlite3.Error):
-        pack_dir = deps.packs_dir / manifest.pack_id
-        shutil.rmtree(pack_dir)
-        provenance.log(
-            "build_pack.failed",
-            {
-                "error": "pack artifact registration failed",
-                "pack_id": manifest.pack_id,
-            },
-        )
-        raise
-    provenance.log(
-        "build_pack.end",
-        {"pack_id": manifest.pack_id, "counts": manifest.counts},
-    )
+    finally:
+        store.close()
     return {"ok": True, "manifest": dataclasses.asdict(manifest)}
 
 
@@ -2732,9 +2813,18 @@ def packs_diff(deps: AppDependency, pack_a_id: str, pack_b_id: str) -> dict[str,
     except PackIntegrityError as exc:
         # Tamper/forgery is not "not found": surface it as a typed conflict
         # so the client knows the pack exists but failed verification.
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "pack integrity verification failed while comparing "
+                f"{pack_a_id!r} and {pack_b_id!r}"
+            ),
+        ) from exc
     except PackBuildError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=404,
+            detail=summarize_failure(exc),
+        ) from exc
 
 
 @router.post("/packs/{pack_id}/mcpb")
@@ -2745,7 +2835,7 @@ def packs_build_mcpb(deps: AppDependency, pack_id: str) -> dict[str, Any]:
     try:
         bundle = build_mcpb(deps.packs_dir, pack_id)
     except (PackBuildError, OSError) as exc:
-        return {"ok": False, "detail": str(exc)}
+        return {"ok": False, "detail": summarize_failure(exc)}
     return {
         "ok": True,
         "pack_id": pack_id,
@@ -2766,7 +2856,10 @@ def packs_download_mcpb(deps: AppDependency, pack_id: str) -> Any:
         try:
             bundle = build_mcpb(deps.packs_dir, pack_id)
         except (PackBuildError, OSError) as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=404,
+                detail=summarize_failure(exc),
+            ) from exc
     return FileResponse(
         bundle,
         media_type="application/zip",

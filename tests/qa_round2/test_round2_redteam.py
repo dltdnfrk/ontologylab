@@ -8,14 +8,15 @@ subprocess runs use dead proxies and only exercise network-free paths.
 from __future__ import annotations
 
 import re
+from email.message import Message
 from urllib.error import HTTPError, URLError
 
 import pytest
 
-import ontologylab.connectors.allowlist as allowlist
-import ontologylab.connectors.paper_api as pa
-import ontologylab.main as olmain
+import ontologylab.collect as collect_service
 import qa_round2.fixtures_r2 as fx
+from ontologylab.connectors import allowlist
+from ontologylab.connectors import paper_api as pa
 from qa_round2.r2_helpers import (
     REPO_ROOT,
     check_case,
@@ -142,7 +143,7 @@ def test_r2_f2_04_identical_values_at_both_check_sites(tmp_path, monkeypatch):
         calls.append(("in-fetch", source, query))
         return allowlist.check_paper_query(source, query)
 
-    monkeypatch.setattr(olmain, "check_paper_query", spy_preval)
+    monkeypatch.setattr(collect_service, "check_paper_query", spy_preval)
     monkeypatch.setattr(pa, "check_paper_query", spy_infetch)
     _patch_feed(monkeypatch, fx.GOOD_FEED)
 
@@ -185,7 +186,7 @@ def test_r2_f2_04_identical_values_at_both_check_sites(tmp_path, monkeypatch):
             "R2-F3-01",
             lambda: HTTPError(
                 "https://export.arxiv.org/api/query", 503,
-                "Service Unavailable", None, None,
+                "Service Unavailable", Message(), None,
             ),
             "_http_get_text raises HTTPError 503 (URLError subclass)",
         ),

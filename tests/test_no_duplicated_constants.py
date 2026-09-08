@@ -10,17 +10,18 @@ Each test here corresponds to a place that had already drifted.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
+from ontologylab import web_assets
 from ontologylab.connectors import resources
 from ontologylab.connectors.paper_api import DEFAULT_PAPER_SOURCE
 from ontologylab.paths import DEFAULT_ENGINE
-from ontologylab.server.app import WEB_DIR
 
 REPO = Path(__file__).resolve().parent.parent
-APP_JS = (WEB_DIR / "app.js").read_text(encoding="utf-8")
-INDEX_HTML = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+APP_JS = web_assets.read_asset_text("app.js")
+INDEX_HTML = web_assets.read_asset_text("index.html")
 MAIN_PY = (REPO / "ontologylab" / "main.py").read_text(encoding="utf-8")
 RESOURCES_PY = Path(resources.__file__).read_text(encoding="utf-8")
 
@@ -121,13 +122,88 @@ def test_the_browser_does_not_re_type_the_engine_budgets() -> None:
 
 
 def test_the_settings_placeholder_shows_the_real_default() -> None:
-    """A placeholder is a claim about what happens if you leave it blank.
-    It said `mock` while the default was `claude`."""
-    match = re.search(
-        r'<input[^>]*id="settings-default-engine"[^>]*>', INDEX_HTML
-    )
-    assert match, "the default-engine field is gone"
-    assert f'placeholder="{DEFAULT_ENGINE}"' in match.group(0)
+    """The current select honors the live catalogue and saved/default values."""
+    from tests.test_p2_ui_ux_contract import _function, _run_node
+
+    assert re.search(r'<select[^>]*id="settings-default-engine"[^>]*>', INDEX_HTML)
+    catalogue = [
+        {"name": "mock", "available": True, "models": [], "default_model": None},
+        {"name": DEFAULT_ENGINE, "available": True,
+         "models": ["model-a", "model-b"], "default_model": "model-a"},
+        {"name": "api:catalogue", "available": True,
+         "models": ["catalogue-model"], "default_model": "catalogue-model"},
+        {"name": "unavailable", "available": False, "models": []},
+    ]
+    cases = [
+        (catalogue, {"default_engine": DEFAULT_ENGINE, "default_model": "model-b"},
+         DEFAULT_ENGINE, "model-b", True),
+        (catalogue, {"default_engine": "api:catalogue", "default_model": "catalogue-model"},
+         "api:catalogue", "catalogue-model", True),
+        (catalogue, {"default_engine": "retired", "default_model": "old-model"},
+         DEFAULT_ENGINE, "", False),
+        (catalogue, {"default_engine": DEFAULT_ENGINE, "default_model": "old-model"},
+         DEFAULT_ENGINE, "", False),
+        ([catalogue[0]], {"default_engine": DEFAULT_ENGINE, "default_model": ""},
+         "mock", "", False),
+        ([], {"default_engine": DEFAULT_ENGINE, "default_model": ""},
+         "", "", False),
+    ]
+    script = r"""
+function select() {
+  var options = [], value = "";
+  return {
+    get options() { return options; },
+    set innerHTML(text) { options = []; value = ""; },
+    appendChild(option) {
+      options.push(option);
+      if (options.length === 1) value = option.value;
+    },
+    get value() { return value; },
+    set value(next) {
+      value = options.some(function (option) { return option.value === String(next); })
+        ? String(next) : "";
+    }
+  };
+}
+var engine = select(), model = select(), warningHidden = true;
+var warning = {textContent: "", classList: {
+  add() { warningHidden = true; }, remove() { warningHidden = false; }
+}};
+function $(name) {
+  return name === "#settings-default-engine" ? engine
+    : name === "#settings-default-model" ? model : warning;
+}
+var document = {createElement() { return {value: "", textContent: ""}; }};
+var settingsEngineCatalogue = [], catalogue = [], calls = [];
+async function api(path) {
+  if (path !== "/api/engines") throw new Error("unexpected request");
+  calls.push(path); return catalogue;
+}
+"""
+    script += _function("fillSettingsModels") + _function("populateSettingsEngineModelSelects")
+    script += "\nvar cases = " + json.dumps(cases) + ";\n"
+    script += """
+(async function () {
+  var frames = [];
+  for (var item of cases) {
+    catalogue = item[0];
+    await populateSettingsEngineModelSelects(item[1]);
+    frames.push({engine: engine.value, model: model.value,
+      options: engine.options.map(function (option) { return option.value; }),
+      hidden: warningHidden, hasWarning: !!warning.textContent});
+  }
+  console.log(JSON.stringify({frames: frames, calls: calls}));
+})().catch(function (error) { console.error(error); process.exit(1); });
+"""
+    result = _run_node(script)
+    assert result["calls"] == ["/api/engines"] * len(cases)
+    for case, frame in zip(cases, result["frames"], strict=True):
+        available, _settings, selected, selected_model, hidden = case
+        assert frame["options"] == [item["name"] for item in available if item["available"]]
+        assert frame["engine"] == selected
+        assert frame["model"] == selected_model
+        assert frame["hidden"] is hidden
+        assert frame["hasWarning"] is (not hidden)
 
 
 # --------------------------------------------------------------------------

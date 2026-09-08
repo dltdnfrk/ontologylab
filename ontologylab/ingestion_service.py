@@ -12,9 +12,8 @@ import time
 import uuid
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
-from typing import Literal
-
 from pathlib import Path
+from typing import Literal, assert_never
 
 from ontologylab.authority_repo import (
     IdentifierOwnedConflict,
@@ -26,16 +25,15 @@ from ontologylab.authority_repo import (
 from ontologylab.connectors.base import normalize_doi
 from ontologylab.file_lifecycle import (
     READY,
+    STAGED,
     FileIntegrityError,
     FileLifecycleError,
-    STAGED,
     content_hash_for,
     final_raw_text_path,
     prepare_representation_payload,
     store_root_from_conn,
 )
 from ontologylab.provenance_outbox import insert_observation_event
-
 
 ReceiptStatus = Literal["created", "staged", "duplicate", "conflict", "failed"]
 Failpoint = Callable[[str], None]
@@ -61,6 +59,7 @@ class IngestItem:
     idempotency_key: str
     scheme: str
     normalized_value: str
+    staging_operation_id: str | None = None
     source: str = ""
     evidence_grade: str = ""
     work_id: str | None = None
@@ -242,13 +241,23 @@ def _resolve_representation(
     store_root = store_root_from_conn(conn)
     staged = prepare_representation_payload(
         store_root,
-        item.idempotency_key,
+        item.staging_operation_id or item.idempotency_key,
         representation_id,
         raw_text=representation.raw_text,
         raw_text_path=representation.raw_text_path,
+        sync_directory=item.staging_operation_id is None,
     )
     if staged is not None:
-        if content_hash_for(staged.read_bytes()) != representation.content_hash:
+        match representation.raw_text:
+            case str() as raw_text:
+                staged_bytes = raw_text.encode("utf-8")
+            case bytes() as raw_text:
+                staged_bytes = raw_text
+            case None:
+                staged_bytes = staged.read_bytes()
+            case unreachable:
+                assert_never(unreachable)
+        if content_hash_for(staged_bytes) != representation.content_hash:
             raise FileIntegrityError(
                 "hash_mismatch",
                 "staged file hash does not match Representation content_hash",
@@ -375,6 +384,8 @@ def _ingest_once(
                 representation_id=representation_id,
                 stage=item.stage,
                 content_kind=item.content_kind,
+                begin_before_check=not work_created,
+                fresh_work=work_created,
                 failpoint=failpoint,
             )
             observation_id = attached.observation_id
@@ -460,7 +471,7 @@ def _ingest_once(
                 incoming_value=exc.incoming_doi,
             ),
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         _discard_staged(staged_paths)
         _rollback_item(conn)
         return IngestReceipt(

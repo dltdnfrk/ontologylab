@@ -9,6 +9,10 @@ import pytest
 
 from ontologylab.main import build_arg_parser, main
 from ontologylab.method_ir import canonical_json_bytes
+from tests.method_cli_support import (
+    fragment_argv, import_state, observe_import,
+    seed_bridge_fragment, seed_fragment_import,
+)
 
 
 COMMANDS = {
@@ -203,3 +207,132 @@ def test_compile_cli_blocks_with_exact_failed_gate_names(
         "--data-dir", str(tmp_path / "data"),
     ) == 2
     assert "method compile" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("with_evidence", [True, False])
+def test_fragment_import_preserves_supplied_field_evidence(
+    tmp_path: Path, with_evidence: bool,
+) -> None:
+    payload = seed_fragment_import(tmp_path)
+    if not with_evidence:
+        payload["field_evidence"] = []
+    before = import_state(tmp_path)
+    assert _run(*fragment_argv(tmp_path, payload)) == 0
+    after = import_state(tmp_path)
+    expected = [(
+        "evidence-1", "step-z", "/temperature", "occ-1", "supports",
+    )] if with_evidence else []
+    assert after["evidence"] == expected, "supplied evidence must not be dropped"
+    assert [(row[0], row[1]) for row in after["fragments"]] == [
+        ("input-a", "proposed"), ("step-z", "proposed"),
+    ]
+    fragments = {row[0]: row for row in after["fragments"]}
+    assert fragments["step-z"][2] == "source_supported"
+    assert json.loads(fragments["step-z"][3])["temperature"]["value"] == 80.0
+    assert json.loads(fragments["input-a"][3])["amount"] == {
+        "state": "unknown", "kind": "real",
+    }
+    assert after["occurrences"] == [("occ-1", "proposed")]
+    assert after["authority_counts"] == (0, 0, 0, 0)
+    assert after["graph"] == before["graph"]
+
+
+@pytest.mark.parametrize(
+    "layer", ["parser-bridge", "existing-bridge", "missing-fragment", "missing-occurrence"],
+)
+def test_fragment_import_refuses_evidence_at_its_actual_error_layer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str], layer: str,
+) -> None:
+    import sqlite3
+
+    from ontologylab.method_ir import IRValidationError
+    from ontologylab.method_store import MethodNotFoundError, MethodValidationError
+
+    payload = seed_fragment_import(tmp_path)
+    if layer == "parser-bridge":
+        payload["fragments"][0]["epistemic_class"] = "bridge_assumption"
+    elif layer == "existing-bridge":
+        seed_bridge_fragment(tmp_path, payload)
+        payload["fragments"] = []
+    elif layer == "missing-fragment":
+        payload["field_evidence"][0]["fragment_id"] = "missing-fragment"
+    else:
+        payload["field_evidence"][0]["occurrence_id"] = "private-missing-occurrence"
+    before = import_state(tmp_path)
+    calls = observe_import(monkeypatch)
+    assert _run(*fragment_argv(tmp_path, payload)) == 2
+    output = capsys.readouterr()
+    assert '"status": "ok"' not in output.out
+    assert "method fragment-import:" in output.err
+    assert import_state(tmp_path) == before, "refusal must roll back the whole import"
+    assert calls.persisted_ids == []
+    assert len(calls.exit_errors) == 1
+    error = calls.exit_errors[0]
+    if layer == "parser-bridge":
+        assert isinstance(error, IRValidationError)
+        assert calls.evidence_ids == [] and calls.failures == []
+        assert "$.field_evidence[0].role" in output.err
+    else:
+        assert calls.evidence_ids == ["evidence-1"]
+        assert len(calls.failures) == 1
+        if layer == "missing-occurrence":
+            assert type(error) is MethodValidationError
+            assert isinstance(calls.failures[0], sqlite3.IntegrityError)
+            assert error.__cause__ is calls.failures[0]
+            assert "private-missing-occurrence" not in output.err
+        else:
+            expected_type = MethodNotFoundError if layer == "missing-fragment" else MethodValidationError
+            assert type(error) is expected_type
+            assert error is calls.failures[0]
+
+
+def test_fragment_import_mixed_evidence_rolls_back_fragments_and_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sqlite3
+
+    from ontologylab.method_store import MethodValidationError
+
+    payload = seed_fragment_import(tmp_path)
+    payload["field_evidence"].append({
+        **payload["field_evidence"][0],
+        "id": "evidence-2", "occurrence_id": "missing-after-valid-evidence",
+    })
+    before = import_state(tmp_path)
+    calls = observe_import(monkeypatch)
+    result = _run(*fragment_argv(tmp_path, payload))
+    after = import_state(tmp_path)
+    assert (after["fragments"], after["evidence"]) == ([], []), (
+        "failed import must retain neither new fragments nor the first evidence row"
+    )
+    assert after == before
+    assert result == 2
+    assert calls.evidence_ids == ["evidence-1", "evidence-2"]
+    assert calls.persisted_ids == ["evidence-1"]
+    assert len(calls.exit_errors) == len(calls.failures) == 1
+    error = calls.exit_errors[0]
+    assert type(error) is MethodValidationError
+    assert isinstance(calls.failures[0], sqlite3.IntegrityError)
+    assert error.__cause__ is calls.failures[0]
+
+
+def test_fragment_import_does_not_translate_unrelated_fragment_sql_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sqlite3
+
+    from ontologylab.method_store import MethodStore
+
+    payload = seed_fragment_import(tmp_path)
+    before = import_state(tmp_path)
+    failure = sqlite3.IntegrityError("unrelated fragment insertion failure")
+
+    def fail_fragment(*args: object, **kwargs: object) -> None:
+        raise failure
+
+    monkeypatch.setattr(MethodStore, "propose_fragment", fail_fragment)
+    with pytest.raises(sqlite3.IntegrityError) as caught:
+        main(list(fragment_argv(tmp_path, payload)))
+    assert caught.value is failure
+    assert import_state(tmp_path) == before

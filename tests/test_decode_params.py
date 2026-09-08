@@ -24,7 +24,7 @@ import ontologylab.engines as engines
 from ontologylab.engines import ApiEngine, EngineError, get_engine
 from ontologylab.evaluation import store_view
 from ontologylab.kgstore import KGStore
-from ontologylab.providers import Provider
+from ontologylab.providers import Provider, dedicated_api_key_env
 from tests.conftest import make_entity, make_relation
 
 _KEY = "sk-live-do-not-leak"
@@ -35,7 +35,7 @@ def _anthropic() -> Provider:
         id="anth",
         kind="anthropic",
         base_url="https://api.anthropic.com/v1",
-        api_key_env="ANTH_KEY",
+        api_key_env="ANTHROPIC_API_KEY",
         models=("claude-fable-5",),
     )
 
@@ -45,17 +45,18 @@ def _openai() -> Provider:
         id="oai",
         kind="openai",
         base_url="https://api.openai.com/v1",
-        api_key_env="OAI_KEY",
+        api_key_env="OPENAI_API_KEY",
         models=("gpt-5.6",),
     )
 
 
 def _xai() -> Provider:
+    base_url = "https://api.x.ai/v1"
     return Provider(
         id="xai",
         kind="openai",
-        base_url="https://api.x.ai/v1",
-        api_key_env="XAI_KEY",
+        base_url=base_url,
+        api_key_env=dedicated_api_key_env("xai", base_url),
         models=("grok-4",),
     )
 
@@ -84,7 +85,11 @@ def _capture(monkeypatch, provider: Provider):
 
 @pytest.mark.parametrize(
     "provider, env",
-    [(_anthropic(), "ANTH_KEY"), (_openai(), "OAI_KEY"), (_xai(), "XAI_KEY")],
+    [
+        (_anthropic(), _anthropic().api_key_env),
+        (_openai(), _openai().api_key_env),
+        (_xai(), _xai().api_key_env),
+    ],
     ids=["anthropic", "openai", "xai"],
 )
 def test_every_provider_kind_sends_the_default_pinned_temperature(
@@ -100,7 +105,11 @@ def test_every_provider_kind_sends_the_default_pinned_temperature(
 
 @pytest.mark.parametrize(
     "provider, env",
-    [(_anthropic(), "ANTH_KEY"), (_openai(), "OAI_KEY"), (_xai(), "XAI_KEY")],
+    [
+        (_anthropic(), _anthropic().api_key_env),
+        (_openai(), _openai().api_key_env),
+        (_xai(), _xai().api_key_env),
+    ],
     ids=["anthropic", "openai", "xai"],
 )
 def test_every_provider_kind_honours_a_chosen_temperature(
@@ -118,7 +127,7 @@ def test_every_provider_kind_honours_a_chosen_temperature(
 
 
 def test_top_p_is_selectable_alongside_temperature(monkeypatch) -> None:
-    monkeypatch.setenv("XAI_KEY", _KEY)
+    monkeypatch.setenv(_xai().api_key_env, _KEY)
     provider = _xai()
     seen = _capture(monkeypatch, provider)
 
@@ -138,7 +147,7 @@ def test_top_p_is_selectable_alongside_temperature(monkeypatch) -> None:
 
 
 def test_anthropic_takes_top_k(monkeypatch) -> None:
-    monkeypatch.setenv("ANTH_KEY", _KEY)
+    monkeypatch.setenv(_anthropic().api_key_env, _KEY)
     provider = _anthropic()
     seen = _capture(monkeypatch, provider)
 
@@ -156,7 +165,7 @@ def test_openai_kind_refuses_top_k_instead_of_sending_a_400() -> None:
 
 
 def test_openai_kind_takes_seed(monkeypatch) -> None:
-    monkeypatch.setenv("OAI_KEY", _KEY)
+    monkeypatch.setenv(_openai().api_key_env, _KEY)
     provider = _openai()
     seen = _capture(monkeypatch, provider)
 
@@ -199,7 +208,7 @@ def test_get_engine_threads_the_selection_into_the_api_engine(
     from ontologylab.providers import add_provider
 
     add_provider(tmp_path, _xai())
-    monkeypatch.setenv("XAI_KEY", _KEY)
+    monkeypatch.setenv(_xai().api_key_env, _KEY)
     engine = get_engine(
         "api:xai", data_dir=tmp_path, decode_params={"temperature": 0.3}
     )

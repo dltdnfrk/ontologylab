@@ -34,9 +34,16 @@ def _bare_client(app, **kwargs) -> TestClient:
 def test_unauthenticated_api_is_rejected(tmp_path: Path) -> None:
     client = _bare_client(_app(tmp_path))
 
-    settings = client.get("/api/settings")
-    assert settings.status_code == 401, settings.text
-    assert "default_engine" not in settings.text
+    for path in (
+        "/api/documents",
+        "/api/proposals",
+        "/api/jobs",
+        "/api/settings",
+    ):
+        response = client.get(path)
+        assert response.status_code == 401, (path, response.text)
+        assert response.json().get("error_kind") == "unauthenticated"
+        assert "default_engine" not in response.text
 
     mutation = client.post("/api/providers", json=_PROVIDER)
     assert mutation.status_code == 401, mutation.text
@@ -105,14 +112,23 @@ def test_loopback_root_cookie_bootstrap(tmp_path: Path) -> None:
     assert "samesite=strict" in set_cookie.lower()
     assert root.headers.get("cache-control") == "no-store"
 
-    settings = client.get("/api/settings")
-    assert settings.status_code == 200, settings.text
-    assert "default_engine" in settings.json()
-    assert settings.headers.get("cache-control") == "no-store"
+    for path in (
+        "/api/documents",
+        "/api/proposals",
+        "/api/jobs",
+        "/api/settings",
+    ):
+        response = client.get(path)
+        assert response.status_code == 200, (path, response.text)
+        assert response.headers.get("cache-control") == "no-store"
 
 
 def test_healthz_is_the_only_unauthenticated_exemption(tmp_path: Path) -> None:
-    client = _bare_client(_app(tmp_path))
+    client = _bare_client(
+        _app(tmp_path),
+        base_url="http://127.0.0.1",
+        client=("127.0.0.1", 54321),
+    )
     health = client.get("/healthz")
     assert health.status_code == 200, health.text
     body = health.json()
@@ -122,6 +138,12 @@ def test_healthz_is_the_only_unauthenticated_exemption(tmp_path: Path) -> None:
 
     assert client.get("/api/settings").status_code == 401
     assert client.get("/api/engines").status_code == 401
+    assert client.get("/api/health").status_code == 401
+
+    root = client.get("/")
+    assert root.status_code == 200
+    missing_api_health = client.get("/api/health")
+    assert missing_api_health.status_code == 404, missing_api_health.text
 
 
 def test_stale_token_after_new_app_is_rejected(tmp_path: Path) -> None:
@@ -147,8 +169,8 @@ def test_non_loopback_serve_refused_even_with_allow_remote(
 
     from ontologylab import serve
 
-    called: list[object] = []
-    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: called.append((a, k)))
+    called: list[bool] = []
+    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: called.append(True))
     monkeypatch.setattr(
         "sys.argv",
         [

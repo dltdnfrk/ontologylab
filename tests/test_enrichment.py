@@ -730,10 +730,10 @@ def test_the_annotations_endpoint_states_the_scope(tmp_path) -> None:
 
 
 def test_the_screen_reads_the_scope_from_the_response() -> None:
-    from ontologylab.server.app import WEB_DIR
+    from ontologylab import web_assets
 
-    markup = (WEB_DIR / "index.html").read_text(encoding="utf-8")
-    script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
+    markup = web_assets.read_asset_text("index.html")
+    script = web_assets.read_asset_text("app.js")
 
     assert 'id="annotations-scope"' in markup
     assert "body.organism" in script

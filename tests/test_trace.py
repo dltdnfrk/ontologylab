@@ -15,10 +15,14 @@ there is exactly one writer.
 from __future__ import annotations
 
 import pytest
+from fastapi.testclient import TestClient
 
-from ontologylab.server.jobs import Job, _source_event_line
+from ontologylab import research_run as research_run_module
+from ontologylab.connectors.paper_api import SourceFailure
+from ontologylab.server.app import create_app
+from ontologylab.server.jobs import Job, JobRegistry
 from ontologylab.trace import MAX_DETAIL, Step, source_step
-
+from tests.test_research_run import _fake_fetch
 
 # --------------------------------------------------------------------------
 # One writer
@@ -42,19 +46,21 @@ def test_the_log_line_is_rendered_from_the_step() -> None:
     )
 
 
-def test_the_job_log_helper_has_no_strings_of_its_own() -> None:
-    """`_source_event_line` must stay a thin call onto `Step.line`.
+def test_source_event_records_one_step_and_one_rendered_line(tmp_path) -> None:
+    # Given: the job adapter's real structured source reporter
+    registry = JobRegistry(tmp_path / "data-source-event")
+    job = Job(
+        job_id="j", kind="research", engine="mock", model=None, started_ts=0.0,
+    )
 
-    These words used to be string literals in `jobs.py`, which was fine
-    until the browser also needed the structure behind them. Re-spelling
-    them there would recreate the two-writer bug in the exact place it was
-    removed from.
-    """
-    import inspect
+    # When: one source completes
+    registry._source_event(job)("source_ok", "arxiv", 5)
 
-    body = inspect.getsource(_source_event_line)
-    assert "source_step(" in body
-    assert "querying" not in body.split('"""')[-1]
+    # Then: one structured event produced exactly one rendered progress line
+    assert [step.as_dict() for step in job.steps] == [
+        {"tool": "arxiv", "action": "query", "status": "ok", "detail": "5"},
+    ]
+    assert list(job.progress) == [source_step("source_ok", "arxiv", 5).line]
 
 
 def test_recording_a_step_writes_both_and_they_agree() -> None:
@@ -103,28 +109,44 @@ def test_the_response_model_does_not_filter_the_steps_out() -> None:
     assert "steps" in JobStatus.model_fields
 
 
-def test_a_failed_source_is_recorded_once() -> None:
-    """`_traced` already announces every failure as it happens.
-
-    The worker used to record them a second time from the `failures` list
-    afterwards. Invisible in a log — the line scrolled past twice — and one
-    duplicated row per failed source the moment a screen drew one row per
-    step.
-    """
-    import inspect
-
-    from ontologylab.server import jobs
-
-    source = inspect.getsource(jobs.JobRegistry._research_async)
-    failures_loop = source.split("for failure in failures:", 1)[1].split(
-        "if not batches", 1
-    )[0]
-
-    assert "provenance.log" in failures_loop
-    assert "job.record" not in failures_loop, (
-        "the live source_failed event already recorded this one"
+def test_a_failed_source_is_recorded_once(tmp_path, monkeypatch) -> None:
+    # Given: a source that reports its live failure and returns provenance detail
+    monkeypatch.setattr(
+        research_run_module,
+        "fetch_sources",
+        _fake_fetch(
+            (),
+            (SourceFailure("crossref", "private provider detail", "fetch_failed"),),
+        ),
     )
-    assert "job.log" not in failures_loop
+    app = create_app(data_dir=tmp_path / "data-failed-source")
+    client = TestClient(app)
+
+    # When: the Research API runs to its existing no-source terminal mapping
+    started = client.post(
+        "/api/research",
+        json={
+            "topic": "failed source trace",
+            "sources": ["crossref"],
+            "engine": "mock",
+            "fulltext": False,
+            "citation_expansion": False,
+        },
+    ).json()
+    job = app.state.jobs.get(started["job_id"])
+    assert job is not None and job._thread is not None
+    job._thread.join(timeout=30)
+
+    # Then: the live failure appears once; provenance replay did not duplicate it
+    failed_steps = [step for step in job.steps if step.status == "failed"]
+    assert [step.as_dict() for step in failed_steps] == [
+        {
+            "tool": "crossref",
+            "action": "query",
+            "status": "failed",
+            "detail": "fetch_failed",
+        },
+    ]
 
 
 # --------------------------------------------------------------------------
@@ -148,22 +170,22 @@ def test_a_long_detail_is_truncated_visibly() -> None:
     assert Step("a", "b", "ok", "short").shown_detail == "short"
 
 
-def test_the_server_ships_values_not_display_text() -> None:
-    """Korean lives in the browser, next to the other display strings.
+def test_the_server_ships_structured_source_values(tmp_path) -> None:
+    # Given: the server adapter receives one source event
+    registry = JobRegistry(tmp_path / "data-structured-values")
+    job = Job(
+        job_id="j", kind="research", engine="mock", model=None, started_ts=0.0,
+    )
 
-    A server that sent "조회 중" would be a server that has to be redeployed
-    to fix a typo on a screen, and a second place for the same words to live.
-    """
-    import re
-    from pathlib import Path
+    # When: the event enters the real job status surface
+    registry._source_event(job)("source_failed", "pubmed", "fetch_failed")
 
-    from ontologylab.server import jobs, routes
-
-    hangul = re.compile(r"[가-힣]")
-    for module in (jobs, routes):
-        body = Path(module.__file__).read_text(encoding="utf-8")
-        for call in re.findall(r"Step\(([^)]*)\)", body, re.S):
-            assert not hangul.search(call), (
-                f"display text in a Step in {Path(module.__file__).name}: "
-                f"{call!r}"
-            )
+    # Then: the response is built from stable machine values
+    assert job.as_status()["steps"] == [
+        {
+            "tool": "pubmed",
+            "action": "query",
+            "status": "failed",
+            "detail": "fetch_failed",
+        },
+    ]

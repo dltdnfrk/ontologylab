@@ -25,7 +25,7 @@ from ontologylab.file_lifecycle import (
     read_ready_text,
     store_root_from_conn,
 )
-from ontologylab.ingestion import finalize_shadow_writes
+from ontologylab.ingestion import finalize_ingest_writes
 from ontologylab.ingestion_service import IngestItem, RepresentationInput, ingest_item
 from ontologylab.kgstore import KGStore
 from ontologylab.provenance import Provenance
@@ -127,7 +127,7 @@ def attach_explicit_completeness_variants(
             created.append(receipt.representation_id)
             known.add(doc.content_hash)
     if created:
-        finalize_shadow_writes(store, created)
+        finalize_ingest_writes(store, created)
 
 
 async def extract_research_documents(

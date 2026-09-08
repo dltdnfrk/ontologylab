@@ -12,8 +12,11 @@ fetch goes through the same guarded helper as every other request, and a
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
+from ontologylab import research_run as research_run_module
 from ontologylab.connectors import paper_api
 from ontologylab.connectors.base import RawDocument
 from ontologylab.connectors.fulltext import (
@@ -62,7 +65,7 @@ JATS = f"""<?xml version="1.0"?>
 
 
 def _doc(**overrides) -> RawDocument:
-    base = {
+    base: dict[str, Any] = {
         "source_kind": "paper_api",
         "source_uri": "https://doi.org/10.1/a",
         "title": "A paper",
@@ -229,6 +232,7 @@ def test_an_open_access_document_gains_its_body(monkeypatch) -> None:
     assert stats == {"eligible": 1, "fetched": 1, "too_short": 0, "failed": 0}
     assert len(enriched.raw_text) > len(document.raw_text)
     assert "RecA protein" in enriched.raw_text
+    assert enriched.content_kind == "fulltext"
 
 
 def test_identity_survives_enrichment(monkeypatch) -> None:
@@ -385,14 +389,10 @@ def test_a_hostile_pmcid_in_the_response_builds_no_url() -> None:
 
 def _research(tmp_path, monkeypatch, *, fulltext: bool):
     """Drive the real research worker; return the document it stored."""
-    import time
-
     from fastapi.testclient import TestClient
 
     from ontologylab import paths
     from ontologylab.kgstore import KGStore
-    from ontologylab.server import jobs as jobs_module
-    from ontologylab.server import routes
     from ontologylab.server.app import create_app
     from ontologylab.server.jobs import TERMINAL_STATUSES
 
@@ -403,23 +403,35 @@ def _research(tmp_path, monkeypatch, *, fulltext: bool):
         fulltext_url=europepmc_fulltext_url("PMC999"),
     )
 
-    async def _fetch(sources, query, limit=None, data_dir=None, on_event=None):
+    async def _fetch(
+        sources,
+        query,
+        limit=None,
+        data_dir=None,
+        on_event=None,
+        source_queries=None,
+        search_axis="",
+        query_terms=(),
+    ):
+        del source_queries, search_axis, query_terms
         return [("europepmc", [document])], []
 
-    monkeypatch.setattr(jobs_module, "fetch_sources", _fetch)
+    monkeypatch.setattr(research_run_module, "fetch_sources", _fetch)
     monkeypatch.setattr(paper_api, "_http_get_text", lambda *a, **k: JATS)
 
     data_dir = tmp_path / "data"
-    client = TestClient(create_app(data_dir=data_dir))
+    app = create_app(data_dir=data_dir)
+    client = TestClient(app)
     started = client.post(
         "/api/research",
         json={"topic": "dna repair", "engine": "mock", "fulltext": fulltext},
     ).json()
     assert started["ok"] is True, started
-    job = client.app.state.jobs.get(started["job_id"])
-    deadline = time.monotonic() + 30
-    while time.monotonic() < deadline and job.status not in TERMINAL_STATUSES:
-        time.sleep(0.02)
+    job = app.state.jobs.get(started["job_id"])
+    assert job is not None and job._thread is not None
+    job._thread.join(timeout=30)
+    assert not job._thread.is_alive()
+    assert job.status in TERMINAL_STATUSES
 
     store = KGStore.open(paths.kg_db_path(data_dir))
     try:
