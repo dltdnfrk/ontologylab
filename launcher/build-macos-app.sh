@@ -1,77 +1,76 @@
 #!/bin/bash
-# Build a double-clickable macOS .app that starts the ontologylab local
-# dashboard and opens it in the browser — "click app -> local page".
-#
-#   ./launcher/build-macos-app.sh [--out DIR] [--port N] [--repo PATH]
-#
-# Defaults: installs to ~/Applications, port 8765, repo = this checkout.
-# The built .app is machine-specific (absolute paths baked in) and is NOT
-# committed — this script is the reproducible source. Re-run it after moving
-# the repo or changing the port.
+# Assemble the Task-3 macOS bundle around the bundle-relative Swift supervisor.
 set -euo pipefail
 
-# --- resolve this repo (the launcher lives in <repo>/launcher/) ------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUT="$HOME/Applications"
-PORT="8765"
+BACKEND="${ONTOLOGYLAB_DESKTOP_BACKEND-}"
 APP_NAME="ontologylab"
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --out)  OUT="$2"; shift 2;;
-    --port) PORT="$2"; shift 2;;
-    --repo) REPO="$2"; shift 2;;
+    --out) OUT="$2"; shift 2;;
+    --backend) BACKEND="$2"; shift 2;;
     *) echo "unknown arg: $1" >&2; exit 2;;
   esac
 done
 
-# PORT is interpolated into the generated launcher and later evaluated
-# with $((PREF_PORT+1)) — anything non-numeric becomes arithmetic
-# evaluation. Refuse it here.
-case "$PORT" in
-  ''|*[!0-9]*) echo "--port must be a number, got: $PORT" >&2; exit 2;;
-esac
-if [ "$PORT" -lt 1024 ] || [ "$PORT" -gt 65535 ]; then
-  echo "--port out of range (1024-65535): $PORT" >&2; exit 2
+if [ -z "$BACKEND" ] || [ ! -x "$BACKEND" ]; then
+  echo "error: provide an executable desktop backend with --backend or ONTOLOGYLAB_DESKTOP_BACKEND" >&2
+  exit 1
+fi
+if ! command -v swiftc >/dev/null 2>&1; then
+  echo "error: swiftc not found; install Xcode Command Line Tools" >&2
+  exit 1
+fi
+if ! command -v codesign >/dev/null 2>&1; then
+  echo "error: codesign not found; cannot sign the Keychain helper" >&2
+  exit 1
 fi
 
-PY="$REPO/.venv/bin/python"
-if [ ! -x "$PY" ]; then
-  # No repo-local .venv (CI builds the bundle to pin its contents): fall back
-  # to a python on PATH for the icon generation step. The baked launcher only
-  # matters on a real macOS install, where .venv is the norm — the fallback
-  # never fires there.
-  PY="$(command -v python3 || true)"
-  if [ -z "$PY" ]; then
-    echo "error: venv python not found at $REPO/.venv/bin/python" >&2
-    echo "create it first:  cd $REPO && python3.11 -m venv .venv && .venv/bin/pip install -e '.[server,mcp]'" >&2
-    exit 1
-  fi
+VERSION="$(/usr/bin/awk -F'"' '/^version = "/ { print $2; exit }' "$REPO/pyproject.toml")"
+if [ -z "$VERSION" ]; then
+  echo "error: application version is unavailable from pyproject.toml" >&2
+  exit 1
 fi
 
 APP="$OUT/$APP_NAME.app"
 CONTENTS="$APP/Contents"
 rm -rf "$APP"
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources"
+SDK="$(/usr/bin/xcrun --show-sdk-path)"
 
-# --- signed Keychain helper (compile Wave 1C source into this bundle) ------
+SUPERVISOR="$CONTENTS/MacOS/ontologylab-supervisor"
+if ! swiftc -O \
+  -sdk "$SDK" \
+  -framework Foundation \
+  -framework Security \
+  -o "$SUPERVISOR" \
+  "$SCRIPT_DIR/supervisor/main.swift" \
+  "$SCRIPT_DIR/supervisor/Supervisor.swift" \
+  "$SCRIPT_DIR/supervisor/Protocol.swift" \
+  "$SCRIPT_DIR/supervisor/ProcessSupport.swift" \
+  "$SCRIPT_DIR/supervisor/StateSupport.swift" \
+  "$SCRIPT_DIR/supervisor/StorageHolders.swift" \
+  "$SCRIPT_DIR/supervisor/StorageQuiescence.swift"
+then
+  echo "error: failed to compile ontologylab supervisor" >&2
+  exit 1
+fi
+chmod 0755 "$SUPERVISOR"
+install -m 0755 "$BACKEND" "$CONTENTS/Resources/ontologylab-serve-desktop"
+install -m 0644 "$REPO/ontologylab/storage-compatibility.json" \
+  "$CONTENTS/Resources/storage-compatibility.json"
+
+# The signed helper contract remains unchanged: the backend receives both the
+# bundle-relative helper path and its designated requirement from the parent.
 HELPER_SRC="$SCRIPT_DIR/keychain-helper.swift"
 HELPER_BIN="$CONTENTS/Resources/keychain-helper"
 if [ ! -f "$HELPER_SRC" ]; then
   echo "error: missing Keychain helper source: $HELPER_SRC" >&2
   exit 1
 fi
-if ! command -v swiftc >/dev/null 2>&1; then
-  echo "error: swiftc not found; cannot compile the Keychain helper." >&2
-  exit 1
-fi
-if ! command -v codesign >/dev/null 2>&1; then
-  echo "error: codesign not found; cannot sign the Keychain helper." >&2
-  echo "macOS Keychain access requires a signed helper. Install Xcode CLT and retry." >&2
-  exit 1
-fi
-SDK="$(/usr/bin/xcrun --show-sdk-path)"
 if ! swiftc -O \
   -sdk "$SDK" \
   -framework Security \
@@ -96,16 +95,30 @@ if ! /usr/bin/codesign --force --sign "$IDENTITY" \
   --identifier "town.neobio.ontologylab.keychain-helper" \
   "$HELPER_BIN"
 then
-  echo "error: Keychain helper signing is unavailable or refused." >&2
-  echo "Set CODESIGN_IDENTITY to a codesigning identity (or '-' for ad-hoc) and retry." >&2
+  echo "error: Keychain helper signing is unavailable or refused" >&2
   exit 1
 fi
 if ! /usr/bin/codesign --verify "$HELPER_BIN"; then
-  echo "error: Keychain helper signature could not be verified." >&2
+  echo "error: Keychain helper signature could not be verified" >&2
   exit 1
 fi
+if ! HELPER_REQUIREMENT_OUTPUT="$(
+  /usr/bin/codesign -d -r- "$HELPER_BIN" 2>&1
+)"; then
+  echo "error: Keychain helper designated requirement is unavailable" >&2
+  exit 1
+fi
+if ! HELPER_REQUIREMENT="$(
+  printf '%s\n' "$HELPER_REQUIREMENT_OUTPUT" \
+    | /bin/bash "$SCRIPT_DIR/normalize-designated-requirement.sh"
+)"; then
+  echo "error: Keychain helper designated requirement is unavailable" >&2
+  exit 1
+fi
+printf '%s\n' "$HELPER_REQUIREMENT" \
+  > "$CONTENTS/Resources/keychain-helper.requirement"
+chmod 0644 "$CONTENTS/Resources/keychain-helper.requirement"
 
-# --- Info.plist ------------------------------------------------------------
 cat > "$CONTENTS/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -114,248 +127,17 @@ cat > "$CONTENTS/Info.plist" <<PLIST
   <key>CFBundleName</key><string>$APP_NAME</string>
   <key>CFBundleDisplayName</key><string>ontologylab</string>
   <key>CFBundleIdentifier</key><string>town.neobio.ontologylab.launcher</string>
-  <key>CFBundleVersion</key><string>1.0</string>
-  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundleVersion</key><string>$VERSION</string>
+  <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleExecutable</key><string>launch</string>
-  <key>CFBundleIconFile</key><string>ontologylab</string>
+  <key>CFBundleExecutable</key><string>ontologylab-supervisor</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>
 PLIST
-
-# --- launcher executable (baked with this repo + preferred port) -----------
-cat > "$CONTENTS/MacOS/launch" <<LAUNCH
-#!/bin/bash
-# Auto-generated by launcher/build-macos-app.sh — do not edit; re-run the builder.
-REPO="$REPO"
-PY="$PY"
-PREF_PORT="$PORT"
-export PATH="\$HOME/.npm-global/bin:\$HOME/.local/bin:\$HOME/.bun/bin:\$HOME/.volta/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-export ONTOLOGYLAB_KEYCHAIN_HELPER="$APP/Contents/Resources/keychain-helper"
-ASIDE_BUNDLE_ID="at.studio.AsideBrowser"
-PORTFILE="\$REPO/.launcher.port"
-LOG="\$REPO/.launcher.log"
-AGENT_PLIST_EARLY="\$HOME/Library/LaunchAgents/at.ontologylab.server.plist"
-# Data lives outside ~/Documents: the server refuses to run against an
-# iCloud-synced directory, and this is the path move-data-out-of-icloud.sh
-# creates. Passing it explicitly is what makes the launcher work on a machine
-# where that sync is on — without it the server exits before writing a log.
-DATA_DIR="\$HOME/Library/Application Support/ontologylab/data"
-PACKS_DIR="\$HOME/Library/Application Support/ontologylab/packs"
-
-# Is OUR dashboard already up on a given port? Distinguish from any other
-# service on that port by hitting an ontologylab-specific JSON endpoint.
-is_ours() {
-  /usr/bin/curl -sf "http://127.0.0.1:\$1/healthz" 2>/dev/null | /usr/bin/grep -q '"ok":true'
-}
-port_free() {
-  ! /usr/sbin/lsof -iTCP:"\$1" -sTCP:LISTEN -n >/dev/null 2>&1
-}
-
-# 1) If a previous launch recorded a port and our server is still there, reuse.
-if [ -f "\$PORTFILE" ]; then
-  P="\$(cat "\$PORTFILE" 2>/dev/null)"
-  if [ -n "\$P" ] && is_ours "\$P"; then
-    /usr/bin/open -b "\$ASIDE_BUNDLE_ID" "http://127.0.0.1:\$P/"; exit 0
-  fi
-fi
-
-# 1b) An installed launchd agent owns a port of its own. Scanning for a free
-#     one and then handing startup to launchd meant the app opened the port it
-#     picked (8767) while the agent listened on the port baked into its plist
-#     (8799) — a blank browser tab and a healthy server nobody was pointed at.
-if [ -f "\$AGENT_PLIST_EARLY" ]; then
-  AGENT_PORT="\$(/usr/bin/plutil -extract ProgramArguments json -o - "\$AGENT_PLIST_EARLY" 2>/dev/null \
-    | /usr/bin/sed -n 's/.*"--port"[^"]*"\\([0-9][0-9]*\\)".*/\\1/p')"
-  if [ -n "\$AGENT_PORT" ]; then
-    # Take the agent's port unconditionally — do NOT gate on a health check.
-    # The first version did, and on a cold click the agent had not finished
-    # binding yet: the check failed, the app scanned to a free port, handed
-    # startup to launchd anyway, and then opened the port it had picked while
-    # the server came up on the one in the plist.
-    PORT="\$AGENT_PORT"
-    URL="http://127.0.0.1:\$PORT/"
-    echo "\$PORT" > "\$PORTFILE"
-    if ! is_ours "\$PORT"; then
-      if /bin/launchctl print "gui/\$(id -u)/at.ontologylab.server" >/dev/null 2>&1; then
-        /bin/launchctl kickstart -k "gui/\$(id -u)/at.ontologylab.server" >/dev/null 2>&1
-      else
-        /bin/launchctl bootstrap "gui/\$(id -u)" "\$AGENT_PLIST_EARLY" >/dev/null 2>&1
-      fi
-      for _ in \$(seq 1 60); do is_ours "\$PORT" && break; sleep 0.25; done
-    fi
-    /usr/bin/open -b "\$ASIDE_BUNDLE_ID" "\$URL"
-    exit 0
-  fi
-fi
-
-# 2) Pick a port: prefer the configured one, else scan upward for a free one
-#    that no other service holds (Claude science, etc. often sit on 8765).
-PORT=""
-for CAND in \$PREF_PORT \$(seq \$((PREF_PORT+1)) \$((PREF_PORT+30))); do
-  if is_ours "\$CAND"; then PORT="\$CAND"; break; fi   # already ours -> reuse
-  if port_free "\$CAND"; then PORT="\$CAND"; break; fi
-done
-if [ -z "\$PORT" ]; then
-  /usr/bin/osascript -e 'display alert "ontologylab" message "No free port near '"\$PREF_PORT"' — is something using them all?"' >/dev/null 2>&1
-  exit 1
-fi
-URL="http://127.0.0.1:\$PORT/"
-
-# 3) Already ours on the chosen port? just open it.
-if is_ours "\$PORT"; then
-  echo "\$PORT" > "\$PORTFILE"
-  /usr/bin/open -b "\$ASIDE_BUNDLE_ID" "\$URL"; exit 0
-fi
-
-# 4) Start it. If the autostart agent is installed, go through launchd rather
-#    than spawning our own copy — otherwise the two managers fight over the
-#    port: this process holds it, launchd's KeepAlive retries forever, and the
-#    user ends up with an orphan server nothing is supervising.
-cd "\$REPO"
-AGENT="at.ontologylab.server"
-AGENT_PLIST="\$HOME/Library/LaunchAgents/\$AGENT.plist"
-STARTED_VIA_LAUNCHD=0
-if [ -f "\$AGENT_PLIST" ]; then
-  if /bin/launchctl print "gui/\$(id -u)/\$AGENT" >/dev/null 2>&1; then
-    /bin/launchctl kickstart -k "gui/\$(id -u)/\$AGENT" >/dev/null 2>&1 && STARTED_VIA_LAUNCHD=1
-  else
-    /bin/launchctl bootstrap "gui/\$(id -u)" "\$AGENT_PLIST" >/dev/null 2>&1 && STARTED_VIA_LAUNCHD=1
-  fi
-fi
-if [ "\$STARTED_VIA_LAUNCHD" = "0" ]; then
-  /bin/mkdir -p "\$DATA_DIR" "\$PACKS_DIR"
-  /usr/bin/nohup "\$PY" -m ontologylab.serve --port "\$PORT" \
-    --data-dir "\$DATA_DIR" --packs-dir "\$PACKS_DIR" > "\$LOG" 2>&1 &
-  disown 2>/dev/null || true
-fi
-echo "\$PORT" > "\$PORTFILE"
-for _ in \$(seq 1 60); do
-  is_ours "\$PORT" && { /usr/bin/open -b "\$ASIDE_BUNDLE_ID" "\$URL"; exit 0; }
-  sleep 0.25
-done
-# startup slow/failed — open anyway so the user sees the state, and surface log
-/usr/bin/open -b "\$ASIDE_BUNDLE_ID" "\$URL"
-exit 0
-LAUNCH
-chmod +x "$CONTENTS/MacOS/launch"
-
-# --- companion "Stop" (Terminal) -------------------------------------------
-# Stopping must unload the launchd autostart agent first when one is
-# installed. Killing only the process lets KeepAlive restart it within
-# seconds, so the stop button appears to do nothing.
-STOP="$OUT/Stop ontologylab.command"
-cat > "$STOP" <<STOPSH
-#!/bin/bash
-AGENT="at.ontologylab.server"
-if /bin/launchctl print "gui/\$(id -u)/\$AGENT" >/dev/null 2>&1; then
-  /bin/launchctl bootout "gui/\$(id -u)/\$AGENT" 2>/dev/null
-  echo "Autostart agent unloaded — it loads again at your next login."
-fi
-
-# Then whatever the app icon started directly (a plain background process).
-if pkill -f "ontologylab.serve" 2>/dev/null; then
-  echo "ontologylab stopped."
-else
-  echo "ontologylab was not running."
-fi
-rm -f "$REPO/.launcher.port"
-
-echo
-echo "Start again:      click the ontologylab app"
-echo "Re-enable autostart without waiting for a login:"
-echo "  launchctl bootstrap gui/\$(id -u) ~/Library/LaunchAgents/\$AGENT.plist"
-sleep 3
-STOPSH
-chmod +x "$STOP"
-
-# --- icon (generated; falls back silently if tools are unavailable) --------
-if command -v sips >/dev/null && command -v iconutil >/dev/null; then
-  TMP="$(mktemp -d)"
-  ICONSET="$TMP/ontologylab.iconset"; mkdir -p "$ICONSET"
-  # 1024px base PNG: dark ground + a green "verified node" glyph, drawn as a
-  # tiny SVG rasterized by... we have no rasterizer, so build from a PPM.
-  "$PY" - "$TMP/base.png" <<'PYICON' || true
-import sys, struct, zlib, math
-W = 1024
-cx = cy = W/2
-# palette: deep charcoal ground, fluorescein-green node, faint cyan ring
-bg = (10, 16, 20)
-green = (53, 230, 160)
-cyan = (55, 210, 255)
-def px(x, y):
-    dx, dy = x-cx, y-cy
-    d = math.hypot(dx, dy)
-    # rounded-rect-ish vignette ground
-    r = 150.0
-    edge = max(abs(dx), abs(dy))
-    if edge > W/2 - 40:
-        return (0,0,0,0)  # transparent margin -> rounded by mask below
-    # central node
-    if d < 120:
-        t = max(0.0, 1 - d/120)
-        return (int(bg[0]+(green[0]-bg[0])*t),
-                int(bg[1]+(green[1]-bg[1])*t),
-                int(bg[2]+(green[2]-bg[2])*t), 255)
-    # two orbit nodes (edges of a KG)
-    for ox, oy, col in ((cx+260, cy-200, cyan), (cx-240, cy+230, green)):
-        od = math.hypot(x-ox, y-oy)
-        if od < 60:
-            t = max(0.0, 1-od/60)
-            return (int(bg[0]+(col[0]-bg[0])*t),
-                    int(bg[1]+(col[1]-bg[1])*t),
-                    int(bg[2]+(col[2]-bg[2])*t), 255)
-    # faint green ring (fluorescence halo)
-    if 150 < d < 158:
-        return (green[0], green[1], green[2], 90)
-    return (bg[0], bg[1], bg[2], 255)
-# rounded corners mask
-rad = 180
-def rounded(x, y):
-    for (qx, qy) in ((rad,rad),(W-rad,rad),(rad,W-rad),(W-rad,W-rad)):
-        if (x<rad or x>W-rad) and (y<rad or y>W-rad):
-            if math.hypot(x-qx, y-qy) > rad:
-                return False
-    return True
-raw = bytearray()
-for y in range(W):
-    raw.append(0)
-    for x in range(W):
-        r,g,b,a = px(x,y)
-        if not rounded(x,y):
-            a = 0
-        raw += bytes((r,g,b,a))
-def chunk(tag, data):
-    c = tag + data
-    return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c) & 0xffffffff)
-png = b"\x89PNG\r\n\x1a\n"
-png += chunk(b"IHDR", struct.pack(">IIBBBBB", W, W, 8, 6, 0, 0, 0))
-png += chunk(b"IDAT", zlib.compress(bytes(raw), 9))
-png += chunk(b"IEND", b"")
-open(sys.argv[1], "wb").write(png)
-PYICON
-  if [ -f "$TMP/base.png" ]; then
-    for s in 16 32 64 128 256 512 1024; do
-      sips -z $s $s "$TMP/base.png" --out "$ICONSET/icon_${s}x${s}.png" >/dev/null 2>&1 || true
-    done
-    # retina names
-    cp "$ICONSET/icon_32x32.png"   "$ICONSET/icon_16x16@2x.png"   2>/dev/null || true
-    cp "$ICONSET/icon_64x64.png"   "$ICONSET/icon_32x32@2x.png"   2>/dev/null || true
-    cp "$ICONSET/icon_256x256.png" "$ICONSET/icon_128x128@2x.png" 2>/dev/null || true
-    cp "$ICONSET/icon_512x512.png" "$ICONSET/icon_256x256@2x.png" 2>/dev/null || true
-    cp "$ICONSET/icon_1024x1024.png" "$ICONSET/icon_512x512@2x.png" 2>/dev/null || true
-    iconutil -c icns "$ICONSET" -o "$CONTENTS/Resources/ontologylab.icns" 2>/dev/null || true
-  fi
-  rm -rf "$TMP"
-fi
-
-# refresh Finder/Launchpad icon cache for this bundle
+chmod 0644 "$CONTENTS/Info.plist"
 touch "$APP"
 
 echo "Built: $APP"
-echo "Stop helper: $STOP"
-echo "Port: $PORT   Repo: $REPO"
-echo
-echo "Click '$APP_NAME' in ~/Applications (or Launchpad/Spotlight) to open the dashboard."
+echo "Version: $VERSION"

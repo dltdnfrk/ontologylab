@@ -76,7 +76,36 @@ bash launcher/build-macos-app.sh \
 
 `build-macos-app.sh`는 `launcher/keychain-helper.swift`를 앱 번들 `Contents/Resources/keychain-helper`로 컴파일하고, 사용 가능한 코드사인 신원으로 서명합니다. 서명이 불가능하면 빌드가 실패합니다. 생성된 런처는 서버 프로세스에 `ONTOLOGYLAB_KEYCHAIN_HELPER`를 헬퍼의 절대경로로만 넘기며, 비밀값은 환경변수에 넣지 않습니다. 헬퍼 바이너리는 이 컴퓨터 전용이라 저장소에 커밋하지 않습니다. 서명 신원을 고정하려면 `CODESIGN_IDENTITY`를 설정하세요.
 
+빌드는 서명된 헬퍼의 designated requirement를
+`Contents/Resources/keychain-helper.requirement`에 저장하고 앱 런처의
+`ONTOLOGYLAB_KEYCHAIN_HELPER_REQUIREMENT`에 고정합니다. 별도 launchd agent로
+서버를 실행한다면 같은 값을 agent의 `EnvironmentVariables`에도 넣어야 합니다.
+이 requirement는 현재 번들의 헬퍼만 검증합니다. 독립적으로 빌드하고 ad-hoc
+서명한 다음 버전 헬퍼는 다른 requirement를 가질 수 있으며, 이전 requirement로
+인증되지 않습니다. 앱 교체 후 시작 과정은 Keychain을 조회하지 않습니다. 첫 번째
+명시적 자격증명 동작에서만 `reauthorization_required`가 반환될 수 있고, 사용자가
+현재 헬퍼를 승인하거나 자격증명을 다시 저장한 뒤에는 현재 헬퍼가 읽기, 회전,
+삭제를 담당합니다.
+
+현재 설치된 agent에 동기화할 때는 다음처럼 처리합니다.
+
+```bash
+REQ="$(cat ~/Applications/ontologylab.app/Contents/Resources/keychain-helper.requirement)"
+PLIST=~/Library/LaunchAgents/at.ontologylab.server.plist
+plutil -replace EnvironmentVariables.ONTOLOGYLAB_KEYCHAIN_HELPER_REQUIREMENT \
+  -string "$REQ" "$PLIST"
+```
+
 런처의 서버 생존 확인은 인증이 필요 없는 `/healthz`를 사용합니다.
+
+## 레거시 런처 소유권 해제
+
+새 앱으로 전환한 뒤에만 `python -m ontologylab.legacy_retirement --repo "$PWD"`
+를 명시적으로 실행합니다. 이전 소스 런처 PID를 알고 있으면
+`--source-pid PID`를 함께 지정합니다. 이 명령은 정확한
+`at.ontologylab.server` 서비스와 지정된 PID, `.launcher.*` 런타임 파일만
+정리하며 데이터, 팩, 백업, Keychain 자격증명은 기본적으로 삭제하지 않습니다.
+같은 명령을 반복 실행해도 안전합니다.
 
 ## 참고
 

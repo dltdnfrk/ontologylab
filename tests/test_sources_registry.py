@@ -30,7 +30,7 @@ from pathlib import Path
 
 import pytest
 
-from ontologylab import keychain
+from ontologylab import keychain, sources as sources_module
 from ontologylab.keychain import (
     KeychainError,
     delete_key,
@@ -87,6 +87,47 @@ def _cleanup_module_helper() -> None:
     _MODULE_HELPER_DIR = None
     if path and os.path.isdir(path):
         shutil.rmtree(path, ignore_errors=True)
+
+
+def test_migrate_legacy_source_account_to_canonical_keychain_name(
+    monkeypatch, tmp_path
+) -> None:
+    data_dir = tmp_path / "data"
+    add_source(
+        data_dir,
+        Source(
+            id="elsevier",
+            role="literature",
+            keychain_account="elsevier",
+            label="Elsevier",
+        ),
+    )
+    stored = {"elsevier": SECRET}
+
+    monkeypatch.setattr(
+        sources_module,
+        "read_key",
+        lambda account: stored.get(account),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        sources_module,
+        "write_key",
+        lambda account, value: stored.__setitem__(account, value),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        sources_module,
+        "delete_key",
+        lambda account: stored.pop(account, None) is not None,
+        raising=False,
+    )
+
+    migrated = sources_module.migrate_source_keychain_accounts(data_dir)
+
+    assert migrated == ("elsevier",)
+    assert stored == {"ontologylab.elsevier": SECRET}
+    assert load_sources(data_dir)[0].keychain_account == "ontologylab.elsevier"
 
 
 def _ensure_module_helper() -> str | None:
@@ -734,6 +775,7 @@ def test_a_write_that_timed_out_but_landed_is_reported_as_success(
     monkeypatch.setattr(keychain.subprocess, "run", _slow_but_effective)
     monkeypatch.setattr(keychain, "read_key", lambda _acct: SECRET)
     monkeypatch.setattr(keychain, "_read_native", lambda _acct: SECRET)
+    monkeypatch.setattr(keychain, "_delete_legacy", lambda _acct: True)
 
     write_key("ontologylab.test.slow", SECRET)  # must not raise
 

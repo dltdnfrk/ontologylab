@@ -13,10 +13,11 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from ontologylab.connectors import paper_api
+from ontologylab.connectors import allowlist, paper_api
 from ontologylab.connectors.allowlist import NotAllowlisted
 from ontologylab.connectors.paper_api import (
     SOURCE_ORDER,
@@ -315,3 +316,84 @@ def test_the_connector_still_raises_for_a_single_source_caller() -> None:
     """`fetch` keeps its all-or-nothing contract; only the fan-out softens it."""
     with pytest.raises(NotAllowlisted):
         asyncio.run(PaperApiConnector().fetch({"source": "crossref", "query": ""}))
+
+
+@pytest.mark.parametrize("source", ["europepmc", "biorxiv", "clinicaltrials"])
+@pytest.mark.parametrize("query", ["", " \t ", "bad\nquery", "https://bad.invalid"])
+def test_harvest_rejects_invalid_query_before_transport(
+    monkeypatch, source, query,
+) -> None:
+    calls: list[str] = []
+    _serve(monkeypatch, lambda url: calls.append(url) or _body_for(url))
+    refusal = None
+
+    try:
+        asyncio.run(PaperApiConnector().harvest({
+            "source": source, "query": query, "max_records": 1, "page_size": 1,
+        }))
+    except NotAllowlisted as exc:
+        refusal = exc
+
+    assert calls == [], "invalid harvest query reached the guarded transport"
+    assert refusal is not None, "invalid harvest query was not refused"
+
+
+@pytest.mark.parametrize("source", ["europepmc", "biorxiv", "clinicaltrials"])
+@pytest.mark.parametrize(("cap", "page_size"), [(0, 0), (1, 100000)])
+def test_harvest_valid_query_keeps_clamped_limits_and_provenance(
+    monkeypatch, source, cap, page_size,
+) -> None:
+    calls: list[str] = []
+    _serve(monkeypatch, lambda url: calls.append(url) or _body_for(url))
+
+    documents = asyncio.run(PaperApiConnector().harvest({
+        "source": source, "query": "body", "max_records": cap,
+        "page_size": page_size, "search_axis": "guard-control",
+    }))
+
+    [document] = documents
+    [url] = calls
+    assert document.source == source
+    assert document.search_query == "body"
+    assert document.search_axis == "guard-control"
+    if source == "biorxiv":
+        assert urlparse(url).path.endswith("/0")
+    else:
+        assert parse_qs(urlparse(url).query)["pageSize"] == ["1"]
+
+
+@pytest.mark.parametrize("source", ["europepmc", "biorxiv", "clinicaltrials"])
+@pytest.mark.parametrize("field", ["max_records", "page_size"])
+def test_harvest_invalid_limit_keeps_precedence_over_query_refusal(
+    monkeypatch, source, field,
+) -> None:
+    calls: list[str] = []
+    _serve(monkeypatch, lambda url: calls.append(url) or _body_for(url))
+    spec = {"source": source, "query": "", "max_records": 1, "page_size": 1}
+    spec[field] = "not-an-integer"
+
+    with pytest.raises(ValueError):
+        asyncio.run(PaperApiConnector().harvest(spec))
+
+    assert calls == []
+
+
+@pytest.mark.parametrize("allowlisted", [False, True])
+def test_harvest_preserves_unknown_and_unimplemented_source_refusals(
+    monkeypatch, allowlisted,
+) -> None:
+    source = "future-source"
+    if allowlisted:
+        monkeypatch.setattr(
+            allowlist, "PAPER_API_SOURCES", allowlist.PAPER_API_SOURCES | {source},
+        )
+    calls: list[str] = []
+    _serve(monkeypatch, lambda url: calls.append(url) or _body_for(url))
+    expected = paper_api.UnsupportedPaperSource if allowlisted else NotAllowlisted
+
+    with pytest.raises(expected):
+        asyncio.run(PaperApiConnector().harvest({
+            "source": source, "query": "body", "max_records": 1, "page_size": 1,
+        }))
+
+    assert calls == []

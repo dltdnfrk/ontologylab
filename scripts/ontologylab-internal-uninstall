@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$ROOT"
+exec uv run --frozen --offline python -m scripts.internal_deployment_cli uninstall "$@"

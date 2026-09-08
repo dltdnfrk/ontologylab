@@ -101,12 +101,13 @@ def icloud_sync_reason(path: Path | str, home: Path | None = None) -> str | None
     except OSError:  # pragma: no cover — unreadable mount
         candidate = candidate.absolute()
 
-    cloud_root = home.joinpath(*_CLOUD_ROOT_PARTS)
+    cloud_root_name = home.joinpath(*_CLOUD_ROOT_PARTS)
+    cloud_root = cloud_root_name.resolve(strict=False)
     if _within(candidate, cloud_root):
-        return f"{candidate} is inside iCloud Drive ({cloud_root})"
+        return f"{candidate} is inside iCloud Drive ({cloud_root_name})"
 
     for folder in _SYNCED_HOME_FOLDERS:
-        local = home / folder
+        local = (home / folder).resolve(strict=False)
         twin = cloud_root / _CLOUD_DOCS / folder
         if _within(candidate, local) and _is_same_dir(local, twin):
             return (

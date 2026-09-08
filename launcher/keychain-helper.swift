@@ -7,16 +7,20 @@ import Security
 // Isolation is whatever the signed binary + Keychain ACL provide; this
 // helper does not claim stronger same-user isolation than code signing.
 
-private let maxRequestBytes = 1_048_576
+private let maxRequestBytes = 1_048_576, credentialActionTimeout: DispatchTimeInterval = .seconds(10)
 private let tokenPattern = try! NSRegularExpression(
     pattern: "^[a-z0-9][a-z0-9._-]{0,63}$"
 )
 
-private struct Request: Decodable {
-    let operation: String
-    let service: String
-    let account: String
+private struct Request: Decodable, Sendable {
+    let operation, service, account: String
     let secret: String?
+    let keychain: String?
+}
+
+private struct Target {
+    let service, account: String
+    let keychain: String?
 }
 
 private func emit(ok: Bool, error: String? = nil, secret: String? = nil, status: Int32) -> Never {
@@ -53,21 +57,36 @@ private func isToken(_ value: String) -> Bool {
 // ad-hoc-signed CLI gets errSecMissingEntitlement (-34018). A Developer ID
 // / app-signed helper can use that store. We try it first, then the file
 // keychain with kSecAttrSynchronizable=false.
-private func identityQuery(service: String, account: String, dataProtection: Bool) -> [String: Any] {
+private func openKeychain(_ path: String) -> SecKeychain {
+    var keychain: SecKeychain?
+    let status = SecKeychainOpen(path, &keychain)
+    guard status == errSecSuccess, let keychain else {
+        fail("locked", status: 3)
+    }
+    return keychain
+}
+
+private func identityQuery(_ target: Target, dataProtection: Bool) -> [String: Any] {
     var query: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: service,
-        kSecAttrAccount as String: account,
+        kSecAttrService as String: target.service,
+        kSecAttrAccount as String: target.account,
         kSecAttrSynchronizable as String: false,
     ]
-    if dataProtection {
+    if let path = target.keychain {
+        query[kSecMatchSearchList as String] = [openKeychain(path)]
+    } else if dataProtection {
         query[kSecUseDataProtectionKeychain as String] = true
     }
     return query
 }
 
-private func addAttributes(service: String, account: String, secret: Data, dataProtection: Bool) -> [String: Any] {
-    var attributes = identityQuery(service: service, account: account, dataProtection: dataProtection)
+private func addAttributes(_ target: Target, secret: Data, dataProtection: Bool) -> [String: Any] {
+    var attributes = identityQuery(target, dataProtection: dataProtection)
+    attributes.removeValue(forKey: kSecMatchSearchList as String)
+    if let path = target.keychain {
+        attributes[kSecUseKeychain as String] = openKeychain(path)
+    }
     attributes[kSecValueData as String] = secret
     if dataProtection {
         attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
@@ -83,16 +102,20 @@ private func mappedFailure(_ status: OSStatus) -> (String, Int32) {
     switch status {
     case errSecItemNotFound:
         return ("not_found", 0)
-    case errSecAuthFailed, errSecInteractionNotAllowed, errSecUserCanceled,
-         errSecWrPerm, errSecReadOnly:
-        return ("unauthorized", 3)
+    case errSecNotAvailable, errSecNoDefaultKeychain:
+        return ("locked", 3)
+    case errSecInteractionNotAllowed, errSecInteractionRequired,
+         errSecInvalidOwnerEdit:
+        return ("reauthorization_required", 3)
+    case errSecAuthFailed, errSecUserCanceled, errSecWrPerm, errSecReadOnly:
+        return ("denied", 3)
     default:
         return ("refused", 1)
     }
 }
 
-private func copySecret(service: String, account: String, dataProtection: Bool) -> (OSStatus, String?) {
-    var query = identityQuery(service: service, account: account, dataProtection: dataProtection)
+private func copySecret(_ target: Target, dataProtection: Bool) -> (OSStatus, String?) {
+    var query = identityQuery(target, dataProtection: dataProtection)
     query[kSecReturnData as String] = true
     query[kSecMatchLimit as String] = kSecMatchLimitOne
     var result: CFTypeRef?
@@ -106,8 +129,8 @@ private func copySecret(service: String, account: String, dataProtection: Bool) 
     return (status, nil)
 }
 
-private func writeStore(service: String, account: String, payload: Data, dataProtection: Bool) -> OSStatus {
-    let query = identityQuery(service: service, account: account, dataProtection: dataProtection)
+private func writeStore(_ target: Target, payload: Data, dataProtection: Bool) -> OSStatus {
+    let query = identityQuery(target, dataProtection: dataProtection)
     let updateStatus = SecItemUpdate(
         query as CFDictionary,
         [kSecValueData as String: payload] as CFDictionary
@@ -120,7 +143,7 @@ private func writeStore(service: String, account: String, payload: Data, dataPro
     }
     var ignored: CFTypeRef?
     let addStatus = SecItemAdd(
-        addAttributes(service: service, account: account, secret: payload, dataProtection: dataProtection) as CFDictionary,
+        addAttributes(target, secret: payload, dataProtection: dataProtection) as CFDictionary,
         &ignored
     )
     if addStatus == errSecDuplicateItem {
@@ -132,10 +155,10 @@ private func writeStore(service: String, account: String, payload: Data, dataPro
     return addStatus
 }
 
-private func doRead(service: String, account: String) {
+private func doRead(_ target: Target) -> Never {
     var last: OSStatus = errSecItemNotFound
-    for dataProtection in [true, false] {
-        let (status, secret) = copySecret(service: service, account: account, dataProtection: dataProtection)
+    for dataProtection in target.keychain == nil ? [true, false] : [false] {
+        let (status, secret) = copySecret(target, dataProtection: dataProtection)
         if status == errSecSuccess, let secret {
             emit(ok: true, secret: secret, status: 0)
         }
@@ -152,15 +175,15 @@ private func doRead(service: String, account: String) {
     fail(error, status: code == 0 ? 1 : code)
 }
 
-private func doWrite(service: String, account: String, secret: String) {
+private func doWrite(_ target: Target, secret: String) -> Never {
     guard !secret.isEmpty else {
         fail("malformed", status: 2)
     }
     let payload = Data(secret.utf8)
     var last: OSStatus = errSecParam
-    for dataProtection in [true, false] {
+    for dataProtection in target.keychain == nil ? [true, false] : [false] {
         let status = writeStore(
-            service: service, account: account, payload: payload, dataProtection: dataProtection
+            target, payload: payload, dataProtection: dataProtection
         )
         if status == errSecSuccess {
             emit(ok: true, status: 0)
@@ -175,12 +198,12 @@ private func doWrite(service: String, account: String, secret: String) {
     fail(error, status: code == 0 ? 1 : code)
 }
 
-private func doDelete(service: String, account: String) {
+private func doDelete(_ target: Target) -> Never {
     var sawSuccess = false
     var last: OSStatus = errSecItemNotFound
-    for dataProtection in [true, false] {
+    for dataProtection in target.keychain == nil ? [true, false] : [false] {
         let status = SecItemDelete(
-            identityQuery(service: service, account: account, dataProtection: dataProtection) as CFDictionary
+            identityQuery(target, dataProtection: dataProtection) as CFDictionary
         )
         if status == errSecSuccess {
             sawSuccess = true
@@ -215,24 +238,43 @@ private func readRequest() -> Request {
     return request
 }
 
-private func main() {
-    let request = readRequest()
+private func handle(_ request: Request) -> Never {
     guard isToken(request.service), isToken(request.account) else {
         fail("malformed", status: 2)
     }
+    if let keychain = request.keychain,
+       (!keychain.hasPrefix("/") || !FileManager.default.fileExists(atPath: keychain)) {
+        fail("malformed", status: 2)
+    }
+    let target = Target(
+        service: request.service,
+        account: request.account,
+        keychain: request.keychain
+    )
     switch request.operation {
     case "read":
-        doRead(service: request.service, account: request.account)
+        doRead(target)
     case "write", "update":
         guard let secret = request.secret else {
             fail("malformed", status: 2)
         }
-        doWrite(service: request.service, account: request.account, secret: secret)
+        doWrite(target, secret: secret)
     case "delete":
-        doDelete(service: request.service, account: request.account)
+        doDelete(target)
     default:
         fail("malformed", status: 2)
     }
+}
+
+private func main() {
+    let request = readRequest()
+    DispatchQueue.global(qos: .userInitiated).async {
+        handle(request)
+    }
+    _ = DispatchSemaphore(value: 0).wait(
+        timeout: .now() + credentialActionTimeout
+    )
+    fail("reauthorization_required", status: 3)
 }
 
 main()

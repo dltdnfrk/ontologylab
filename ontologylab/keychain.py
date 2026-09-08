@@ -43,7 +43,6 @@ import shutil
 import stat
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 # New items live here. The account still distinguishes roles.
 KEYCHAIN_SERVICE = "ontologylab.v2"
@@ -51,7 +50,10 @@ KEYCHAIN_SERVICE = "ontologylab.v2"
 KEYCHAIN_SERVICE_LEGACY = "ontologylab"
 
 HELPER_ENV = "ONTOLOGYLAB_KEYCHAIN_HELPER"
+HELPER_REQUIREMENT_ENV = "ONTOLOGYLAB_KEYCHAIN_HELPER_REQUIREMENT"
 _DEFAULT_HELPER_NAME = "keychain-helper"
+_SECURITY_BIN = "/usr/bin/security"
+_CODESIGN_BIN = "/usr/bin/codesign"
 
 # Keychain account: a short slug, because it is passed to the helper and
 # lands in `sources.json`. Deliberately narrower than it needs to be.
@@ -61,7 +63,17 @@ ACCOUNT_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 # for a click nobody will give it.
 _TIMEOUT_S = 15.0
 
-_TYPED_KINDS = frozenset({"malformed", "unauthorized", "not_found", "refused"})
+_TYPED_KINDS = frozenset(
+    {
+        "malformed",
+        "unauthorized",
+        "locked",
+        "denied",
+        "reauthorization_required",
+        "not_found",
+        "refused",
+    }
+)
 
 
 class KeychainError(Exception):
@@ -71,8 +83,9 @@ class KeychainError(Exception):
     false`), not a failure. Writes do, because a write that silently did
     nothing would leave the user believing a key was stored.
 
-    ``kind`` is a closed set of redacted codes: malformed, unauthorized,
-    missing_helper, timeout, refused. Messages never include the secret.
+    ``kind`` is a closed set of redacted codes, including locked, denied,
+    reauthorization_required, missing_helper, timeout, and refused. Messages
+    never include the secret.
     """
 
     def __init__(self, message: str, kind: str = "error") -> None:
@@ -91,7 +104,7 @@ def default_helper_path() -> str:
     )
 
 
-def _resolved_helper_path() -> Optional[str]:
+def _resolved_helper_path() -> str | None:
     raw = os.environ.get(HELPER_ENV, "").strip() or default_helper_path()
     if not os.path.isabs(raw):
         return None
@@ -101,11 +114,37 @@ def _resolved_helper_path() -> Optional[str]:
         return None
     if not os.path.isfile(path):
         return None
-    mode = os.stat(path).st_mode
+    metadata = os.stat(path)
+    mode = metadata.st_mode
     if not stat.S_ISREG(mode):
+        return None
+    if metadata.st_uid != os.getuid():
+        return None
+    if stat.S_IMODE(mode) & 0o022:
         return None
     if not os.access(path, os.X_OK):
         return None
+    requirement = os.environ.get(HELPER_REQUIREMENT_ENV, "").strip()
+    if requirement:
+        try:
+            verified = subprocess.run(
+                [
+                    _CODESIGN_BIN,
+                    "--verify",
+                    "--strict",
+                    "--test-requirement",
+                    f"={requirement}",
+                    path,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=_TIMEOUT_S,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if verified.returncode != 0:
+            return None
     return path
 
 
@@ -116,7 +155,9 @@ def keychain_available() -> bool:
     is enough to *read* a legacy item. Everything here degrades to the
     environment-variable path when neither is present.
     """
-    return _resolved_helper_path() is not None or shutil.which("security") is not None
+    return (
+        _resolved_helper_path() is not None or shutil.which(_SECURITY_BIN) is not None
+    )
 
 
 def _validate_account(account: str) -> str:
@@ -129,7 +170,7 @@ def _validate_account(account: str) -> str:
     return account
 
 
-def _kind_from_helper(completed: subprocess.CompletedProcess, body: Optional[dict]) -> str:
+def _kind_from_helper(completed: subprocess.CompletedProcess, body: dict | None) -> str:
     if body and body.get("error") in _TYPED_KINDS:
         return str(body["error"])
     if completed.returncode == 2:
@@ -142,8 +183,8 @@ def _kind_from_helper(completed: subprocess.CompletedProcess, body: Optional[dic
 def _invoke_helper(
     operation: str,
     account: str,
-    secret: Optional[str] = None,
-    service: Optional[str] = None,
+    secret: str | None = None,
+    service: str | None = None,
 ) -> dict:
     path = _resolved_helper_path()
     if path is None:
@@ -166,6 +207,7 @@ def _invoke_helper(
             capture_output=True,
             text=True,
             timeout=_TIMEOUT_S,
+            check=False,
         )
     except subprocess.TimeoutExpired:
         raise KeychainError(
@@ -178,7 +220,7 @@ def _invoke_helper(
             kind="missing_helper",
         ) from None
 
-    body: Optional[dict] = None
+    body: dict | None = None
     raw = completed.stdout or ""
     if raw.strip():
         try:
@@ -197,8 +239,7 @@ def _invoke_helper(
 
     if completed.returncode != 0:
         raise KeychainError(
-            f"the Keychain helper refused the request "
-            f"(exit {completed.returncode})",
+            f"the Keychain helper refused the request (exit {completed.returncode})",
             kind=_kind_from_helper(completed, body),
         ) from None
 
@@ -210,7 +251,7 @@ def _invoke_helper(
     return body
 
 
-def _read_native(account: str) -> Optional[str]:
+def _read_native(account: str) -> str | None:
     if _resolved_helper_path() is None:
         return None
     try:
@@ -223,14 +264,24 @@ def _read_native(account: str) -> Optional[str]:
     return value or None
 
 
-def _read_legacy(account: str) -> Optional[str]:
-    if shutil.which("security") is None:
+def _read_legacy(account: str) -> str | None:
+    if shutil.which(_SECURITY_BIN) is None:
         return None
     try:
         completed = subprocess.run(
-            ["security", "find-generic-password",
-             "-s", KEYCHAIN_SERVICE_LEGACY, "-a", account, "-w"],
-            capture_output=True, text=True, timeout=_TIMEOUT_S,
+            [
+                _SECURITY_BIN,
+                "find-generic-password",
+                "-s",
+                KEYCHAIN_SERVICE_LEGACY,
+                "-a",
+                account,
+                "-w",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=_TIMEOUT_S,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -241,17 +292,26 @@ def _read_legacy(account: str) -> Optional[str]:
 
 
 def _delete_legacy(account: str) -> bool:
-    if shutil.which("security") is None:
+    if shutil.which(_SECURITY_BIN) is None:
         return False
     try:
         completed = subprocess.run(
-            ["security", "delete-generic-password",
-             "-s", KEYCHAIN_SERVICE_LEGACY, "-a", account],
-            capture_output=True, text=True, timeout=_TIMEOUT_S,
+            [
+                _SECURITY_BIN,
+                "delete-generic-password",
+                "-s",
+                KEYCHAIN_SERVICE_LEGACY,
+                "-a",
+                account,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=_TIMEOUT_S,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return False
-    return completed.returncode == 0
+    return completed.returncode in (0, 44)
 
 
 def _try_migrate(account: str, value: str) -> bool:
@@ -263,11 +323,16 @@ def _try_migrate(account: str, value: str) -> bool:
         return False
     if _read_native(account) != value:
         return False
-    _delete_legacy(account)
-    return True
+    if _delete_legacy(account):
+        return True
+    try:
+        _invoke_helper("delete", account)
+    except KeychainError:
+        pass
+    return False
 
 
-def read_key(account: str) -> Optional[str]:
+def read_key(account: str) -> str | None:
     """Return the stored key for ``account``, or None.
 
     None covers every way this can not-work: no helper, no such item, a
@@ -315,7 +380,7 @@ def write_key(account: str, key: str) -> None:
     expected = key.strip()
     previous = read_key(account)
     timed_out = False
-    write_error: Optional[KeychainError] = None
+    write_error: KeychainError | None = None
     try:
         _invoke_helper("write", account, secret=expected)
     except KeychainError as exc:
@@ -325,8 +390,20 @@ def write_key(account: str, key: str) -> None:
             write_error = exc
 
     if _read_native(account) == expected:
-        _delete_legacy(account)
-        return
+        if _delete_legacy(account):
+            return
+        if previous:
+            _restore(account, previous)
+        else:
+            try:
+                _invoke_helper("delete", account)
+            except KeychainError:
+                pass
+        raise KeychainError(
+            "the legacy Keychain item could not be removed; "
+            "the native write was rolled back",
+            kind="cleanup_failed",
+        )
 
     if previous:
         _restore(account, previous)
@@ -359,19 +436,23 @@ def delete_key(account: str) -> bool:
     except KeychainError:
         return False
     removed = False
+    helper_error: KeychainError | None = None
     if _resolved_helper_path() is not None:
         try:
             body = _invoke_helper("delete", account)
-        except KeychainError:
+        except KeychainError as error:
+            helper_error = error
             body = None
         if body is not None and body.get("ok"):
             removed = True
     if _delete_legacy(account):
         removed = True
+    if helper_error is not None:
+        raise helper_error
     return removed
 
 
-def resolve_key(account: str = "", env_name: str = "") -> Optional[str]:
+def resolve_key(account: str = "", env_name: str = "") -> str | None:
     """Resolve a key from the Keychain, falling back to the environment.
 
     The fallback is not decoration. If a machine cannot use the helper,
@@ -396,6 +477,7 @@ def resolve_key(account: str = "", env_name: str = "") -> Optional[str]:
 __all__ = [
     "ACCOUNT_RE",
     "HELPER_ENV",
+    "HELPER_REQUIREMENT_ENV",
     "KEYCHAIN_SERVICE",
     "KEYCHAIN_SERVICE_LEGACY",
     "KeychainError",
