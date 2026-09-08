@@ -161,6 +161,79 @@ def test_an_uncited_proposal_is_never_sent_to_the_critic(store, doc):
     assert scored["GhostConcept"]["critic_rationale"] is None
 
 
+def test_every_surface_shows_only_the_current_critic_stream(store, doc):
+    """After a critic switch, no surface keeps the retired stream's scores.
+
+    `conformal` calibrates on the newest (engine, model, prompt_version)
+    alone — mixing a cheap critic's 0.1 with a frontier critic's 0.95 in one
+    calibration set calibrates the threshold to neither — and answers "not
+    yet" until the new stream has its own history. The queue and the entity
+    panel took the latest review per item regardless of stream, so the same
+    items still came back scored while conformal reported nothing judged:
+    two surfaces disagreeing about whether the current critic has an opinion.
+    A number beside a proposal reads as "the critic judged this", and after a
+    switch it has not — the new stream re-scores them on its own next run.
+    """
+    gateway = make_entity("ApiGateway")
+    limiter = make_entity("RateLimiter")
+    bucket = make_entity("TokenBucket")
+    insert(store, doc, [gateway, limiter, bucket],
+           [make_relation(gateway, limiter), make_relation(limiter, bucket)])
+    ids = {r["label"]: r["id"] for r in store.pending_review() if r["kind"] == "node"}
+    # Each endpoint identifies its own edge; ids are not order-stable.
+    edge1 = store.entity_review_context(ids["ApiGateway"])["relations"][0]["id"]
+    edge2 = store.entity_review_context(ids["TokenBucket"])["relations"][0]["id"]
+
+    for kind, item in (("node", ids["ApiGateway"]), ("node", ids["RateLimiter"]),
+                       ("edge", edge1), ("edge", edge2)):
+        store.record_critic_review(
+            kind, item, engine="claude", model="haiku",
+            prompt_version=CRITIC_PROMPT_VERSION, score=0.2,
+        )
+    # The switch: the new stream has looked at one item of each kind.
+    for kind, item in (("node", ids["ApiGateway"]), ("edge", edge1)):
+        store.record_critic_review(
+            kind, item, engine="codex", model=None,
+            prompt_version=CRITIC_PROMPT_VERSION, score=0.9,
+        )
+
+    queue = {r["label"]: r for r in store.pending_review() if r["kind"] == "node"}
+    assert queue["ApiGateway"]["critic_score"] == 0.9
+    assert queue["ApiGateway"]["critic_engine"] == "codex"
+    # The retired stream's 0.2 is history, not the current critic's verdict.
+    assert queue["RateLimiter"]["critic_score"] is None
+    assert queue["RateLimiter"]["critic_engine"] is None
+
+    assert store.entity_review_context(ids["ApiGateway"])["critic"] == {
+        "engine": "codex", "model": None, "score": 0.9, "rationale": None,
+    }
+    assert store.entity_review_context(ids["RateLimiter"])["critic"] is None
+    scored_edges = {
+        rel["id"]: rel["critic_score"]
+        for rel in store.entity_review_context(ids["RateLimiter"])["relations"]
+    }
+    assert scored_edges[edge1] == 0.9
+    assert scored_edges[edge2] is None
+
+
+def test_a_model_switch_rescores_instead_of_blanking_the_queue(store, doc):
+    """Both sides of the critic must agree on what a stream is.
+
+    Reads scope to the newest (engine, model, prompt_version) — a cheap
+    critic's 0.1 and a frontier critic's 0.95 are not one measurement. If
+    candidate selection ignored `model`, an item the previous model scored
+    would be skipped as "already reviewed" while every surface hid that score
+    as a retired stream's: a blank no critic run could ever fill.
+    """
+    insert(store, doc, [make_entity("ApiGateway")])
+    assert run(critic_review(store, MockEngine(), model="cheap"))["scored"] == 1
+    assert store.pending_review()[0]["critic_score"] is not None
+
+    stats = run(critic_review(store, MockEngine(), model="frontier"))
+    assert stats["scored"] == 1
+    assert store.pending_review()[0]["critic_score"] is not None
+
+
 def test_an_uncited_proposal_still_reaches_the_human_queue(store, doc):
     """Skipping the critic must not skip the review.
 
@@ -262,7 +335,7 @@ def test_edge_labels_use_endpoint_names(store, doc):
     from ontologylab.critic import _pending_items
 
     _seed(store, doc)
-    items = _pending_items(store, engine_name="mock", limit=10)
+    items = _pending_items(store, engine_name="mock", model=None, limit=10)
     edge_items = [i for i in items if i["kind"] == "edge"]
     assert len(edge_items) == 1
     assert "ApiGateway" in edge_items[0]["label"]
@@ -275,7 +348,7 @@ def test_evidence_excerpt_marks_span(store, doc):
     insert(store, doc, [make_entity("ApiGateway",
                                     source_span=None)])
     # span-less rows still produce an item, with empty evidence
-    items = _pending_items(store, engine_name="mock", limit=10)
+    items = _pending_items(store, engine_name="mock", model=None, limit=10)
     assert items[0]["evidence"] == ""
 
 

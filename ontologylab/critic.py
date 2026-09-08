@@ -139,10 +139,17 @@ def _pending_items(
     store: KGStore,
     *,
     engine_name: str,
+    model: Optional[str],
     limit: int,
     docs_unloadable: Optional[set[str]] = None,
 ) -> list[dict]:
-    """Proposed nodes/edges that this critic has not scored yet.
+    """Proposed nodes/edges the current critic stream has not scored yet.
+
+    The stream is (engine, model, prompt_version) — the same key the review
+    queue, the entity panel and `conformal` read under. Scoping on engine
+    alone would skip an item the previous model already scored while those
+    surfaces hide that score as a retired stream's, leaving a blank no critic
+    run could ever fill.
 
     ``docs_unloadable`` (optional out-parameter): any doc_id whose source
     text could not be loaded is added to this set. Such items are built with
@@ -171,9 +178,10 @@ def _pending_items(
     node_rows = store.conn.execute(
         "SELECT n.* FROM nodes n WHERE n.status = 'proposed' AND NOT EXISTS "
         "(SELECT 1 FROM critic_reviews c WHERE c.kind = 'node' "
-        " AND c.item_id = n.id AND c.engine = ? AND c.prompt_version = ?) "
+        " AND c.item_id = n.id AND c.engine = ? AND c.model IS ? "
+        " AND c.prompt_version = ?) "
         "ORDER BY n.created_ts ASC LIMIT ?",
-        (engine_name, CRITIC_PROMPT_VERSION, limit),
+        (engine_name, model, CRITIC_PROMPT_VERSION, limit),
     ).fetchall()
     for row in node_rows:
         span = json.loads(row["source_span"]) if row["source_span"] else None
@@ -195,9 +203,10 @@ def _pending_items(
             "JOIN nodes d ON d.id = e.dst_node_id "
             "WHERE e.status = 'proposed' AND NOT EXISTS "
             "(SELECT 1 FROM critic_reviews c WHERE c.kind = 'edge' "
-            " AND c.item_id = e.id AND c.engine = ? AND c.prompt_version = ?) "
+            " AND c.item_id = e.id AND c.engine = ? AND c.model IS ? "
+            " AND c.prompt_version = ?) "
             "ORDER BY e.created_ts ASC LIMIT ?",
-            (engine_name, CRITIC_PROMPT_VERSION, remaining),
+            (engine_name, model, CRITIC_PROMPT_VERSION, remaining),
         ).fetchall()
         for row in edge_rows:
             span = json.loads(row["source_span"]) if row["source_span"] else None
@@ -235,7 +244,8 @@ async def critic_review(
     engine_name = engine.name() if hasattr(engine, "name") else str(engine)
     docs_unloadable: set[str] = set()
     items = _pending_items(
-        store, engine_name=engine_name, limit=limit, docs_unloadable=docs_unloadable
+        store, engine_name=engine_name, model=model, limit=limit,
+        docs_unloadable=docs_unloadable,
     )
     # An item with no evidence is not a thing this critic can judge. Asked
     # anyway, the model answers "no evidence provided" and — following the

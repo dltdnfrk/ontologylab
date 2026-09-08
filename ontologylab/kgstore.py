@@ -670,6 +670,31 @@ class KGStore:
         column = f"{alias}.invalidated_ts" if alias else "invalidated_ts"
         return f"{column} IS NULL"
 
+    def _current_critic_stream(
+        self, kind: str
+    ) -> tuple[str, str | None, str] | None:
+        """The newest (engine, model, prompt_version) scored for ``kind``.
+
+        `conformal` calibrates on this stream alone — a cheap critic's 0.1 and
+        a frontier critic's 0.95 are not one measurement — and answers "not
+        yet" after a switch. Every surface that shows a score scopes to it too,
+        so a retired stream's number never sits beside a proposal reading as
+        "the critic judged this" while the threshold reports nothing judged.
+
+        Resolved once and bound as parameters. The same restriction written as
+        a correlated subquery re-scans `critic_reviews` for every candidate
+        row: measured at 5,000 proposals and 12,500 reviews, that turned a
+        6.6 ms review queue into a 17.5 s one.
+        """
+        row = self.conn.execute(
+            "SELECT engine, model, prompt_version FROM critic_reviews "
+            "WHERE kind = ? ORDER BY created_ts DESC LIMIT 1",
+            (kind,),
+        ).fetchone()
+        if row is None:
+            return None
+        return row["engine"], row["model"], row["prompt_version"]
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -3936,14 +3961,30 @@ class KGStore:
             placeholders = ",".join("?" * len(cursor))
             where.append(f"({key_sql}) > ({placeholders})")
             args.extend(cursor)
-        args.append(limit)
-        # Latest critic review per item (advisory columns only — approval
-        # paths never read this join). Read-only stores built before W8 have
-        # no critic_reviews table: degrade to NULL critic columns.
+        # Latest critic review per item, restricted to the CURRENT critic
+        # stream per kind (`_current_critic_stream`): a queue that kept
+        # serving a retired stream's scores contradicted `conformal` on the
+        # same items — a number beside a proposal reads as "the critic judged
+        # this", and after a switch the current critic has not. Advisory
+        # columns only: approval paths never read this join. Read-only stores
+        # built before W8 have no critic_reviews table and degrade to NULL
+        # critic columns.
+        critic_args: list[Any] = []
         if self._table_exists("critic_reviews"):
+            scopes: list[str] = []
+            for item_kind in ("node", "edge"):
+                stream = self._current_critic_stream(item_kind)
+                if stream is None:
+                    continue
+                scopes.append(
+                    "(c.kind = ? AND c.engine = ? AND c.model IS ? "
+                    "AND c.prompt_version = ?)"
+                )
+                critic_args.extend((item_kind, *stream))
             critic_join = (
                 "LEFT JOIN (SELECT kind, item_id, engine, score, rationale, "
-                "           MAX(created_ts) AS ts FROM critic_reviews "
+                "           MAX(created_ts) AS ts FROM critic_reviews c "
+                f"          WHERE {' OR '.join(scopes) if scopes else '0 = 1'} "
                 "           GROUP BY kind, item_id) cr "
                 "ON cr.kind = pr.kind AND cr.item_id = pr.id "
             )
@@ -3959,7 +4000,7 @@ class KGStore:
             "FROM pending_review pr "
             f"{critic_join}"
             f"WHERE {' AND '.join(where)} ORDER BY {order_sql} LIMIT ?",
-            args,
+            [*critic_args, *args, limit],
         )
         out = []
         for r in cur.fetchall():
@@ -4500,12 +4541,18 @@ class KGStore:
         entity = _node_dict(row)
 
         critic = None
-        if self._table_exists("critic_reviews"):
+        node_stream = (
+            self._current_critic_stream("node")
+            if self._table_exists("critic_reviews") else None
+        )
+        if node_stream is not None:
             crow = self.conn.execute(
-                "SELECT engine, model, score, rationale, MAX(created_ts) AS ts "
-                "FROM critic_reviews WHERE kind = 'node' AND item_id = ? "
-                "GROUP BY item_id",
-                (entity_id,),
+                "SELECT c.engine, c.model, c.score, c.rationale, "
+                "MAX(c.created_ts) AS ts FROM critic_reviews c "
+                "WHERE c.kind = 'node' AND c.item_id = ? "
+                "AND c.engine = ? AND c.model IS ? AND c.prompt_version = ? "
+                "GROUP BY c.item_id",
+                (entity_id, *node_stream),
             ).fetchone()
             if crow is not None and crow["score"] is not None:
                 critic = {
@@ -4553,13 +4600,19 @@ class KGStore:
             (entity_id, entity_id),
         ).fetchall()
         edge_critic: dict[str, float] = {}
-        if edge_rows and self._table_exists("critic_reviews"):
+        edge_stream = (
+            self._current_critic_stream("edge")
+            if edge_rows and self._table_exists("critic_reviews") else None
+        )
+        if edge_stream is not None:
             placeholders = ",".join("?" for _ in edge_rows)
             for crow in self.conn.execute(
-                "SELECT item_id, score, MAX(created_ts) AS ts FROM critic_reviews "
-                f"WHERE kind = 'edge' AND item_id IN ({placeholders}) "
-                "GROUP BY item_id",
-                [e["id"] for e in edge_rows],
+                "SELECT c.item_id, c.score, MAX(c.created_ts) AS ts "
+                "FROM critic_reviews c "
+                f"WHERE c.kind = 'edge' AND c.item_id IN ({placeholders}) "
+                "AND c.engine = ? AND c.model IS ? AND c.prompt_version = ? "
+                "GROUP BY c.item_id",
+                [*[e["id"] for e in edge_rows], *edge_stream],
             ):
                 edge_critic[crow["item_id"]] = crow["score"]
         relations = []
