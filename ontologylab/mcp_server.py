@@ -1,12 +1,12 @@
 """Local MCP stdio server for ontologylab knowledge packs.
 
-Exposes eight read-only tools against one active immutable pack
+Exposes fifteen read-only/session tools against one active immutable pack
 (``pack.sqlite`` opened ``file:...?mode=ro&immutable=1``). The only tool
 that mutates anything is ``load_pack``, and it only updates in-memory
 session state (which file is open) — never KG rows.
 
-Tool logic lives on ``PackSession`` so it is unit-testable without the
-``mcp`` SDK. ``FastMCP`` is only required when running the stdio process.
+Tool logic lives on ``PackSession``; the local ``McpApp`` registry owns
+schema validation and stdio delivery without requiring the ``mcp`` SDK.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from ontologylab.method_mcp import (
 )
 from ontologylab.method_mcp_sql import MethodPackSql
 from ontologylab.mcp_runtime import McpApp
-from ontologylab.engines import EngineError, engine_name_arg, get_engine
+from ontologylab.engines import EngineError, engine_name_arg, resolve_engine
 from ontologylab.expansion import expand_query
 from ontologylab.packbuilder import (
     list_packs as discover_packs,
@@ -818,7 +818,7 @@ class PackSession:
         expansion_error: str | None = None
         if engine_name:
             try:
-                engine = get_engine(engine_name, model)
+                engine = resolve_engine(engine_name, model=model)
             except EngineError as exc:
                 expansion_error = str(exc)
             else:

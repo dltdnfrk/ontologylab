@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from contextlib import redirect_stdout
-import io
+import asyncio
 import json
-from types import SimpleNamespace
 
 import pytest
 
-from ontologylab.mcp_protocol import run_stdio
 from ontologylab.mcp_runtime import McpApp
+from tests.mcp_input_support import graph_contract, stdio_requests
 
 
 def _call(app: McpApp, name: str, arguments: object) -> dict[str, object]:
@@ -209,14 +207,7 @@ def test_stdio_maps_validation_to_invalid_params_and_stays_responsive(
         }},
         {"jsonrpc": "2.0", "id": 4, "method": "ping"},
     ]
-    raw = "".join(json.dumps(request) + "\n" for request in requests).encode()
-    monkeypatch.setattr("sys.stdin", SimpleNamespace(buffer=io.BytesIO(raw)))
-    stdout = io.StringIO()
-
-    with redirect_stdout(stdout):
-        run_stdio(app._dispatch)
-
-    responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
+    responses = stdio_requests(app, requests, monkeypatch)
     assert [response["error"]["code"] for response in responses[:3]] == [
         -32602,
         -32602,
@@ -246,3 +237,137 @@ def test_schema_advertises_enforced_shape_and_bounds(
     assert tools["semantic_search"].inputSchema["properties"]["min_score"][
         "maximum"
     ] == 1.0
+
+
+ARRAY_ARGUMENTS = [
+    pytest.param("traverse_relations", "start_ids", id="traverse-start"),
+    pytest.param("traverse_relations", "relation_types", id="traverse-relations"),
+    pytest.param("find_path", "relation_types", id="path-relations"),
+]
+BAD_ARRAYS = [
+    pytest.param([7], id="integer"),
+    pytest.param([True], id="boolean"),
+    pytest.param([None], id="null"),
+    pytest.param([{}], id="object"),
+    pytest.param([[]], id="nested-array"),
+    pytest.param(["n_rl", 7], id="mixed"),
+]
+
+
+@pytest.fixture()
+def array_contract(tmp_path):
+    with graph_contract(tmp_path) as context:
+        yield context
+
+
+def _graph_arguments(tool):
+    if tool == "traverse_relations":
+        return {"start_ids": ["n_rl"]}
+    return {"source_id": "n_rl", "target_id": "n_tb"}
+
+
+@pytest.mark.parametrize("tool, argument", ARRAY_ARGUMENTS)
+@pytest.mark.parametrize("values", BAD_ARRAYS)
+def test_string_array_items_refused_before_execution(array_contract, tool, argument, values):
+    app, calls = array_contract
+    arguments = {**_graph_arguments(tool), argument: values}
+    refused = None
+    try:
+        _call(app, tool, arguments)
+    except ValueError as error:
+        refused = error
+    assert calls[tool].call_count == 0, "malformed items reached the real tool"
+    assert refused is not None and "invalid arguments" in str(refused)
+
+
+@pytest.mark.parametrize("tool, argument", ARRAY_ARGUMENTS)
+@pytest.mark.parametrize("values", BAD_ARRAYS)
+def test_string_array_items_stdio_refusal_and_recovery(
+    array_contract, monkeypatch, tool, argument, values
+):
+    app, calls = array_contract
+    valid = {**_graph_arguments(tool), argument: ["n_rl"] if argument == "start_ids" else ["uses"]}
+    requests = [
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+            "name": tool, "arguments": {**_graph_arguments(tool), argument: values},
+        }},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+            "name": tool, "arguments": valid,
+        }},
+        {"jsonrpc": "2.0", "id": 3, "method": "ping"},
+    ]
+    responses = stdio_requests(app, requests, monkeypatch)
+    assert [response["id"] for response in responses] == [1, 2, 3]
+    assert responses[2] == {"jsonrpc": "2.0", "id": 3, "result": {}}
+    assert responses[1]["result"]["isError"] is False
+    good = responses[1]["result"]["structuredContent"]
+    if tool == "find_path":
+        assert good["found"] is True and good["hop_count"] == 1
+    else:
+        assert {node["id"] for node in good["nodes"]} == {"n_rl", "n_tb"}
+    assert calls[tool].call_count == 1, "only the following valid call may execute"
+    assert "result" not in responses[0]
+    assert responses[0]["error"]["code"] == -32602
+    assert "invalid arguments" in responses[0]["error"]["message"]
+
+
+@pytest.mark.parametrize("tool, argument", ARRAY_ARGUMENTS)
+def test_string_array_schema_advertises_string_items(array_contract, tool, argument):
+    app, _calls = array_contract
+    tools = {item.name: item for item in asyncio.run(app.list_tools())}
+    rule = tools[tool].inputSchema["properties"][argument]
+    assert rule["type"] == ("array" if argument == "start_ids" else ["array", "null"])
+    assert rule.get("items") == {"type": "string"}
+
+
+@pytest.mark.parametrize("tool, argument", ARRAY_ARGUMENTS)
+@pytest.mark.parametrize("values", [["n_rl"], [], [""], ["not-an-identifier-or-relation"]])
+def test_string_array_valid_lists_keep_their_values(array_contract, tool, argument, values):
+    app, calls = array_contract
+    result = _call(app, tool, {**_graph_arguments(tool), argument: values})
+    assert result["isError"] is False
+    assert calls[tool].call_count == 1
+    sent = calls[tool].call_args
+    actual = sent.args[0] if argument == "start_ids" else sent.kwargs[argument]
+    assert actual == values
+
+
+@pytest.mark.parametrize("tool", ["traverse_relations", "find_path"])
+@pytest.mark.parametrize("arguments", [{}, {"relation_types": None}])
+def test_string_array_optional_null_and_omission_remain_usable(array_contract, tool, arguments):
+    app, calls = array_contract
+    result = _call(app, tool, {**_graph_arguments(tool), **arguments})
+    assert result["isError"] is False
+    assert calls[tool].call_count == 1
+    assert calls[tool].call_args.kwargs["relation_types"] is None
+    content = result["structuredContent"]
+    assert isinstance(content, dict)
+    if tool == "find_path":
+        assert content["found"] is True
+    else:
+        assert [edge["id"] for edge in content["edges"]] == ["e_uses"]
+
+
+def test_arbitrary_property_values_remain_tool_owned(array_contract):
+    app, calls = array_contract
+    properties = {"nested": {"values": [7, True, None, [], {}]}}
+    result = _call(app, "graph_query", {"property_filters": properties})
+    assert calls["graph_query"].call_count == 1
+    assert calls["graph_query"].call_args.kwargs["property_filters"] == properties
+    assert result["isError"] is True, "unsupported SQL values remain tool errors, not invalid params"
+    assert "structuredContent" not in result
+
+
+def test_valid_outer_type_preserves_tool_error_classification(array_contract, monkeypatch):
+    app, calls = array_contract
+    responses = stdio_requests(app, [
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+            "name": "traverse_relations", "arguments": {"start_ids": ["n_rl"], "direction": "sideways"},
+        }},
+        {"jsonrpc": "2.0", "id": 2, "method": "ping"},
+    ], monkeypatch)
+    assert calls["traverse_relations"].call_count == 1
+    assert "error" not in responses[0]
+    assert responses[0]["result"]["isError"] is True
+    assert "structuredContent" not in responses[0]["result"]
+    assert responses[1] == {"jsonrpc": "2.0", "id": 2, "result": {}}

@@ -21,10 +21,7 @@ from tests.test_pack_v2_publication_surface import _reviewed_pack
 _REVIEWED = "reviewed"
 _SOURCED = "sourced-answer-v2"
 _RELEASE_RECEIPT = (
-    Path(__file__).parent
-    / "fixtures"
-    / "wave21"
-    / "step10-release-receipt-v1.json"
+    Path(__file__).parent / "fixtures" / "wave21" / "step10-release-receipt-v1.json"
 )
 
 
@@ -33,10 +30,7 @@ def _release_payload_root(
     policy: dict[str, str],
 ) -> str:
     payload = {
-        "closure": {
-            key: sorted(closure[key])
-            for key in sorted(closure)
-        },
+        "closure": {key: sorted(closure[key]) for key in sorted(closure)},
         "policy": {key: policy[key] for key in sorted(policy)},
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
@@ -82,14 +76,20 @@ def test_release_payload_root_binds_representation_and_policy() -> None:
     root = _release_payload_root(closure, policy)
 
     assert _release_payload_root(dict(closure), dict(policy)) == root
-    assert _release_payload_root(
-        {**closure, "representation": ("representation-2",)},
-        policy,
-    ) != root
-    assert _release_payload_root(
-        closure,
-        {**policy, "evidence_mode": "excerpt"},
-    ) != root
+    assert (
+        _release_payload_root(
+            {**closure, "representation": ("representation-2",)},
+            policy,
+        )
+        != root
+    )
+    assert (
+        _release_payload_root(
+            closure,
+            {**policy, "evidence_mode": "excerpt"},
+        )
+        != root
+    )
 
 
 def test_same_snapshot_and_policy_keep_release_payload_root(tmp_path: Path) -> None:
@@ -158,9 +158,7 @@ def test_release_capabilities_follow_verified_c036_closure(
         )
     finally:
         unreviewed.store.close()
-    unreviewed_caps = _capabilities(
-        unreviewed_packs / unreviewed_manifest.pack_id
-    )
+    unreviewed_caps = _capabilities(unreviewed_packs / unreviewed_manifest.pack_id)
     assert _REVIEWED not in unreviewed_caps
     assert _SOURCED not in unreviewed_caps
 
@@ -181,55 +179,34 @@ def test_release_capabilities_follow_verified_c036_closure(
         missing.store.close()
 
 
-def test_release_receipt_enforces_thresholds_roots_and_claims() -> None:
+def test_release_receipt_binds_exact_source_performance_and_authority() -> None:
     receipt = json.loads(_RELEASE_RECEIPT.read_text(encoding="utf-8"))
-    assert receipt["schema"] == "ontologylab.wave21.step10-release-receipt.v1"
-    assert (
-        receipt["recipe_anchor"]["manifest_sha256"]
-        == "019a986f878bcba5b2ba8c67a1451d8fc19af021988e28bdd9f7e2287f82f0b1"
+    assert receipt["schema"] == "ontologylab.release.eligibility.v2"
+    assert receipt["version"] == "0.1.0"
+    assert receipt["source_snapshot_sha256"] == receipt["source"]["snapshot_sha256"]
+    assert receipt["fixture"]["manifest_sha256"] == (
+        "019a986f878bcba5b2ba8c67a1451d8fc19af021988e28bdd9f7e2287f82f0b1"
     )
-
     performance = receipt["performance"]
-    target = performance["target_v2_migration"]
-    assert target["current_p95_ms"] <= (
-        target["historical_p95_ms"]
-        * (1 + performance["p95_regression_limit_percent"] / 100)
-    )
-    increase_percent = (
-        target["current_disk_bytes"] / target["historical_disk_bytes"] - 1
-    ) * 100
-    assert increase_percent <= performance[
-        "payload_increase_approval_threshold_percent"
-    ]
-    assert target["approval_required"] is False
-
-    ingest = performance["current_ingest_create_and_duplicate"]
-    assert ingest["sample_active_lower_bound_ms"] > ingest["ceiling_ms"]
-    assert ingest["status"] == "refused"
-
-    roots = receipt["determinism"]
-    assert roots["same_snapshot_policy_root_a"] == roots[
-        "same_snapshot_policy_root_b"
-    ]
-    assert roots["changed_policy_root"] != roots["same_snapshot_policy_root_a"]
-    assert roots["changed_representation_root"] != roots[
-        "same_snapshot_policy_root_a"
-    ]
-
-    capabilities = receipt["capabilities"]
-    assert capabilities["unreviewed"] == [
-        "knowledge-graph-v2",
-        "evidence-self-contained-v2",
-    ]
-    assert capabilities["reviewed_c036"] == [
-        "knowledge-graph-v2",
-        "evidence-self-contained-v2",
-        "reviewed",
-        "sourced-answer-v2",
-    ]
-    assert capabilities["missing_c036"] == "refused"
-
-    release = receipt["release"]
-    assert release["go"] is False
-    assert release["production_authorized"] is False
-    assert release["stop_token"] == "STOP_BEFORE_STEP_9C"
+    assert len(performance["samples_ms"]) == 3
+    assert performance["p95_ms"] == max(performance["samples_ms"])
+    assert performance["p95_ms"] <= performance["ceiling_ms"]
+    assert performance["outputs"] == {
+        "create": {
+            "conflicts": 500,
+            "created": 9500,
+            "entries": 9500,
+            "failures": 0,
+        },
+        "duplicate": {
+            "conflicts": 500,
+            "created": 0,
+            "entries": 9500,
+            "failures": 0,
+        },
+    }
+    assert receipt["release"] == {
+        "go": True,
+        "production_authorized": True,
+        "reasons": [],
+    }

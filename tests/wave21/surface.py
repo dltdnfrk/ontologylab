@@ -34,10 +34,11 @@ import subprocess
 import sys
 import tempfile
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import httpx
 
@@ -269,7 +270,15 @@ def running_server(
 
 def http_client(handle: ServerHandle, *, timeout_s: float = 10.0) -> httpx.Client:
     """A real HTTP client bound to the running server's loopback socket."""
-    return httpx.Client(base_url=handle.base_url, timeout=httpx.Timeout(timeout_s))
+    session_token = (handle.data_dir / "session.token").read_text(
+        encoding="utf-8"
+    ).strip()
+    return httpx.Client(
+        base_url=handle.base_url,
+        headers={"X-OntologyLab-Session": session_token},
+        timeout=httpx.Timeout(timeout_s),
+        trust_env=False,
+    )
 
 
 def read_jobs_sse_until_terminal(
@@ -454,11 +463,16 @@ class McpStdioReceipt:
     tool_names: tuple[str, ...]
     list_packs_result: dict[str, Any]
     load_pack_result: dict[str, Any]
+    entity_lookup_result: dict[str, Any]
     process_returncode: int
 
 
 async def _mcp_stdio_session(
-    packs_dir: Path, pack_id: str, *, timeout: float
+    packs_dir: Path,
+    pack_id: str,
+    *,
+    entity_name: str,
+    timeout: float,
 ) -> McpStdioReceipt:
     process = await asyncio.create_subprocess_exec(
         installed_script("ontologylab-mcp"),
@@ -517,6 +531,10 @@ async def _mcp_stdio_session(
         tools = await request("tools/list", {})
         list_packs_result = await call_tool("list_packs", {})
         load_pack_result = await call_tool("load_pack", {"pack_id": pack_id})
+        entity_lookup_result = await call_tool(
+            "entity_lookup",
+            {"name": entity_name, "detail": True},
+        )
         return McpStdioReceipt(
             protocol_version=str(initialized["result"]["protocolVersion"]),
             tool_names=tuple(
@@ -524,6 +542,7 @@ async def _mcp_stdio_session(
             ),
             list_packs_result=list_packs_result,
             load_pack_result=load_pack_result,
+            entity_lookup_result=entity_lookup_result,
             process_returncode=-1,  # filled in below, after wait()
         )
     finally:
@@ -548,7 +567,11 @@ async def _mcp_stdio_session(
 
 
 def mcp_stdio_roundtrip(
-    packs_dir: Path, pack_id: str, *, timeout: float = 10.0
+    packs_dir: Path,
+    pack_id: str,
+    *,
+    entity_name: str = "__ontologylab_missing_entity__",
+    timeout: float = 10.0,
 ) -> McpStdioReceipt:
     """Run one bounded, real stdio-JSON-RPC session against the INSTALLED
     `ontologylab-mcp` script: initialize, list tools, call `list_packs` and
@@ -561,7 +584,14 @@ def mcp_stdio_roundtrip(
     (no `mcp` SDK client), which also verifies the server speaks correct
     JSON-RPC on the wire independent of that SDK.
     """
-    receipt = asyncio.run(_mcp_stdio_session(packs_dir, pack_id, timeout=timeout))
+    receipt = asyncio.run(
+        _mcp_stdio_session(
+            packs_dir,
+            pack_id,
+            entity_name=entity_name,
+            timeout=timeout,
+        )
+    )
     pid = _mcp_stdio_session.last_pid  # type: ignore[attr-defined]
     returncode = _mcp_stdio_session.last_returncode  # type: ignore[attr-defined]
     if not pid_is_dead(pid):

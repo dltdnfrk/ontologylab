@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import sqlite3
 import time
 from collections.abc import Callable
@@ -24,6 +25,7 @@ from ontologylab.file_lifecycle import store_root_from_conn
 OBSERVATION_STEP = "observation.recorded"
 PROVENANCE_JSONL_NAME = "provenance.jsonl"
 Failpoint = Callable[[str], None]
+_PROJECTOR_STATE = "_ontologylab_outbox_projector_state"
 
 
 class OutboxError(Exception):
@@ -202,6 +204,86 @@ def _mark_projected(conn: sqlite3.Connection, event_ids: tuple[str, ...]) -> int
     return marked
 
 
+def _remember_projection(
+    conn: sqlite3.Connection,
+    path: Path,
+) -> None:
+    stat = path.stat()
+    last_seq = conn.execute(
+        "SELECT COALESCE(MAX(seq), 0) FROM provenance_outbox "
+        "WHERE mirrored_ts IS NOT NULL"
+    ).fetchone()[0]
+    conn.execute(
+        f"CREATE TEMP TABLE IF NOT EXISTS {_PROJECTOR_STATE} ("
+        "path TEXT PRIMARY KEY, bytes INTEGER NOT NULL, "
+        "mtime_ns INTEGER NOT NULL, last_seq INTEGER NOT NULL)"
+    )
+    conn.execute(
+        f"INSERT OR REPLACE INTO {_PROJECTOR_STATE} "
+        "(path, bytes, mtime_ns, last_seq) VALUES (?, ?, ?, ?)",
+        (str(path), stat.st_size, stat.st_mtime_ns, int(last_seq)),
+    )
+
+
+def _append_to_known_projection(
+    conn: sqlite3.Connection,
+    path: Path,
+    *,
+    failpoint: Failpoint | None,
+) -> ProjectResult | None:
+    state_table = conn.execute(
+        "SELECT 1 FROM sqlite_temp_master WHERE type = 'table' AND name = ?",
+        (_PROJECTOR_STATE,),
+    ).fetchone()
+    if state_table is None or not path.is_file():
+        return None
+    state = conn.execute(
+        f"SELECT bytes, mtime_ns, last_seq FROM {_PROJECTOR_STATE} "
+        "WHERE path = ?",
+        (str(path),),
+    ).fetchone()
+    if state is None:
+        return None
+    stat = path.stat()
+    if stat.st_size != state[0] or stat.st_mtime_ns != state[1]:
+        return None
+    last_mirrored = conn.execute(
+        "SELECT COALESCE(MAX(seq), 0) FROM provenance_outbox "
+        "WHERE mirrored_ts IS NOT NULL"
+    ).fetchone()[0]
+    if int(last_mirrored) != int(state[2]):
+        return None
+    rows = conn.execute(
+        "SELECT seq, event_id, step, payload_json, created_ts, mirrored_ts "
+        "FROM provenance_outbox WHERE mirrored_ts IS NULL "
+        "ORDER BY seq ASC, event_id ASC"
+    ).fetchall()
+    if not rows:
+        return None
+    events = tuple(_row_to_event(row) for row in rows)
+    lines = tuple(canonical_json(_parse_payload(event)) for event in events)
+    if failpoint is not None:
+        failpoint("before_durable_mirror")
+    tmp = path.with_name(path.name + ".tmp")
+    with path.open("rb") as source, tmp.open("wb") as target:
+        shutil.copyfileobj(source, target)
+        for line in lines:
+            target.write(line.encode("utf-8"))
+            target.write(b"\n")
+        target.flush()
+        os.fsync(target.fileno())
+    os.replace(tmp, path)
+    _fsync_path(path.parent)
+    if failpoint is not None:
+        failpoint("after_durable_mirror")
+    marked = _mark_projected(conn, tuple(event.event_id for event in events))
+    _remember_projection(conn, path)
+    written = int(
+        conn.execute("SELECT COUNT(*) FROM provenance_outbox").fetchone()[0]
+    )
+    return ProjectResult(written=written, marked=marked, path=path)
+
+
 def project_outbox(
     conn: sqlite3.Connection,
     store_root: Path | None = None,
@@ -212,17 +294,29 @@ def project_outbox(
     _ensure_caller_transaction(conn)
     root = store_root if store_root is not None else store_root_from_conn(conn)
     path = provenance_jsonl_path(root)
+    appended = _append_to_known_projection(
+        conn,
+        path,
+        failpoint=failpoint,
+    )
+    if appended is not None:
+        return appended
     events = _dedupe_by_event_id(load_outbox_events(conn))
     if not events and not path.exists():
         return ProjectResult(written=0, marked=0, path=path)
-    payloads = tuple(_parse_payload(event) for event in events)
-    lines = tuple(canonical_json(payload) for payload in payloads)
+    lines = tuple(
+        event.payload_json
+        if event.projected
+        else canonical_json(_parse_payload(event))
+        for event in events
+    )
     if failpoint is not None:
         failpoint("before_durable_mirror")
     _atomic_rebuild_jsonl(path, lines)
     if failpoint is not None:
         failpoint("after_durable_mirror")
     marked = _mark_projected(conn, tuple(event.event_id for event in events))
+    _remember_projection(conn, path)
     return ProjectResult(written=len(lines), marked=marked, path=path)
 
 

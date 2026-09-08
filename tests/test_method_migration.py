@@ -326,9 +326,12 @@ def test_real_open_rolls_back_graph_and_method_ddl_on_method_failure(
     import ontologylab.method_store as method_store
 
     path = tmp_path / "legacy.sqlite"
+    KGStore.open(path).close()
+    _drop_method_schema(path)
     conn = sqlite3.connect(path)
     try:
-        conn.execute("CREATE TABLE legacy_sentinel (id INTEGER PRIMARY KEY)")
+        conn.execute("PRAGMA journal_mode=DELETE")
+        conn.execute("DROP TABLE ontologylab_storage_metadata")
         conn.commit()
         before = {
             (row[0], row[1], row[2])

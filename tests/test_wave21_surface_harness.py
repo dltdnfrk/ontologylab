@@ -234,11 +234,10 @@ def test_collect_sample_is_idempotent_over_real_http() -> None:
                 assert docs[0]["source_uri"] == "sample://onboarding/order-system"
 
 
-def test_collect_sample_writes_no_provenance_job_dir_unlike_collect() -> None:
-    """Characterization receipt, not a defect assertion either way: proves
-    the CURRENT seam difference between the two collect entry points on the
-    real running server, in case a future change to either path is
-    expected to leave provenance behind.
+def test_collect_sample_records_one_idempotent_provenance_dir_like_collect() -> None:
+    """Both collect entry points go through the one raw-document writer, so
+    both leave provenance: the sample exactly one fixed ``collect-sample``
+    dir that repeat clicks reuse, a real collect one fresh ``collect-*`` dir.
     """
     with disposable_root("ontologylab-g003-sample-provenance-") as root:
         fixture = root / "notes.md"
@@ -249,10 +248,13 @@ def test_collect_sample_writes_no_provenance_job_dir_unlike_collect() -> None:
                 before = _job_dirs(handle.data_dir)
                 client.post("/api/collect/sample")
                 after_sample = _job_dirs(handle.data_dir)
+                client.post("/api/collect/sample")
+                after_sample_again = _job_dirs(handle.data_dir)
                 client.post("/api/collect", json={"files": [str(fixture)]})
                 after_real_collect = _job_dirs(handle.data_dir)
 
-    assert after_sample == before  # sample leaves NO job/provenance dir
+    assert after_sample - before == {"collect-sample"}
+    assert after_sample_again == after_sample
     new_dirs = after_real_collect - after_sample
     assert len(new_dirs) == 1
     assert next(iter(new_dirs)).startswith("collect-")

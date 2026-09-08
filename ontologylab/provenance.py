@@ -26,7 +26,8 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -70,28 +71,31 @@ class Provenance:
         self._last_payload: dict[str, Any] = {}
 
     def log(self, step: str, payload: dict[str, Any] | None = None) -> None:
-        """Append one JSON line recording ``step`` and ``payload``.
+        """Append one JSON line recording ``step`` and ``payload``."""
+        self.log_many(((step, dict(payload) if payload is not None else {}),))
 
-        Also updates the per-step log-entry counter and rewrites the
-        status.json snapshot so external observers see the change
-        immediately.
-        """
-        payload = dict(payload) if payload is not None else {}
-        entry: dict[str, Any] = {
-            "ts": time.time(),
-            "seed": self.seed,
-            "step": step,
-            "payload": payload,
-        }
-        with self.jsonl_path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry, default=str) + "\n")
-
-        usage = self._per_step.setdefault(step, StepUsage())
-        usage.log_entries += 1
-        self._log_count += 1
-        self._last_step = step
-        self._last_payload = payload
-
+    def log_many(
+        self,
+        entries: Sequence[tuple[str, dict[str, Any]]],
+    ) -> None:
+        """Append one bounded event batch and publish one status snapshot."""
+        if not entries:
+            return
+        with self.jsonl_path.open("a", encoding="utf-8") as handle:
+            for step, raw_payload in entries:
+                payload = dict(raw_payload)
+                entry: dict[str, Any] = {
+                    "ts": time.time(),
+                    "seed": self.seed,
+                    "step": step,
+                    "payload": payload,
+                }
+                handle.write(json.dumps(entry, default=str) + "\n")
+                usage = self._per_step.setdefault(step, StepUsage())
+                usage.log_entries += 1
+                self._log_count += 1
+                self._last_step = step
+                self._last_payload = payload
         self._write_status()
 
     def track_engine_call(

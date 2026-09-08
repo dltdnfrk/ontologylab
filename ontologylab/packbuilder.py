@@ -33,8 +33,9 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from ontologylab import __version__
-from ontologylab.kgstore import _SCHEMA, KGStore
+from ontologylab.kgstore import KGStoreError, _SCHEMA, KGStore
 from ontologylab.models import PackManifest
+from ontologylab.provenance import Provenance
 from ontologylab.method_pack import (
     MethodPackError,
     MethodPackSql,
@@ -847,6 +848,71 @@ def build_pack(
         for stage in owned_stages:
             if stage.exists():
                 shutil.rmtree(stage)
+
+
+def build_pack_release(
+    kg_db_path: str | Path,
+    packs_dir: str | Path,
+    name: str,
+    *,
+    provenance: Provenance,
+    summarizer=None,
+    summary_method: str = "extractive",
+    allow_incomplete_extraction: bool = False,
+    incomplete_extraction_intent: str | None = None,
+    method_release_ids: Sequence[str] = (),
+    store: KGStore | None = None,
+) -> PackManifest:
+    provenance.log(
+        "build_pack.start",
+        {
+            "name": name,
+            "allow_incomplete_extraction": allow_incomplete_extraction,
+            "operator_intent": incomplete_extraction_intent,
+        },
+    )
+    try:
+        manifest = build_pack(
+            kg_db_path,
+            packs_dir,
+            name,
+            source_job_id=provenance.run_dir.name,
+            provenance_jsonl=provenance.jsonl_path,
+            summarizer=summarizer,
+            summary_method=summary_method,
+            allow_incomplete_extraction=allow_incomplete_extraction,
+            incomplete_extraction_intent=incomplete_extraction_intent,
+            method_release_ids=method_release_ids,
+        )
+    except (PackBuildError, OSError) as exc:
+        payload: dict[str, Any] = {"error": str(exc)}
+        summary = getattr(exc, "summary", None)
+        if summary is not None:
+            payload["extraction_completeness"] = summary
+        provenance.log("build_pack.failed", payload)
+        raise
+    if store is not None:
+        try:
+            store.register_artifact(
+                kind="pack_release",
+                filename=manifest.pack_id,
+                run_id=provenance.run_dir.name,
+            )
+        except (KGStoreError, OSError, sqlite3.Error):
+            shutil.rmtree(Path(packs_dir) / manifest.pack_id)
+            provenance.log(
+                "build_pack.failed",
+                {
+                    "error": "pack artifact registration failed",
+                    "pack_id": manifest.pack_id,
+                },
+            )
+            raise
+    provenance.log(
+        "build_pack.end",
+        {"pack_id": manifest.pack_id, "counts": manifest.counts},
+    )
+    return manifest
 
 
 def _count(conn: sqlite3.Connection, table: str) -> int:

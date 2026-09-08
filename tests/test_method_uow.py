@@ -360,3 +360,101 @@ def test_method_uow_is_permanently_spent_after_first_exit(tmp_path: Path) -> Non
                 pass
     finally:
         store.close()
+
+
+def test_commit_failure_rolls_back_and_spends_owner(tmp_path: Path) -> None:
+    from ontologylab.method_store import MethodStateError, MethodStore, MethodUnitOfWork
+
+    store, _, _, graph_before = _seed(tmp_path)
+    owner = MethodUnitOfWork(store.conn)
+    denied = 0
+    transactions: list[str | None] = []
+
+    def authorize(
+        action: int, first: str | None, second: str | None,
+        database: str | None, trigger: str | None,
+    ) -> int:
+        nonlocal denied
+        if action == sqlite3.SQLITE_TRANSACTION:
+            transactions.append(first)
+            if first == "COMMIT" and denied == 0:
+                denied += 1
+                return sqlite3.SQLITE_DENY
+        return sqlite3.SQLITE_OK
+
+    try:
+        store.conn.set_authorizer(authorize)
+        with pytest.raises(sqlite3.DatabaseError, match="not authorized") as caught:
+            with owner:
+                MethodStore(store.conn, owner).create_workspace(
+                    "denied-workspace", name="Denied commit", objective="Rollback",
+                    scope={}, created_by="human-1",
+                )
+        store.conn.set_authorizer(None)
+        observed = {
+            "in_transaction": store.conn.in_transaction,
+            "workspace_rows": store.conn.execute(
+                "SELECT COUNT(*) FROM method_workspace WHERE id='denied-workspace'"
+            ).fetchone()[0],
+            "active": owner.active,
+            "owns_connection": owner.owns(store.conn),
+            "denied_commits": denied,
+        }
+        print(json.dumps(observed, sort_keys=True))
+        assert observed == {
+            "in_transaction": False, "workspace_rows": 0,
+            "active": False, "owns_connection": False, "denied_commits": 1,
+        }, "failed COMMIT must be rolled back before external test cleanup"
+        assert getattr(caught.value, "sqlite_errorcode", None) == sqlite3.SQLITE_AUTH
+        assert caught.value.__cause__ is None
+        assert transactions == ["BEGIN", "COMMIT", "ROLLBACK"]
+        with pytest.raises(MethodStateError, match="spent"):
+            with owner:
+                pass
+        with MethodUnitOfWork(store.conn) as fresh:
+            MethodStore(store.conn, fresh).create_workspace(
+                "fresh-workspace", name="Fresh owner", objective="Reuse",
+                scope={}, created_by="human-1",
+            )
+        assert store.conn.in_transaction is False
+        assert [row[0] for row in store.conn.execute(
+            "SELECT id FROM method_workspace ORDER BY id"
+        )] == ["fresh-workspace"]
+        assert _graph_image(store.conn) == graph_before
+    finally:
+        store.conn.set_authorizer(None)
+        store.conn.rollback()
+        store.close()
+
+
+@pytest.mark.parametrize("body_failure", [False, True])
+def test_workspace_uow_preserves_success_and_body_error(
+    tmp_path: Path, body_failure: bool,
+) -> None:
+    from ontologylab.method_store import MethodStore, MethodUnitOfWork
+
+    store, _, _, graph_before = _seed(tmp_path)
+    owner = MethodUnitOfWork(store.conn)
+    failure = RuntimeError("controlled workspace body failure")
+    try:
+        try:
+            with owner:
+                MethodStore(store.conn, owner).create_workspace(
+                    "workspace-control", name="Control", objective="Keep semantics",
+                    scope={}, created_by="human-1",
+                )
+                if body_failure:
+                    raise failure
+        except RuntimeError as caught:
+            assert body_failure and caught is failure
+        else:
+            assert not body_failure
+        assert store.conn.in_transaction is False
+        assert owner.active is False
+        assert store.conn.execute(
+            "SELECT COUNT(*) FROM method_workspace WHERE id='workspace-control'"
+        ).fetchone()[0] == (0 if body_failure else 1)
+        assert _graph_image(store.conn) == graph_before
+    finally:
+        store.conn.rollback()
+        store.close()

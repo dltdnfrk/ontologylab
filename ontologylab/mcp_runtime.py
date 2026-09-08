@@ -59,6 +59,7 @@ _NUMERIC_BOUNDS: dict[str, tuple[int | float | None, int | float | None]] = {
 
 def _input_schema(function: Callable[..., Any]) -> dict[str, Any]:
     signature = inspect.signature(function)
+    annotations = inspect.get_annotations(function, eval_str=True)
     properties: dict[str, Any] = {}
     required: list[str] = []
     for name, parameter in signature.parameters.items():
@@ -66,6 +67,8 @@ def _input_schema(function: Callable[..., Any]) -> dict[str, Any]:
         if parameter.default is None:
             json_type = [json_type, "null"]
         properties[name] = {"type": json_type}
+        if annotations.get(name) in (list[str], list[str] | None):
+            properties[name]["items"] = {"type": "string"}
         if parameter.default is inspect.Parameter.empty:
             required.append(name)
         else:
@@ -129,6 +132,14 @@ def _validate_arguments(
             raise ValueError(
                 f"invalid arguments for tool {tool_name!r}: {name!r} must be {label}"
             )
+        if isinstance(value, list) and "items" in rule:
+            item_type = rule["items"]["type"]
+            for index, item in enumerate(value):
+                if not _matches_json_type(item, item_type):
+                    raise ValueError(
+                        f"invalid arguments for tool {tool_name!r}: "
+                        f"{name!r}[{index}] must be {item_type}"
+                    )
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             if "minimum" in rule and value < rule["minimum"]:
                 raise ValueError(

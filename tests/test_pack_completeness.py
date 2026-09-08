@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from ontologylab import packbuilder
+from ontologylab import packbuilder, web_assets
 from ontologylab.kgstore import KGStore
 from ontologylab.models import ProposedEntity
 from ontologylab.packbuilder import (
@@ -487,8 +487,8 @@ def test_override_requires_nonempty_operator_intent(tmp_path: Path) -> None:
 
 
 def test_browser_pack_surface_sends_explicit_override_and_intent() -> None:
-    markup = Path("web/index.html").read_text(encoding="utf-8")
-    script = Path("web/app.js").read_text(encoding="utf-8")
+    markup = web_assets.read_asset_text("index.html")
+    script = web_assets.read_asset_text("app.js")
 
     assert 'id="pack-allow-incomplete"' in markup
     assert 'id="pack-override-intent"' in markup

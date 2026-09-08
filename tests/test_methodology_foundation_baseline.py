@@ -38,6 +38,7 @@ CURRENT_GRAPH_ONLY_PACK_TABLES = set("""annotations artifacts citations
 communities community_members critic_reviews documents edges
 entity_enrichments entity_type merge_candidates node_aliases nodes nodes_fts
 nodes_fts_config nodes_fts_data nodes_fts_docsize nodes_fts_idx ontology_term
+ontologylab_storage_metadata
 relation_type runs schema_version sqlite_sequence sqlite_stat1 term_alias
 term_xref""".split())
 
@@ -159,10 +160,16 @@ def test_graph_only_pack_has_exact_table_inventory_and_no_manifest_section(
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             )
         }
+        storage_versions = connection.execute(
+            "SELECT component,storage_version FROM ontologylab_storage_metadata ORDER BY component"
+        ).fetchall()
     finally:
         connection.close()
 
     assert sorted(tables) == sorted(CURRENT_GRAPH_ONLY_PACK_TABLES)
+    assert storage_versions == [
+        ("chat", 1), ("kg", 1), ("providers", 1), ("settings", 1), ("sources", 1),
+    ]
     assert tables & BLOCKED_METHOD_TABLE_NAMES == set()
     assert not [t for t in tables if t.startswith(("method", "compiled_"))]
 

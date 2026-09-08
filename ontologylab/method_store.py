@@ -621,7 +621,11 @@ class MethodUnitOfWork:
         self._state.require_active()
         try:
             if exc_type is None:
-                self._connection.commit()
+                try:
+                    self._connection.commit()
+                except BaseException:
+                    self._connection.rollback()
+                    raise
             else:
                 self._connection.rollback()
         finally:
