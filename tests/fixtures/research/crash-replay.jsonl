@@ -1,0 +1,12 @@
+{"expected_error_code":null,"expected_result":"canonical_reload","id":"replay-01","scenario":"valid_root_reload"}
+{"expected_error_code":null,"expected_result":"canonical_reload","id":"replay-02","scenario":"valid_broaden_reload"}
+{"expected_error_code":null,"expected_result":"interrupted","id":"replay-03","scenario":"interrupted_running_job"}
+{"expected_error_code":null,"expected_result":"canonical_reload","id":"replay-04","scenario":"partial_temp_file"}
+{"expected_error_code":"missing_parent","expected_result":"refused","id":"replay-05","scenario":"missing_parent"}
+{"expected_error_code":"version_gap","expected_result":"refused","id":"replay-06","scenario":"version_gap"}
+{"expected_error_code":"stale_spec_hash","expected_result":"refused","id":"replay-07","scenario":"stale_spec_hash"}
+{"expected_error_code":"conflicting_bytes","expected_result":"refused","id":"replay-08","scenario":"same_id_different_bytes"}
+{"expected_error_code":"duplicate_execution","expected_result":"refused","id":"replay-09","scenario":"duplicate_semantic_execution"}
+{"expected_error_code":"orphan_successor","expected_result":"refused","id":"replay-10","scenario":"orphan_successor"}
+{"expected_error_code":"stale_assessment","expected_result":"refused","id":"replay-11","scenario":"stale_assessment"}
+{"expected_error_code":null,"expected_result":"canonical_reload","id":"replay-12","scenario":"valid_retry_reload"}

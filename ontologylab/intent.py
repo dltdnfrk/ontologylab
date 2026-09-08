@@ -23,6 +23,12 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from ontologylab.engines import INTENT_MARKER_CLOSE, INTENT_MARKER_OPEN
+from ontologylab.research_spec import (
+    InteractionDecision,
+    ResearchOrigin,
+    ResearchSpecParseError,
+    decide_interaction,
+)
 
 
 @dataclass(frozen=True)
@@ -96,18 +102,22 @@ class Intent:
     # Set when classification itself failed. Carries the reason for the log,
     # never for the screen — see `routes.chat`.
     error: Optional[str] = None
+    interaction_decision: InteractionDecision = InteractionDecision.EXECUTE
 
     @property
     def needs_confirmation(self) -> bool:
         return requires_confirmation(self.action)
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "action": self.action,
             "params": dict(self.params),
             "reading": self.reading,
             "needs_confirmation": self.needs_confirmation,
         }
+        if self.action == "research":
+            payload["interaction_decision"] = self.interaction_decision.value
+        return payload
 
 
 _PROMPT = """You route one message to exactly one action.
@@ -116,12 +126,14 @@ Actions:
 {catalogue}
 
 Reply with ONLY a JSON object, no prose and no code fence:
-{{"action": "<one name from the list>", "params": {{...}}, "reading": "<one short sentence, in the user's language, restating what they asked for>"}}
+{{"action": "<one name from the list>", "params": {{...}}, "reading": "<one short sentence, in the user's language, restating what they asked for>", "ambiguity_kind": "<none|multi_goal|missing_topic|unsafe_request|unsupported_scope>"}}
 
 Rules:
 - `action` MUST be one of the names above. If nothing fits, use "unknown".
 - `params` may only contain the keys listed for that action. Omit it if there are none.
 - `reading` restates the request; it never promises a result.
+- For `research`, classify ambiguity with exactly one listed `ambiguity_kind`.
+- For every other action, use `none`; it has no effect.
 
 {open_marker}
 {message}
@@ -213,8 +225,24 @@ async def classify(
         return Intent("unknown", error=f"unknown action {action!r}")
 
     reading = " ".join(str(parsed.get("reading", "")).split())
+    params = _clean_params(action, parsed.get("params"))
+    decision = InteractionDecision.EXECUTE
+    error = None
+    if action == "research":
+        ambiguity = parsed.get("ambiguity_kind", "none")
+        try:
+            if not isinstance(ambiguity, str):
+                raise ResearchSpecParseError(
+                    "$.ambiguity_kind", "invalid_enum"
+                )
+            decision = decide_interaction(ResearchOrigin.CHAT, ambiguity)
+        except ResearchSpecParseError as exc:
+            decision = InteractionDecision.ABSTAIN
+            error = str(exc)
     return Intent(
         action=action,
-        params=_clean_params(action, parsed.get("params")),
+        params=params,
         reading=reading,
+        error=error,
+        interaction_decision=decision,
     )

@@ -33,12 +33,23 @@ import re
 import shutil
 import subprocess
 import time
-from typing import Optional
+from typing import Any, Optional, assert_never
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 
+from ontologylab.engine_requests import EngineRequest, EngineTask
 from ontologylab.http_bound import BoundHttpError, post_json
-from ontologylab.paths import DEFAULT_MODEL, assert_network_allowed, default_data_dir
+from ontologylab.models import Engine
+from ontologylab.paths import (
+    DEFAULT_ENGINE,
+    DEFAULT_MODEL,
+    assert_network_allowed,
+    default_data_dir,
+)
+from ontologylab.research_planner_contract import (
+    RESEARCH_PLAN_MARKER_OPEN,
+    mock_research_plan,
+)
 
 
 def _url_is_loopback(url: str) -> bool:
@@ -354,7 +365,9 @@ def _mock_intent(prompt: str) -> str:
     def _has(*words: str) -> bool:
         return any(w in low for w in words)
 
-    if _has("검토", "review", "승인", "대기"):
+    if _has("저장소", "저장 공간", "보관 현황", "store status", "storage status"):
+        action, params = "status", {}
+    elif _has("검토", "review", "승인", "대기"):
         action, params = "show_review", {}
     elif _has("그래프", "graph"):
         action, params = "show_graph", {}
@@ -386,7 +399,7 @@ def _mock_intent(prompt: str) -> str:
         {
             "action": action,
             "params": params,
-            "reading": f"'{message}' 요청으로 읽었어요." if message else "",
+            "reading": f"'{message}' 요청으로 해석했습니다." if message else "",
         },
         ensure_ascii=False,
     )
@@ -484,11 +497,10 @@ class MockEngine:
     """Offline, deterministic engine used by default in tests and CI.
 
     Never shells out and never touches the network. Output is purely a
-    function of the prompt text: prompts containing a <critic-items>
-    section get a deterministic critic scoring array, <query-expansion>
-    gets a deterministic expansion array; anything else gets the
-    <document-chunk> extraction payload (the seed is kept for interface
-    compatibility; it does not affect output).
+    function of the prompt text: each machine marker selects its matching
+    deterministic contract; anything else gets the <document-chunk>
+    extraction payload (the seed is kept for interface compatibility; it
+    does not affect output).
     """
 
     def __init__(self, seed: int = 7) -> None:
@@ -497,6 +509,20 @@ class MockEngine:
 
     def name(self) -> str:
         return "mock"
+
+    async def generate_request(
+        self, request: EngineRequest,
+    ) -> tuple[str, dict[str, Any]]:
+        """Generate directly from explicit task metadata, billing once."""
+        start = time.monotonic()
+        match request.task:
+            case EngineTask.RESEARCH_PLAN:
+                text = mock_research_plan(request.prompt)
+            case unreachable:
+                assert_never(unreachable)
+        self._calls += 1
+        elapsed = time.monotonic() - start
+        return text, {"calls": 1, "elapsed": elapsed, "engine": "mock"}
 
     async def generate(
         self, prompt: str, *, model: Optional[str] = None
@@ -508,6 +534,8 @@ class MockEngine:
             text = _mock_critic(prompt)
         elif COMMUNITY_MARKER_OPEN in prompt:
             text = _mock_community_summary(prompt)
+        elif RESEARCH_PLAN_MARKER_OPEN in prompt:
+            text = mock_research_plan(prompt)
         elif QUERY_MARKER_OPEN in prompt:
             text = _mock_expansion(prompt)
         else:
@@ -928,3 +956,19 @@ def get_engine(
             )
         return ApiEngine(provider, model=model, decode_params=decode_params)
     raise EngineError(f"unknown engine {name!r}; expected one of {_ENGINE_NAMES}")
+
+
+def resolve_engine(
+    requested: str | None,
+    *,
+    model: str | None = None,
+    seed: int = 7,
+    data_dir=None,
+    decode_params: dict[str, Any] | None = None,
+) -> Engine:
+    name = (requested or "").strip() or DEFAULT_ENGINE
+    if name == "auto":
+        raise EngineError("engine 'auto' is not a valid engine")
+    return get_engine(
+        name, model, seed=seed, data_dir=data_dir, decode_params=decode_params
+    )

@@ -25,6 +25,8 @@ import re
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from ontologylab.citation import persist_chunk_citations
@@ -35,7 +37,7 @@ from ontologylab.engines import (
     EngineError,
     extract_fenced_block,
 )
-from ontologylab.extraction_state import ExtractionState
+from ontologylab.extraction_state import ExtractionState, effective_extractor_model
 from ontologylab.kgstore import normalize_name
 from ontologylab.models import ProposedEntity, ProposedRelation, SourceSpan
 from ontologylab.normalization import (
@@ -43,7 +45,9 @@ from ontologylab.normalization import (
     ORGANISM_ENTITY_TYPES,
     normalize_proposal,
 )
+from ontologylab.provenance import Provenance
 from ontologylab.registry import CASRegistryCache, MoARegistryCache, RegistryCache
+from ontologylab.safety import Caps
 
 PROMPT_VERSION = "extract-v1"
 ENGINE_FAILURE_SUMMARY = "extraction engine failed"
@@ -713,6 +717,67 @@ def stamp_alias_authority(entity):
             {alias: "model_unattested" for alias in entity.aliases},
         )
     return entity
+
+
+async def run_extract_job(
+    store: Any,
+    *,
+    engine: Any,
+    engine_name: str | None,
+    model: str | None,
+    job_dir: Path,
+    seed: int,
+    doc_ids: list[str] | None,
+    max_engine_calls: int,
+    time_budget: float,
+    decode_params: dict[str, Any] | None,
+    on_progress: Callable[[str], None],
+    on_stats: Callable[[dict[str, int]], None],
+    should_abort: Callable[[], str] | None,
+) -> ExtractionOutcome:
+    provenance = Provenance(str(job_dir), seed=seed)
+    caps = Caps(
+        SimpleNamespace(
+            iterations=0,
+            time_budget_s=time_budget,
+            max_engine_calls=max_engine_calls,
+        )
+    )
+    effective_model = effective_extractor_model(engine, model)
+    ids = list(doc_ids or ()) or extraction_doc_ids(store)
+    if not ids:
+        return ExtractionOutcome("")
+    provenance.log(
+        "extract.start",
+        {
+            "engine": engine_name,
+            "model": effective_model,
+            "decode_params": decode_params,
+            "doc_ids": ids,
+        },
+    )
+    totals = dict.fromkeys(TOTALS_KEYS, 0)
+
+    def _accumulate(stats: dict[str, int]) -> None:
+        for key in totals:
+            totals[key] += stats.get(key, 0)
+        on_stats(stats)
+
+    stopped_reason = await run_extraction(
+        store,
+        engine,
+        provenance,
+        caps,
+        ids,
+        extractor_engine=engine_name or "",
+        extractor_model=effective_model,
+        on_progress=on_progress,
+        on_stats=_accumulate,
+        should_abort=should_abort,
+        decode_params=decode_params,
+    )
+    provenance.log("extract.end", {"totals": totals, "stopped": stopped_reason})
+    return stopped_reason
 
 
 async def run_extraction(

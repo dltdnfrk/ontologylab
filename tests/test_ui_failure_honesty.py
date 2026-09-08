@@ -22,15 +22,15 @@ reload as though the write had landed.
 from __future__ import annotations
 
 import json
-import re
 import shutil
 import subprocess
 
 import pytest
 
-from ontologylab.server.app import WEB_DIR
+from ontologylab import web_assets
 
-APP_JS = (WEB_DIR / "app.js").read_text(encoding="utf-8")
+APP_JS = web_assets.read_asset_text("app.js")
+UI_UTILS_JS = web_assets.read_asset_text("ui-utils.js")
 
 
 # --------------------------------------------------------------------------
@@ -65,7 +65,7 @@ def _run_js(script: str) -> dict:
     if node is None:
         pytest.skip("node is not installed")
     proc = subprocess.run(
-        [node, "-e", script], capture_output=True, text=True
+        [node, "-e", script], capture_output=True, text=True, check=False
     )
     if proc.returncode != 0:
         raise AssertionError(f"node failed:\n{proc.stderr}")
@@ -84,13 +84,18 @@ var confirmed = true;
 function mkEl(id) {
   var el = {
     id: id, _html: "", _text: "",
+    dataset: {},
     classList: {
       add: function (c) { if (c === "hidden") hidden[id] = true; },
       remove: function (c) { if (c === "hidden") hidden[id] = false; },
       toggle: function (c, on) { if (c === "hidden") hidden[id] = !!on; },
       contains: function () { return false; }
     },
-    setAttribute: function () {}, appendChild: function () {},
+    setAttribute: function (name, value) {
+      attrs[id] = attrs[id] || {};
+      attrs[id][name] = String(value);
+    },
+    appendChild: function () {},
     addEventListener: function () {}, querySelectorAll: function () { return []; },
     forEach: function () {},
     // The advisory host is created on demand and spliced in before the
@@ -110,6 +115,7 @@ function mkEl(id) {
 }
 
 var ELS = {};
+var attrs = {};
 function $(sel) { if (!ELS[sel]) ELS[sel] = mkEl(sel); return ELS[sel]; }
 var document = {
   querySelector: $,
@@ -129,7 +135,8 @@ var document = {
   },
   body: { dataset: {} }
 };
-var window = { confirm: function () { return confirmed; } };
+var window = {};
+async function requestConfirmation() { return confirmed; }
 
 function escapeHtml(value) {
   return String(value == null ? "" : value)
@@ -137,6 +144,7 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 function friendlyError(e) { return String((e && e.message) || e); }
+function ontologyLabelKo(v) { return String(v || ""); }
 function showResult(el, html, isError) {
   el.innerHTML = html;
   shown[el.id + ":isError"] = !!isError;
@@ -144,6 +152,8 @@ function showResult(el, html, isError) {
 function statusBadge(s) { return "<span class='badge st-" + s + "'>" + s + "</span>"; }
 function errorKindBadge(k) { return "<span class='badge'>" + String(k || "error").toUpperCase() + "</span>"; }
 function fmtTs(t) { return String(t || ""); }
+function fmtRelative(t) { return String(t || ""); }
+function timeHtml(t) { return "<time datetime='" + t + "' title='" + fmtTs(t) + "'>" + fmtRelative(t) + "</time>"; }
 function showTableLoading(tb) { tb.innerHTML = "<tr><td class='muted'>불러오는 중…</td></tr>"; }
 function totalsSummary(t) {
   t = t || {};
@@ -161,17 +171,23 @@ function renderStatusRun() {}
 function updateChatJob() {}
 function reconcileChatJobs() {}
 var prevJobStatuses = {};
+var PACK_FAILURE_KO = {
+  "manifest invalid": "팩 매니페스트가 유효하지 않습니다.",
+  "manifest is not an object": "팩 매니페스트 형식이 유효하지 않습니다.",
+  "kg.sqlite is not a database": "팩 데이터베이스를 읽을 수 없습니다."
+};
 var actPending = false;
 var selectedJobId = null;
 function renderJobDetail() {}
 """
 
 
-# Helpers every screen now shares. They are lifted from `app.js` rather than
-# stubbed: stubbing the normalizer would let a test pass while the shipped
-# one still emitted `[object Object]`, which is the whole defect.
-SHARED = ("errorText", "termErrorText", "throwIfRefused", "retryHint",
-          "renderUnusablePacks")
+# Load the shipped browser utilities rather than stubbing the normalizer;
+# otherwise the page could still emit `[object Object]` while tests passed.
+# Screen-specific functions remain lifted verbatim from the app closure.
+SHARED = ("termErrorText", "retryHint",
+          "shortMachineValue", "copyableMachineValueHtml",
+          "packFailureCopy", "renderUnusablePacks")
 
 
 def _harness(*functions: str, extra: str = "") -> str:
@@ -181,7 +197,12 @@ def _harness(*functions: str, extra: str = "") -> str:
     # are required, and a missing one is a hard error.
     parts = [_extract(f) for f in SHARED if f not in functions and _has(f)]
     parts += [_extract(f) for f in functions]
-    return HARNESS + extra + "\n" + "\n".join(parts)
+    utilities = (
+        "require('node:vm').runInNewContext("
+        + json.dumps(UI_UTILS_JS, ensure_ascii=False)
+        + ", window);\nvar uiUtils = window.ontologylabUiUtils;\n"
+    )
+    return HARNESS + utilities + extra + "\n" + "\n".join(parts)
 
 
 def _emit(expr: str) -> str:
@@ -279,7 +300,48 @@ def test_the_term_error_normalizer_keeps_its_existing_behaviour() -> None:
     assert out["obj"] == "name: 너무 길어요"
     assert out["arr"] == "name: bad"
     assert out["str"] == "평범한 문자열"
-    assert out["none"] == "요청을 처리하지 못했어요."
+    assert out["none"].strip() and "[object Object]" not in out["none"]
+
+
+@pytest.mark.parametrize(
+    ("result", "expected_id"),
+    [
+        (
+            {"manifest": {"pack_id": "chat-pack-20260905-223532"}},
+            "chat-pack-20260905-223532",
+        ),
+        ({"pack_id": "stored-pack"}, "stored-pack"),
+        (
+            {"manifest": {"pack_id": "current-pack"}, "pack_id": "stale-pack"},
+            "current-pack",
+        ),
+        (
+            {"manifest": {"pack_id": "<pack & \"new\" 'id'>"}},
+            "&lt;pack &amp; &quot;new&quot; &#39;id&#39;&gt;",
+        ),
+        (
+            {"pack_id": "<pack & \"old\" 'id'>"},
+            "&lt;pack &amp; &quot;old&quot; &#39;id&#39;&gt;",
+        ),
+        ({"manifest": {}, "pack_id": "stored-pack"}, "stored-pack"),
+        ({"manifest": None, "pack_id": "stored-pack"}, "stored-pack"),
+    ],
+    ids=["nested", "flat", "nested-wins", "nested-escaped", "flat-escaped",
+         "empty-manifest", "null-manifest"],
+)
+def test_chat_pack_answer_displays_pack_id_as_escaped_text(result, expected_id) -> None:
+    """Run both the shipped renderer and escaper, including saved responses."""
+    response = {"reading": "팩 요청 결과", "result": {"kind": "pack", **result}}
+    script = _extract("escapeHtml") + "\n" + _extract("chatAnswer") + (
+        "\nconsole.log(JSON.stringify({html: chatAnswer("
+        + json.dumps(response, ensure_ascii=False)
+        + ")}));"
+    )
+    html = _run_js(script)["html"]
+
+    assert f"<code>{expected_id}</code>" in html
+    assert html.startswith("<p>팩 요청 결과</p>")
+    assert "data-goto='packs'" in html
 
 
 # --------------------------------------------------------------------------
@@ -353,52 +415,42 @@ def test_a_422_array_detail_renders_the_field_and_message() -> None:
     assert "pattern" in out, "the rule that rejected it must be shown"
 
 
-# The sites that stringify a server `detail` straight into the page. They are
-# anonymous event-listener bodies, so they cannot be lifted out and run the
-# way the named functions above are; what is checkable is that none of them
-# still interpolates a raw `detail`, which is the exact expression that
-# produces `[object Object]` when the server sends a list.
-RAW_DETAIL_PATTERNS = (
-    "escapeHtml((res && res.detail)",
-    "escapeHtml((r && r.detail)",
-    "escapeHtml((res && (res.detail || res.error))",
-    "(res && res.detail) ||",
+@pytest.mark.parametrize(
+    ("body", "message"),
+    [
+        ({"detail": {"field": "name", "detail": "너무 길어요"}}, "name: 너무 길어요"),
+        ({"detail": [{"loc": ["body", "name"], "msg": "bad"}]}, "name: bad"),
+        ({"detail": "거절된 요청"}, "거절된 요청"),
+        ({"error": "검증 실패"}, "검증 실패"),
+        (None, "Unprocessable Entity"),
+    ],
 )
-
-
-def _code_only(source: str) -> str:
-    """Drop comments before pattern-matching.
-
-    The fix documents the defective expression in a comment next to the
-    helper that replaced it. Matching raw source would flag that prose as a
-    call site — and, worse, a future comment could hide a real one.
-    """
-    source = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
-    return re.sub(r"^\s*//.*$", "", source, flags=re.M)
-
-
-def test_no_call_site_interpolates_a_raw_detail() -> None:
-    """Thirteen sites shared one expression, and a list `detail` turns every
-    one of them into `[object Object]`."""
-    code = _code_only(APP_JS)
-    offenders = [p for p in RAW_DETAIL_PATTERNS if p in code]
-
-    assert not offenders, (
-        "these expressions render a 422 list as [object Object]: "
-        + ", ".join(offenders)
+def test_api_failure_preserves_readable_details_and_metadata(body, message) -> None:
+    """Exercise the HTTP caller, not a textual assertion about its helpers."""
+    script = _harness("api", "retryAfterSeconds", extra=(
+        "var BODY = " + json.dumps(body, ensure_ascii=False) + ";\n"
+        "async function fetch() { return {ok: false, status: 422,"
+        " statusText: 'Unprocessable Entity', json: async function() { return BODY; },"
+        " headers: {get: function() { return '5'; }}}; }\n"
+    )) + (
+        "api('/api/test').then(function() { throw new Error('failure accepted'); },"
+        " function(e) { console.log(JSON.stringify({message: e.message,"
+        " status: e.httpStatus, retry: e.retryAfter, sameBody: e.responseBody === BODY})); });"
     )
+    out = _run_js(script)
+
+    assert out == {"message": message, "status": 422, "retry": 5, "sameBody": True}
 
 
-def test_the_shared_normalizer_is_the_one_that_already_existed() -> None:
-    """`termErrorText` already handled both the object and the list form. A
-    second normalizer would be a second place for the two to disagree."""
-    assert APP_JS.count("function termErrorText(") == 1
-    # The array branch is what a second normalizer would have to duplicate;
-    # `termErrorText` names it twice (once to exclude it from the object
-    # branch, once to handle it), so anything beyond that is a rival copy.
-    assert APP_JS.count("Array.isArray(detail)") == 2, (
-        "the array branch must live in exactly one helper"
+def test_error_surface_classification_keeps_validation_details() -> None:
+    script = _harness("classifyError", "sanitizeErrorDetail") + (
+        "\nconsole.log(JSON.stringify(classifyError({httpStatus: 422,"
+        " responseBody: {detail: [{loc: ['body', 'name'], msg: 'bad'}]}})));"
     )
+    out = _run_js(script)
+
+    assert out["variant"] == "request"
+    assert out["detail"] == "HTTP 422 · name: bad"
 
 
 @pytest.mark.parametrize(
