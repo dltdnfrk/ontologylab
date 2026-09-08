@@ -82,7 +82,10 @@ def controller_anchor(app: Path, home: Path, retained: Path) -> str:
             + "\n",
             encoding="utf-8",
         )
-        authority_dir.mkdir()
+        # A refusal between here and the controller_path write leaves this
+        # directory behind, and the next capture attempt in the same test must
+        # not die on it before the refusal it is actually asserting.
+        authority_dir.mkdir(exist_ok=True)
         authority.write_text(
             json.dumps(
                 {
