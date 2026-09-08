@@ -25,6 +25,11 @@ became a paper.
 
 from __future__ import annotations
 
+import asyncio
+import json
+from urllib.parse import parse_qs, urlparse
+
+from ontologylab.connectors import paper_api
 from ontologylab.connectors.allowlist import PAPER_API_SOURCES
 from ontologylab.connectors.paper_api import (
     CLINICALTRIALS_SOURCE,
@@ -91,3 +96,55 @@ def test_a_trial_carries_no_doi() -> None:
 def test_a_malformed_payload_yields_nothing_rather_than_raising() -> None:
     """One source's bad day must not take the fan-out down with it."""
     assert parse_clinicaltrials('{"studies": [null, 7, {}]}') == []
+
+
+def test_harvest_consumes_clinicaltrials_next_page_token(
+    monkeypatch,
+) -> None:
+    tokens: list[str] = []
+
+    def _study(nct_id: str) -> dict:
+        return {
+            "protocolSection": {
+                "identificationModule": {
+                    "nctId": nct_id,
+                    "briefTitle": f"Trial {nct_id}",
+                },
+                "descriptionModule": {
+                    "briefSummary": f"Summary for {nct_id}",
+                },
+            }
+        }
+
+    def fake_get_text(url, headers=None, query_key=None):
+        del headers, query_key
+        params = parse_qs(urlparse(url).query)
+        token = params.get("pageToken", [""])[0]
+        tokens.append(token)
+        if not token:
+            return json.dumps(
+                {
+                    "studies": [_study("NCT00000001")],
+                    "nextPageToken": "page-two",
+                }
+            )
+        return json.dumps({"studies": [_study("NCT00000002")]})
+
+    monkeypatch.setattr(paper_api, "_http_get_text", fake_get_text)
+
+    docs = asyncio.run(
+        paper_api.PaperApiConnector().harvest(
+            {
+                "source": CLINICALTRIALS_SOURCE,
+                "query": "gene therapy",
+                "max_records": 2,
+                "page_size": 1,
+            }
+        )
+    )
+
+    assert tokens == ["", "page-two"]
+    assert [document.title for document in docs] == [
+        "Trial NCT00000001",
+        "Trial NCT00000002",
+    ]

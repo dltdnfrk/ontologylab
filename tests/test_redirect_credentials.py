@@ -20,7 +20,9 @@ function this file could also have written does what this file says.
 from __future__ import annotations
 
 import http.server
+import io
 import threading
+from http.client import HTTPMessage
 from urllib.error import HTTPError
 from urllib.request import Request
 
@@ -272,6 +274,41 @@ def test_a_same_host_redirect_keeps_its_headers(server, monkeypatch) -> None:
     assert second.get("x-els-apikey") == SECRET
 
 
+def test_a_different_port_is_a_cross_origin_credential_boundary() -> None:
+    request = Request(
+        "https://api.elsevier.com/start",
+        headers={"X-ELS-APIKey": SECRET},
+    )
+
+    redirected = paper_api._AllowlistedPaperRedirect().redirect_request(
+        request,
+        io.BytesIO(),
+        302,
+        "Found",
+        HTTPMessage(),
+        "https://api.elsevier.com:8443/next",
+    )
+
+    assert redirected is not None
+    assert SECRET not in redirected.headers.values()
+
+
+def test_a_query_key_cannot_cross_to_another_allowed_origin() -> None:
+    request = Request(
+        f"https://api.openalex.org/works?search=x&api_key={SECRET}"
+    )
+
+    with pytest.raises(NotAllowlisted):
+        paper_api._AllowlistedPaperRedirect().redirect_request(
+            request,
+            io.BytesIO(),
+            302,
+            "Found",
+            HTTPMessage(),
+            f"https://api.elsevier.com/landing?api_key={SECRET}",
+        )
+
+
 def test_the_body_still_arrives_after_a_stripped_redirect(
     server, monkeypatch
 ) -> None:
@@ -326,7 +363,7 @@ def test_the_module_seam_routes_through_the_guarded_opener() -> None:
 def test_the_opener_has_the_redirect_guard_installed() -> None:
     assert any(
         isinstance(handler, paper_api._AllowlistedPaperRedirect)
-        for handler in paper_api._opener.handlers
+        for handler in getattr(paper_api._opener, "handlers")
     )
 
 

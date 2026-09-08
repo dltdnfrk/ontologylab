@@ -41,6 +41,8 @@ SEARCH_QUERY_PROMPT_VERSION = "searchquery-v1"
 # searching an academic index types three or four terms.
 MAX_TERMS = 6
 MAX_QUERY_LEN = 120
+DEFAULT_SEARCH_QUERIES = 4
+MAX_SEARCH_QUERIES = 8
 
 
 def build_search_query_prompt(topic: str) -> str:
@@ -76,6 +78,36 @@ Rules:
 {QUERY_MARKER_CLOSE}"""
 
 
+def build_search_queries_prompt(topic: str, max_queries: int) -> str:
+    """Build one request for complementary scholarly-database queries."""
+    count = max(1, min(max_queries, MAX_SEARCH_QUERIES))
+    return f"""Write {count} complementary search queries for academic paper \
+APIs. Cover distinct axes such as mechanism, method, outcome, population, or \
+evidence type instead of paraphrasing one query.
+
+Return one fenced ```json block: \
+{{"queries":[{{"query":"English keywords","axis":"short label",\
+"terms":["concept phrase","truncated prefix"]}}],\
+"notes":"short summary"}}. Each query has at most {MAX_TERMS} terms, uses \
+English metadata terms, expands domain codes, drops grammatical filler, and \
+never invents a paper, author, or product. `terms` contains 2-4 concepts \
+that scholarly databases should AND; use a stem such as `metabolom` only \
+when plural/derived forms must match.
+
+{QUERY_MARKER_OPEN}
+{topic}
+{QUERY_MARKER_CLOSE}"""
+
+
+def _clean_query(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    query = " ".join(value.split())
+    if not query or len(query) > MAX_QUERY_LEN:
+        return None
+    return " ".join(query.split()[:MAX_TERMS])
+
+
 def parse_search_query(raw_text: str, topic: str) -> tuple[str | None, str]:
     """Parse engine output into ``(query, notes)``, or ``(None, "")``.
 
@@ -95,21 +127,48 @@ def parse_search_query(raw_text: str, topic: str) -> tuple[str | None, str]:
     if not isinstance(payload, dict):
         return None, ""
 
-    query = payload.get("query")
-    if not isinstance(query, str):
+    query = _clean_query(payload.get("query"))
+    if query is None:
         return None, ""
-    query = " ".join(query.split())
-    if not query or len(query) > MAX_QUERY_LEN:
-        return None, ""
-    # A model that ignores rule 4 would otherwise widen the very net this
-    # exists to narrow.
-    terms = query.split()
-    if len(terms) > MAX_TERMS:
-        query = " ".join(terms[:MAX_TERMS])
 
     notes = payload.get("notes")
     notes = " ".join(notes.split()) if isinstance(notes, str) else ""
     return query, notes[:200]
+
+
+def parse_search_queries(
+    raw_text: str,
+    topic: str,
+    *,
+    max_queries: int = DEFAULT_SEARCH_QUERIES,
+) -> tuple[list[str], str]:
+    """Parse ordered, distinct API queries; an unusable set is empty."""
+    del topic
+    try:
+        payload: Any = json.loads(extract_fenced_block(raw_text, "json"))
+    except Exception:
+        return [], ""
+    if not isinstance(payload, dict):
+        return [], ""
+    items = payload.get("queries")
+    if not isinstance(items, list):
+        items = [payload.get("query")]
+    cap = max(1, min(max_queries, MAX_SEARCH_QUERIES))
+    queries: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        value = item.get("query") if isinstance(item, dict) else item
+        query = _clean_query(value)
+        key = query.casefold() if query else ""
+        if not query or key in seen:
+            continue
+        seen.add(key)
+        queries.append(query)
+        if len(queries) == cap:
+            break
+    notes = payload.get("notes")
+    clean_notes = " ".join(notes.split()) if isinstance(notes, str) else ""
+    return queries, clean_notes[:200]
 
 
 async def formulate_search_query(
@@ -140,3 +199,33 @@ async def formulate_search_query(
         usage.setdefault("error", "engine returned no usable query")
         return topic, usage
     return query, usage
+
+
+async def formulate_search_queries(
+    topic: str,
+    engine: Any,
+    *,
+    model: Optional[str] = None,
+    max_queries: int = DEFAULT_SEARCH_QUERIES,
+) -> tuple[list[str], dict]:
+    """Create complementary API queries; fail open to one raw topic."""
+    if engine is None:
+        return [topic], {"error": "no engine configured"}
+    try:
+        raw_text, usage = await engine.generate(
+            build_search_queries_prompt(topic, max_queries),
+            model=model,
+        )
+    except Exception as exc:
+        return [topic], {"error": str(exc)}
+    result = dict(usage or {})
+    queries, notes = parse_search_queries(
+        raw_text,
+        topic,
+        max_queries=max_queries,
+    )
+    result["notes"] = notes
+    if not queries:
+        result.setdefault("error", "engine returned no usable queries")
+        return [topic], result
+    return queries, result

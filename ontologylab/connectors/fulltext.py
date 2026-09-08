@@ -180,6 +180,7 @@ def enrich_with_fulltext(
             replace(
                 document,
                 raw_text=f"{title}\n\n{body}" if title else body,
+                content_kind="fulltext",
             )
         )
     return enriched, stats

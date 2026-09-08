@@ -30,7 +30,7 @@ from ontologylab.connectors.paper_api import (
     parse_semanticscholar,
 )
 
-DOI = "10.1234/nipo.demo.2026"
+DOI = "10.1234/example.demo.2026"
 
 
 # --------------------------------------------------------------------------
@@ -54,7 +54,7 @@ def test_every_resolver_prefix_is_stripped() -> None:
 
 
 def test_case_is_folded_because_dois_are_case_insensitive() -> None:
-    assert normalize_doi("10.1234/NIPO.Demo.2026") == DOI
+    assert normalize_doi("10.1234/Example.Demo.2026") == DOI
 
 
 def test_identifier_fields_preserve_registered_terminal_parentheses() -> None:
@@ -94,7 +94,7 @@ def test_a_value_that_is_not_a_doi_is_refused() -> None:
     # suffix, and no whitespace or control characters inside the identifier.
     for junk in (
         "", "   ", "not-a-doi", "https://arxiv.org/abs/2401.00001",
-        None, 42, "10.1234", "10.1234/nipo demo", "10.1234/nipo\x07demo",
+        None, 42, "10.1234", "10.1234/example demo", "10.1234/example\x07demo",
     ):
         assert normalize_doi(junk) is None, junk
 

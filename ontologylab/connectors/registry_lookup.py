@@ -1,47 +1,54 @@
-"""Advisory registry lookups for review-queue entities (science-skills slice 2).
+"""Advisory registry lookups for review-queue entities.
 
-The LLM is never the authority for an external identifier, and neither is
-this module: it looks the proposed entity's name up in public registries
-(UniProt for genes/proteins, PubChem for drugs, ClinVar for variants) and
-records what the registry says, so the human reviewing the proposal can
-confirm the entity is real before approving. Nothing here writes status —
-the review queue and its human-only approval stay untouched.
+The runtime path performs curated exact-name lookups through ``resources``
+(UniProt for genes/proteins and ChEMBL for drugs) and records the answer as
+review evidence. The LLM and this module are both advisory: nothing here
+writes status, so the review queue and human-only approval stay untouched.
 
-Lookups are keyless and best-effort: a transport failure becomes a row
-with an error text (the reviewer must see that the check *could not run*,
-not silently nothing), and a name the registry does not know becomes no
-row at all — absence means "not found", which is itself information.
+Lookups are keyless and best-effort. A transport failure or exact-match miss
+becomes a row with a stable error key so the reviewer can distinguish an
+offline check from ``not_found``. Legacy parser helpers remain for direct
+callers but use the same guarded HTTP seam; ``lookup_entity`` never uses
+their ranked free-text results.
 """
 
 from __future__ import annotations
 
 import json
-import re
 import urllib.error
 import urllib.parse
-import urllib.request
 from dataclasses import dataclass
 from typing import Any
+
+from ontologylab.connectors.paper_api import ResponseTooLarge, _http_get_text
+from ontologylab.connectors.resources import (
+    CHEMBL_RESOURCE,
+    UNIPROT_RESOURCE,
+    ResourceError,
+    ResourceMatch,
+    lookup,
+)
+from ontologylab.paths import NetworkBlocked
 
 # Which entity kinds get looked up in which registry. Kinds without a
 # registry (Disease, Pathway, CellLine, Assay) are deliberately skipped —
 # inventing a lookup for them would manufacture false confidence.
 REGISTRY_FOR_TYPE: dict[str, str] = {
-    "Gene": "uniprot",
-    "Protein": "uniprot",
-    "Drug": "pubchem",
-    "Variant": "clinvar",
+    "Gene": UNIPROT_RESOURCE,
+    "Protein": UNIPROT_RESOURCE,
+    "Drug": CHEMBL_RESOURCE,
 }
 
 _UNIPROT_SEARCH = "https://rest.uniprot.org/uniprotkb/search"
 _PUBCHEM_PROPERTY = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name"
 _EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 
-_TIMEOUT_S = 10
-_MAX_BYTES = 2 * 1024 * 1024
+
+class LegacyLookupError(Exception):
+    """A compatibility lookup failed before producing a registry row."""
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class Enrichment:
     """One registry answer (or one failed attempt)."""
 
@@ -53,35 +60,30 @@ class Enrichment:
 
 
 def _get(url: str) -> bytes:
-    """One bounded GET; raises ValueError with a Korean-free failure key.
+    """Compatibility seam for the legacy parsers, behind the shared GET.
 
     Failure keys are stable ('timeout', 'refused', 'http_429', 'offline',
     'shape') so the caller can store a short reason instead of an error
     body that might carry anything.
     """
-    request = urllib.request.Request(
-        url, headers={"User-Agent": "ontologylab/1.0 (+https://github.com/dltdnfrk/ontologylab)"}
-    )
     try:
-        with urllib.request.urlopen(request, timeout=_TIMEOUT_S) as response:
-            return response.read(_MAX_BYTES + 1)
+        return _http_get_text(url).encode()
     except urllib.error.HTTPError as exc:
-        raise ValueError(f"http_{exc.code}") from exc
+        raise LegacyLookupError(f"http_{exc.code}") from exc
     except urllib.error.URLError:
-        raise ValueError("offline") from None
+        raise LegacyLookupError("offline") from None
     except TimeoutError:
-        raise ValueError("timeout") from None
+        raise LegacyLookupError("timeout") from None
+    except NetworkBlocked:
+        raise LegacyLookupError("offline") from None
 
 
 def _get_json(url: str) -> dict[str, Any]:
-    try:
-        body = _get(url)
-    except ValueError as exc:
-        raise ValueError(str(exc)) from exc
+    body = _get(url)
     try:
         return json.loads(body)
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise ValueError("shape") from exc
+        raise LegacyLookupError("shape") from exc
 
 
 def _text(value: Any) -> str:
@@ -130,7 +132,7 @@ def lookup_pubchem(name: str) -> Enrichment:
     )
     try:
         data = _get_json(url)
-    except ValueError as exc:
+    except LegacyLookupError as exc:
         if str(exc) == "http_404":
             return Enrichment("pubchem", "", name, error="not_found")
         raise
@@ -170,24 +172,39 @@ def lookup_clinvar(name: str) -> Enrichment:
     )
 
 
-_LOOKUPS = {
-    "uniprot": lookup_uniprot,
-    "pubchem": lookup_pubchem,
-    "clinvar": lookup_clinvar,
-}
+def _from_match(match: ResourceMatch) -> Enrichment:
+    return Enrichment(
+        registry=match.resource,
+        identifier=match.external_id,
+        label=match.matched_name,
+        description=json.dumps(
+            match.facts, ensure_ascii=False, sort_keys=True,
+        ),
+    )
 
 
 def lookup_entity(name: str, type_name: str) -> list[Enrichment]:
-    """The registries that apply to this entity kind, in a stable order.
+    """Look up one proposal through the curated exact-match resource seam.
 
-    One registry per kind; the mapping is fixed so a name is never
-    bounced between registries hoping one sticks. A failed network call
-    still yields an Enrichment row carrying the failure key.
+    The old runtime path called the free-text helpers above, accepted the
+    top-ranked hit, and opened URLs directly. Review enrichment now shares
+    the field-qualified resource contract used by graph enrichment.
     """
     registry = REGISTRY_FOR_TYPE.get(type_name)
     if registry is None:
         return []
     try:
-        return [_LOOKUPS[registry](name)]
-    except ValueError as exc:
-        return [Enrichment(registry, "", name, error=str(exc))]
+        match = lookup(registry, name)
+    except urllib.error.HTTPError as exc:
+        return [Enrichment(registry, "", name, error=f"http_{exc.code}")]
+    except urllib.error.URLError:
+        return [Enrichment(registry, "", name, error="offline")]
+    except TimeoutError:
+        return [Enrichment(registry, "", name, error="timeout")]
+    except NetworkBlocked:
+        return [Enrichment(registry, "", name, error="offline")]
+    except (ResourceError, ResponseTooLarge, UnicodeError):
+        return [Enrichment(registry, "", name, error="shape")]
+    if match is None:
+        return [Enrichment(registry, "", name, error="not_found")]
+    return [_from_match(match)]

@@ -88,6 +88,19 @@ PAPER_API_ALLOWED: dict[str, set[str]] = {"sources": PAPER_API_SOURCES}
 
 # Query validation bounds (see module docstring for the rationale).
 MAX_PAPER_QUERY_LEN = 200
+_EXPANDED_QUERY_MAX_LEN = 512
+_EXPANDED_QUERY_SOURCES = frozenset(
+    {
+        "crossref",
+        "openalex",
+        "semanticscholar",
+        "europepmc",
+        "pubmed",
+        "elsevier",
+        "springer",
+        "core",
+    }
+)
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
 
 # How many values of one input list reach the provenance record (see
@@ -193,10 +206,15 @@ def check_paper_query(source: str, query: str) -> tuple[str, str]:
     stripped = query.strip()
     if not stripped:
         raise NotAllowlisted("paper query is empty")
-    if len(stripped) > MAX_PAPER_QUERY_LEN:
+    max_length = (
+        _EXPANDED_QUERY_MAX_LEN
+        if source in _EXPANDED_QUERY_SOURCES
+        else MAX_PAPER_QUERY_LEN
+    )
+    if len(stripped) > max_length:
         raise NotAllowlisted(
             f"paper query is too long ({len(stripped)} chars; "
-            f"max {MAX_PAPER_QUERY_LEN})"
+            f"max {max_length} for {source})"
         )
     if _CONTROL_CHARS_RE.search(stripped):
         raise NotAllowlisted("paper query contains control characters")

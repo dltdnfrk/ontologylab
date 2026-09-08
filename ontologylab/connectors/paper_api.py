@@ -1,42 +1,18 @@
-"""Paper-metadata API connectors (stdlib only).
+"""Guarded paper acquisition with pure source-specific URL and parser leaves.
 
-Fetches public metadata + abstracts from paper APIs, in three categories:
+This facade owns the twelve-source registry, credentials, guarded HTTP,
+harvest sequencing and partial-success fan-out. Public parser and builder
+names are direct imports; the leaves never import this facade or perform I/O.
 
-* **Keyless** — arXiv (Atom XML), Crossref, Europe PMC (REST JSON). No
-  credential exists to give them.
-* **Optionally keyed** — OpenAlex and Semantic Scholar answer anonymously
-  but share one pool with every other anonymous client, and both were
-  measured returning `429 Too Many Requests` on an ordinary query from an
-  unconfigured install. A key moves them out of that pool; its absence is
-  not an error.
-* **Keyed** — Elsevier (Scopus), Springer Nature, CORE. These refuse
-  outright without a credential, so an unconfigured install does not
-  query them at all rather than collecting three failures per run.
+arXiv, Crossref, Europe PMC, bioRxiv and ClinicalTrials need no key.
+OpenAlex, Semantic Scholar and PubMed accept optional keys. Elsevier,
+Springer and CORE refuse without a configured key; SearXNG is explicit-only
+and requires a validated private or loopback instance.
 
-Each (source, query) pair is checked against the allowlist **before** any
-network I/O (deny-by-default), mirroring the web_crawl connector's
-enforcement point.
-
-Three properties hold the keyed half together:
-
-* **Fixed hosts.** Every endpoint is one constant, so `PAPER_API_HOSTS` is
-  derived from them and exact-match stays possible. Full text is reached
-  through publisher *APIs* for exactly this reason — crawling document pages
-  would mean following `doi.org -> publisher -> CDN`, whose intermediate
-  hosts cannot be enumerated ahead of time.
-* **Credentials travel in headers wherever the API offers a header.** A key
-  in a query string would reach the offline-refusal message,
-  `provenance.jsonl`, `status.json`'s last_payload and the job log, none of
-  which know a URL might be a secret. Elsevier and Springer also accept a
-  query parameter; that route is not offered here. OpenAlex documents no
-  header form at all, so it is the one exception — and it is contained
-  rather than waived: `_with_query_key` splices the key on inside
-  `_http_get_text`, after every string that might be logged has already
-  been built without it.
-* **Nothing crosses an origin.** `_AllowlistedPaperRedirect` re-checks every
-  redirect hop and drops any header outside `_REDIRECT_SAFE_HEADERS` when the
-  host changes, because `urllib` forwards credentials across origins where
-  `requests`/`urllib3` would not.
+Query checks precede outbound work. Credentials enter headers or query
+parameters only inside the guarded transport, never the logged builder URL.
+Redirects recheck hosts and strip cross-origin credentials. The same HTTP
+seam also serves resources and fulltext; its callers retain their own gates.
 """
 
 from __future__ import annotations
@@ -47,10 +23,17 @@ import json
 import os
 import re
 import xml.etree.ElementTree as ET
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from typing import Any
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import (
+    parse_qsl,
+    quote_plus,
+    urlencode,
+    urlparse,
+    urlsplit,
+    urlunsplit,
+)
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from ontologylab import evidence
@@ -66,83 +49,102 @@ from ontologylab.connectors.base import (
     RawDocument,
     normalize_doi,
 )
-
-_ATOM_NS = "{http://www.w3.org/2005/Atom}"
-
-# The only external endpoints this system ever fetches (all keyless).
-ARXIV_API_URL = "https://export.arxiv.org/api/query"
-CROSSREF_API_URL = "https://api.crossref.org/works"
-OPENALEX_API_URL = "https://api.openalex.org/works"
-# bioRxiv's official API is a date-browse, not a keyword search: it can only
-# list preprints published inside a window, one page of 100 at a time. The
-# query therefore never reaches the URL — the builder fixes a recent window
-# and the fetch path filters that page locally (see _fetch_biorxiv).
-BIORXIV_API_URL = "https://api.biorxiv.org/details/biorxiv"
-BIORXIV_WINDOW_DAYS = 28
-# NCBI E-utilities: esearch (keyword -> PMIDs) then efetch (PMIDs -> XML
-# with abstract + DOI). Two requests per query; keyless at 3 req/s.
-PUBMED_EUTILS_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
-SEMANTIC_SCHOLAR_API_URL = (
-    "https://api.semanticscholar.org/graph/v1/paper/search"
+from ontologylab.connectors.paper_common import (
+    ARXIV_SOURCE as ARXIV_SOURCE,
+    CROSSREF_SOURCE as CROSSREF_SOURCE,
+    OPENALEX_SOURCE as OPENALEX_SOURCE,
+    SEMANTIC_SCHOLAR_SOURCE as SEMANTIC_SCHOLAR_SOURCE,
+    EUROPEPMC_SOURCE as EUROPEPMC_SOURCE,
+    BIORXIV_SOURCE as BIORXIV_SOURCE,
+    PUBMED_SOURCE as PUBMED_SOURCE,
+    CLINICALTRIALS_SOURCE as CLINICALTRIALS_SOURCE,
+    ELSEVIER_SOURCE as ELSEVIER_SOURCE,
+    SPRINGER_SOURCE as SPRINGER_SOURCE,
+    CORE_SOURCE as CORE_SOURCE,
+    SEARXNG_SOURCE as SEARXNG_SOURCE,
+    DOI_BASE_URL as DOI_BASE_URL,
+    MAX_LIMIT as MAX_LIMIT,
+    _normalize as _normalize,
+    _load_json as _load_json,
+    _json_object as _json_object,
+    _integer as _integer,
+    _year_from_parts as _year_from_parts,
+    _MARKUP_TAG_RE as _MARKUP_TAG_RE,
 )
-# ClinicalTrials.gov REST v2. Keyless, and `query.term` is the same kind of
-# free-text search the paper APIs take, so it fits the one-request source
-# contract exactly as they do.
-CLINICALTRIALS_API_URL = "https://clinicaltrials.gov/api/v2/studies"
-
-EUROPEPMC_API_URL = (
-    "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+from ontologylab.connectors.paper_urls import (
+    _build_query_url as _build_query_url,
+    _build_crossref_url as _build_crossref_url,
+    _build_openalex_url as _build_openalex_url,
+    _build_semanticscholar_url as _build_semanticscholar_url,
+    _build_europepmc_url as _build_europepmc_url,
+    _build_elsevier_url as _build_elsevier_url,
+    _build_springer_url as _build_springer_url,
+    _build_core_url as _build_core_url,
+    europepmc_fulltext_url as europepmc_fulltext_url,
+    _openalex_mailto as _openalex_mailto,
+    _paginate_url as _paginate_url,
+    ARXIV_API_URL as ARXIV_API_URL,
+    CROSSREF_API_URL as CROSSREF_API_URL,
+    OPENALEX_API_URL as OPENALEX_API_URL,
+    SEMANTIC_SCHOLAR_API_URL as SEMANTIC_SCHOLAR_API_URL,
+    EUROPEPMC_API_URL as EUROPEPMC_API_URL,
+    EUROPEPMC_FULLTEXT_URL as EUROPEPMC_FULLTEXT_URL,
+    ELSEVIER_API_URL as ELSEVIER_API_URL,
+    SPRINGER_API_URL as SPRINGER_API_URL,
+    CORE_API_URL as CORE_API_URL,
+    _CROSSREF_SELECT_FIELDS as _CROSSREF_SELECT_FIELDS,
+    _ELSEVIER_FIELDS as _ELSEVIER_FIELDS,
+    _PMCID_RE as _PMCID_RE,
+    OPENALEX_MAILTO_ENV as OPENALEX_MAILTO_ENV,
+    _PAGE_PARAMETER as _PAGE_PARAMETER,
+    PAGINATED_SOURCES as PAGINATED_SOURCES,
 )
-# Full text for the PMC open-access subset, served from the SAME host as the
-# search above. That is the whole reason this is the full-text route: it adds
-# no host to the allowlist, needs no PDF parser (the payload is JATS XML),
-# and keeps the "fixed endpoints only" property that ruled out crawling
-# doi.org -> publisher -> CDN. `{pmcid}` is the only interpolated part and it
-# is validated by `_PMCID_RE` before it ever reaches a URL.
-EUROPEPMC_FULLTEXT_URL = (
-    "https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
+from ontologylab.connectors.paper_urls_special import (
+    _build_biorxiv_url as _build_biorxiv_url,
+    _build_pubmed_url as _build_pubmed_url,
+    _build_clinicaltrials_url as _build_clinicaltrials_url,
+    _build_searxng_url as _build_searxng_url,
+    _searxng_base_url as _searxng_base_url,
+    BIORXIV_API_URL as BIORXIV_API_URL,
+    BIORXIV_WINDOW_DAYS as BIORXIV_WINDOW_DAYS,
+    PUBMED_EUTILS_URL as PUBMED_EUTILS_URL,
+    CLINICALTRIALS_API_URL as CLINICALTRIALS_API_URL,
+    SEARXNG_URL_ENV as SEARXNG_URL_ENV,
+    SEARXNG_ENGINES as SEARXNG_ENGINES,
+    _biorxiv_cursor_url,
+    _clinicaltrials_page_url,
+    _build_pubmed_efetch_url,
 )
-# PMC identifiers are "PMC" followed by digits. Anchored because this value
-# comes from a third-party API response and is interpolated into a path.
-_PMCID_RE = re.compile(r"^PMC[0-9]{1,12}$")
-
-
-def europepmc_fulltext_url(pmcid: str) -> str:
-    """URL for one PMC article's full text, or "" when the id is not one.
-
-    Refusing an unrecognised id here means a malformed or hostile `pmcid`
-    can never become a path segment.
-    """
-    pmcid = (pmcid or "").strip()
-    if not _PMCID_RE.match(pmcid):
-        return ""
-    return EUROPEPMC_FULLTEXT_URL.format(pmcid=pmcid)
-
-
-# Publisher APIs — keyed, but still fixed hosts, which is what keeps them
-# inside the exact-match allowlist. Reaching full text by crawling document
-# pages instead would mean following doi.org -> publisher -> CDN, and those
-# intermediate hosts cannot be enumerated ahead of time.
-ELSEVIER_API_URL = "https://api.elsevier.com/content/search/scopus"
-SPRINGER_API_URL = "https://api.springernature.com/meta/v2/json"
-CORE_API_URL = "https://api.core.ac.uk/v3/search/works"
-
-# Scopus omits `dc:description` from its STANDARD view, so the abstract has
-# to be requested by name or the parser sees titles only.
-_ELSEVIER_FIELDS = (
-    "dc:title",
-    "dc:description",
-    "dc:creator",
-    "prism:doi",
-    "prism:publicationName",
-    "prism:url",
+from ontologylab.connectors.paper_parsers_xml import (
+    parse_atom as parse_atom,
+    parse_pubmed as parse_pubmed,
+    _ATOM_NS as _ATOM_NS,
+)
+from ontologylab.connectors.paper_parsers_discovery import (
+    parse_crossref as parse_crossref,
+    parse_openalex as parse_openalex,
+    parse_semanticscholar as parse_semanticscholar,
+    parse_searxng as parse_searxng,
+    _restore_inverted_abstract as _restore_inverted_abstract,
+)
+from ontologylab.connectors.paper_parsers_biomedical import (
+    parse_europepmc as parse_europepmc,
+    parse_biorxiv as parse_biorxiv,
+    parse_clinicaltrials as parse_clinicaltrials,
+)
+from ontologylab.connectors.paper_parsers_publishers import (
+    parse_elsevier as parse_elsevier,
+    parse_springer as parse_springer,
+    parse_core as parse_core,
+    _first_springer_url as _first_springer_url,
 )
 
-# DOI resolver base for items that carry a DOI but no URL field.
-DOI_BASE_URL = "https://doi.org/"
+# Acquisition limits and defaults remain with the guarded transport.
 DEFAULT_LIMIT = 5
-MAX_LIMIT = 25
+
 _MAX_LIMIT = MAX_LIMIT  # back-compat alias
+DEFAULT_HARVEST_LIMIT = 100
+MAX_HARVEST_LIMIT = 500
 
 # The most a single paper API may hand back. 25 abstracts are a few hundred
 # kilobytes, so this is generous for a legitimate answer while keeping a
@@ -151,33 +153,10 @@ MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 
 # Canonical source names: the fetch dispatch, IMPLEMENTED_SOURCES, and the
 # default all reference these — never re-type the strings.
-ARXIV_SOURCE = "arxiv"
-CROSSREF_SOURCE = "crossref"
-OPENALEX_SOURCE = "openalex"
-SEMANTIC_SCHOLAR_SOURCE = "semanticscholar"
-CLINICALTRIALS_SOURCE = "clinicaltrials"
-BIORXIV_SOURCE = "biorxiv"
-PUBMED_SOURCE = "pubmed"
-EUROPEPMC_SOURCE = "europepmc"
-ELSEVIER_SOURCE = "elsevier"
-SPRINGER_SOURCE = "springer"
-CORE_SOURCE = "core"
-SEARXNG_SOURCE = "searxng"
 DEFAULT_PAPER_SOURCE = ARXIV_SOURCE
 
-# IMPLEMENTED_SOURCES is DERIVED from _SOURCE_DISPATCH, further down this
-# file. It cannot be written here: the dispatch table references builders and
-# parsers defined below. Everything in this module reads the name at call
-# time, so the later binding is the one they see.
-
-# Crossref fields we request AND the exact keys parse_crossref reads —
-# dropping one here silently empties the corresponding parsed value, so the
-# two stay coupled through this tuple.
-# `type` is what separates a journal article from a preprint
-# (`posted-content`) or a book chapter. Asked for four BRCA1/PARP works,
-# Crossref returned two reports, a chapter and a preprint — no journal
-# article at all, so guessing from the source name mislabels most rows.
-_CROSSREF_SELECT_FIELDS = ("DOI", "URL", "title", "abstract", "type")
+# IMPLEMENTED_SOURCES is derived from the single _SOURCE_DISPATCH below.
+# Its builders and parsers are imported above; the registry stays here.
 
 
 class UnsupportedPaperSource(NotImplementedError):
@@ -297,16 +276,39 @@ class _AllowlistedPaperRedirect(HTTPRedirectHandler):
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         check_paper_host(newurl)  # raises NotAllowlisted on a bad hop
+        old_origin = _request_origin(req.full_url)
+        new_origin = _request_origin(newurl)
+        if old_origin != new_origin and _has_credential_query(newurl):
+            raise NotAllowlisted(
+                f"paper API redirect to origin {new_origin!r} "
+                "is refused because its URL carries a credential"
+            )
         new = super().redirect_request(req, fp, code, msg, headers, newurl)
         if new is None:
             return None
-        old_host = (urlparse(req.full_url).hostname or "").lower()
-        new_host = (urlparse(newurl).hostname or "").lower()
-        if old_host != new_host:
+        if old_origin != new_origin:
             for name in list(new.headers):
                 if name.lower() not in _REDIRECT_SAFE_HEADERS:
                     del new.headers[name]
         return new
+
+
+def _request_origin(url: str) -> tuple[str, str, int | None]:
+    parsed = urlparse(url)
+    port = parsed.port
+    if port is None:
+        port = 443 if parsed.scheme == "https" else 80
+    return parsed.scheme.lower(), (parsed.hostname or "").lower(), port
+
+
+def _has_credential_query(url: str) -> bool:
+    return any(
+        name.casefold() in {"api_key", "apikey", "api-key", "access_token"}
+        for name, _value in parse_qsl(
+            urlparse(url).query,
+            keep_blank_values=True,
+        )
+    )
 
 
 _opener = build_opener(_AllowlistedPaperRedirect())
@@ -328,12 +330,12 @@ def _with_query_key(url: str, param: str, key: str) -> str:
     secret. Elsevier and Springer both offer a query-parameter route and it
     is deliberately not used.
 
-    OpenAlex leaves no choice: its documented mechanism is `api_key=` and
-    there is no header form. So the exception is contained rather than
-    waived: this returns a string that goes straight into `urlopen` and is
-    bound to no name that anything else reads. Its one caller is the line
-    below `assert_network_allowed`, so the keyless `url` remains what the
-    guard, the size error and any raised exception are built from.
+    OpenAlex and Springer leave no supported header choice; PubMed also
+    benefits from its documented query key. The exception is contained
+    rather than waived: this returns a string that goes straight into
+    `urlopen` and is bound to no name that anything else reads. Its one
+    caller is the line below `assert_network_allowed`, so the keyless `url`
+    remains what the guard, size error and raised exception are built from.
     """
     separator = "&" if "?" in url else "?"
     return f"{url}{separator}{param}={quote_plus(key)}"
@@ -393,801 +395,40 @@ def _http_get_text(
     return payload.decode(charset, errors="replace")
 
 
-def _build_query_url(query: str, limit: int) -> str:
-    return (
-        f"{ARXIV_API_URL}"
-        f"?search_query=all:{quote_plus(query)}"
-        f"&start=0&max_results={limit}"
+def _relevant(document: RawDocument, terms: Sequence[str]) -> bool:
+    """Require each query concept for APIs whose boolean search is loose."""
+    if not terms:
+        return True
+    text = f"{document.title or ''} {document.raw_text}".casefold()
+    if not text.strip():
+        return True
+    return all(
+        term.casefold().rstrip("*")[:6] in text
+        for term in terms
+        if term.strip()
     )
 
 
-def _build_crossref_url(query: str, limit: int) -> str:
-    # `select` keeps the payload to exactly the fields we ingest.
-    return (
-        f"{CROSSREF_API_URL}"
-        f"?query={quote_plus(query)}"
-        f"&rows={limit}"
-        "&select=" + ",".join(_CROSSREF_SELECT_FIELDS)
-    )
-
-
-# OpenAlex routes requests carrying a contact `mailto` into a faster,
-# more lenient "polite pool". The address is read from the environment at
-# request time (never hard-coded / committed); absent -> the common pool.
-OPENALEX_MAILTO_ENV = "OPENALEX_MAILTO"
-# Where the user's own SearXNG lives. Not a constant like the other
-# endpoints because the instance is theirs; `check_searxng_base_url`
-# is what keeps it from becoming an arbitrary destination.
-SEARXNG_URL_ENV = "ONTOLOGYLAB_SEARXNG_URL"
-# The scholarly-publication engines, named explicitly. Google Scholar is
-# the one that cannot be reached any other way — it has no API, which is
-# the whole reason a metasearch source earns its place here.
-SEARXNG_ENGINES = "arxiv,google scholar,pubmed,semantic scholar,crossref,openalex"
-
-
-def _openalex_mailto() -> str:
-    return os.environ.get(OPENALEX_MAILTO_ENV, "").strip()
-
-
-def _build_openalex_url(query: str, limit: int) -> str:
-    url = (
-        f"{OPENALEX_API_URL}"
-        f"?search={quote_plus(query)}"
-        f"&per-page={limit}"
-        "&select=id,doi,display_name,abstract_inverted_index,type"
-    )
-    mailto = _openalex_mailto()
-    if mailto:
-        url += f"&mailto={quote_plus(mailto)}"
-    return url
-
-
-def _build_semanticscholar_url(query: str, limit: int) -> str:
-    return (
-        f"{SEMANTIC_SCHOLAR_API_URL}"
-        f"?query={quote_plus(query)}"
-        f"&limit={limit}"
-        "&fields=title,abstract,url,externalIds,publicationTypes"
-    )
-
-
-def _build_europepmc_url(query: str, limit: int) -> str:
-    return (
-        f"{EUROPEPMC_API_URL}"
-        f"?query={quote_plus(query)}"
-        f"&pageSize={limit}"
-        "&format=json&resultType=core"
-    )
-
-
-def _normalize(text: str | None) -> str:
-    return re.sub(r"\s+", " ", text or "").strip()
-
-
-def parse_atom(xml_text: str) -> list[RawDocument]:
-    """Parse an arXiv Atom feed into RawDocuments (title + abstract only)."""
-    # Why the stdlib parser is enough here — stated accurately, because the
-    # earlier justification was not. `ET.fromstring` DOES expand internal
-    # entities, so "no external entities" was never the protection. What
-    # actually bounds a billion-laughs payload is libexpat's amplification
-    # limit (100x, 8 MiB threshold, expat >= 2.4), measured: a seven-stage
-    # bomb is refused with `ParseError: limit on input amplification factor
-    # breached`. A four-stage one stays under the threshold and parses, which
-    # is why `_http_get_text` caps the input that expansion multiplies.
-    root = ET.fromstring(xml_text)
-    documents: list[RawDocument] = []
-    for entry in root.findall(f"{_ATOM_NS}entry"):
-        title = _normalize(entry.findtext(f"{_ATOM_NS}title"))
-        abstract = _normalize(entry.findtext(f"{_ATOM_NS}summary"))
-        if not title and not abstract:
-            continue
-        source_uri = _normalize(entry.findtext(f"{_ATOM_NS}id"))
-        if not source_uri:
-            # No <id> -> no usable source_uri -> no provenance trail;
-            # such an entry must never become a document row.
-            continue
-        documents.append(
-            RawDocument(
-                source_kind="paper_api",
-                source_uri=source_uri,
-                title=title or None,
-                raw_text=f"{title}\n\n{abstract}",
-                # arXiv Atom entries carry no DOI. Leaving it None makes the
-                # entry de-duplicate on its `<id>` URL instead of colliding
-                # with every other DOI-less document under a shared key.
-                doi=None,
-                        source=ARXIV_SOURCE,
-            evidence_grade=evidence.grade_from_source(ARXIV_SOURCE),
-)
-        )
-    return documents
-
-
-# JATS/XML markup inside Crossref abstracts ("<jats:p>...</jats:p>").
-_MARKUP_TAG_RE = re.compile(r"<[^>]+>")
-
-
-def parse_crossref(json_text: str) -> list[RawDocument]:
-    """Parse a Crossref /works JSON response into RawDocuments.
-
-    Same ingest contract as parse_atom: title + abstract only, and an item
-    with no usable source URI (URL or DOI) never becomes a document row —
-    no provenance trail, no ingestion. Abstracts arrive as JATS XML
-    fragments; markup is stripped to plain text.
-    """
-    try:
-        payload = json.loads(json_text)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"crossref response is not valid JSON: {exc}") from exc
-    items = ((payload.get("message") or {}).get("items")) or []
-    documents: list[RawDocument] = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        titles = item.get("title") or []
-        title = _normalize(" ".join(titles) if isinstance(titles, list) else titles)
-        abstract = _normalize(_MARKUP_TAG_RE.sub(" ", item.get("abstract") or ""))
-        if not title and not abstract:
-            continue
-        doi = _normalize(item.get("DOI"))
-        source_uri = _normalize(item.get("URL")) or (
-            f"{DOI_BASE_URL}{doi}" if doi else ""
-        )
-        if not source_uri:
-            continue
-        documents.append(
-            RawDocument(
-                source_kind="paper_api",
-                source_uri=source_uri,
-                title=title or None,
-                raw_text=f"{title}\n\n{abstract}",
-                doi=normalize_doi(doi),
-                        source=CROSSREF_SOURCE,
-            evidence_grade=evidence.grade_from_record(CROSSREF_SOURCE, item),
-)
-        )
-    return documents
-
-
-def _load_json(json_text: str, source: str) -> Any:
-    try:
-        return json.loads(json_text)
-    except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"{source} response is not valid JSON: {exc}"
-        ) from exc
-
-
-def _restore_inverted_abstract(inverted: Any) -> str:
-    """Rebuild plain text from OpenAlex's abstract_inverted_index.
-
-    The index maps each word to the list of positions where it occurs;
-    placing every word at its positions and joining restores the abstract.
-    """
-    if not isinstance(inverted, dict) or not inverted:
-        return ""
-    slots: dict[int, str] = {}
-    for word, positions in inverted.items():
-        if not isinstance(positions, list):
-            continue
-        for pos in positions:
-            if isinstance(pos, int) and pos >= 0:
-                slots[pos] = str(word)
-    return " ".join(slots[i] for i in sorted(slots))
-
-
-def parse_openalex(json_text: str) -> list[RawDocument]:
-    """Parse an OpenAlex /works JSON response into RawDocuments."""
-    payload = _load_json(json_text, OPENALEX_SOURCE)
-    documents: list[RawDocument] = []
-    for item in payload.get("results") or []:
-        if not isinstance(item, dict):
-            continue
-        title = _normalize(item.get("display_name"))
-        abstract = _normalize(
-            _restore_inverted_abstract(item.get("abstract_inverted_index"))
-        )
-        if not title and not abstract:
-            continue
-        # OpenAlex serves `doi` as a full https://doi.org/... URL and `id`
-        # as a canonical openalex.org URL — either is a provenance trail.
-        # The URL form is why `normalize_doi` strips resolver prefixes: this
-        # is the one source whose DOI does not arrive bare.
-        source_uri = _normalize(item.get("doi")) or _normalize(item.get("id"))
-        if not source_uri:
-            continue
-        documents.append(
-            RawDocument(
-                source_kind="paper_api",
-                source_uri=source_uri,
-                title=title or None,
-                raw_text=f"{title}\n\n{abstract}",
-                doi=normalize_doi(item.get("doi")),
-                        source=OPENALEX_SOURCE,
-            evidence_grade=evidence.grade_from_record(OPENALEX_SOURCE, item),
-)
-        )
-    return documents
-
-
-def parse_semanticscholar(json_text: str) -> list[RawDocument]:
-    """Parse a Semantic Scholar /paper/search JSON response."""
-    payload = _load_json(json_text, SEMANTIC_SCHOLAR_SOURCE)
-    documents: list[RawDocument] = []
-    for item in payload.get("data") or []:
-        if not isinstance(item, dict):
-            continue
-        title = _normalize(item.get("title"))
-        abstract = _normalize(item.get("abstract"))
-        if not title and not abstract:
-            continue
-        external = item.get("externalIds") or {}
-        doi = _normalize(
-            external.get("DOI") if isinstance(external, dict) else ""
-        )
-        source_uri = _normalize(item.get("url")) or (
-            f"{DOI_BASE_URL}{doi}" if doi else ""
-        )
-        if not source_uri:
-            continue
-        documents.append(
-            RawDocument(
-                source_kind="paper_api",
-                source_uri=source_uri,
-                title=title or None,
-                raw_text=f"{title}\n\n{abstract}",
-                doi=normalize_doi(doi),
-                        source=SEMANTIC_SCHOLAR_SOURCE,
-            evidence_grade=evidence.grade_from_record(SEMANTIC_SCHOLAR_SOURCE, item),
-)
-        )
-    return documents
-
-
-def _build_clinicaltrials_url(query: str, limit: int) -> str:
-    # `fields` keeps the payload to what the parser reads. Without it a
-    # study record is tens of kilobytes of arms, eligibility and locations,
-    # and a five-source fan-out multiplies that.
-    fields = ",".join(
-        (
-            "NCTId",
-            "BriefTitle",
-            "OfficialTitle",
-            "BriefSummary",
-            "DetailedDescription",
-            "OverallStatus",
-            "Condition",
-        )
-    )
-    return (
-        f"{CLINICALTRIALS_API_URL}"
-        f"?query.term={quote_plus(query)}"
-        f"&pageSize={limit}"
-        f"&fields={fields}"
-        "&format=json"
-    )
-
-
-def parse_clinicaltrials(json_text: str) -> list[RawDocument]:
-    """Parse a ClinicalTrials.gov v2 /studies response.
-
-    A trial is not a paper and the difference is the point: this is what was
-    attempted on people, including the arms that never produced a
-    publication. The registry's prose fields — brief summary and detailed
-    description — are what the extractor can ground spans in, so a record
-    with neither is skipped rather than stored as a bare title.
-
-    No DOI: trials are identified by NCT number, and inventing a DOI-shaped
-    key would collide with the paper de-duplicator.
-    """
-    payload = _load_json(json_text, CLINICALTRIALS_SOURCE)
-    studies = payload.get("studies") or []
-    documents: list[RawDocument] = []
-    for study in studies:
-        if not isinstance(study, dict):
-            continue
-        protocol = study.get("protocolSection") or {}
-        ident = protocol.get("identificationModule") or {}
-        desc = protocol.get("descriptionModule") or {}
-
-        nct_id = _normalize(ident.get("nctId"))
-        if not nct_id:
-            continue
-        title = _normalize(
-            ident.get("briefTitle") or ident.get("officialTitle")
-        )
-        summary = _normalize(desc.get("briefSummary"))
-        detail = _normalize(desc.get("detailedDescription"))
-        body = "\n\n".join(part for part in (summary, detail) if part)
-        if not body:
-            # Title-only records give the extractor nothing to cite.
-            continue
-        documents.append(
-            RawDocument(
-                source_kind="paper_api",
-                source_uri=f"https://clinicaltrials.gov/study/{nct_id}",
-                title=title or nct_id,
-                raw_text=body,
-                        source=CLINICALTRIALS_SOURCE,
-            evidence_grade=evidence.grade_from_source(CLINICALTRIALS_SOURCE),
-)
-        )
-    return documents
-
-
-def parse_europepmc(json_text: str) -> list[RawDocument]:
-    """Parse a Europe PMC /search JSON response (resultType=core)."""
-    payload = _load_json(json_text, EUROPEPMC_SOURCE)
-    results = ((payload.get("resultList") or {}).get("result")) or []
-    documents: list[RawDocument] = []
-    for item in results:
-        if not isinstance(item, dict):
-            continue
-        title = _normalize(item.get("title"))
-        abstract = _normalize(
-            _MARKUP_TAG_RE.sub(" ", item.get("abstractText") or "")
-        )
-        if not title and not abstract:
-            continue
-        doi = _normalize(item.get("doi"))
-        src = _normalize(item.get("source"))
-        ext_id = _normalize(item.get("id"))
-        # `resultType=core` already carries the open-access flags; the
-        # earlier parser read the response and threw them away, so every
-        # collect stopped at the abstract even for articles whose full text
-        # was one request further on. `inEPMC` is the one that matters:
-        # isOpenAccess can be Y while the text lives somewhere Europe PMC
-        # does not serve, and only the EPMC-hosted subset is reachable
-        # without leaving the allowlisted host.
-        fulltext_url = ""
-        if _normalize(item.get("inEPMC")).upper() == "Y":
-            fulltext_url = europepmc_fulltext_url(_normalize(item.get("pmcid")))
-        oa_pdf = ""
-        for entry in (item.get("fullTextUrlList") or {}).get("fullTextUrl", []):
-            if not isinstance(entry, dict):
-                continue
-            if (
-                _normalize(entry.get("documentStyle")).lower() == "pdf"
-                and _normalize(entry.get("availability")).lower() == "open access"
-            ):
-                oa_pdf = _normalize(entry.get("url"))
-                break
-        source_uri = (
-            f"{DOI_BASE_URL}{doi}" if doi
-            else (
-                f"https://europepmc.org/abstract/{src}/{ext_id}"
-                if src and ext_id else ""
-            )
-        )
-        if not source_uri:
-            continue
-        documents.append(
-            RawDocument(
-                source_kind="paper_api",
-                source_uri=source_uri,
-                title=title or None,
-                raw_text=f"{title}\n\n{abstract}",
-                doi=normalize_doi(doi),
-                pdf_url=oa_pdf or None,
-                fulltext_url=fulltext_url or None,
-                        source=EUROPEPMC_SOURCE,
-            evidence_grade=evidence.grade_from_record(EUROPEPMC_SOURCE, item),
-)
-        )
-    return documents
-
-
-# ---------------------------------------------------------------------------
-# bioRxiv (date-browse + local keyword filter)
-# ---------------------------------------------------------------------------
-
-
-def _build_biorxiv_url(query: str, limit: int) -> str:
-    """A recent-window browse URL; the query filters locally in the parser.
-
-    The bioRxiv API has no keyword endpoint, so the query cannot be encoded
-    here. The science-skills guidance is to browse a narrow window (1-4
-    weeks) and filter locally — a wider range means downloading every
-    preprint in it. `limit` does not reach the API either (the endpoint has
-    no result count); the fetch path caps the parsed page with it.
-    """
-    end = datetime.date.today()
-    start = end - datetime.timedelta(days=BIORXIV_WINDOW_DAYS)
-    return f"{BIORXIV_API_URL}/{start.isoformat()}/{end.isoformat()}/0"
-
-
-def parse_biorxiv(json_text: str) -> list[RawDocument]:
-    """Parse one page of the bioRxiv details API into documents.
-
-    Same ingest contract as the other parsers: title + abstract only, and
-    an item with no DOI or title never becomes a document row. Every row is
-    a preprint by definition, so the evidence grade is constant.
-    """
-    payload = _load_json(json_text, BIORXIV_SOURCE)
-    collection = payload.get("collection") or []
-    documents: list[RawDocument] = []
-    for item in collection:
-        if not isinstance(item, dict):
-            continue
-        title = _normalize(item.get("title"))
-        abstract = _normalize(item.get("abstract"))
-        if not title and not abstract:
-            continue
-        doi = _normalize(item.get("doi"))
-        if not doi:
-            continue
-        documents.append(
-            RawDocument(
-                source_kind="paper_api",
-                source_uri=f"{DOI_BASE_URL}{doi}",
-                title=title or None,
-                raw_text=f"{title}\n\n{abstract}",
-                doi=normalize_doi(doi),
-                        source=BIORXIV_SOURCE,
-            evidence_grade=evidence.grade_from_source(BIORXIV_SOURCE),
-)
-        )
-    return documents
-
-
-# ---------------------------------------------------------------------------
-# PubMed (NCBI E-utilities: esearch -> efetch)
-# ---------------------------------------------------------------------------
-
-
-def _build_pubmed_url(query: str, limit: int) -> str:
-    """The esearch step: keyword -> PMIDs. efetch follows in _fetch_pubmed."""
-    return (
-        f"{PUBMED_EUTILS_URL}/esearch.fcgi"
-        f"?db=pubmed&term={quote_plus(query)}"
-        f"&retmode=json&retmax={limit}"
-    )
-
-
-# PubMed's efetch XML wraps every abstract in <AbstractText>; the JATS
-# stripper is not needed, but paragraphs arrive as separate <AbstractText>
-# nodes and must be joined with spaces, not concatenated.
 _PUBMED_NS = "{http://www.w3.org/2005/Atom}"
 
 
-def parse_pubmed(xml_text: str) -> list[RawDocument]:
-    """Parse an efetch PubmedArticleSet into documents.
-
-    Same ingest contract: title + abstract only; an article without a DOI
-    or PMID gets no source_uri and is skipped — no provenance trail, no
-    ingestion.
-    """
-    root = ET.fromstring(xml_text)
-    documents: list[RawDocument] = []
-    for article in root.findall("PubmedArticle"):
-        title = _normalize(article.findtext("MedlineCitation/Article/ArticleTitle"))
-        abstract_parts = [
-            _normalize(node.text)
-            for node in article.findall(
-                "MedlineCitation/Article/Abstract/AbstractText"
-            )
-        ]
-        abstract = " ".join(p for p in abstract_parts if p)
-        if not title and not abstract:
-            continue
-        doi = _normalize(
-            article.findtext("PubmedData/ArticleIdList/ArticleId[@IdType='doi']")
-        )
-        pmid = _normalize(
-            article.findtext("PubmedData/ArticleIdList/ArticleId[@IdType='pubmed']")
-        )
-        if doi:
-            source_uri = f"{DOI_BASE_URL}{doi}"
-        elif pmid:
-            source_uri = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
-        else:
-            continue
-        documents.append(
-            RawDocument(
-                source_kind="paper_api",
-                source_uri=source_uri,
-                title=title or None,
-                raw_text=f"{title}\n\n{abstract}",
-                doi=normalize_doi(doi),
-                        source=PUBMED_SOURCE,
-            evidence_grade=evidence.grade_from_source(PUBMED_SOURCE),
-)
-        )
-    return documents
+# How each keyed source carries its credential. Headers are preferred:
+# a key in a query string reaches the offline-refusal message, the
+# provenance record, `status.json`'s last_payload and the job log, all of
+# which this system writes without knowing a URL might be a secret. Elsevier
+# Springer is the documented exception: its current API requires `api_key`
+# in the request URL, so the value is passed separately to `_http_get_text`
+# and appended only at the `urlopen` boundary.
+_SOURCE_AUTH = {
+    ELSEVIER_SOURCE: lambda key: {"X-ELS-APIKey": key, "Accept": "application/json"},
+    CORE_SOURCE: lambda key: {"Authorization": f"Bearer {key}",
+                              "Accept": "application/json"},
+}
+_SOURCE_QUERY_AUTH = {SPRINGER_SOURCE: "api_key"}
 
 
 # source -> (url builder, response parser). Adding a source = one endpoint
 # constant + one builder + one parser + one row here (+ the allowlist entry).
-# ---------------------------------------------------------------------------
-# Publisher APIs (keyed). Endpoints are fixed hosts, exactly like the keyless
-# five — which is the whole reason full text is reached through APIs and not
-# by crawling document pages, whose doi.org -> publisher -> CDN redirect
-# chains cannot be enumerated in advance.
-# ---------------------------------------------------------------------------
-
-
-def _build_elsevier_url(query: str, limit: int) -> str:
-    # `field` is required to get an abstract: the STANDARD view omits
-    # `dc:description`, so without this the parser would return titles only.
-    return (
-        f"{ELSEVIER_API_URL}"
-        f"?query={quote_plus(query)}"
-        f"&count={limit}"
-        "&field=" + ",".join(_ELSEVIER_FIELDS)
-    )
-
-
-def _build_springer_url(query: str, limit: int) -> str:
-    return f"{SPRINGER_API_URL}?q={quote_plus(query)}&p={limit}"
-
-
-def _build_core_url(query: str, limit: int) -> str:
-    return f"{CORE_API_URL}?q={quote_plus(query)}&limit={limit}"
-
-
-def parse_elsevier(json_text: str) -> list[RawDocument]:
-    """Parse a Scopus Search response (`search-results.entry`).
-
-    Scopus keys are OpenSearch/PRISM-namespaced, so the field names carry
-    their prefixes literally: `dc:title`, `dc:description`, `prism:doi`.
-    """
-    payload = _load_json(json_text, ELSEVIER_SOURCE)
-    entries = ((payload.get("search-results") or {}).get("entry")) or []
-    documents: list[RawDocument] = []
-    for item in entries:
-        if not isinstance(item, dict):
-            continue
-        # An error entry carries `error` instead of a record; skipping keeps
-        # one bad row from emptying an otherwise good page.
-        if item.get("error"):
-            continue
-        title = _normalize(item.get("dc:title"))
-        abstract = _normalize(item.get("dc:description"))
-        if not title and not abstract:
-            continue
-        doi = _normalize(item.get("prism:doi"))
-        source_uri = f"{DOI_BASE_URL}{doi}" if doi else _normalize(item.get("prism:url"))
-        if not source_uri:
-            continue
-        documents.append(
-            RawDocument(
-                source_kind="paper_api",
-                source_uri=source_uri,
-                title=title or None,
-                raw_text=f"{title}\n\n{abstract}",
-                doi=normalize_doi(doi),
-                        source=ELSEVIER_SOURCE,
-            evidence_grade=evidence.grade_from_source(ELSEVIER_SOURCE),
-)
-        )
-    return documents
-
-
-def parse_springer(json_text: str) -> list[RawDocument]:
-    """Parse a Springer Nature Meta v2 response (`records`)."""
-    payload = _load_json(json_text, SPRINGER_SOURCE)
-    records = payload.get("records") or []
-    documents: list[RawDocument] = []
-    for item in records:
-        if not isinstance(item, dict):
-            continue
-        title = _normalize(item.get("title"))
-        # `abstract` is a string on most records but an object with `p` on
-        # structured ones; neither shape is worth a crash.
-        raw_abstract = item.get("abstract")
-        if isinstance(raw_abstract, dict):
-            raw_abstract = raw_abstract.get("p") or ""
-        if isinstance(raw_abstract, list):
-            raw_abstract = " ".join(str(part) for part in raw_abstract)
-        abstract = _normalize(_MARKUP_TAG_RE.sub(" ", str(raw_abstract or "")))
-        if not title and not abstract:
-            continue
-        doi = _normalize(item.get("doi"))
-        source_uri = f"{DOI_BASE_URL}{doi}" if doi else _first_springer_url(item)
-        if not source_uri:
-            continue
-        documents.append(
-            RawDocument(
-                source_kind="paper_api",
-                source_uri=source_uri,
-                title=title or None,
-                raw_text=f"{title}\n\n{abstract}",
-                doi=normalize_doi(doi),
-                pdf_url=_first_springer_url(item, want_pdf=True) or None,
-                        source=SPRINGER_SOURCE,
-            evidence_grade=evidence.grade_from_source(SPRINGER_SOURCE),
-)
-        )
-    return documents
-
-
-def _first_springer_url(item: dict, *, want_pdf: bool = False) -> str:
-    """Springer's `url` is a list of {format, platform, value} objects."""
-    urls = item.get("url")
-    if not isinstance(urls, list):
-        return ""
-    for entry in urls:
-        if not isinstance(entry, dict):
-            continue
-        fmt = str(entry.get("format") or "").lower()
-        if want_pdf and fmt != "pdf":
-            continue
-        if not want_pdf and fmt == "pdf":
-            continue
-        value = _normalize(entry.get("value"))
-        if value:
-            return value
-    return ""
-
-
-def _searxng_base_url() -> str:
-    """The user's own SearXNG, validated, or "" when not configured.
-
-    Settings first, environment second. The setting is what the app can
-    show and edit; the variable is the escape hatch for a headless run,
-    which is the same order `resolve_source_key` uses for publisher keys.
-
-    Unset is not an error: an unconfigured source drops out of the fan-out
-    the same way an unkeyed publisher does. A *misconfigured* one does
-    raise — a typo that silently disabled the source would be worse than a
-    refusal, because the run would still look complete.
-    """
-    # This reads the environment and nothing else, deliberately.
-    #
-    # The obvious alternative — read `server.settings` here — was written
-    # first and reverted. It inverts the layering (`server` depends on
-    # `connectors`, not the reverse) and it makes every source lookup
-    # depend on a file under `paths.ROOT` that every process on the machine
-    # shares: saving the setting once in the browser made unrelated tests
-    # fail, because "is SearXNG configured?" started meaning "does this
-    # developer happen to run one?".
-    #
-    # The setting still works. `server.settings.apply_to_environment` is
-    # the one explicit bridge, called where the app starts and where the
-    # value is saved.
-    raw = os.environ.get(SEARXNG_URL_ENV, "").strip()
-    if not raw:
-        return ""
-    return check_searxng_base_url(raw)
-
-
-def _build_searxng_url(query: str, limit: int) -> str:
-    # `limit` is deliberately unused: SearXNG answers a page at a time and
-    # takes no result count. One page of six engines measured at 55 results
-    # for an ordinary query, so the cap is applied in `parse_searxng`
-    # instead — dropping it entirely would let one source outweigh the
-    # other six combined in the fan-out.
-    del limit
-    base = _searxng_base_url()
-    if not base:
-        # Reached only if the source was requested explicitly; the default
-        # fan-out filters it out first.
-        raise NotAllowlisted(
-            f"SearXNG is not configured; set {SEARXNG_URL_ENV} to the "
-            f"address of an instance you run (e.g. http://localhost:8080)"
-        )
-    # Engines are named rather than taking the whole `science` category.
-    # Measured against a live instance, `categories=science` also returns
-    # `pdbe` (protein structure records) and `openairedatasets` — entries
-    # with a title and no abstract, which would enter a corpus whose whole
-    # claim is that a proposal traces back to something a paper says.
-    #
-    # google scholar is the reason this source exists: it has no API, so it
-    # is unreachable any other way.
-    return (
-        f"{base}/search"
-        f"?q={quote_plus(query)}"
-        f"&engines={quote_plus(SEARXNG_ENGINES)}"
-        "&format=json"
-        "&pageno=1"
-    )
-
-
-def parse_searxng(
-    json_text: str, limit: int = MAX_LIMIT
-) -> list[RawDocument]:
-    """Parse a SearXNG `format=json` response (`results`).
-
-    SearXNG's science engines populate `content` with the paper's abstract —
-    arXiv passes the Atom summary through untouched, and OpenAlex
-    reconstructs `abstract_inverted_index` the same way this module does. So
-    a result carries the same title+abstract this pipeline extracts spans
-    from, and routing through it does not shorten the provenance chain.
-
-    A result whose `content` is only a snippet still enters as a document;
-    what it produces is proposals with spans into that snippet, which the
-    document panel shows for what it is.
-
-    `limit` is applied here rather than in the URL because SearXNG takes no
-    result count — it answers one page of every engine at once.
-    """
-    payload = _load_json(json_text, SEARXNG_SOURCE)
-    results = payload.get("results") or []
-    documents: list[RawDocument] = []
-    for item in results:
-        if not isinstance(item, dict):
-            continue
-        title = _normalize(item.get("title"))
-        abstract = _normalize(item.get("content"))
-        # An abstract is required here, unlike the sibling parsers. They
-        # talk to one API that returns papers; this one aggregates engines
-        # whose records are sometimes a bare title (a structure entry, a
-        # dataset listing). A title-only document yields proposals whose
-        # only evidence is the title itself, which is exactly what the
-        # document panel has to flag as ungrounded.
-        if not abstract:
-            continue
-        doi = _normalize(item.get("doi"))
-        source_uri = (
-            f"{DOI_BASE_URL}{doi}" if doi else _normalize(item.get("url"))
-        )
-        if not source_uri:
-            continue
-        documents.append(
-            RawDocument(
-                source_kind="paper_api",
-                source_uri=source_uri,
-                title=title or None,
-                raw_text=f"{title}\n\n{abstract}",
-                doi=normalize_doi(doi),
-                pdf_url=_normalize(item.get("pdf_url")) or None,
-                        source=SEARXNG_SOURCE,
-            evidence_grade=evidence.grade_from_source(SEARXNG_SOURCE),
-)
-        )
-        if len(documents) >= limit:
-            break
-    return documents
-
-
-def parse_core(json_text: str) -> list[RawDocument]:
-    """Parse a CORE v3 `search/works` response (`results`)."""
-    payload = _load_json(json_text, CORE_SOURCE)
-    results = payload.get("results") or []
-    documents: list[RawDocument] = []
-    for item in results:
-        if not isinstance(item, dict):
-            continue
-        title = _normalize(item.get("title"))
-        abstract = _normalize(item.get("abstract"))
-        if not title and not abstract:
-            continue
-        doi = _normalize(item.get("doi"))
-        source_uri = (
-            f"{DOI_BASE_URL}{doi}" if doi
-            else _normalize(item.get("fullTextIdentifier"))
-        )
-        if not source_uri:
-            continue
-        documents.append(
-            RawDocument(
-                source_kind="paper_api",
-                source_uri=source_uri,
-                title=title or None,
-                raw_text=f"{title}\n\n{abstract}",
-                doi=normalize_doi(doi),
-                pdf_url=_normalize(item.get("downloadUrl")) or None,
-                        source=CORE_SOURCE,
-            evidence_grade=evidence.grade_from_source(CORE_SOURCE),
-)
-        )
-    return documents
-
-
-# How each keyed source carries its credential. Header-only, deliberately:
-# a key in a query string reaches the offline-refusal message, the
-# provenance record, `status.json`'s last_payload and the job log, all of
-# which this system writes without knowing a URL might be a secret. Elsevier
-# and Springer both accept a query parameter as well; that route is not
-# offered here.
-_SOURCE_AUTH = {
-    ELSEVIER_SOURCE: lambda key: {"X-ELS-APIKey": key, "Accept": "application/json"},
-    SPRINGER_SOURCE: lambda key: {"X-API-Key": key, "Accept": "application/json"},
-    CORE_SOURCE: lambda key: {"Authorization": f"Bearer {key}",
-                              "Accept": "application/json"},
-}
-
-
 _SOURCE_DISPATCH = {
     ARXIV_SOURCE: (_build_query_url, parse_atom),
     CROSSREF_SOURCE: (_build_crossref_url, parse_crossref),
@@ -1204,9 +445,11 @@ _SOURCE_DISPATCH = {
 }
 
 # Sources that cannot be queried without a credential. Kept derived from
-# `_SOURCE_AUTH` so a keyed source can never be added to the dispatch table
-# and then silently queried anonymously.
-KEYED_SOURCES: frozenset[str] = frozenset(_SOURCE_AUTH)
+# both transport tables so a keyed source can never be added and then
+# silently queried anonymously.
+KEYED_SOURCES: frozenset[str] = frozenset(_SOURCE_AUTH) | frozenset(
+    _SOURCE_QUERY_AUTH
+)
 
 # Sources that answer WITHOUT a key but answer better WITH one.
 #
@@ -1225,6 +468,7 @@ KEYED_SOURCES: frozenset[str] = frozenset(_SOURCE_AUTH)
 _OPTIONAL_AUTH: dict[str, tuple[str, str]] = {
     OPENALEX_SOURCE: ("query", "api_key"),
     SEMANTIC_SCHOLAR_SOURCE: ("header", "x-api-key"),
+    PUBMED_SOURCE: ("query", "api_key"),
 }
 OPTIONAL_KEY_SOURCES: frozenset[str] = frozenset(_OPTIONAL_AUTH)
 
@@ -1338,24 +582,24 @@ def redact_keys(text: str, data_dir: Any = None) -> str:
 def available_sources(data_dir: Any = None) -> list[str]:
     """Sources a run can actually query right now, in declaration order.
 
-    The keyless five, plus any publisher source whose key is configured.
+    Scholarly APIs that work anonymously, plus any publisher whose key is
+    configured. SearXNG is intentionally not automatic.
     Querying an unconnected publisher would add three `unconfigured`
     failures to every single research run — a permanent row of red for a
     feature the user has not opted into. Not connecting Elsevier is a
     choice, not a fault, so it should be silent.
 
-    SearXNG follows the same rule for the same reason: it is a service the
-    user runs, and an install that has not set one up should not collect a
-    failure per run for it. A *misconfigured* URL is different and does
-    surface — `_searxng_base_url` raises rather than returning "", so a
-    typo is reported instead of quietly removing the source.
+    SearXNG remains explicit-only. It can still be selected for a targeted
+    web search, but configuring its address must not silently mix generic
+    web results into every automatic scholarly research run. A malformed
+    configured URL still surfaces here rather than hiding a settings error.
     """
     configured_searxng = bool(_searxng_base_url())
     return [
         name
         for name in SOURCE_ORDER
         if (name not in KEYED_SOURCES or resolve_source_key(name, data_dir))
-        and (name != SEARXNG_SOURCE or configured_searxng)
+        and name != SEARXNG_SOURCE
     ]
 
 
@@ -1370,6 +614,184 @@ class PaperApiConnector:
     def name(self) -> str:
         return "paper_api"
 
+    async def harvest(
+        self,
+        source_spec: dict[str, Any],
+    ) -> list[RawDocument]:
+        """Fetch bounded pages for one source, stopping on exhaustion."""
+        source = source_spec.get("source") or DEFAULT_PAPER_SOURCE
+        raw_cap = source_spec.get("max_records")
+        cap = (
+            DEFAULT_HARVEST_LIMIT if raw_cap is None
+            else int(raw_cap)
+        )
+        cap = max(1, min(cap, MAX_HARVEST_LIMIT))
+        raw_page_size = source_spec.get("page_size")
+        page_size = (
+            MAX_LIMIT if raw_page_size is None
+            else int(raw_page_size)
+        )
+        page_size = max(1, min(page_size, MAX_LIMIT, cap))
+        if source in {BIORXIV_SOURCE, CLINICALTRIALS_SOURCE}:
+            check_paper_query(source, str(source_spec.get("query") or ""))
+        if source == BIORXIV_SOURCE:
+            documents = await self._harvest_biorxiv(source_spec, cap)
+        elif source == CLINICALTRIALS_SOURCE:
+            documents = await self._harvest_clinicaltrials(
+                source_spec,
+                cap,
+                page_size,
+            )
+        else:
+            max_pages = (
+                (cap + page_size - 1) // page_size
+                if source in PAGINATED_SOURCES
+                else 1
+            )
+            documents = []
+            seen: set[str] = set()
+            for page in range(1, max_pages + 1):
+                page_documents = await self.fetch(
+                    {
+                        **source_spec,
+                        "limit": page_size,
+                        "page": page,
+                    }
+                )
+                new_documents = [
+                    document
+                    for document in page_documents
+                    if document.dedupe_key not in seen
+                ]
+                for document in new_documents:
+                    seen.add(document.dedupe_key)
+                documents.extend(new_documents)
+                if len(documents) >= cap:
+                    break
+                if len(page_documents) < page_size or not new_documents:
+                    break
+        axis = str(source_spec.get("search_axis") or "")
+        original_query = str(
+            source_spec.get("original_query")
+            or source_spec.get("query")
+            or ""
+        )
+        terms = tuple(
+            str(term)
+            for term in (source_spec.get("query_terms") or ())
+            if str(term).strip()
+        )
+        if source in {
+            ARXIV_SOURCE,
+            CORE_SOURCE,
+            ELSEVIER_SOURCE,
+            SEMANTIC_SCHOLAR_SOURCE,
+            SPRINGER_SOURCE,
+        }:
+            documents = [
+                document
+                for document in documents
+                if _relevant(document, terms)
+            ]
+        return [
+            replace(
+                document,
+                search_axis=axis,
+                search_query=original_query,
+            )
+            for document in documents[:cap]
+        ]
+
+    async def _harvest_biorxiv(
+        self,
+        source_spec: dict[str, Any],
+        cap: int,
+    ) -> list[RawDocument]:
+        """Iterate bioRxiv's fixed 30-record cursor pages."""
+        query = str(source_spec.get("query") or "")
+        build_url, parse = _SOURCE_DISPATCH[BIORXIV_SOURCE]
+        base_url = build_url(query, 30)
+        terms = {
+            term.lower()
+            for term in re.findall(r"[A-Za-z0-9가-힣]{3,}", query)
+        }
+        documents: list[RawDocument] = []
+        seen: set[str] = set()
+        cursor = 0
+        total: int | None = None
+        while len(documents) < cap:
+            url = _biorxiv_cursor_url(base_url, cursor)
+            body = await asyncio.to_thread(_http_get_text, url)
+            payload = _json_object(body)
+            collection = payload.get("collection")
+            upstream_count = (
+                len(collection) if isinstance(collection, list) else 0
+            )
+            messages = payload.get("messages")
+            if isinstance(messages, list) and messages:
+                message = messages[0]
+                if isinstance(message, dict):
+                    total = _integer(message.get("total")) or total
+            page_documents = parse(body)
+            for document in page_documents:
+                if terms and not (
+                    terms
+                    & set(
+                        re.findall(
+                            r"[A-Za-z0-9가-힣]{3,}",
+                            document.raw_text.lower(),
+                        )
+                    )
+                ):
+                    continue
+                if document.dedupe_key in seen:
+                    continue
+                seen.add(document.dedupe_key)
+                documents.append(document)
+                if len(documents) == cap:
+                    break
+            cursor += 30
+            if upstream_count < 30 or (total is not None and cursor >= total):
+                break
+        return documents
+
+    async def _harvest_clinicaltrials(
+        self,
+        source_spec: dict[str, Any],
+        cap: int,
+        page_size: int,
+    ) -> list[RawDocument]:
+        """Follow ClinicalTrials.gov v2 `nextPageToken` pages."""
+        query = str(source_spec.get("query") or "")
+        build_url, parse = _SOURCE_DISPATCH[CLINICALTRIALS_SOURCE]
+        base_url = build_url(query, page_size)
+        documents: list[RawDocument] = []
+        seen_documents: set[str] = set()
+        seen_tokens: set[str] = set()
+        token = ""
+        while len(documents) < cap:
+            url = _clinicaltrials_page_url(base_url, token)
+            body = await asyncio.to_thread(_http_get_text, url)
+            for document in parse(body):
+                if document.dedupe_key in seen_documents:
+                    continue
+                seen_documents.add(document.dedupe_key)
+                documents.append(document)
+                if len(documents) == cap:
+                    break
+            next_token = str(
+                _json_object(body).get("nextPageToken") or ""
+            ).strip()
+            if (
+                not next_token
+                or next_token == token
+                or next_token in seen_tokens
+            ):
+                break
+            seen_tokens.add(next_token)
+            token = next_token
+        return documents
+
     async def fetch(self, source_spec: dict[str, Any]) -> list[RawDocument]:
         source: str = source_spec.get("source") or DEFAULT_PAPER_SOURCE
         # Strip ONCE here so the allowlist check and the URL are built from
@@ -1378,6 +800,7 @@ class PaperApiConnector:
         raw_limit = source_spec.get("limit")
         limit = DEFAULT_LIMIT if raw_limit is None else int(raw_limit)
         limit = max(1, min(limit, _MAX_LIMIT))
+        page = max(1, int(source_spec.get("page") or 1))
         # Allowlist BEFORE building a URL or touching the network.
         check_paper_query(source, query)
         check_source_implemented(source)
@@ -1406,7 +829,10 @@ class PaperApiConnector:
                     f"paper source {source!r} needs a publisher key; "
                     f"connect journal access first"
                 )
-            headers = _SOURCE_AUTH[source](key)
+            if source in _SOURCE_AUTH:
+                headers = _SOURCE_AUTH[source](key)
+            else:
+                query_key = (_SOURCE_QUERY_AUTH[source], key)
         elif source in OPTIONAL_KEY_SOURCES:
             # No key is not an error here — it is the anonymous pool, which
             # works until it does not. Measured: OpenAlex and Semantic
@@ -1420,13 +846,13 @@ class PaperApiConnector:
                 else:
                     query_key = (name, key)
 
-        url = build_url(query, limit)
+        url = _paginate_url(source, build_url(query, limit), page, limit)
         if source == BIORXIV_SOURCE:
             # The API is a date-browse; the query filters this page locally.
             return await self._fetch_biorxiv(url, query, limit, parse)
         if source == PUBMED_SOURCE:
             # esearch gives PMIDs, efetch the abstracts: two requests.
-            return await self._fetch_pubmed(url, parse)
+            return await self._fetch_pubmed(url, parse, query_key)
 
         # `_http_get_text` is a blocking `urlopen`; this coroutine used to be
         # `async` in name only, so gathering five sources ran them one after
@@ -1473,14 +899,28 @@ class PaperApiConnector:
         ]
         return matched[:limit]
 
-    async def _fetch_pubmed(self, esearch_url: str, parse: Any) -> list[RawDocument]:
+    async def _fetch_pubmed(
+        self,
+        esearch_url: str,
+        parse: Any,
+        query_key: tuple[str, str] | None = None,
+    ) -> list[RawDocument]:
         """esearch (keyword -> PMIDs), then efetch (PMIDs -> XML abstracts).
 
         Two requests, both to the same allowlisted host. An empty idlist is
         a normal answer, not an error: "PubMed found nothing" must read as
         a source that answered with nothing, exactly like the other sources.
         """
-        body = await asyncio.to_thread(_http_get_text, esearch_url)
+        async def _fetch_text(url: str) -> str:
+            if query_key is None:
+                return await asyncio.to_thread(_http_get_text, url)
+            return await asyncio.to_thread(
+                _http_get_text,
+                url,
+                query_key=query_key,
+            )
+
+        body = await _fetch_text(esearch_url)
         try:
             payload = json.loads(body)
         except json.JSONDecodeError as exc:
@@ -1490,11 +930,8 @@ class PaperApiConnector:
         ids = ((payload.get("esearchresult") or {}).get("idlist")) or []
         if not ids:
             return []
-        efetch_url = (
-            f"{PUBMED_EUTILS_URL}/efetch.fcgi?db=pubmed&retmode=xml"
-            f"&id={','.join(ids)}"
-        )
-        xml_body = await asyncio.to_thread(_http_get_text, efetch_url)
+        efetch_url = _build_pubmed_efetch_url(ids)
+        xml_body = await _fetch_text(efetch_url)
         return parse(xml_body)
 
     async def _fetch_searxng(
@@ -1566,6 +1003,9 @@ async def fetch_sources(
     limit: int | None = None,
     data_dir: Any = None,
     on_event: Callable[[str, str, Any], None] | None = None,
+    source_queries: Mapping[str, str] | None = None,
+    search_axis: str = "",
+    query_terms: Sequence[str] = (),
 ) -> tuple[list[tuple[str, list[RawDocument]]], list[SourceFailure]]:
     """Query several sources at once; keep what answered, report what did not.
 
@@ -1592,8 +1032,22 @@ async def fetch_sources(
     in depth.
     """
     connector = PaperApiConnector()
+    max_records = DEFAULT_LIMIT if limit is None else limit
     specs = [
-        {"source": name, "query": query, "limit": limit, "data_dir": data_dir}
+        {
+            "source": name,
+            "query": (
+                source_queries.get(name, query)
+                if source_queries is not None
+                else query
+            ),
+            "original_query": query,
+            "search_axis": search_axis,
+            "query_terms": tuple(query_terms),
+            "max_records": max_records,
+            "page_size": MAX_LIMIT,
+            "data_dir": data_dir,
+        }
         for name in sources
     ]
 
@@ -1613,7 +1067,7 @@ async def fetch_sources(
         if on_event is not None:
             on_event("source_start", name, None)
         try:
-            docs = await connector.fetch(spec)
+            docs = await connector.harvest(spec)
         except BaseException as exc:
             if on_event is not None:
                 on_event("source_failed", name, _classify(exc))
@@ -1633,6 +1087,8 @@ async def fetch_sources(
             if isinstance(result, NetworkBlocked):
                 # The kill switch is not a per-source failure; surfacing it
                 # as one would hide why nothing was fetched.
+                raise result
+            if isinstance(result, asyncio.CancelledError):
                 raise result
             failures.append(
                 SourceFailure(

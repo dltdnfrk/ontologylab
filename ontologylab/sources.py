@@ -25,11 +25,17 @@ import json
 import os
 import re
 import stat
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Optional
 
-from ontologylab.keychain import ACCOUNT_RE, resolve_key
+from ontologylab.keychain import (
+    ACCOUNT_RE,
+    KeychainError,
+    delete_key,
+    read_key,
+    resolve_key,
+    write_key,
+)
 from ontologylab.paths import sources_path
 
 _REGISTRY_FILE_MODE = 0o600
@@ -52,6 +58,11 @@ SOURCE_ROLES = ("literature",)
 
 class SourceError(Exception):
     """Raised when a source definition is invalid or cannot be registered."""
+
+
+def canonical_keychain_account(source_id: str) -> str:
+    """Return the one-account-per-source Keychain locator."""
+    return f"ontologylab.{source_id}"
 
 
 @dataclass(frozen=True)
@@ -127,7 +138,7 @@ def validate_source(source: Source) -> Source:
     return source
 
 
-def resolve_source_key(source: Source) -> Optional[str]:
+def resolve_source_key(source: Source) -> str | None:
     """Read the source's key at call time; None when it is not configured.
 
     The ONLY place a publisher key enters the process from configuration.
@@ -198,7 +209,7 @@ def save_sources(data_dir: Path | str, sources: list[Source]) -> None:
         path.chmod(_REGISTRY_FILE_MODE)
 
 
-def get_source(data_dir: Path | str, source_id: str) -> Optional[Source]:
+def get_source(data_dir: Path | str, source_id: str) -> Source | None:
     """Return the registered source with ``source_id`` or ``None``."""
     for source in load_sources(data_dir):
         if source.id == source_id:
@@ -229,6 +240,37 @@ def remove_source(data_dir: Path | str, source_id: str) -> bool:
     return True
 
 
+def migrate_source_keychain_accounts(data_dir: Path | str) -> tuple[str, ...]:
+    """Move legacy bare-id accounts to canonical per-source accounts.
+
+    A failed copy or deletion leaves both the registry and the original item
+    untouched. Sources with no stored key still get a canonical locator so a
+    later connection cannot recreate the legacy naming scheme.
+    """
+    sources = load_sources(data_dir)
+    migrated: list[str] = []
+    updated = list(sources)
+    for index, source in enumerate(sources):
+        old_account = source.keychain_account
+        if old_account != source.id:
+            continue
+        new_account = canonical_keychain_account(source.id)
+        value = read_key(old_account)
+        if value is not None:
+            try:
+                write_key(new_account, value)
+            except KeychainError:
+                continue
+            if read_key(new_account) != value or not delete_key(old_account):
+                delete_key(new_account)
+                continue
+        updated[index] = replace(source, keychain_account=new_account)
+        migrated.append(source.id)
+    if migrated:
+        save_sources(data_dir, updated)
+    return tuple(migrated)
+
+
 def source_public(source: Source) -> dict:
     """The browser-facing view: connected or not, never the key or locators.
 
@@ -252,8 +294,10 @@ __all__ = [
     "Source",
     "SourceError",
     "add_source",
+    "canonical_keychain_account",
     "get_source",
     "load_sources",
+    "migrate_source_keychain_accounts",
     "remove_source",
     "resolve_source_key",
     "save_sources",

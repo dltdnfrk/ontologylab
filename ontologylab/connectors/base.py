@@ -110,6 +110,17 @@ class RawDocument:
     fulltext_url: str | None = None
     stage: str = ""
     content_kind: str = ""
+    authors: tuple[str, ...] = ()
+    year: int | None = None
+    venue: str | None = None
+    cited_by: int | None = None
+    publication_type: str | None = None
+    retracted: bool | None = None
+    search_axis: str = ""
+    search_query: str = ""
+    all_sources: tuple[str, ...] = ()
+    search_axes: tuple[str, ...] = ()
+    search_queries: tuple[str, ...] = ()
 
     @property
     def content_hash(self) -> str:
@@ -127,44 +138,19 @@ class RawDocument:
         """
         return f"doi:{self.doi}" if self.doi else f"uri:{self.source_uri}"
 
+    @property
+    def source_count(self) -> int:
+        return len(self.all_sources) or int(bool(self.source))
+
 
 def collapse_duplicates(
     batches: Sequence[tuple[str, Sequence[RawDocument]]],
     source_order: Sequence[str] = (),
 ) -> list[RawDocument]:
-    """Keep one document per identity, preferring the fullest abstract.
+    """Merge same-work records while retaining corroborating metadata."""
+    from ontologylab.connectors.dedup import merge_document_batches
 
-    Fanning out across sources returns the same paper several times, and
-    keeping all of them would put five rows in the store for one work. The
-    winner has to be chosen by a *stated* rule, not by arrival order: the
-    abstracts differ per source, `content_hash` follows whichever text won,
-    and `UNIQUE(content_hash)` cannot catch a re-run that picked differently.
-    Without a rule, running the same query twice inserts the same paper
-    twice, because the second run hashed a different abstract.
-
-    The rule: longest `raw_text` wins, since the sources differ mainly in how
-    much abstract survived their normalization. Ties break on `source_order`
-    — the declaration order of the fetch dispatch — so the outcome is fixed
-    rather than dependent on which request returned first. Arrival order is
-    the last resort, and only among documents already equal on both.
-
-    Input is `(source_name, documents)` pairs because `RawDocument.source_kind`
-    is `"paper_api"` for all five: only the caller that dispatched the fetch
-    knows which source answered.
-    """
-    rank = {name: index for index, name in enumerate(source_order)}
-    unranked = len(rank)
-    best: dict[str, tuple[tuple[int, int], int, RawDocument]] = {}
-    arrival = 0
-    for source_name, documents in batches:
-        for doc in documents:
-            # Lower sorts better, so negate length and read rank directly.
-            score = (-len(doc.raw_text), rank.get(source_name, unranked))
-            current = best.get(doc.dedupe_key)
-            if current is None or (score, arrival) < (current[0], current[1]):
-                best[doc.dedupe_key] = (score, arrival, doc)
-            arrival += 1
-    return [entry[2] for entry in sorted(best.values(), key=lambda e: e[1])]
+    return merge_document_batches(batches, source_order)
 
 
 @runtime_checkable

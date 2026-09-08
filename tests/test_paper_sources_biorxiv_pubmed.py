@@ -13,6 +13,7 @@ query handling as documented), and both special fetch paths.
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import date, timedelta
 
 import pytest
@@ -22,6 +23,7 @@ from ontologylab.connectors.paper_api import (
     BIORXIV_API_URL,
     BIORXIV_WINDOW_DAYS,
     PUBMED_EUTILS_URL,
+    PUBMED_SOURCE,
     _build_biorxiv_url,
     _build_pubmed_url,
     parse_biorxiv,
@@ -29,6 +31,7 @@ from ontologylab.connectors.paper_api import (
     PaperApiConnector,
 )
 from ontologylab.evidence import PREPRINT, PEER_REVIEWED
+from ontologylab.sources import Source, add_source
 
 BIORXIV_PAGE = """{
   "messages": [{"status": "ok"}],
@@ -126,6 +129,62 @@ def test_parse_pubmed_joins_abstract_paragraphs_and_uses_doi() -> None:
     assert docs[1].source_uri == "https://pubmed.ncbi.nlm.nih.gov/38000002/"
 
 
+@pytest.mark.parametrize(
+    ("abstract_xml", "expected"),
+    [
+        pytest.param("", "", id="missing-abstract"),
+        pytest.param("<Abstract/>", "", id="empty-abstract"),
+        pytest.param(
+            "<Abstract><AbstractText/></Abstract>", "", id="empty-paragraph"
+        ),
+        pytest.param(
+            "<Abstract><AbstractText> \n\t </AbstractText></Abstract>",
+            "", id="whitespace-paragraph",
+        ),
+        pytest.param(
+            "<Abstract><AbstractText><sup/></AbstractText></Abstract>",
+            "", id="empty-inline-element",
+        ),
+        pytest.param(
+            "<Abstract><AbstractText>Plain paragraph.</AbstractText></Abstract>",
+            "Plain paragraph.", id="plain-paragraph",
+        ),
+        pytest.param(
+            "<Abstract><AbstractText>Before<sup>1</sup> after.</AbstractText></Abstract>",
+            "Before1 after.", id="inline-citation-and-tail",
+        ),
+        pytest.param(
+            "<Abstract><AbstractText>Alpha <b>beta <i>gamma</i> delta</b> epsilon."
+            "</AbstractText></Abstract>",
+            "Alpha beta gamma delta epsilon.", id="nested-text-and-tails",
+        ),
+        pytest.param(
+            "<Abstract><AbstractText><i>Only child</i> with tail."
+            "</AbstractText></Abstract>",
+            "Only child with tail.", id="child-first-paragraph",
+        ),
+        pytest.param(
+            '<Abstract><AbstractText Label="BACKGROUND"> First <i>nested</i> tail. '
+            '</AbstractText><AbstractText/><AbstractText Label="RESULTS">'
+            "Second<sup>2</sup> tail.</AbstractText></Abstract>",
+            "First nested tail. Second2 tail.", id="ordered-mixed-paragraphs",
+        ),
+    ],
+)
+def test_parse_pubmed_preserves_abstract_text_nodes(
+    abstract_xml: str, expected: str
+) -> None:
+    start = PUBMED_XML.index("<Abstract>")
+    end = PUBMED_XML.index("</Abstract>") + len("</Abstract>")
+    first, second = parse_pubmed(PUBMED_XML[:start] + abstract_xml + PUBMED_XML[end:])
+    assert first.raw_text == (
+        "BRCA2 and PARP inhibitor resistance in ovarian cancer\n\n" + expected
+    )
+    assert first.source == PUBMED_SOURCE
+    assert first.source_uri == "https://doi.org/10.1000/j.ovc.2026.001"
+    assert second.raw_text == "Unrelated meteorology\n\n"
+
+
 def test_pubmed_builder_encodes_query_for_esearch() -> None:
     url = _build_pubmed_url("BRCA2 PARP inhibitor", 25)
     assert url.startswith(f"{PUBMED_EUTILS_URL}/esearch.fcgi")
@@ -163,6 +222,49 @@ def test_fetch_pubmed_empty_idlist_is_a_clean_no_answer(monkeypatch) -> None:
     assert docs == []
 
 
+def test_pubmed_key_reaches_both_eutils_requests_without_entering_logged_urls(
+    tmp_path, monkeypatch
+) -> None:
+    secret = "NCBI-key-must-stay-beside-the-url"
+    monkeypatch.setenv("TEST_NCBI_API_KEY", secret)
+    add_source(
+        tmp_path,
+        Source(
+            id=PUBMED_SOURCE,
+            role="literature",
+            api_key_env="TEST_NCBI_API_KEY",
+        ),
+    )
+    calls = []
+
+    def fake_get_text(url, headers=None, query_key=None):
+        calls.append((url, query_key))
+        if "esearch" in url:
+            return '{"esearchresult": {"idlist": ["38000001"]}}'
+        return PUBMED_XML
+
+    monkeypatch.setattr(
+        "ontologylab.connectors.paper_api._http_get_text",
+        fake_get_text,
+    )
+
+    docs = asyncio.run(
+        _connector().fetch(
+            {
+                "source": PUBMED_SOURCE,
+                "query": "BRCA2",
+                "limit": 10,
+                "data_dir": tmp_path,
+            }
+        )
+    )
+
+    assert docs
+    assert len(calls) == 2
+    assert all(query_key == ("api_key", secret) for _url, query_key in calls)
+    assert all(secret not in url for url, _query_key in calls)
+
+
 def test_fetch_biorxiv_filters_the_page_by_query_terms(monkeypatch) -> None:
     def fake_get_text(url, headers=None, query_key=None):
         return BIORXIV_PAGE
@@ -174,6 +276,7 @@ def test_fetch_biorxiv_filters_the_page_by_query_terms(monkeypatch) -> None:
         )
     )
     assert len(docs) == 1
+    assert docs[0].title is not None
     assert "BRCA2" in docs[0].title
 
     none = asyncio.run(
@@ -182,3 +285,46 @@ def test_fetch_biorxiv_filters_the_page_by_query_terms(monkeypatch) -> None:
         )
     )
     assert none == []
+
+
+def test_biorxiv_harvest_advances_the_documented_cursor(monkeypatch) -> None:
+    cursors: list[int] = []
+
+    def fake_get_text(url, headers=None, query_key=None):
+        del headers, query_key
+        cursor = int(url.rstrip("/").split("/")[-1])
+        cursors.append(cursor)
+        count = 30 if cursor == 0 else 5
+        return json.dumps(
+            {
+                "messages": [{"status": "ok", "total": 35}],
+                "collection": [
+                    {
+                        "doi": f"10.1101/2026.08.26.{cursor + index:06d}",
+                        "title": f"BRCA2 cursor record {cursor + index}",
+                        "abstract": "BRCA2 repair evidence",
+                        "date": "2026-08-26",
+                    }
+                    for index in range(count)
+                ],
+            }
+        )
+
+    monkeypatch.setattr(
+        "ontologylab.connectors.paper_api._http_get_text",
+        fake_get_text,
+    )
+
+    docs = asyncio.run(
+        _connector().harvest(
+            {
+                "source": "biorxiv",
+                "query": "BRCA2",
+                "max_records": 35,
+                "page_size": 30,
+            }
+        )
+    )
+
+    assert cursors == [0, 30]
+    assert len(docs) == 35
