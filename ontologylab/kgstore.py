@@ -38,10 +38,15 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 
 from ontologylab import evidence
+from ontologylab import kg_records
 from ontologylab import ontology_schema as default_schema
 from ontologylab.connectors.base import normalize_doi
-from ontologylab.paths import DEFAULT_ACTOR
 from ontologylab.models import Document, ProposedEntity, ProposedRelation
+from ontologylab.paths import DEFAULT_ACTOR
+from ontologylab.storage_compatibility import (
+    bootstrap_metadata_sql,
+    require_writer_compatible,
+)
 
 REVIEW_STATUSES = ("proposed", "verified", "rejected")
 
@@ -208,7 +213,7 @@ def normalize_name(name: str) -> str:
     return alnum
 
 
-_SCHEMA = """
+_SCHEMA = bootstrap_metadata_sql() + """
 CREATE TABLE IF NOT EXISTS schema_version (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     label         TEXT NOT NULL,
@@ -563,41 +568,11 @@ def _status_clause(include_proposed: bool, alias: str = "") -> str:
 
 
 def _node_dict(row: sqlite3.Row) -> dict[str, Any]:
-    return {
-        "id": row["id"],
-        "entity_type": row["entity_type"],
-        "name": row["name"],
-        "aliases": json.loads(row["aliases_json"]),
-        "properties": json.loads(row["properties_json"]),
-        "status": row["status"],
-        "confidence": row["confidence"],
-        "source_doc_id": row["source_doc_id"],
-        "source_span": json.loads(row["source_span"]) if row["source_span"] else None,
-    }
+    return kg_records.node_dict(row)
 
 
 def _edge_dict(row: sqlite3.Row) -> dict[str, Any]:
-    keys = row.keys()
-    return {
-        "id": row["id"],
-        "relation_type": row["relation_type"],
-        "source_id": row["src_node_id"],
-        "target_id": row["dst_node_id"],
-        "properties": json.loads(row["properties_json"]),
-        "qualifiers": (
-            json.loads(row["qualifiers_json"])
-            if "qualifiers_json" in keys and row["qualifiers_json"]
-            else {}
-        ),
-        "status": row["status"],
-        "confidence": row["confidence"],
-        "source_doc_id": row["source_doc_id"],
-        # W13 bitemporal fields; absent on pre-W13 read-only packs.
-        "valid_from": row["valid_from"] if "valid_from" in keys else None,
-        "invalidated_ts": (
-            row["invalidated_ts"] if "invalidated_ts" in keys else None
-        ),
-    }
+    return kg_records.edge_dict(row)
 
 
 class KGStore:
@@ -725,6 +700,7 @@ class KGStore:
             prepare_method_connection(conn)
             return cls(conn, db_path, read_only=True)
 
+        require_writer_compatible(db_path)
         db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(db_path), timeout=30.0)
         # The KG holds a user's private research; default umask leaves it
@@ -2163,23 +2139,7 @@ class KGStore:
 
     @staticmethod
     def _row_to_document(row: sqlite3.Row) -> Document:
-        return Document(
-            id=row["id"],
-            source_kind=row["source_kind"],
-            source_uri=row["source_uri"],
-            title=row["title"],
-            fetched_ts=row["fetched_ts"],
-            content_hash=row["content_hash"],
-            raw_text_path=row["raw_text_path"],
-            # `.keys()` rather than indexing: a pack built before these
-            # columns existed is opened read-only and never migrated, so the
-            # row genuinely does not have them.
-            source=row["source"] if "source" in row.keys() else "",
-            evidence_grade=evidence.normalize(
-                row["evidence_grade"] if "evidence_grade" in row.keys() else ""
-            ),
-            doi=row["doi"] if "doi" in row.keys() else None,
-        )
+        return kg_records.document_from_row(row)
 
     def get_document(self, doc_id: str) -> Document:
         cur = self.conn.execute("SELECT * FROM documents WHERE id = ?", (doc_id,))

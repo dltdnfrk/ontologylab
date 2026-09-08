@@ -290,7 +290,7 @@ class Engine(Protocol):
         ...
 
     async def generate(
-        self, prompt: str, *, model: str | None
+        self, prompt: str, *, model: str | None = None
     ) -> tuple[str, dict[str, Any]]:
         """Produce raw model text plus usage metadata for the given prompt.
 
