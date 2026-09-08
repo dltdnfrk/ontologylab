@@ -22,10 +22,10 @@ import re
 
 import pytest
 
-from ontologylab.server.app import WEB_DIR
+from ontologylab import web_assets
 
-MARKUP = (WEB_DIR / "index.html").read_text(encoding="utf-8")
-SCRIPT = (WEB_DIR / "app.js").read_text(encoding="utf-8")
+MARKUP = web_assets.read_asset_text("index.html")
+SCRIPT = web_assets.read_asset_text("app.js")
 
 TAB_BUTTON_RE = re.compile(r'<button[^>]*\bclass="tab-btn[^"]*"[^>]*>')
 
@@ -126,16 +126,13 @@ def test_the_status_bar_reports_location_and_activity() -> None:
     assert 'aria-live="polite"' in tag.group(0), "changes must reach a reader"
 
 
-def test_the_fan_out_announces_its_own_changes() -> None:
-    """The second live region, and the one that changes during a run.
-
-    The status bar says *that* research is running; the fan-out says which
-    sources answered. Muting it leaves a watcher — human or agent — polling
-    the DOM to notice a source dropped out.
-    """
-    tag = re.search(r'<div id="research-fanout"[^>]*>', MARKUP)
-    assert tag, "the fan-out must be a findable element"
-    assert 'aria-live="polite"' in tag.group(0)
+def test_live_regions_are_reduced_to_activity_and_new_chat_output() -> None:
+    fanout = re.search(r'<div id="research-fanout"[^>]*>', MARKUP)
+    chat = re.search(r'<div class="chat-log"[^>]*>', MARKUP)
+    assert fanout and 'aria-live=' not in fanout.group(0)
+    assert chat and 'aria-live=' not in chat.group(0)
+    assert 'id="chat-announcements"' in MARKUP
+    assert "function announceChatMessage(" in SCRIPT
 
 
 def test_the_location_label_uses_the_same_names_as_the_tabs() -> None:
@@ -154,7 +151,7 @@ def test_the_status_bar_survives_the_narrow_pane_it_runs_in() -> None:
     driving, what matters is that the run is still going. The counts are on
     the home board either way.
     """
-    css = (WEB_DIR / "style.css").read_text(encoding="utf-8")
+    css = web_assets.read_asset_text("style.css")
     narrow = css[css.index("@media (max-width: 860px)") :]
     narrow = narrow[: narrow.index("\n}\n", narrow.index(".statusbar"))]
 

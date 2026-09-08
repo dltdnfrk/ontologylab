@@ -15,7 +15,7 @@ keywords = ["knowledge-graph", "ontology", "mcp", "local-first", "sqlite"]
 dependencies = []
 
 [project.optional-dependencies]
-test = ["pytest>=7", "httpx"]
+test = ["pytest>=7", "httpx>=0.27,<0.29", "httpx2>=2.0.0"]
 # Optional local dashboard. The stdlib pipeline core never imports these.
 server = ["fastapi", "uvicorn[standard]"]
 # Optional MCP stdio server (FastMCP from the official python SDK).
@@ -38,14 +38,18 @@ ontologylab-mcp = "ontologylab.mcp_server:main"
 Homepage = "https://example.invalid/ontologylab"
 
 [tool.setuptools]
-packages = ["ontologylab", "ontologylab.connectors", "ontologylab.server"]
+packages = ["ontologylab", "ontologylab.connectors", "ontologylab.server", "ontologylab.web"]
 
 [tool.setuptools.package-data]
 ontologylab = ["*.json"]
+"ontologylab.web" = ["*.html", "*.js", "*.css", "*.svg", "*.json", "fonts/*.woff2"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+filterwarnings = [
+    "error::starlette.exceptions.StarletteDeprecationWarning",
+]
 # tests/conftest.py does `from tests.factories import ...`, which needs the
 # repo root on sys.path. The legacy setuptools editable install provided that
 # as a side effect of its .pth; a modern editable (uv sync) exposes only the
