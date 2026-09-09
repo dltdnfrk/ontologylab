@@ -27,11 +27,7 @@ from ontologylab.release_source_exclusions import source_exclusion_reason
 
 _SNAPSHOT_SCHEMA: Final = "ontologylab.release.source-snapshot.v1"
 _SKIP_DIRS: Final = frozenset({"__pycache__"})
-# Agent instruction files are local working artifacts, not release source:
-# none of them is tracked by git, so pinning them made the gate depend on
-# files absent from a clean clone and it could never pass there. They have no
-# effect on the built artifact.
-_SKIP_FILES: Final = frozenset({".DS_Store", "AGENTS.md", "CLAUDE.md"})
+_SKIP_FILES: Final = frozenset({".DS_Store"})
 _SKIP_SUFFIXES: Final = (".pyc", ".pyo")
 
 
