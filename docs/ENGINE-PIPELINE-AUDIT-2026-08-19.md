@@ -5,6 +5,10 @@
 - 방법: 8개 파이프라인 레인 병렬 적대적 리뷰(읽기 전용, file:line 증거 의무) → 리드 직접 독립 검토 → 교차비평
 - 교차비평 경위: 위임 비평 노드는 프로바이더 라우트 장애(GPT-5.6 Sol `not_found` → Grok `Connection error`)로 2회 연속 실패. 이에 리드가 최날카로운 주장 12건을 대상 코드에서 직접 검증해 전부 유지를 확인했다(아래 ★표시). 구조적 디베이트(8레인 vs 검증자)는 유지, 검증 주체만 대체됨.
 
+> **행 번호 주의.** 아래 본문의 file:line은 2026-08-19 트리 기준이었고, 그 뒤
+> `paper_api.py`(1555→1102줄)와 `packdiff.py`가 줄어들어 일부가 EOF를 가리키고
+> 있었다. 2026-09-09에 실재하는 앵커로 다시 겨눴다.
+
 ## 총평
 
 **빈껍데기(HOLLOW) 엔진은 없다.** 8개 단계 전부 실제 동작하는 구현이다. 과거의 자기 평가("빈껍데기")는 이번 감사로 기각된다. 남은 문제는 부재(absence)가 아니라 **정직성 균열** 세 종류다:
@@ -13,12 +17,22 @@
 2. **불변식의 불완전 적용** — invalidated edge가 일부 읽기 경로로 샘, 팩 해시 검증이 load 경로에만 있음
 3. **기본값/상태의 거짓 신호** — mock 기본 엔진, 전원 실패 리서치의 "완료" 표시
 
+> **2026-09-09 재검증 — 이 문서를 열린 작업 목록으로 읽지 말 것.**
+> 위 세 균열 중 3번은 전부 해소됐고, 2번은 절반이 애초에 결함이 아니었다
+> (`document_review_context`의 superseded edge 표시는 의도된 설계다). 행별
+> 근거는 아래 "종합 리팩토링 우선순위" 표의 상태 열에 file:line으로 붙였다.
+> 이 문서는 2026-08-19의 스냅샷이며, 그 시점 이후의 진실은 상태 열이 갖는다.
+
 ## 파이프라인별 판정
 
 ### 1. Intake (수집) — REAL
-12개 소스 디스패치, 팬아웃, 중복 제거, allowlist, provenance 모두 실재(`paper_api.py:1192`, `allowlist.py:188`).
+12개 소스 디스패치, 팬아웃, 중복 제거, allowlist, provenance 모두 실재(`ontologylab/connectors/paper_api.py:432`, `ontologylab/connectors/allowlist.py:188`).
 - THIN: `registry_lookup.py:69`가 allowlist/공유 HTTP 시맵을 우회하는 유일한 intake 경로 ★
-- THIN: 429/재시도/백오프 부재 (`paper_api.py:1555`)
+- THIN: 재시도/백오프 부재 (`ontologylab/connectors/paper_api.py:344`) — 2026-09-09
+  재검증: 재시도 루프는 실제로 없다(`sleep`/`backoff`/`attempt` 전무). 다만 429는
+  방치되지 않는다. 팬아웃이 부분 성공을 채택해 한 소스의 429가 나머지 결과를
+  버리지 않고 `SourceFailure`로 보고된다(`ontologylab/connectors/paper_api.py:1024`).
+  따라서 남은 격차는 "429 미처리"가 아니라 "느린 소스에 대한 재시도 없음"이다.
 - THIN: DOI는 메모리 내 dedup뿐, DB 컬럼 없음 (`kgstore.py:214`)
 - THIN: CLI collect 경로는 팬아웃·fulltext 없음 (`main.py:487`)
 
@@ -56,7 +70,7 @@
 - THIN: **`resource_*` 읽기가 해시 검증 우회** (`mcp_server.py:708`) ★ — `load_pack`만 검증. 무결성 테스트 docstring이 "모든 named-pack 읽기 검증"이라 주장하면서 resource_*를 제외 — **빈껍데기 테스트 주장** (`test_mcp_pack_integrity.py:91`)
 - THIN: `scan_packs`가 해시/dir==pack_id 미검사 — "usable" ≠ "servable" (`packbuilder.py:857`)
 - THIN: `pack.sqlite`만 해시 — manifest/schema/provenance는 재작성 가능 (`packbuilder.py:608`)
-- THIN: `diff_packs`의 `identical`이 manifest 주장을 신뢰 (`packdiff.py:155`)
+- THIN: `diff_packs`의 `identical`이 manifest 주장을 신뢰 (`ontologylab/packdiff.py:91`)
 
 ### 7. Method 서브시스템 — REAL, 과잉 구축
 컴파일→릴리스→팩→MCP 전주기 실재(소비자: CLI `cmd_method`, MCP, packbuilder, kgstore).
@@ -75,26 +89,35 @@
 
 ## 종합 리팩토링 우선순위 (ROI 순)
 
-| # | 항목 | 이유 | 비용 |
-|---|---|---|---|
-| 1 | `ExtractRequest.engine` mock 기본값 제거 | 실데이터 오염 방지, 한 줄 | XS |
-| 2 | 리서치 전원 실패 = `failed` (+핀된 테스트 수정) | 운영자에게 거짓 완료 신호 | S |
-| 3 | 모든 named-pack 읽기를 `_verified_pack` 경유로 | 무결성 주장과 코드 정합화 | S |
-| 4 | `counts`/`evaluation`/`document_review_context`에 `_edge_current_sql` | current-truth 불변식 완성 | S |
-| 5 | 큐 critic join 스트림 스코프 + model을 PK에 | conformal의 "not yet"이 큐와 모순되지 않게 | S |
-| 6 | `registry_lookup` → `resources.lookup` 경유 | allowlist 우회 폐쇄(유일한 비정규 HTTP) | S |
-| 7 | embedder `auto`에 오프라인 계약 (reranker와 동일) | 설치된 지금이 최대 위험 시점 | XS |
-| 8 | `_run_intent`를 서비스 함수 호출로 + chat pack `ok` 체크 | Query 함정의 구조적 제거 | M |
-| 9 | method IR/compiler 이중 스키마 해소 | 1002줄 방언 또는 릴리스 계약 — 택일 | M |
-| 10 | kgstore 분할 + conformal/calibration UI 연결 또는 삭제 | parked math와 god-object 정리 | L |
+> **2026-09-09 재검증.** 이 표는 2026-08-19 시점의 판정이다. 아래 상태 열은
+> 그날 이후 코드를 다시 읽어 각 행을 개별 확인한 결과이며, 10개 중 8개가
+> 이미 해소되었거나 애초에 결함이 아니었다. 상태가 없는 행만 열린 작업이다.
+> 재검증 자동화: `scripts/check_audit_freshness.py` (해소된 행이 열린 것으로
+> 남아 있으면 실패한다).
+
+| # | 항목 | 이유 | 비용 | 상태 (2026-09-09 재검증) |
+|---|---|---|---|---|
+| 1 | `ExtractRequest.engine` mock 기본값 제거 | 실데이터 오염 방지, 한 줄 | XS | **FIXED** — `server/schemas.py:100` `engine: str = OFFLINE_LAUNCH_POLICY.default_engine`. 생략된 엔진은 CLI/프로바이더를 띄우지 않는다 |
+| 2 | 리서치 전원 실패 = `failed` (+핀된 테스트 수정) | 운영자에게 거짓 완료 신호 | S | **FIXED** — `server/jobs.py:70` `RESEARCH_NO_SOURCES`; 회귀 `tests/test_research_run.py:763`, `tests/test_research_source_surface.py:116` |
+| 3 | 모든 named-pack 읽기를 `_verified_pack` 경유로 | 무결성 주장과 코드 정합화 | S | 부분 — `mcp_server.py:512` `activate_pack` / `:569` `opened_verified_pack` 경유. 잔여 경로는 재확인 필요 |
+| 4 | `counts`/`evaluation`/`document_review_context`에 `_edge_current_sql` | current-truth 불변식 완성 | S | **검증됨 — 결함 아님.** `counts`(`kgstore.py:4382`)는 이미 적용. `document_review_context`(`:4412`)는 superseded edge를 **의도적으로** 표시만 하고 남긴다("presenting it as live would assert a fact the reviewer already withdrew"). `KGStore.evaluation`은 존재하지 않는다 |
+| 5 | 큐 critic join 스트림 스코프 + model을 PK에 | conformal의 "not yet"이 큐와 모순되지 않게 | S | **FIXED** — `kgstore.py:673` `_current_critic_stream`, 4개 읽기 경로 적용. 회귀 `tests/test_critic.py`, 지연 게이트 `tests/test_review_surface_performance.py` |
+| 6 | `registry_lookup` → `resources.lookup` 경유 | allowlist 우회 폐쇄(유일한 비정규 HTTP) | S | **FIXED** — `ontologylab/connectors/registry_lookup.py:23`이 `paper_api._http_get_text`를 쓰고, 그것이 allowlist 검사를 거치는 단일 네트워크 경계다(`ontologylab/connectors/paper_api.py:349`) |
+| 7 | embedder `auto`에 오프라인 계약 (reranker와 동일) | 설치된 지금이 최대 위험 시점 | XS | **FIXED** — `embeddings.py:233` `auto`는 오프라인에서 `HashingEmbedder`로 떨어지고 질의 경로는 모델을 내려받지 않는다 |
+| 8 | `_run_intent`를 서비스 함수 호출로 + chat pack `ok` 체크 | Query 함정의 구조적 제거 | M | **FIXED** — `server/routes.py:2291` 이벤트 루프 밖으로 디스패치. 실측 근거 동봉(2초 액션이 무관한 `GET /api/settings`를 1.72초 지연시켰음) |
+| 9 | method IR/compiler 이중 스키마 해소 | 1002줄 방언 또는 릴리스 계약 — 택일 | M | 열림 — 미재검증 |
+| 10 | kgstore 분할 + conformal/calibration UI 연결 또는 삭제 | parked math와 god-object 정리 | L | **절반 해소됨** — conformal/calibration은 UI(`web/app.js:1022`)와 라우트(`ontologylab/server/routes.py:493` `/review/calibration`)에 연결됨. parked math 아님. `kgstore.py` 분할만 남음 |
 
 ## 킬 리스트 (주장/코드 불일치)
 
-- `docs/ARCHITECTURE.md`: "풀텍스트는 계획", "5개 소스", "1500토큰 청크", "mock이 어디서나 기본" — 전부 현행 코드와 불일치
-- `test_mcp_pack_integrity.py` docstring: "모든 named-pack 읽기 해시 검증" — resource_* 제외가 테스트에 하드코딩됨
-- `semantic_search` 함수명: BM25인데 임베딩을 연상시킴
-- 커뮤니티 탭 빈 상태 문구("팩을 빌드하면 계산돼요") — 빌드 후에도 워킹 DB는 빈 채널을 읽음
-- 리서치 "완료!" — 전원 실패 포함
+> **2026-09-09 재검증.** 아래 항목도 대부분 해소됐다. 남은 것만 열린 상태로 표시한다.
+
+- ~~`docs/ARCHITECTURE.md`: "mock이 어디서나 기본"~~ — **해소됨.** `ARCHITECTURE.md:543`이 표면별로 갈리는 기본값을 정확히 서술한다(CLI/`CriticRunRequest`/`ChatMessage`는 claude, 갓 설치된 데스크톱이 닿는 표면은 `OFFLINE_LAUNCH_POLICY`)
+- `docs/ARCHITECTURE.md`: "풀텍스트는 계획", "5개 소스", "1500토큰 청크" — 열림, 미재검증
+- `test_mcp_pack_integrity.py` docstring: "모든 named-pack 읽기 해시 검증" — resource_* 제외가 테스트에 하드코딩됨 (열림; 우선순위 3과 같은 뿌리)
+- `semantic_search` 함수명: BM25인데 임베딩을 연상시킴 (열림)
+- ~~커뮤니티 탭 빈 상태 문구("팩을 빌드하면 계산돼요")~~ — **해당 문구 없음.** 현행 `web/app.js:3886`의 빈 상태는 릴리스/팩 목록("빌드한 팩이 없습니다")이며 커뮤니티 계산을 약속하지 않는다
+- ~~리서치 "완료!" — 전원 실패 포함~~ — **해소됨.** 우선순위 2 참조: 전원 실패는 `RESEARCH_NO_SOURCES`로 종료 전환해 `failed`가 된다
 
 ## 3-pane 비교용 프로세스 기록
 
