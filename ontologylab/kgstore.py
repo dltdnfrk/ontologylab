@@ -4925,12 +4925,17 @@ class KGStore:
         # critic never approved anything and its score is not part of the
         # lineage, only of the queue's ordering.
         record["critic"] = None
-        if self._table_exists("critic_reviews"):
+        critic_stream = (
+            self._current_critic_stream(kind)
+            if self._table_exists("critic_reviews") else None
+        )
+        if critic_stream is not None:
             critic = self.conn.execute(
                 "SELECT engine, model, score, rationale, created_ts "
                 "FROM critic_reviews WHERE kind = ? AND item_id = ? "
+                "AND engine = ? AND model IS ? AND prompt_version = ? "
                 "ORDER BY created_ts DESC LIMIT 1",
-                (kind, item_id),
+                (kind, item_id, *critic_stream),
             ).fetchone()
             if critic is not None:
                 record["critic"] = dict(critic)

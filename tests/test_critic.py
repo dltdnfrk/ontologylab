@@ -215,6 +215,11 @@ def test_every_surface_shows_only_the_current_critic_stream(store, doc):
     assert scored_edges[edge1] == 0.9
     assert scored_edges[edge2] is None
 
+    assert store.provenance("node", ids["ApiGateway"])["critic"]["engine"] == "codex"
+    assert store.provenance("node", ids["RateLimiter"])["critic"] is None
+    assert store.provenance("edge", edge1)["critic"]["score"] == 0.9
+    assert store.provenance("edge", edge2)["critic"] is None
+
 
 def test_a_model_switch_rescores_instead_of_blanking_the_queue(store, doc):
     """Both sides of the critic must agree on what a stream is.
