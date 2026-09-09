@@ -1811,13 +1811,13 @@
       "sha256": "100b2c095d42831d4a332abf1a206b9b20c54555915edb8e5b749fa2bdb3671e"
     }
   ],
-  "git_staged_diff_sha256": "cf6c1d28032f8fdb407ec92f4eab33d3986b50e24a33ec04f053f5d9d040594a",
-  "git_status_sha256": "b182680b94dbedd60a8919a0431a5c4d057b12dff02741cd61293da0804f28a5",
+  "git_staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "git_unstaged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "inventory_sha256": "8064d11867080f570c95230e95d8d8aa4613ecc192e6723eae0d02e7a867fae3",
   "policy_sha256": "ca95a5968557360e5082f98a43765e0c8facbf8a62122ad66080436b0cfa5aa3",
   "schema": "ontologylab.release.source-snapshot.v1",
-  "snapshot_sha256": "02160efd73c761475e652ae391ffdccb8e5027c07f350454b3843464798cbbc2",
+  "snapshot_sha256": "b0ab730bd1fa18b2554b302da84ef61fd511f2d512451d35da88ff8e269e270a",
   "uv_lock": {
     "bytes": 461552,
     "path": "uv.lock",
