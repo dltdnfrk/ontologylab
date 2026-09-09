@@ -44,6 +44,7 @@ Connector security is endpoint-based rather than topic-based: connectors are
 4. **Easiest correct storage.** One sqlite file, reusing drylab's `memory.py` pattern (WAL, functional `open()` + OO wrapper). No external graph DB, no vector DB — at single-user scale indexed sqlite answers neighbor/path/type queries fast enough and ships zero extra services.
 5. **Reuse drylab, adapt only the seams.** LLM-CLI adapters, provenance log, safety caps/kill switch, TUI, and the FastAPI + vanilla-JS local shell are reused near-verbatim. Only optimization-loop-specific pieces (coordinator, sandbox, heuristic domain) are dropped.
 6. **Explicit, typed, read-only MCP surface.** All KG-query tools are exposed initially (graph query, semantic search, entity lookup, relation traversal, path finding, pack management) with typed JSON-Schema contracts. No MCP tool mutates the graph — approval is a human action outside MCP scope.
+7. **"Ontology" here means the graph *plus* the operational path that changes it.** Not a semantic layer, and not the node/edge model alone: the term covers the typed graph together with the review, pack-build, and MCP-serving path that moves a claim from `proposed` to something a client can read. What makes a definition binding in this system is not the vocabulary — it is `idx_nodes_resolve UNIQUE(schema_version_id, entity_type, normalized_name)`, the only place two meanings competing for one name actually collide. Label uniqueness on `ontology_term` is deliberately absent: per SKOS, `prefLabel` is unique per resource × language tag, so distinct meanings get distinct concepts rather than a contested shared label.
 
 ---
 
@@ -589,6 +590,8 @@ Client config (Claude Desktop / Claude Code):
 ### 9.1 Safety invariant
 
 Every read tool filters to `status='verified'` by **default**, returning `proposed` rows only when a caller explicitly passes `include_proposed=true`. `rejected` rows are never returned. Because a pack contains only verified rows, `include_proposed` is meaningful only against the working DB (dashboard), not against a shipped pack — a pack literally has no proposed rows. This is the load-bearing safety property: an MCP client never silently treats an unapproved extraction as fact.
+
+Pack immutability is a separate and narrower guarantee: it protects the *integrity* of each pack, not the *provenance of an answer*. Every pack in `packs_dir` is individually intact, so no hash detects a client that switches packs mid-session and then reports facts the operator never selected. `--pack` is a preload, not a boundary. When a session must answer from exactly one pack, `--pin-pack PACK_ID` is the boundary: `list_packs`/`load_pack` are never registered, and every pack-addressed tool *and* `pack://` resource URI refuses a foreign pack id through a single choke point (`PackSession._require_pack_access`). Closing only the tool list would leave resource addressing open.
 
 ### 9.2 Tool surface (all read-only against the KG)
 

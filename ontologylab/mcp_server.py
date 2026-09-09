@@ -50,6 +50,10 @@ from ontologylab.verified_pack_reader import (
 )
 
 
+class PackPinned(Exception):
+    """A pinned session was asked to reach a pack other than its own."""
+
+
 class NoActivePack(Exception):
     """Raised when a query tool is called before any pack is loaded."""
 
@@ -264,8 +268,10 @@ class PackSession:
         expansion_model: str | None = None,
         embedder=None,
         live_store_path: str | Path | None = None,
+        pinned_pack_id: str | None = None,
     ) -> None:
         self.packs_dir = Path(packs_dir)
+        self.pinned_pack_id = pinned_pack_id
         self.store: KGStore | None = None
         self._snapshot: VerifiedPackSnapshot | None = None
         self.pack_id: str | None = None
@@ -463,6 +469,18 @@ class PackSession:
             self._live_store.close()
             self._live_store = None
 
+    def _require_pack_access(self, pack_id: str) -> None:
+        # Every pack-addressed entry point funnels here. `--pin-pack` is an
+        # answer-provenance boundary, not a secret: a client that silently
+        # switches packs mid-session reports facts the operator never chose,
+        # and pack immutability cannot detect that because each pack is
+        # individually intact.
+        if self.pinned_pack_id is not None and pack_id != self.pinned_pack_id:
+            raise PackPinned(
+                f"session is pinned to pack {self.pinned_pack_id!r}; "
+                f"pack {pack_id!r} is not reachable"
+            )
+
     def _require_store(self) -> KGStore:
         if self.store is None:
             raise NoActivePack(
@@ -475,6 +493,11 @@ class PackSession:
     # ------------------------------------------------------------------
 
     def list_packs(self) -> dict[str, Any]:
+        if self.pinned_pack_id is not None:
+            raise PackPinned(
+                f"session is pinned to pack {self.pinned_pack_id!r}; "
+                "pack discovery is disabled"
+            )
         packs = discover_packs(self.packs_dir)
         return {
             "packs_dir": str(self.packs_dir),
@@ -484,6 +507,7 @@ class PackSession:
         }
 
     def _activate(self, pack_id: str) -> VerifiedPackSnapshot:
+        self._require_pack_access(pack_id)
         safe_pack_component(pack_id, kind="pack id")
         return activate_pack(self.packs_dir / pack_id, working=self.live_store_path)
 
@@ -540,6 +564,7 @@ class PackSession:
         schema_version_id: int | None = None,
     ) -> dict[str, Any]:
         if pack_id is not None and pack_id != self.pack_id:
+            self._require_pack_access(pack_id)
             safe_pack_component(pack_id, kind="pack id")
             with opened_verified_pack(
                 self.packs_dir / pack_id, working=self.live_store_path
@@ -633,6 +658,7 @@ class PackSession:
     def resource_manifest(self, pack_id: str) -> dict[str, Any]:
         if pack_id == self.pack_id and self._snapshot is not None:
             return dict(self._snapshot.manifest)
+        self._require_pack_access(pack_id)
         safe_pack_component(pack_id, kind="pack id")
         return inspect_verified_manifest(
             self.packs_dir / pack_id, working=self.live_store_path
@@ -1050,10 +1076,16 @@ def build_mcp_app(session: PackSession) -> Any:
     """Wire ``PackSession`` onto the bounded local MCP stdio registry."""
     mcp = McpApp("ontologylab")
 
-    @mcp.tool()
-    def list_packs() -> PackListResult:
-        """Discover local knowledge packs (directory + manifest.json scan)."""
-        return session.list_packs()
+    if session.pinned_pack_id is None:
+        @mcp.tool()
+        def list_packs() -> PackListResult:
+            """Discover local knowledge packs (directory + manifest.json scan)."""
+            return session.list_packs()
+
+        @mcp.tool()
+        def load_pack(pack_id: str) -> LoadPackResult:
+            """Set/switch the active pack (read-only connection; never mutates KG)."""
+            return session.load_pack(pack_id)
 
     @mcp.tool()
     def get_staleness() -> dict[str, Any]:
@@ -1061,11 +1093,6 @@ def build_mcp_app(session: PackSession) -> Any:
         verified truth. Additions, invalidations, and same-id replacements are
         authoritative; pending_verified_count is backward-compatible advisory."""
         return session.get_staleness()
-
-    @mcp.tool()
-    def load_pack(pack_id: str) -> LoadPackResult:
-        """Set/switch the active pack (read-only connection; never mutates KG)."""
-        return session.load_pack(pack_id)
 
     @mcp.tool()
     def get_schema(
@@ -1337,6 +1364,15 @@ def main(argv: list[str] | None = None) -> None:
         "pack exists, it is auto-loaded.",
     )
     parser.add_argument(
+        "--pin-pack",
+        default=None,
+        metavar="PACK_ID",
+        help="Load PACK_ID and pin the session to it: pack discovery and "
+        "switching leave the tool list, and every pack-addressed tool and "
+        "resource refuses a different pack id. Use when a client must never "
+        "answer from a pack the operator did not choose.",
+    )
+    parser.add_argument(
         "--expansion-engine",
         default=None,
         type=engine_name_arg,
@@ -1382,18 +1418,22 @@ def main(argv: list[str] | None = None) -> None:
             # 어떤 실패든 raw traceback 대신 깔끔히 종료한다.
             print(f"[ontologylab.mcp] embedder unavailable: {exc}", file=sys.stderr)
             raise SystemExit(2) from exc
+    if args.pack and args.pin_pack:
+        parser.error("--pack and --pin-pack are mutually exclusive")
     session = PackSession(
         args.packs_dir,
         expansion_engine=args.expansion_engine,
         expansion_model=args.expansion_model,
         embedder=embedder,
         live_store_path=args.live_store,
+        pinned_pack_id=args.pin_pack,
     )
-    if args.pack:
+    startup_pack = args.pack or args.pin_pack
+    if startup_pack:
         try:
-            session.load_pack(args.pack)
+            session.load_pack(startup_pack)
         except Exception as exc:
-            print(f"[ontologylab.mcp] failed to load pack {args.pack!r}: {exc}", file=sys.stderr)
+            print(f"[ontologylab.mcp] failed to load pack {startup_pack!r}: {exc}", file=sys.stderr)
             raise SystemExit(2) from exc
     else:
         auto = session.try_autoload()
