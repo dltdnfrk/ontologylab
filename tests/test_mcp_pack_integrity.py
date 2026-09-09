@@ -17,6 +17,7 @@ Plan: .omo/plans/ontology-platform-roadmap.md (todo 2).
 
 from __future__ import annotations
 
+import hashlib
 import inspect
 import json
 import sqlite3
@@ -404,5 +405,51 @@ def test_failed_switch_keeps_prior_session_byte_identical(tmp_path: Path) -> Non
         forged["attacker"] = "switch"
         manifest_path.write_text(json.dumps(forged), encoding="utf-8")
         assert session.resource_manifest(good_id).get("attacker") is None
+    finally:
+        session.close()
+
+
+def test_payload_rewrite_outside_pack_sqlite_is_refused(tmp_path: Path) -> None:
+    """``content_hash`` covers pack.sqlite alone; the tree receipt covers the
+    rest of the served payload.
+
+    ``schema.json`` and ``provenance.jsonl`` are handed back to callers, so a
+    rewrite of either is a lie about the pack even while pack.sqlite still
+    matches its own receipt — the content_hash assertion below proves that is
+    the state under test, and not ordinary sqlite drift. Every named-pack read
+    must refuse, and the active session must keep answering.
+    """
+    packs, good_id = _build_fixture_pack(tmp_path, name="tree-good")
+    _, bad_id = _build_fixture_pack(tmp_path, name="tree-bad")
+    manifest = json.loads(
+        (packs / bad_id / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest.get("tree_hash"), "fixture pack must carry a tree receipt"
+
+    session = PackSession(packs)
+    session.load_pack(good_id)
+    before_hash = session.pack_hash
+    before_lookup = session.entity_lookup(name="RateLimiter")
+    try:
+        for payload in ("schema.json", "provenance.jsonl"):
+            target = packs / bad_id / payload
+            original = target.read_bytes()
+            target.write_bytes(original + b'\n{"attacker": true}\n')
+            try:
+                sqlite_sha = hashlib.sha256(
+                    pack_sqlite_path(packs, bad_id).read_bytes()
+                ).hexdigest()
+                assert f"sha256:{sqlite_sha}" == manifest["content_hash"]
+                for entry_point in _NAMED_PACK_READ_ENTRY_POINTS:
+                    with pytest.raises(mcp_server.PackIntegrityError):
+                        getattr(session, entry_point)(bad_id)
+                for entry_point in _NAMED_PACK_ID_ENTRY_POINTS:
+                    with pytest.raises(mcp_server.PackIntegrityError):
+                        getattr(session, entry_point)(bad_id, "n_rl")
+            finally:
+                target.write_bytes(original)
+        assert session.pack_id == good_id
+        assert session.pack_hash == before_hash
+        assert session.entity_lookup(name="RateLimiter") == before_lookup
     finally:
         session.close()

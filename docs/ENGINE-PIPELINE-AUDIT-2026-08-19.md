@@ -18,8 +18,9 @@
 3. **기본값/상태의 거짓 신호** — mock 기본 엔진, 전원 실패 리서치의 "완료" 표시
 
 > **2026-09-09 재검증 — 이 문서를 열린 작업 목록으로 읽지 말 것.**
-> 위 세 균열 중 3번은 전부 해소됐고, 2번은 절반이 애초에 결함이 아니었다
-> (`document_review_context`의 superseded edge 표시는 의도된 설계다). 행별
+> 위 세 균열 중 2번과 3번은 전부 해소됐다. 2번의 절반은 애초에 결함이 아니었고
+> (`document_review_context`의 superseded edge 표시는 의도된 설계다), 팩 해시
+> 경계는 `resource_*`를 포함한 모든 named-pack 읽기로 확장돼 있다. 행별
 > 근거는 아래 "종합 리팩토링 우선순위" 표의 상태 열에 file:line으로 붙였다.
 > 이 문서는 2026-08-19의 스냅샷이며, 그 시점 이후의 진실은 상태 열이 갖는다.
 
@@ -67,9 +68,24 @@
 
 ### 6. Pack/Serve — REAL
 빌드 게이트, 원자적 리네임, SHA-256 영수증, 변조 거부(hmac compare) 실재.
-- THIN: **`resource_*` 읽기가 해시 검증 우회** (`mcp_server.py:708`) ★ — `load_pack`만 검증. 무결성 테스트 docstring이 "모든 named-pack 읽기 검증"이라 주장하면서 resource_*를 제외 — **빈껍데기 테스트 주장** (`test_mcp_pack_integrity.py:91`)
-- THIN: `scan_packs`가 해시/dir==pack_id 미검사 — "usable" ≠ "servable" (`packbuilder.py:857`)
-- THIN: `pack.sqlite`만 해시 — manifest/schema/provenance는 재작성 가능 (`packbuilder.py:608`)
+- ~~THIN: `resource_*` 읽기가 해시 검증 우회~~ — **해소됨(2026-09-09).** `resource_*`는
+  전부 `_store_for`(`ontologylab/mcp_server.py:646`) → `_activate` → `activate_pack`
+  (`ontologylab/verified_pack_reader.py:142`)을 거친다. 테스트 주장도 빈껍데기가
+  아니다: `tests/test_mcp_pack_integrity.py:110`이 `pack_id`를 받는 공개 메서드를
+  introspection으로 열거해 분류 집합과 대조하므로, 분류되지 않은 신규 툴이 생기면
+  실패한다(결함 주입으로 확인)
+- ~~THIN: `scan_packs`가 해시/dir==pack_id 미검사~~ — **해소됨.** dir≠pack_id는
+  unusable로 밀려나고(`ontologylab/packbuilder.py:999`), 남은 항목은
+  `inspect_verified_manifest`로 해시 검증을 통과한 것만 반환된다
+  (`ontologylab/packbuilder.py:1014`). 회귀 `tests/test_mcp_pack_integrity.py:341`
+- ~~THIN: `pack.sqlite`만 해시~~ — **절반만 참.** `content_hash`는 여전히
+  `pack.sqlite`만이지만 `tree_hash`가 `schema.json`/`provenance.jsonl`까지 묶고
+  (`ontologylab/packbuilder.py:1033`) 읽기 경로가 이를 강제한다
+  (`ontologylab/pack_verifier.py:437`). 실측: 두 파일을 각각 변조한 뒤
+  `resource_schema`를 호출하면 `PackIntegrityError`로 거부된다
+  (회귀 `tests/test_mcp_pack_integrity.py:412`). `manifest.json`은
+  영수증 루트라 자기참조로 제외되며, 활성화가 서빙 manifest를 고정해 사후 재작성이
+  서빙되지 않는다(`tests/test_mcp_pack_integrity.py:307`)
 - THIN: `diff_packs`의 `identical`이 manifest 주장을 신뢰 (`ontologylab/packdiff.py:91`)
 
 ### 7. Method 서브시스템 — REAL, 과잉 구축
@@ -90,7 +106,7 @@
 ## 종합 리팩토링 우선순위 (ROI 순)
 
 > **2026-09-09 재검증.** 이 표는 2026-08-19 시점의 판정이다. 아래 상태 열은
-> 그날 이후 코드를 다시 읽어 각 행을 개별 확인한 결과이며, 10개 중 8개가
+> 그날 이후 코드를 다시 읽어 각 행을 개별 확인한 결과이며, 10개 중 9개가
 > 이미 해소되었거나 애초에 결함이 아니었다. 상태가 없는 행만 열린 작업이다.
 > 재검증 자동화: `scripts/check_audit_freshness.py` (해소된 행이 열린 것으로
 > 남아 있으면 실패한다).
@@ -99,7 +115,7 @@
 |---|---|---|---|---|
 | 1 | `ExtractRequest.engine` mock 기본값 제거 | 실데이터 오염 방지, 한 줄 | XS | **FIXED** — `server/schemas.py:100` `engine: str = OFFLINE_LAUNCH_POLICY.default_engine`. 생략된 엔진은 CLI/프로바이더를 띄우지 않는다 |
 | 2 | 리서치 전원 실패 = `failed` (+핀된 테스트 수정) | 운영자에게 거짓 완료 신호 | S | **FIXED** — `server/jobs.py:70` `RESEARCH_NO_SOURCES`; 회귀 `tests/test_research_run.py:763`, `tests/test_research_source_surface.py:116` |
-| 3 | 모든 named-pack 읽기를 `_verified_pack` 경유로 | 무결성 주장과 코드 정합화 | S | 부분 — `mcp_server.py:512` `activate_pack` / `:569` `opened_verified_pack` 경유. 잔여 경로는 재확인 필요 |
+| 3 | 모든 named-pack 읽기를 `_verified_pack` 경유로 | 무결성 주장과 코드 정합화 | S | **FIXED** — `pack_id`를 받는 공개 진입점이 전부 검증 경유다: `_store_for`(`ontologylab/mcp_server.py:646`)가 `_activate`를, `resource_manifest`가 `inspect_verified_manifest`를, `resource_method*`(`ontologylab/mcp_server.py:703`)는 활성 팩만 받는다. 결함 주입 3종(검증 우회 `_store_for` / 미분류 신규 `pack_id` 툴 / 원본 `manifest.json` 직독)이 모두 `tests/test_mcp_pack_integrity.py`에서 실패로 잡혔다 |
 | 4 | `counts`/`evaluation`/`document_review_context`에 `_edge_current_sql` | current-truth 불변식 완성 | S | **검증됨 — 결함 아님.** `counts`(`kgstore.py:4382`)는 이미 적용. `document_review_context`(`:4412`)는 superseded edge를 **의도적으로** 표시만 하고 남긴다("presenting it as live would assert a fact the reviewer already withdrew"). `KGStore.evaluation`은 존재하지 않는다 |
 | 5 | 큐 critic join 스트림 스코프 + model을 PK에 | conformal의 "not yet"이 큐와 모순되지 않게 | S | **FIXED** — `kgstore.py:673` `_current_critic_stream`, 4개 읽기 경로 적용. 회귀 `tests/test_critic.py`, 지연 게이트 `tests/test_review_surface_performance.py` |
 | 6 | `registry_lookup` → `resources.lookup` 경유 | allowlist 우회 폐쇄(유일한 비정규 HTTP) | S | **FIXED** — `ontologylab/connectors/registry_lookup.py:23`이 `paper_api._http_get_text`를 쓰고, 그것이 allowlist 검사를 거치는 단일 네트워크 경계다(`ontologylab/connectors/paper_api.py:349`) |
@@ -114,7 +130,7 @@
 
 - ~~`docs/ARCHITECTURE.md`: "mock이 어디서나 기본"~~ — **해소됨.** `ARCHITECTURE.md:543`이 표면별로 갈리는 기본값을 정확히 서술한다(CLI/`CriticRunRequest`/`ChatMessage`는 claude, 갓 설치된 데스크톱이 닿는 표면은 `OFFLINE_LAUNCH_POLICY`)
 - `docs/ARCHITECTURE.md`: "풀텍스트는 계획", "5개 소스", "1500토큰 청크" — 열림, 미재검증
-- `test_mcp_pack_integrity.py` docstring: "모든 named-pack 읽기 해시 검증" — resource_* 제외가 테스트에 하드코딩됨 (열림; 우선순위 3과 같은 뿌리)
+- ~~`test_mcp_pack_integrity.py` docstring: "모든 named-pack 읽기 해시 검증" — resource_* 제외가 하드코딩됨~~ — **사실이 아니다.** 하드코딩된 제외는 `resource_method`/`resource_method_trace` 둘뿐이고, 그 둘은 활성 팩 외에는 아예 거부한다(`ontologylab/mcp_server.py:703`). 나머지 `resource_*`는 전부 검증 대상으로 열거돼 있다(`tests/test_mcp_pack_integrity.py:46`)
 - `semantic_search` 함수명: BM25인데 임베딩을 연상시킴 (열림)
 - ~~커뮤니티 탭 빈 상태 문구("팩을 빌드하면 계산돼요")~~ — **해당 문구 없음.** 현행 `web/app.js:3886`의 빈 상태는 릴리스/팩 목록("빌드한 팩이 없습니다")이며 커뮤니티 계산을 약속하지 않는다
 - ~~리서치 "완료!" — 전원 실패 포함~~ — **해소됨.** 우선순위 2 참조: 전원 실패는 `RESEARCH_NO_SOURCES`로 종료 전환해 `failed`가 된다
