@@ -8,8 +8,8 @@
   },
   "performance": {
     "ceiling_ms": 10195.704249618575,
-    "evidence_sha256": "8be6a9e33e1413fd6236745dea41dc41140d3f7b770836176b28772189051be0",
-    "mutation_receipt_sha256": "67c1e86792718cd87799cd8a84a53b381d2aa2d5ad3c7064defb78522f90a931",
+    "evidence_sha256": "175b2e8290c5de47b1557e89e8e86939ee1dc7b77b1f6272a0dcfced546d03fa",
+    "mutation_receipt_sha256": "9d5b19ab4bf38e6f02cbd9b8cad395dc709aaac818ce9c7971fd732ed7b4d2bd",
     "outputs": {
       "create": {
         "conflicts": 500,
@@ -24,11 +24,11 @@
         "failures": 0
       }
     },
-    "p95_ms": 6051.899458048865,
+    "p95_ms": 4520.827749976888,
     "samples_ms": [
-      6051.899458048865,
-      5696.535707917064,
-      5807.395792100579
+      4332.306041003903,
+      4520.827749976888,
+      4469.312583009014
     ],
     "statistic": "nearest-rank-p95"
   },
@@ -39,16 +39,16 @@
   },
   "schema": "ontologylab.release.eligibility.v2",
   "source": {
-    "git_staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "git_status_sha256": "194f5d60c21a181c79e55bf34881ab8b3c97af7e703e37c5021068187b29607d",
-    "git_unstaged_diff_sha256": "65a659ae481e9b39031fac2fb212dfc4b20a407c71941ba3c37639b7640aa4a1",
-    "inventory_sha256": "0e6a77cf9627b9224783884fb786449ded9acb96177ca9304a3628613a7441da",
+    "git_staged_diff_sha256": "cf6c1d28032f8fdb407ec92f4eab33d3986b50e24a33ec04f053f5d9d040594a",
+    "git_status_sha256": "b182680b94dbedd60a8919a0431a5c4d057b12dff02741cd61293da0804f28a5",
+    "git_unstaged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inventory_sha256": "8064d11867080f570c95230e95d8d8aa4613ecc192e6723eae0d02e7a867fae3",
     "policy_sha256": "ca95a5968557360e5082f98a43765e0c8facbf8a62122ad66080436b0cfa5aa3",
-    "snapshot_manifest_sha256": "518be734b4d3de22ce81b15f159743b68847595fcaff126a69f4e1a272d2a211",
-    "snapshot_sha256": "43916c952752622612892e219ef132ce83ca9f2aed6d8c3d68bba614a9b45e74",
+    "snapshot_manifest_sha256": "2ffcdf7df324514737073046e45ab43f2214d789966647395cef57168e9ba1ba",
+    "snapshot_sha256": "02160efd73c761475e652ae391ffdccb8e5027c07f350454b3843464798cbbc2",
     "uv_lock_sha256": "e6db0c0ddc32b0dde9933ee8f06090817d105322a731e2921b5b1a8603aaee71"
   },
-  "source_snapshot_sha256": "43916c952752622612892e219ef132ce83ca9f2aed6d8c3d68bba614a9b45e74",
+  "source_snapshot_sha256": "02160efd73c761475e652ae391ffdccb8e5027c07f350454b3843464798cbbc2",
   "task10_authority": {
     "plan": "mac-desktop-deployment-roadmap",
     "report_path": ".omo/evidence/mac-desktop-deployment-roadmap/task-10/verifier-st_01a061f5-20260902T115339Z/AdversarialVerify.json",
@@ -60,7 +60,7 @@
   "toolchain": {
     "implementation": "CPython",
     "machine": "arm64",
-    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
     "python": "3.12.12"
   },
   "version": "0.1.0"
