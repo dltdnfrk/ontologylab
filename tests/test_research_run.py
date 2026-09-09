@@ -1263,7 +1263,20 @@ def test_the_job_dir_is_named_for_the_stage_not_the_topic(
 
 
 @pytest.mark.parametrize("topic", ["../../escape", "a/b", "topic\x00null"])
-def test_a_path_shaped_topic_never_reaches_the_filesystem(tmp_path, topic) -> None:
+def test_a_path_shaped_topic_never_reaches_the_filesystem(
+    tmp_path, topic, monkeypatch
+) -> None:
+    # Unstubbed, this POST sent the topic to the real arxiv and crossref APIs
+    # from whatever machine ran the suite, and left the worker parked in that
+    # socket long enough to consume the NEXT test's patched fetch. The stub
+    # also strengthens the assertion: the run now reaches ingestion instead of
+    # dying in a network timeout, so the topic actually travels the code that
+    # builds paths out of it.
+    monkeypatch.setattr(
+        research_run_module,
+        "fetch_sources",
+        _fake_fetch([("crossref", [_paper("crossref", "10.1/a")])]),
+    )
     client = _client(tmp_path)
     before = set((tmp_path / "data").rglob("*")) if (tmp_path / "data").exists() else set()
 

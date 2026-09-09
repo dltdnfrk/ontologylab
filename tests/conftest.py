@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import threading
+import time
 
 import pytest
 from starlette.testclient import TestClient as _StarletteTestClient
@@ -74,6 +76,59 @@ def _never_touch_the_real_settings(monkeypatch, tmp_path):
         return real(sandbox if data_dir is None else data_dir)
 
     monkeypatch.setattr(settings_mod, "_settings_path", guarded, raising=True)
+
+
+# The worker that steals a stub is the one that has not reached its first
+# fetch yet, and that one finishes in milliseconds once scheduled. The budget
+# only has to cover "finish what you already started".
+# The worker that steals a stub is the one that has not reached its first call
+# yet, and that one finishes in milliseconds once scheduled. The budget only
+# has to cover "finish what you already started".
+_JOB_JOIN_BUDGET_S = 10.0
+
+
+@pytest.fixture(autouse=True)
+def _no_job_thread_outlives_its_test(monkeypatch):
+    """No job worker may still be running when the next test begins.
+
+    ``JobRegistry.start`` spawns ``daemon=True`` threads and nothing joins
+    them. Eight test files POST ``/api/research`` and return without waiting,
+    which leaves a worker that has not yet reached its first fetch. The next
+    test installs its own ``_http_get_text`` stub; the late worker resolves
+    that name fresh and eats the stub belonging to the test now running.
+    Measured 12/12 in a standalone race, and seen once in a full run as a
+    ``StopIteration`` out of the two-item iterator in
+    ``test_collect_same_doi_with_changed_abstract_creates_representation``.
+
+    Workers are recorded as they start rather than discovered with
+    ``threading.enumerate()`` at teardown, because that scan is itself a race:
+    a worker that registers microseconds too late is never joined and then
+    outlives several tests. Adding a ``print`` to the teardown was enough to
+    make the bug disappear, which is how the race announced itself.
+
+    Requesting ``monkeypatch`` is load-bearing, not decoration: it makes this
+    fixture finalize *before* the patches come off, so a worker that wakes
+    late still meets a stub rather than the real network.
+
+    Not an assertion. A worker parked in a slow call cannot issue a *new*
+    fetch, so it is not the thief, and failing tests over it would report a
+    leak that cannot cause the bug this guard exists for.
+    """
+    started: list[threading.Thread] = []
+    real_start = threading.Thread.start
+
+    def _recording_start(self: threading.Thread) -> None:
+        if self.name.startswith("ontologylab-"):
+            started.append(self)
+        real_start(self)
+
+    monkeypatch.setattr(threading.Thread, "start", _recording_start)
+    yield
+    deadline = time.monotonic() + _JOB_JOIN_BUDGET_S
+    for thread in started:
+        # join() waits on the thread's own exit, not on a guessed duration,
+        # so a worker that was merely unscheduled costs microseconds.
+        thread.join(max(0.0, deadline - time.monotonic()))
 
 
 @pytest.fixture(autouse=True, scope="session")
