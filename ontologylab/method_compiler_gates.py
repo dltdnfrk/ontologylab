@@ -494,28 +494,6 @@ def _g6(data: Mapping[str, Any]) -> CompilationGateResult:
     return gate_result(GateId.G6, reasons)
 
 
-def g8(
-    method: Mapping[str, Any],
-    release_id: str | None,
-    integrity: Mapping[str, Any],
-) -> CompilationGateResult:
-    reasons: list[str] = []
-    if (
-        "expected_method_hash" in integrity
-        and integrity["expected_method_hash"] != canonical_hash(method)
-    ):
-        reasons.append("canonical-artifact-hash-mismatch")
-    if (
-        release_id is not None
-        and "expected_release_id" in integrity
-        and integrity["expected_release_id"] != release_id
-    ):
-        reasons.append("receipt-binding-mismatch")
-    if integrity.get("immutable") is False:
-        reasons.append("release-not-immutable")
-    return gate_result(GateId.G8, reasons)
-
-
 def evaluate_source_gates(
     data: Mapping[str, Any],
 ) -> tuple[CompilationGateResult, ...]:

@@ -19,6 +19,7 @@ from ontologylab.method_compiler import (
     compile_method,
     validate_final_artifacts,
 )
+from ontologylab.method_compiler_artifacts import COMPILER_VERSION
 from ontologylab.method_compiler_contract import (
     COMPILER_REASON_CATALOG,
     COMPILER_REASON_CATALOG_VERSION,
@@ -36,7 +37,11 @@ from ontologylab.method_compiler_replay import (
     MAX_REPLAY_VALUE_DEPTH,
     evaluate_replay,
 )
-from ontologylab.method_ir import canonical_json_bytes
+from ontologylab.method_ir import (
+    IRValidationError,
+    canonical_json_bytes,
+    parse_method,
+)
 from ontologylab.method_snapshot import MethodSnapshot
 
 
@@ -795,3 +800,81 @@ def test_g6_validates_review_content_and_exact_workspace(
         case["fixtures"],
     )
     assert result.gates[6].reasons == ("missing-human-decision",)
+
+
+# Every field ``method_ir_codec.parse_method`` accepts at the document root.
+_METHOD_V1_FIELDS = frozenset({
+    "schema_version", "id", "version", "name", "fragments", "field_evidence",
+    "links", "gaps", "bridge_assumptions", "review_receipts", "gate_results",
+    "source_index", "release",
+})
+
+
+def _typed_snapshot(case: dict[str, Any]) -> MethodSnapshot:
+    """A snapshot whose payloads match what ``propose_fragment`` persists.
+
+    Fragments reach the store as ``canonical_json`` of a parsed
+    ``MethodFragment``, so every payload value is a TypedValue. The gate
+    fixtures hand-write a looser shape that no import path can produce, so
+    retype them here: this test is about IR conformance, not gate outcomes.
+    """
+    snapshot = _snapshot(case)
+    data = json.loads(snapshot.canonical_json)
+    for fragment in data["fragments"]:
+        payload = json.loads(fragment["payload_json"])
+        fragment["payload_json"] = json.dumps(
+            {key: {"state": "unknown", "kind": "string"} for key in payload},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    canonical = canonical_json_bytes(data)
+    return MethodSnapshot(data["workspace"]["id"], canonical, _hash(data))
+
+
+def test_compiled_artifact_conforms_to_the_method_v1_ir_schema() -> None:
+    """The compiler stamps its artifact ``method-v1``; this checks the claim.
+
+    Nothing in the product ever fed a compiled artifact back through the
+    method-v1 parser, so the emitter and the codec could drift apart while
+    both kept the name. They have not: the artifact's root is the codec's
+    field set exactly, and a compile over production-shaped payloads parses
+    as ``MethodIR``.
+
+    ``release`` is the one deliberate divergence and it is structural, not an
+    oversight. The artifact's own hash is ``canonical_hash(method)``, so the
+    document cannot carry it without hashing itself; the compiler emits a
+    stub and the release record holds the real receipt. Completing that stub
+    from values the compiler already has is the entire delta, which is why
+    the stub is asserted before the completion rather than glossed over.
+    """
+    case = _fixture("gate-all-clear.json")
+    snapshot = _typed_snapshot(case)
+    result = compile_method(
+        snapshot,
+        CompileSelection("attempt-1", "release-1", "method-1", 1),
+        case["fixtures"],
+    )
+    artifact = dict(result.method_json)
+    assert set(artifact) == _METHOD_V1_FIELDS
+    assert artifact["schema_version"] == "method-v1"
+    assert {gate["gate"] for gate in artifact["gate_results"]} == {
+        f"G{index}" for index in range(9)
+    }
+
+    assert artifact["release"] == {"id": "release-1", "content_hash": None}
+    with pytest.raises(IRValidationError, match=r"\$\.release"):
+        parse_method(dict(artifact))
+
+    assert result.content_hash is not None
+    artifact["release"] = {
+        "id": "release-1",
+        "workspace_id": snapshot.workspace_id,
+        "version": 1,
+        "compiler_version": COMPILER_VERSION,
+        "content_hash": result.content_hash,
+    }
+    parsed = parse_method(artifact)
+    assert parsed.schema_version == "method-v1"
+    assert {fragment.id for fragment in parsed.fragments} == {
+        row["id"] for row in result.method_json["fragments"]
+    }

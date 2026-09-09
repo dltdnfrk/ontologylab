@@ -19,6 +19,7 @@ PROBES = {
     "2": ("ontologylab/server/jobs.py", r"RESEARCH_NO_SOURCES = "),
     "3": ("ontologylab/mcp_server.py", r"snapshot = self\._activate\(pack_id\)"),
     "6": ("ontologylab/connectors/paper_api.py", r"allowlist-checked API URL"),
+    "9": ("tests/test_method_compiler.py", r"_METHOD_V1_FIELDS"),
     "7": ("ontologylab/embeddings.py", r"lexical proxy is the honest answer"),
     "8": ("ontologylab/server/routes.py", r"Off the event loop\."),
     "10": ("ontologylab/web/app.js", r"conformal: "),

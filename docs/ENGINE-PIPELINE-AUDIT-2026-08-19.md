@@ -90,8 +90,18 @@
 
 ### 7. Method 서브시스템 — REAL, 과잉 구축
 컴파일→릴리스→팩→MCP 전주기 실재(소비자: CLI `cmd_method`, MCP, packbuilder, kgstore).
-- **구조 결함: 이중 스키마** — 컴파일러는 느슨한 dict를 emit하고 typed `MethodIR`로 round-trip하지 않음. IR 코덱 1002줄이 import 전용 방언 (`method_compiler_artifacts.py:186` vs `method_ir_codec.py:863`)
-- HOLLOW: `g8()` 정의됐으나 미호출(`method_compiler_gates.py:497`), `fail_extraction_run` 호출자 0(`method_extraction_store.py:335`), workspace status는 영원히 `"draft"` ★ (`method_snapshot.py:214`)
+- ~~**구조 결함: 이중 스키마**~~ — **해소됨(2026-09-09).** 애초에 두 스키마가
+  아니었다. 코덱 `parse_method`의 루트 필드 집합과 컴파일러 `method_json`의 키
+  집합은 13개가 정확히 일치하고, 프로덕션 payload는 항상 TypedValue다(유일한
+  writer가 타입드 `MethodFragment`를 받는 `propose_fragment`,
+  `ontologylab/method_commands.py:99`). 실측: 타입드 컴파일 산출물은 `release`
+  스텁 하나만 빼면 `parse_method`를 그대로 통과한다. 우선순위 9 참조
+- HOLLOW: `fail_extraction_run` 호출자 0 — 유일한 호출은 자기 persistence 위임
+  (`ontologylab/method_extraction_store.py:340`). workspace status는 영원히
+  `"draft"` ★ (미재검증).
+  ~~`g8()` 정의됐으나 미호출~~ — **2026-09-09 삭제.**
+  `validate_final_artifacts`(`ontologylab/method_compiler.py:102`)가 이미 같은
+  G8을 실행 중이었고, 중복 정의는 프로덕션·테스트·스크립트 전체에서 호출자가 0이었다
 - HOLLOW: authoring UI/LLM fragment 추출기 부재 — 아키텍처가 약속한 것 중 여기만 진짜 빈껍데기
 - 31파일/9k줄 — 프로토콜 샌드위치 과잉
 
@@ -114,9 +124,9 @@
 ## 종합 리팩토링 우선순위 (ROI 순)
 
 > **2026-09-09 재검증.** 이 표는 2026-08-19 시점의 판정이다. 아래 상태 열은
-> 그날 이후 코드를 다시 읽어 각 행을 개별 확인한 결과다. 10개 중 8개가 해소되었거나
-> 애초에 결함이 아니었고, 10번은 절반만 남았다. 실제로 열린 작업은 **9번과 10번의
-> `kgstore` 분할 둘뿐**이다.
+> 그날 이후 코드를 다시 읽어 각 행을 개별 확인한 결과다. 10개 중 9개가 해소되었거나
+> 애초에 결함이 아니었고, 10번은 절반만 남았다. 실제로 열린 작업은 **10번의
+> `kgstore` 분할 하나뿐**이다.
 > 재검증 자동화: `scripts/check_audit_freshness.py` (해소된 행이 열린 것으로
 > 남아 있으면 실패한다).
 
@@ -130,7 +140,7 @@
 | 6 | `registry_lookup` → `resources.lookup` 경유 | allowlist 우회 폐쇄(유일한 비정규 HTTP) | S | **FIXED** — `ontologylab/connectors/registry_lookup.py:23`이 `paper_api._http_get_text`를 쓰고, 그것이 allowlist 검사를 거치는 단일 네트워크 경계다(`ontologylab/connectors/paper_api.py:349`) |
 | 7 | embedder `auto`에 오프라인 계약 (reranker와 동일) | 설치된 지금이 최대 위험 시점 | XS | **FIXED** — `embeddings.py:233` `auto`는 오프라인에서 `HashingEmbedder`로 떨어지고 질의 경로는 모델을 내려받지 않는다 |
 | 8 | `_run_intent`를 서비스 함수 호출로 + chat pack `ok` 체크 | Query 함정의 구조적 제거 | M | **FIXED** — `server/routes.py:2291` 이벤트 루프 밖으로 디스패치. 실측 근거 동봉(2초 액션이 무관한 `GET /api/settings`를 1.72초 지연시켰음) |
-| 9 | method IR/compiler 이중 스키마 해소 | 1002줄 방언 또는 릴리스 계약 — 택일 | M | **열림 — 2026-09-09 재확인, 결함 실재.** 컴파일러는 `"schema_version": "method-v1"` 느슨한 dict를 emit하고(`ontologylab/method_compiler_artifacts.py:186`) 타입드 IR로 round-trip하지 않는다. `method_ir`을 import하는 프로덕션 모듈 대부분이 실제로 가져가는 이름은 직렬화 헬퍼 `canonical_json_bytes` 하나뿐이고, `parse_method`/`MethodIR` 호출은 프로덕션 전체에서 `ontologylab/main.py:91` 단 하나 — import 파일 파서 `_canonical_method`다. 즉 1003줄 코덱(`ontologylab/method_ir_codec.py:1`)은 compile→release→pack 경로에서 한 번도 실행되지 않는다. 컴파일러 출력이 `parse_method`를 통과하는지 확인하는 테스트도 없다. **결정 필요:** 코덱을 릴리스 계약으로 승격(컴파일러가 round-trip)하거나, import 전용 방언임을 명시하고 축소한다 |
+| 9 | method IR/compiler 이중 스키마 해소 | 1002줄 방언 또는 릴리스 계약 — 택일 | M | **해소됨 — 택일이 아니었다(2026-09-09 실측).** 코덱 `parse_method`의 루트 필드 집합과 컴파일러 `method_json`의 키 집합은 13개가 정확히 일치한다. `payload_json`의 유일한 writer는 타입드 `MethodFragment`를 받는 `propose_fragment`(`ontologylab/method_commands.py:99`)이므로 프로덕션 payload는 항상 TypedValue다. 타입드 컴파일 산출물을 `parse_method`에 넣으면 **`release` 스텁 하나만 걸리고 나머지는 통과한다**(`$.release.compiler_version` 부재). 그 스텁은 구조적이다 — 산출물의 해시가 `canonical_hash(method)`라 문서가 자기 해시를 담을 수 없다. 따라서 emit 바이트를 바꾸지 않았다(바꾸면 `content_hash`가 달라져 이미 저장된 릴리스·팩 영수증이 어긋난다). 대신 **코덱을 적합성 오라클로 배선**했다: `test_compiled_artifact_conforms_to_the_method_v1_ir_schema`가 루트 필드 집합·G0..G8·스텁 모양을 고정하고, 스텁을 채운 뒤 `parse_method` 통과를 요구한다. 결함 주입 2종(루트 키 추가, payload 비-TypedValue emit) 모두 이 테스트만 실패시켰다 |
 | 10 | kgstore 분할 + conformal/calibration UI 연결 또는 삭제 | parked math와 god-object 정리 | L | **절반 해소됨** — conformal/calibration은 UI(`web/app.js:1022`)와 라우트(`ontologylab/server/routes.py:493` `/review/calibration`)에 연결됨. parked math 아님. `kgstore.py` 분할만 남음 |
 
 ## 킬 리스트 (주장/코드 불일치)
