@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>온톨로지 대담 키워드 리서치 — OntologyLab</title>
+<style>
+:root{--bg:#faf9f7;--fg:#1b1b1d;--mut:#5c5c63;--line:#e2ddd6;--accent:#7a4b2a;--code:#f2ede6;--th:#f5f1ea}
+@media (prefers-color-scheme:dark){:root{--bg:#16161a;--fg:#e9e6e1;--mut:#9d9aa3;--line:#2e2e36;--accent:#d9a273;--code:#1f1f26;--th:#20202a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:860px;margin:0 auto;padding:56px 24px 120px}
+h1{font-size:1.95rem;line-height:1.35;letter-spacing:-.02em;margin:0 0 .6em;font-weight:700}
+h2{font-size:1.4rem;margin:2.6em 0 .8em;padding-top:1.4em;border-top:1px solid var(--line);letter-spacing:-.01em;font-weight:700}
+h3{font-size:1.1rem;margin:2em 0 .6em;color:var(--accent);font-weight:700}
+h4{font-size:1rem;margin:1.6em 0 .5em;font-weight:700}
+p{margin:0 0 1.1em}
+strong{font-weight:700}
+hr{border:0;border-top:1px solid var(--line);margin:2.4em 0}
+a{color:var(--accent);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--accent) 35%,transparent);word-break:break-all}
+a:hover{border-bottom-color:var(--accent)}
+code{background:var(--code);padding:.12em .38em;border-radius:4px;font:.87em/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-word}
+table{width:100%;border-collapse:collapse;margin:1.2em 0 1.8em;font-size:.92rem;display:block;overflow-x:auto}
+th,td{border:1px solid var(--line);padding:.55em .7em;text-align:left;vertical-align:top}
+th{background:var(--th);font-weight:700;white-space:nowrap}
+ul,ol{margin:0 0 1.2em;padding-left:1.4em}
+li{margin:.35em 0}
+li>p{margin:0 0 .5em}
+blockquote{margin:1.4em 0;padding:.9em 1.2em;border-left:3px solid var(--accent);background:var(--code);border-radius:0 6px 6px 0}
+blockquote p{margin:0}
+h1+p{color:var(--mut)}
+h2#\37 -출처+p,h2+p:has(a[href^="http"]){}
+h3+table{margin-top:.6em}
+
+ol>li,ul>li{margin:.45em 0}
+h2+ul li{font-size:.93rem;color:var(--mut)}
+h2+ul li strong{color:var(--fg)}
+</style>
+</head>
+<body>
+<main>
+<h1>온톨로지 대담 키워드 리서치 — ReBAC · 용어 정체성 · 팔란티어 온톨로지</h1>
+<p><strong>작성일:</strong> 2026-09-09 · <strong>방법:</strong> ulw-research 8인 팀 / 3축 / 반증검색 및 회의론자 통과 필수</p>
+<p><strong>대상 독자:</strong> OntologyLab 아키텍처 결정자 · <strong>인용 규칙:</strong> <code>[S&lt;n&gt;]</code>은 문서 끝 출처표, 모든 접근일자 2026-09-09.</p>
+<h2>1. 요약</h2>
+<p>대담에서 뽑은 세 축을 각각 1차 출처로 검증한 결과, <strong>대담의 방향은 대체로 옳지만 근거로 인용된 숫자와 단정은 그대로 쓰면 안 된다.</strong></p>
+<ol>
+<li><strong>Zanzibar의 유명한 숫자는 재해석이 필요하다.</strong> &quot;&gt;10M QPS&quot;는 권한 체크만이 아니라 총 클라이언트 질의이고(Check 4.2M / Read 8.2M / Expand 760K / Write 25K), &quot;p95 10ms&quot;는 freshness 조건부다 — Safe Check p95 9.46ms vs Recent Check p95 60.0ms [S4].</li>
+<li><strong>ReBAC가 실제로 깨지는 지점은 권한 체크(point check)가 아니라 목록/필터(list)다.</strong> 세 개의 독립 보고자군이 같은 곳에서 무너졌고, AuthZed 자신의 100B 관계 벤치마크는 <code>LookupResources</code>를 <strong>0%</strong> 로 제외한 실험이다 [S9][S11][S12].</li>
+<li><strong>&quot;Zanzibar 계열&quot;은 일관성 계약을 공유하지 않는다.</strong> zookie(개정 토큰)는 SpiceDB만 4종으로 구현했고, OpenFGA는 future work, Ory Keto는 소스 주석 그대로 &quot;not implemented yet&quot;이다 [S6][S7].</li>
+<li><strong>SKOS는 &quot;같은 이름 다른 의미&quot;를 스킴으로 해결하지 않는다.</strong> <code>prefLabel</code> 유일성은 <strong>리소스 × 언어태그</strong> 단위이고 <code>inScheme</code>은 라벨을 맥락화하지 못한다 [S1]. 실제 출판 어휘는 개념 자체를 쪼갠다 — LCSH는 Java(프로그래밍 언어)와 Java(인도네시아)를 같은 스킴 안의 <strong>별도 concept</strong>으로, 상호 매핑 없이 둔다 [S42][S43].</li>
+<li><strong>&quot;정본 모델을 절대 만들지 말라&quot;는 결론은 증거가 지지하지 않는다.</strong> 반대 논거와 찬성 논거가 범위를 한정하면 수렴한다: 경계 안의 교환 포맷은 유효하고, 전사(全社) 강요만 무효다 [S34][S35][S33].</li>
+<li><strong>팔란티어 본인 문서는 온톨로지를 &quot;시맨틱 레이어가 아니다&quot;라고 명시한다.</strong> Language + Engine + Toolchain의 multimodal system이라는 정의다 [S44]. &quot;meta-ontology&quot;는 팔란티어 영문 문서 색인에 <strong>0건</strong>이며, 대담자의 신조어도 아니다 — 1998년 문헌에 선행 용례가 있다 [S45][S46].</li>
+<li><strong>우리 코드에서 실제로 의미 충돌을 막는 것은 온톨로지 어휘가 아니라 인덱스다.</strong> <code>idx_nodes_resolve UNIQUE(schema_version_id, entity_type, normalized_name)</code>이 유일한 강제 지점이고, <code>ontology_term</code>에는 라벨 유일성 제약이 <strong>없다</strong>.</li>
+</ol>
+<h2>2. 축 A1 — ReBAC / Zanzibar: 무엇이 실제로 깨지는가</h2>
+<h3>2.1 인용되는 숫자의 실제 의미</h3>
+<table>
+<thead>
+<tr><th>통념</th><th>원전이 실제로 말한 것</th><th>출처</th></tr>
+</thead>
+<tbody>
+<tr><td>&quot;10M 권한 체크/s&quot;</td><td>2018-12 피크 기준 <strong>총 클라이언트 질의</strong> 10M+, 그중 Check 4.2M · Read 8.2M · Expand 760K · Write 25K</td><td>[S4] §4</td></tr>
+<tr><td>&quot;p95 10ms&quot;</td><td><strong>freshness 조건부</strong>. Safe Check p95 9.46ms, Recent Check p95 <strong>60.0ms</strong></td><td>[S4] Table 2</td></tr>
+<tr><td>&quot;&gt;99.999% 가용성&quot;</td><td><strong>프로버 재생 기반 한정 지표</strong>(5s Safe / 15s Recent 마감, 이상치 제외). 원시 클라이언트 성공률이 아님</td><td>[S4] §4.3</td></tr>
+<tr><td>&quot;external consistency = 최신 읽기&quot;</td><td>노출된 stale-snapshot 읽기 트레이드오프이며, 후속 피어리뷰 문헌(RAMP-TAO, VLDB 2021 §7)도 같은 인식</td><td>[S4][S47]</td></tr>
+</tbody>
+</table>
+<p><strong>zookie의 한계도 원전이 스스로 한정한다.</strong> zookie는 인가 신선도를 <strong>콘텐츠 버전에 묶을 뿐</strong>, 애플리케이션 쓰기와 인가 쓰기를 원자적으로 커밋하지 않는다. dual-write 문제는 남는다 [S4] §2.2.</p>
+<p><strong>Read/Expand는 &quot;사용자가 볼 수 있는 전체 리소스&quot; API가 아니다.</strong> Read는 저장된 튜플만, Expand는 한 홉 userset 트리만 돌려준다. 논문은 클라이언트가 <strong>인가 인지 검색 색인을 따로 만든다</strong>고 명시한다 [S4] §2.4. 즉 원전 설계에서도 &quot;목록&quot;은 인가 시스템 밖의 문제였다.</p>
+<h3>2.2 다른 선택지: Airbnb Himeji</h3>
+<p>Airbnb는 Zanzibar를 그대로 따르지 않았다. 1차 수치: <strong>850,000 entities/s</strong>, 가용성 <strong>99.9990%</strong>, <strong>P50 1.8ms / P95 7ms / P99 12ms</strong>, 수백억 관계, 캐시 히트 목표 약 98%, 그리고 Spanner가 아니라 <strong>Aurora</strong> [S48].
+설계 차이의 핵심은 <strong>팬아웃을 읽기에서 쓰기로 옮긴 것</strong>, 그리고 정적 설정으로 N×M을 N으로 줄인 것이다.
+다만 정확히 기록해 둔다: <strong>Himeji가 zookie를 &quot;생략했다&quot;고 말한 적은 없다.</strong> 공개된 Check API에 일관성 토큰이 없고 캐시 무효화 설계에 zookie 기제가 없다는 것이 관측 사실이다 [S48].</p>
+<h3>2.3 붕괴 지점의 실측</h3>
+<ul>
+<li><strong>역사적 실측:</strong> 499개 교집합 후보(총 999 튜플)에서 PostgreSQL <strong>709ms</strong> → 배치 처리 후 <strong>30ms</strong> [S8]. (로컬 M1 컨테이너·에뮬레이션 환경이라 백엔드 간 순위 비교로 쓰면 안 된다.)</li>
+<li><strong>현장 보고:</strong> OpenFGA 1.4.2/PG에서 check 10→80ms인데 list는 100–200ms→<strong>3s 타임아웃</strong>(미해결) [S9]. SpiceDB에서 Spanner 커서 인덱스 오선택으로 <strong>2–4s vs &lt;20ms</strong> [S10]. v1.47.1에서 500–1000 동시 <code>LookupResources</code>에 pgxpool 고갈 [S11].</li>
+<li><strong>커뮤니티 실사용:</strong> 권한 약 50개 · 리소스 약 1,000개 · BulkCheck 약 50,000회에서 <code>LookupResources</code>가 하나씩 돌려도 DB·CPU·메모리를 압도. 유지보수자가 &quot;최좌측 교집합 분기를 걷고 루트에서 후보를 재검사하는 방식은 non-optimal&quot;이라고 인정 [S49]. (이 스레드에는 <strong>수치 지연이 없다</strong> — 밀리초를 인용하면 안 된다.)</li>
+<li><strong>운영 대응:</strong> 실제 운영자들이 지연 실패 후 exclusion 정책을 제거하거나 list API 사용을 중단했다 [S9][S10]. 감사된 포스트모템이 아니라 사용자 보고임을 명시한다.</li>
+</ul>
+<h3>2.4 결정 규칙</h3>
+<p><strong>가용 여부를 총 노드/튜플 수로 정할 수 없다.</strong> 실제 변수는 <strong>검사되는 후보 수 × 정책 팬아웃/깊이 × 동시성 × 캐시·신선도 체제</strong>다 [S8][S12].
+그리고 <strong>비정규화는 비용을 없애지 않고 변경 전파로 옮긴다</strong> — 원전 §3.2.4은 튜플 1건 변경이 Leopard 이벤트 <strong>수만 건</strong>을 유발한다고 보고한다 [S4].</p>
+<h3>2.5 구현체별 계약 차이 (같은 조상, 다른 약속)</h3>
+<table>
+<thead>
+<tr><th></th><th>일관성 토큰</th><th>깊이/상한</th></tr>
+</thead>
+<tbody>
+<tr><td>SpiceDB</td><td>ZedToken 4종 모드. <code>fully_consistent</code>에 CockroachDB 예외 [S5]</td><td>설정 가능</td></tr>
+<tr><td>OpenFGA</td><td><code>MINIMIZE_LATENCY</code> / <code>HIGHER_CONSISTENCY</code> 2종, <strong>토큰 미도입</strong>(future work) [S6]</td><td>설정 가능</td></tr>
+<tr><td>Ory Keto v26.2.0</td><td>snaptoken <strong>미구현</strong>(proto 주석) [S7]</td><td><code>max_read_depth</code> 기본 5. <strong>깊이 소진이 별도 오류가 아니라 비허용(false)으로 나타난다</strong> [S50]</td></tr>
+</tbody>
+</table>
+<p>Keto는 master 브랜치에서 Expand의 교집합/부정을 구현했지만 <strong>릴리스 v26.2.0에는 없다</strong> [S50]. 버전별 unknown/error 동작을 모델에 명시해야 하는 이유다.</p>
+<h2>3. 축 A2 — 용어 정체성: 같은 이름, 다른 의미</h2>
+<h3>3.1 SKOS가 실제로 보장하는 것</h3>
+<ul>
+<li><code>prefLabel</code> 유일성의 단위는 <strong>리소스 × 언어태그</strong>다. 스킴 단위도, 팀 단위도 아니다 [S1] §5.4/§4.6.1.</li>
+<li><code>inScheme</code>은 <strong>팀 로컬 라벨 선호나 주장의 진리값을 표현할 수 없다</strong> [S1] §4.6. &quot;스킴을 나누면 팀 스코프가 생긴다&quot;는 통념의 정면 반증이다.</li>
+<li><strong>매핑은 함의 약속이다.</strong> <code>exactMatch</code>는 전이적이고 <code>closeMatch</code>는 아니다 — 잘못된 사슬은 원래 쌍을 넘어 번진다 [S1] §10.</li>
+<li>같은 철자라는 사실만으로는 <code>exactMatch</code>/<code>closeMatch</code>/<code>relatedMatch</code> <strong>어떤 간선도 정당화되지 않는다</strong> [S1].</li>
+</ul>
+<h3>3.2 실제 출판 어휘는 어떻게 하는가</h3>
+<ul>
+<li><strong>LCSH:</strong> Java(Computer program language) <code>sh95008574</code> vs Java(Indonesia) <code>sh85069786</code> — <strong>같은 스킴, 별도 concept, 상호 매핑 없음</strong> [S42][S43].</li>
+<li><strong>MeSH:</strong> concept이 의미 단위이고 descriptor 아래 다수 concept이 붙는다 [S15].</li>
+<li><strong>반대 방향도 있다.</strong> AGROVOC은 의미가 같으면 URI를 스킴을 넘어 재사용한다 [S40] — 따라서 &quot;팀마다 항상 별도 concept&quot;은 과잉 일반화다.</li>
+<li><strong>정규화의 위험:</strong> EuroVoc는 digital/data/technological/tech/cyber sovereignty를 한 concept의 <code>altLabel</code>로 묶는다 [S51]. 검색 정규화가 다른 팀에 필요한 구분을 지울 수 있다는 실증이다. (단 이것은 <code>altLabel</code>일 뿐 <code>exactMatch</code>나 OWL 동치가 아니다.)</li>
+</ul>
+<p>한 가지 시간 오류를 자체 교정했다: SKOS Primer의 &quot;개념을 OWL 클래스로 쓰지 말라&quot;는 <strong>OWL 1 시기 서술</strong>이며, OWL 2는 punning을 허용한다 [S2][S3].</p>
+<h3>3.3 조직 실무: 카탈로그·계약·시맨틱 레이어의 한계</h3>
+<p>19개 호스트 29개 출처를 훑은 결과는 하나로 모인다: <strong>이 도구들은 스코프된 정의를 허용할 뿐, 어느 정의가 옳은지 결정하지 못한다</strong> [S18][S20][S22][S23][S29].
+Purview는 동명 용어에 <strong>경고 후 허용</strong>이고 [S18], LookML <code>extends</code>는 다중 버전과 충돌 우선순위를 노출하며 [S23], 데이터 계약은 <strong>소유권 분쟁을 해결하지 못한다</strong>고 실무자가 1인칭으로 쓴다 [S27].</p>
+<p><strong>정본 모델 논쟁의 실제 결론:</strong> 반대(INNOQ [S34])와 찬성(Hughson [S35])은 범위를 한정하면 수렴한다 — <strong>경계 안의 교환 포맷은 유효, 전사 강요는 무효</strong>. Fowler의 &quot;중첩 정본 모델 수확&quot; [S33]과 같은 자리다. (InfoQ 재게재본은 INNOQ와 독립 출처가 아니므로 세지 않았다.)</p>
+<h3>3.4 결정 규칙</h3>
+<blockquote>
+<p>정체성·포함규칙·입도·시간기준·결정목적을 <strong>진짜로 공유하는 최소 의미만</strong> 통일하고, 나머지는 도메인별로 스코프한 뒤 <strong>실제 교환이 필요한 곳에만</strong> 매핑을 발행한다.</p>
+</blockquote>
+<p>그리고 &quot;정의할 수 없다&quot;는 대담의 강한 주장에는 직접 반례가 있다: <strong>OBO Foundry 원칙 6은 대다수 클래스에 텍스트 정의를 둘 것을 요구한다</strong> [S52].</p>
+<h2>4. 축 A3 — 팔란티어 온톨로지</h2>
+<h3>4.1 벤더 1차 정의</h3>
+<p>팔란티어 문서는 <strong>&quot;The Ontology is not a semantic layer&quot;</strong> 라고 명시하고, <strong>Language + Engine + Toolchain</strong>의 multimodal system으로 정의한다 [S44].</p>
+<ul>
+<li><strong>보안:</strong> 객체/속성 보안 정책이 행·열·셀 가시성을 <strong>읽기 시점에, 백킹 데이터소스 권한과 독립적으로</strong> 강제한다. 액션 제출자도 대상 조회 권한이 필요하다 [S53].</li>
+<li><strong>경계:</strong> Pipeline Builder는 온톨로지 <strong>상류의 통합·저작 도구</strong>이지 런타임이 아니다. 객체/링크 타입을 출력할 수는 있지만 질의/런타임은 온톨로지 백엔드다 [S54].</li>
+</ul>
+<h3>4.2 &quot;그래프다 / 그래프가 아니다&quot;</h3>
+<p>Pagefind 색인 직접 질의 결과: <code>&quot;ontology is a graph&quot;</code> <strong>0건</strong>, <code>&quot;ontology graph&quot;</code> 2건(<strong>둘 다 Pilot의 UI 시각화</strong>), <code>&quot;semantic layer&quot;</code> 2건(<strong>둘 다 명시적 부정</strong>), <code>&quot;operational layer&quot;</code> 4건 [S44][S55].
+→ 교정판 표현: <strong>&quot;그래프만이 아니라, 그것을 사용·변경하는 운영 시스템과의 결합&quot;</strong>. &quot;그래프가 아니다&quot;는 과도한 단정이다 — 객체·관계 모델은 온톨로지의 일부다.</p>
+<h3>4.3 &quot;meta-ontology&quot;</h3>
+<ul>
+<li>팔란티어의 <strong>라이브 영문 문서 색인에 0건</strong>이다(2026-09-09 기준). meta-ontology / metaontology / metaontolog 어간 4가지 질의 모두 0건, 퍼지 후보는 전수 반증 [S55].</li>
+<li><strong>대담자의 신조어도 아니다.</strong> 1998년 문헌에 선행 용례가 있다 — Crossref DOI <code>10.1023/A:1005323618026</code> [S46].</li>
+<li>인터뷰 외부 사용례가 하나 존재하지만(제3자 GitHub PR 2건) <strong>독립성과 선후 관계는 미해결</strong>이다 [S56]. 보편적 부재로 일반화하지 않는다.</li>
+</ul>
+<h3>4.4 이탈 가능성 (lock-in 반증)</h3>
+<ul>
+<li><strong>완료된 이탈 사례가 있다.</strong> Homes for Ukraine: 연 £4.5M/£5.5M 계약 → 2025-09 대체 시스템 가동, 연 수백만 파운드 절감 보고 [S57][S58][S59]. 단 <strong>하나의 서비스 대체이지 제품군 전체가 아니다.</strong></li>
+<li><strong>NHS FDP 실명 계정:</strong> 운영 앱은 작동했으나 탐색적 분석·데이터 반출·개발환경 분리·EPR write-back은 마찰이 컸고 <strong>총소유비용은 미상</strong>(독립 평가 결과 2029 예정) [S60]. 편익 수치는 NHS England 출처이며 독립 검증이 아니다.</li>
+</ul>
+<h2>5. 우리 코드에 대한 함의</h2>
+<h3>5.1 관측된 사실 (코드 직접 확인)</h3>
+<table>
+<thead>
+<tr><th>발견</th><th>위치</th></tr>
+</thead>
+<tbody>
+<tr><td>두 팀이 한 이름에 두 의미를 주는 것을 <strong>실제로 막는 유일한 것</strong>은 <code>idx_nodes_resolve UNIQUE(schema_version_id, entity_type, normalized_name)</code>이다. <code>ontology_term</code>에는 라벨 유일성 제약이 <strong>없다</strong></td><td><code>kgstore.py:306-312</code></td></tr>
+<tr><td>우리 시스템에는 <strong>사용자/관계 기반 권한이 전혀 없다.</strong> API는 단일 세션 토큰, KGStore는 status 필터, 팩·MCP는 호출자 신원이 없다</td><td><code>app.py:76-289</code>, <code>kgstore.py:556-567</code></td></tr>
+<tr><td><strong>MCP 표면은 신뢰 경계를 강제하지 않는다.</strong> 클라이언트가 <code>packs_dir</code>의 <strong>어떤 팩이든</strong> 열거·전환할 수 있고 런타임에 호출자 맥락이 없다. <code>--pack</code>은 인가 경계가 아니며, <strong>팩 불변성은 기밀성이 아니라 무결성만 보호한다</strong></td><td><code>mcp_server.py:477-503,1053-1068</code>, <code>mcp_runtime.py:224-314</code></td></tr>
+</tbody>
+</table>
+<h3>5.2 권고</h3>
+<ol>
+<li><strong>ReBAC를 도입하지 않는다.</strong> 우리는 단일 사용자 로컬 우선 제품이고, ReBAC가 값을 하는 지점(다중 주체 × 관계 파생 권한)이 없다. NIST SP 800-162도 ReBAC를 유일 기반으로 규정하지 않는다 [S61].</li>
+<li><strong>대신 A1에서 배운 것을 그대로 가져온다.</strong> 우리의 <code>_edge_current_sql()</code> / <code>invalidated_ts</code> 비시간적 읽기가 Zanzibar의 freshness 계약과 같은 종류의 문제다 — <strong>&quot;어느 시점의 진실인가&quot;를 API 표면에 명시</strong>하고, 목록/필터 경로의 후보 수를 성능 지표로 삼는다(총 노드 수가 아니라).</li>
+<li><strong>용어 정체성은 SKOS의 답을 따른다.</strong> 의미가 진짜 다르면 <strong>개념 정체성을 쪼개고</strong>, 같은 철자라는 이유만으로 매핑 간선을 만들지 않는다. <code>ontology_term</code>에 라벨 유일성 제약이 없는 것은 SKOS 관점에서 <strong>버그가 아니라 정확한 모델링</strong>이다 — 유일해야 하는 것은 라벨이 아니라 개념 해소(resolve) 키다.</li>
+<li><strong>MCP 팩 열거는 실제 결함이므로 별도 이슈로 잡는다.</strong> &quot;단일 사용자니까 괜찮다&quot;는 프레이밍은 회의론자 검사에서 반증됐다. 팩이 여러 개일 때 세션이 시작 팩 밖으로 나갈 수 있다는 것은 설계 의도와 다르다.</li>
+<li><strong>팔란티어 어휘를 빌리되 정의를 빌리지 않는다.</strong> 우리 <code>docs/ARCHITECTURE.md</code>에서 &quot;온톨로지&quot;를 쓸 때는 <strong>그래프 구조 + 그것을 변경하는 운영 경로(리뷰 · 팩 빌드 · MCP)</strong> 를 함께 가리키는 것으로 못 박는다. &quot;시맨틱 레이어&quot;라는 표현은 쓰지 않는다.</li>
+</ol>
+<h2>6. 반론과 미해결</h2>
+<table>
+<thead>
+<tr><th>항목</th><th>상태</th></tr>
+</thead>
+<tbody>
+<tr><td>대담의 &quot;GraphRAG가 온톨로지 기반층&quot;</td><td><strong>범주 오류.</strong> GraphRAG는 MS가 <strong>사설 텍스트 코퍼스 QA 기법</strong>으로 정의한 것이다 [S62].</td></tr>
+<tr><td>대담의 &quot;ReBAC가 유일 기반&quot;</td><td><strong>반증.</strong> NIST SP 800-162가 ABAC를 일반 방법론으로 규정한다 [S61]. Cedar는 RBAC+ABAC+ReBAC를 결합한다 [S17].</td></tr>
+<tr><td>&quot;정본 정의를 시도했다가 포기한 명명된 사례&quot;</td><td><strong>미확인.</strong> 26회 탐색에도 나오지 않았다. <strong>검색 실패를 부재의 증거로 쓰지 않으므로</strong> 서술로 쓰지 않는다.</td></tr>
+<tr><td>&quot;meta-ontology&quot; 외부 사용례의 독립성/선후</td><td><strong>미해결</strong> [S56].</td></tr>
+<tr><td>부재 증명 방법론</td><td><strong>중요한 교정.</strong> 팔란티어의 <strong>렌더된 검색 UI는 모든 철자에 퍼지 비영 결과를 반환</strong>하므로 그 자체로는 부재를 증명하지 못한다. 부재 근거는 <strong>Pagefind 색인 직접 질의 + 후보 문서 정확 리터럴 스캔</strong>이며, <strong>두 워커가 독립적으로 같은 방법으로 0건</strong>을 확인했다(퍼지 후보 39/39/248건 전수 스캔) [S55].</td></tr>
+<tr><td>Zanzibar 원전 수치</td><td><strong>1차 단일 출처</strong>다. 재현 독립 측정이 없어 예외로 통과시켰다.</td></tr>
+<tr><td>SpiceDB 커뮤니티 스레드</td><td><strong>수치 지연이 없다.</strong> 정성 보고로만 인용했다.</td></tr>
+<tr><td>Keto 관측</td><td><strong>릴리스 v26.2.0 태그 기준</strong>이다. master 동작과 다르다.</td></tr>
+</tbody>
+</table>
+<h2>7. 출처</h2>
+<ul>
+<li><strong>[S1]</strong> <a href="https://www.w3.org/TR/skos-reference/">https://www.w3.org/TR/skos-reference/</a> — SKOS 표준(라벨 무결성 S14, 스킴, 매핑 §10) — 1차/표준</li>
+<li><strong>[S2]</strong> <a href="https://www.w3.org/TR/2009/NOTE-skos-primer-20090818/">https://www.w3.org/TR/2009/NOTE-skos-primer-20090818/</a> — SKOS Primer — 1차/표준</li>
+<li><strong>[S3]</strong> <a href="https://www.w3.org/TR/2012/REC-owl2-primer-20121211/">https://www.w3.org/TR/2012/REC-owl2-primer-20121211/</a> — OWL 2 Primer(punning §9) — 1차/표준</li>
+<li><strong>[S4]</strong> <a href="https://www.usenix.org/system/files/atc19-pang.pdf">https://www.usenix.org/system/files/atc19-pang.pdf</a> — Zanzibar 원전(§2.2 zookie, §2.4 Read/Expand, §3.2.4 Leopard, §4 Table 2, §4.3 가용성 측정법) — 1차/논문</li>
+<li><strong>[S5]</strong> <a href="https://authzed.com/docs/spicedb/concepts/consistency">https://authzed.com/docs/spicedb/concepts/consistency</a> — SpiceDB 일관성 4종과 CockroachDB 예외 — 1차/벤더</li>
+<li><strong>[S6]</strong> <a href="https://openfga.dev/docs/interacting/consistency">https://openfga.dev/docs/interacting/consistency</a> — MINIMIZE_LATENCY/HIGHER_CONSISTENCY, zookie는 future work — 1차/벤더</li>
+<li><strong>[S7]</strong> <a href="https://github.com/ory/keto">https://github.com/ory/keto</a> — <code>check_service.proto</code>의 snaptoken &quot;not implemented yet&quot;(커밋 f50b489 기준) — 1차/소스</li>
+<li><strong>[S8]</strong> <a href="https://github.com/authzed/spicedb/pull/843">https://github.com/authzed/spicedb/pull/843</a> — 499 교집합 후보 PG 709ms→30ms — 1차/유지보수자 벤치</li>
+<li><strong>[S9]</strong> <a href="https://github.com/openfga/openfga/issues/1338">https://github.com/openfga/openfga/issues/1338</a> — check 10→80ms, list 100–200ms→3s 타임아웃 — 1차/사용자 보고</li>
+<li><strong>[S10]</strong> <a href="https://github.com/authzed/spicedb/issues/1687">https://github.com/authzed/spicedb/issues/1687</a> — Spanner 커서 인덱스 오선택 2–4s vs &lt;20ms — 1차/사용자 보고</li>
+<li><strong>[S11]</strong> <a href="https://github.com/authzed/spicedb/issues/2788">https://github.com/authzed/spicedb/issues/2788</a> — 500–1000 동시 LookupResources에서 pgxpool 고갈 — 1차/사용자 보고</li>
+<li><strong>[S12]</strong> <a href="https://authzed.com/blog/google-scale-authorization">https://authzed.com/blog/google-scale-authorization</a> — 100B 관계/1M QPS, p95 5.76ms, <strong>LookupResources 0%</strong>, 캐시 95.9% — 1차/벤더 벤치</li>
+<li><strong>[S15]</strong> <a href="https://hhs.github.io/meshrdf/concepts">https://hhs.github.io/meshrdf/concepts</a> — MeSH concept 모델 — 1차/기관</li>
+<li><strong>[S17]</strong> <a href="https://arxiv.org/pdf/2403.04651">https://arxiv.org/pdf/2403.04651</a> — Cedar: RBAC+ABAC+ReBAC 결합 정책 언어 — 1차/논문</li>
+<li><strong>[S18]</strong> <a href="https://learn.microsoft.com/en-us/purview/unified-catalog-glossary-terms-create-manage">https://learn.microsoft.com/en-us/purview/unified-catalog-glossary-terms-create-manage</a> — 동명 용어 경고 후 허용 — 1차/벤더</li>
+<li><strong>[S20]</strong> <a href="https://docs.getdbt.com/docs/build/semantic-models">https://docs.getdbt.com/docs/build/semantic-models</a> — 엔티티 한정 차원 — 1차/제품</li>
+<li><strong>[S22]</strong> <a href="https://docs.cube.dev/docs/data-modeling/views">https://docs.cube.dev/docs/data-modeling/views</a> — 도메인별 큐레이션 뷰 — 1차/제품</li>
+<li><strong>[S23]</strong> <a href="https://docs.cloud.google.com/looker/docs/reusing-code-with-extends">https://docs.cloud.google.com/looker/docs/reusing-code-with-extends</a> — LookML extends 충돌 우선순위 — 1차/제품</li>
+<li><strong>[S27]</strong> <a href="https://andrew-jones.com/daily/2024-10-08-data-contracts-cannot-assign-ownership/">https://andrew-jones.com/daily/2024-10-08-data-contracts-cannot-assign-ownership/</a> — 계약은 소유권 분쟁을 해결하지 못한다 — 2차/실무</li>
+<li><strong>[S29]</strong> <a href="https://docs.reltio.com/">https://docs.reltio.com/</a> — MDM 생존 규칙과 자동 언머지의 한계 — 1차/제품</li>
+<li><strong>[S33]</strong> <a href="https://martinfowler.com/bliki/MultipleCanonicalModels.html">https://martinfowler.com/bliki/MultipleCanonicalModels.html</a> — 중첩 정본 모델 수확 — 2차/저자</li>
+<li><strong>[S34]</strong> <a href="https://www.innoq.com/en/blog/2015/03/thoughts-on-a-canonical-data-model/">https://www.innoq.com/en/blog/2015/03/thoughts-on-a-canonical-data-model/</a> — 전사 정본 모델 비판 — 2차/실무</li>
+<li><strong>[S35]</strong> <a href="https://genehughson.wordpress.com/2013/03/25/canonical-data-models-esbs-and-a-reuse-trap/">https://genehughson.wordpress.com/2013/03/25/canonical-data-models-esbs-and-a-reuse-trap/</a> — 경계 내 정본 교환 옹호(반증 검색으로 확보) — 2차/실무</li>
+<li><strong>[S40]</strong> <a href="https://www.fao.org/agrovoc/linked-data">https://www.fao.org/agrovoc/linked-data</a> — AGROVOC 외부 어휘 정렬 — 1차/기관</li>
+<li><strong>[S42]</strong> <a href="https://id.loc.gov/authorities/subjects/sh95008574">https://id.loc.gov/authorities/subjects/sh95008574</a> — LCSH: Java (Computer program language) — 1차/기관</li>
+<li><strong>[S43]</strong> <a href="https://id.loc.gov/authorities/subjects/sh85069786">https://id.loc.gov/authorities/subjects/sh85069786</a> — LCSH: Java (Indonesia) — 1차/기관</li>
+<li><strong>[S44]</strong> <a href="https://www.palantir.com/docs/foundry/architecture-center/ontology-system/">https://www.palantir.com/docs/foundry/architecture-center/ontology-system/</a> — &quot;The Ontology is not a semantic layer&quot;, Language+Engine+Toolchain — 1차/벤더</li>
+<li><strong>[S45]</strong> <a href="https://www.palantir.com/docs/sitemap.xml">https://www.palantir.com/docs/sitemap.xml</a> — Foundry 문서 인벤토리(954KB) — 1차/벤더</li>
+<li><strong>[S46]</strong> <a href="https://doi.org/10.1023/A:1005323618026">https://doi.org/10.1023/A:1005323618026</a> — &quot;meta-ontology&quot; 1998년 선행 용례(Crossref) — 1차/학술</li>
+<li><strong>[S47]</strong> <a href="https://vldb.org/pvldb/vol14/p3014-cheng.pdf">https://vldb.org/pvldb/vol14/p3014-cheng.pdf</a> — RAMP-TAO (VLDB 2021) §7: stale-snapshot 트레이드오프 인식 — 1차/논문</li>
+<li><strong>[S48]</strong> <a href="https://medium.com/airbnb-engineering">https://medium.com/airbnb-engineering</a> — Himeji: 850,000 entities/s, 99.9990%, P50 1.8ms/P95 7ms/P99 12ms, Aurora — 1차/기업</li>
+<li><strong>[S49]</strong> <a href="https://linen.authzed.com/">https://linen.authzed.com/</a> — SpiceDB 커뮤니티: 권한 ~50 · 리소스 ~1,000에서 LookupResources가 DB·CPU·메모리 압도, 유지보수자 &quot;non-optimal&quot; 인정 — 1차/커뮤니티</li>
+<li><strong>[S50]</strong> <a href="https://github.com/ory/keto">https://github.com/ory/keto</a> — v26.2.0 태그: <code>max_read_depth</code> 기본 5, 깊이 소진이 false로 표현, Expand 교집합/부정 미포함 — 1차/소스</li>
+<li><strong>[S51]</strong> <a href="https://eurovoc.europa.eu/">https://eurovoc.europa.eu/</a> — concept 31800: digital/data/technological/tech/cyber sovereignty를 altLabel로 통합 — 1차/기관</li>
+<li><strong>[S52]</strong> <a href="https://obofoundry.org/principles/fp-006-textual-definitions.html">https://obofoundry.org/principles/fp-006-textual-definitions.html</a> — 원칙 6: 대다수 클래스에 텍스트 정의 요구 — 1차/표준 기구</li>
+<li><strong>[S53]</strong> <a href="https://www.palantir.com/docs/foundry/object-permissioning/">https://www.palantir.com/docs/foundry/object-permissioning/</a> — 읽기 시점 행·열·셀 정책 — 1차/벤더</li>
+<li><strong>[S54]</strong> <a href="https://www.palantir.com/docs/foundry/pipeline-builder/core-concepts/">https://www.palantir.com/docs/foundry/pipeline-builder/core-concepts/</a> — PB는 상류 저작 도구 — 1차/벤더</li>
+<li><strong>[S55]</strong> <a href="https://www.palantir.com/docs/pagefind/pagefind.js">https://www.palantir.com/docs/pagefind/pagefind.js</a> — 색인 직접 질의(부재 증명의 실제 근거) — 1차/벤더 색인</li>
+<li><strong>[S56]</strong> <a href="https://github.com/park-kyungchan/palantir-mini-marketplace">https://github.com/park-kyungchan/palantir-mini-marketplace</a> — PR #17, #29의 &quot;메타온톨로지&quot; 외부 사용례 — 1차/제3자</li>
+<li><strong>[S57]</strong> <a href="https://www.nao.org.uk/">https://www.nao.org.uk/</a> — Homes for Ukraine 감사 — 1차/정부감사</li>
+<li><strong>[S58]</strong> <a href="https://mhclgdigital.blog.gov.uk/">https://mhclgdigital.blog.gov.uk/</a> — 대체 시스템 이관 보고 — 1차/부처</li>
+<li><strong>[S59]</strong> <a href="https://www.bbc.com/">https://www.bbc.com/</a> — Homes for Ukraine 계약 보도 — 2차/언론</li>
+<li><strong>[S60]</strong> <a href="https://www.computerweekly.com/">https://www.computerweekly.com/</a> — Bartlett의 NHS FDP 1인칭 실명 계정(2편) — 2차/언론·1인칭</li>
+<li><strong>[S61]</strong> <a href="https://csrc.nist.gov/pubs/sp/800/162/final">https://csrc.nist.gov/pubs/sp/800/162/final</a> — NIST SP 800-162: ABAC를 일반 방법론으로 규정 — 1차/표준</li>
+<li><strong>[S62]</strong> <a href="https://www.microsoft.com/en-us/research/project/graphrag/">https://www.microsoft.com/en-us/research/project/graphrag/</a> — GraphRAG의 정의 범위(사설 텍스트 코퍼스 QA) — 1차/연구</li>
+</ul>
+<hr />
+<h3>방법 노트</h3>
+<ul>
+<li>3축 / 8 멤버 / 반증검색·회의론자 통과를 합성 인용의 전제 조건으로 걸었다.</li>
+<li>단일 1차 출처만 있는 주장(원전 수치, 표준 조문, 벤더 문서, 코드 직접 관측)은 <strong>예외로 표시하고 예외임을 본문에 남겼다.</strong></li>
+<li><strong>부재 주장</strong>은 두 워커의 독립 관측과 정확 리터럴 스캔이 있을 때만 서술했고, 없을 때는 미해결로 남겼다(§6).</li>
+<li>세션 원장: <code>.omo/ulw-research/20260909-094426/</code> (claim-graph 48개 노드, sources-ledger, debate-log R1–R5, 스크린샷 20장).</li>
+</ul>
+
+</main>
+</body>
+</html>
