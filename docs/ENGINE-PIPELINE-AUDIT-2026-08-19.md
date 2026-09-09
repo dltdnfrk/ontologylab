@@ -97,8 +97,16 @@
 
 ### 8. Server/Jobs/UI — REAL, 거짓 신호 다수
 60+ 엔드포인트, 실패 타이핑, 보안 모델(loopback+Host/CSRF) 실재.
-- **HOLLOW (기능): `GET /api/communities`** — 워킹 DB를 읽지만 rows는 팩 안에만 있음. 엔드포인트 주석 스스로 인정 (`routes.py:1092`) ★
-- **거짓: 리서치 전원 실패 → `status=complete` + "리서치 완료!" 배너** (`jobs.py:853` + `:658`, `app.js:2395`) ★ — 테스트가 이 거짓을 핀 (`test_research_source_surface.py:121`)
+- **`GET /api/communities`가 빈 배열** — 워킹 DB를 읽지만 rows는 팩 안에만 있음
+  (`ontologylab/server/routes.py:1092`) ★ — 2026-09-09 재검증: 동작은 그대로지만
+  "HOLLOW"는 과한 표현이다. `ontologylab/server/AGENTS.md`가 이를 의도된 현재
+  동작으로 명시한다("Empty is the current feature"). 남은 격차는 구현 부재가
+  아니라 **UI가 이 빈 결과를 팩 전용이라고 말해주지 않는 것**
+- ~~**거짓: 리서치 전원 실패 → `status=complete` + "리서치 완료!" 배너**~~ —
+  **해소됨(우선순위 2).** 사용 가능한 소스가 하나도 없으면 `RESEARCH_NO_SOURCES`로
+  분류돼 `failed`로 저장된다(`ontologylab/server/jobs.py:70`). 중복만 수집된
+  경우는 여전히 별개의 정상 빈 결과다. 회귀 `tests/test_research_run.py:763`.
+  구 인용(`jobs.py:853` 등)은 그 사이 이동해 더 이상 이 주장을 가리키지 않는다
 - 거짓: 채팅 팩 빌드는 `ok:false`여도 "팩 만들었다" 말풍선 (`routes.py:2176`, `app.js:4826`)
 - THIN: `_run_intent`가 FastAPI 핸들러를 직접 호출 — Query 객체 함정은 현재 kwargs 규율+AST 테스트로 봉쇄됐으나 구조는 날카로움
 - THIN: settings의 `data_dir`/`packs_dir`는 저장되지만 실행 중 앱이 무시 — 장식 입력
@@ -106,8 +114,9 @@
 ## 종합 리팩토링 우선순위 (ROI 순)
 
 > **2026-09-09 재검증.** 이 표는 2026-08-19 시점의 판정이다. 아래 상태 열은
-> 그날 이후 코드를 다시 읽어 각 행을 개별 확인한 결과이며, 10개 중 9개가
-> 이미 해소되었거나 애초에 결함이 아니었다. 상태가 없는 행만 열린 작업이다.
+> 그날 이후 코드를 다시 읽어 각 행을 개별 확인한 결과다. 10개 중 8개가 해소되었거나
+> 애초에 결함이 아니었고, 10번은 절반만 남았다. 실제로 열린 작업은 **9번과 10번의
+> `kgstore` 분할 둘뿐**이다.
 > 재검증 자동화: `scripts/check_audit_freshness.py` (해소된 행이 열린 것으로
 > 남아 있으면 실패한다).
 
@@ -121,7 +130,7 @@
 | 6 | `registry_lookup` → `resources.lookup` 경유 | allowlist 우회 폐쇄(유일한 비정규 HTTP) | S | **FIXED** — `ontologylab/connectors/registry_lookup.py:23`이 `paper_api._http_get_text`를 쓰고, 그것이 allowlist 검사를 거치는 단일 네트워크 경계다(`ontologylab/connectors/paper_api.py:349`) |
 | 7 | embedder `auto`에 오프라인 계약 (reranker와 동일) | 설치된 지금이 최대 위험 시점 | XS | **FIXED** — `embeddings.py:233` `auto`는 오프라인에서 `HashingEmbedder`로 떨어지고 질의 경로는 모델을 내려받지 않는다 |
 | 8 | `_run_intent`를 서비스 함수 호출로 + chat pack `ok` 체크 | Query 함정의 구조적 제거 | M | **FIXED** — `server/routes.py:2291` 이벤트 루프 밖으로 디스패치. 실측 근거 동봉(2초 액션이 무관한 `GET /api/settings`를 1.72초 지연시켰음) |
-| 9 | method IR/compiler 이중 스키마 해소 | 1002줄 방언 또는 릴리스 계약 — 택일 | M | 열림 — 미재검증 |
+| 9 | method IR/compiler 이중 스키마 해소 | 1002줄 방언 또는 릴리스 계약 — 택일 | M | **열림 — 2026-09-09 재확인, 결함 실재.** 컴파일러는 `"schema_version": "method-v1"` 느슨한 dict를 emit하고(`ontologylab/method_compiler_artifacts.py:186`) 타입드 IR로 round-trip하지 않는다. `method_ir`을 import하는 프로덕션 모듈 대부분이 실제로 가져가는 이름은 직렬화 헬퍼 `canonical_json_bytes` 하나뿐이고, `parse_method`/`MethodIR` 호출은 프로덕션 전체에서 `ontologylab/main.py:91` 단 하나 — import 파일 파서 `_canonical_method`다. 즉 1003줄 코덱(`ontologylab/method_ir_codec.py:1`)은 compile→release→pack 경로에서 한 번도 실행되지 않는다. 컴파일러 출력이 `parse_method`를 통과하는지 확인하는 테스트도 없다. **결정 필요:** 코덱을 릴리스 계약으로 승격(컴파일러가 round-trip)하거나, import 전용 방언임을 명시하고 축소한다 |
 | 10 | kgstore 분할 + conformal/calibration UI 연결 또는 삭제 | parked math와 god-object 정리 | L | **절반 해소됨** — conformal/calibration은 UI(`web/app.js:1022`)와 라우트(`ontologylab/server/routes.py:493` `/review/calibration`)에 연결됨. parked math 아님. `kgstore.py` 분할만 남음 |
 
 ## 킬 리스트 (주장/코드 불일치)
