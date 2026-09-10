@@ -8,8 +8,8 @@
   },
   "performance": {
     "ceiling_ms": 10195.704249618575,
-    "evidence_sha256": "884abd6e21299086c4b1f452cfc99901458c05ccedd6d64cfc585fd5e54b8f6e",
-    "mutation_receipt_sha256": "8ed89e8416ab2e65cd1859c74e9ba8e6f516d84a7aa9467d3019be6418da3a94",
+    "evidence_sha256": "9fa4602575219326e95eef0aaea91339271c3f3f89eb3a4b58fe22ef0e54d084",
+    "mutation_receipt_sha256": "f60d65fa793d50f2951dbfbfce04801649887f12f214309c9a075fd9531bf113",
     "outputs": {
       "create": {
         "conflicts": 500,
@@ -24,11 +24,11 @@
         "failures": 0
       }
     },
-    "p95_ms": 4550.258375005797,
+    "p95_ms": 4977.72420803085,
     "samples_ms": [
-      4505.220666003879,
-      4545.551125018392,
-      4550.258375005797
+      4568.724624987226,
+      4519.6316670044325,
+      4977.72420803085
     ],
     "statistic": "nearest-rank-p95"
   },
@@ -42,13 +42,13 @@
     "git_staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "git_unstaged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "inventory_sha256": "f5838c2f132420b5cbd0c88fdd658b4a39c4d3891cdd3a1657742e3d6b0d7034",
+    "inventory_sha256": "0ddfdfcb4d8cc375eb8017d9033957734d46e079c2436e687c83ee1ad35dac88",
     "policy_sha256": "f68378cda1c2611e7bed121d0cdaefbfa990e8c684803d782df553aace60d39f",
-    "snapshot_manifest_sha256": "d44505f48ac96e63c20977513a51dbafefdc70ac2ded8e9b9806fca7b1da36fc",
-    "snapshot_sha256": "464bed6588f9bc1857eb7a413aa4337121b08364be4f39485fed15ac800ff860",
+    "snapshot_manifest_sha256": "546af78661d83beed9dc2a809070fd6bc76645af0e3b9c572587bcfb44d69c29",
+    "snapshot_sha256": "f25de5565828aa8b68242435c64c4a75fc989971bec0b9952a4da679023aadce",
     "uv_lock_sha256": "e6db0c0ddc32b0dde9933ee8f06090817d105322a731e2921b5b1a8603aaee71"
   },
-  "source_snapshot_sha256": "464bed6588f9bc1857eb7a413aa4337121b08364be4f39485fed15ac800ff860",
+  "source_snapshot_sha256": "f25de5565828aa8b68242435c64c4a75fc989971bec0b9952a4da679023aadce",
   "task10_authority": {
     "plan": "mac-desktop-deployment-roadmap",
     "report_path": ".omo/evidence/mac-desktop-deployment-roadmap/task-10/verifier-st_01a061f5-20260902T115339Z/AdversarialVerify.json",

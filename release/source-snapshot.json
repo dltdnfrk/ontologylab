@@ -16,9 +16,9 @@
       "sha256": "21cb48ec1f1b05c057b8e89924c2bf3d6440f9a8a06e5352c3b587c68561c76e"
     },
     {
-      "bytes": 11009,
+      "bytes": 13291,
       "path": "docs/MACOS-INTERNAL-DEPLOYMENT.md",
-      "sha256": "e1a60b82ea8a8a15289f08042623f00a9c4a4f9b22109052c1308de957d9d580"
+      "sha256": "76476d0d7878abd36ac2530662a03d61589bdf9f5932e0c61d674907d42fc6e1"
     },
     {
       "bytes": 6677,
@@ -1839,10 +1839,10 @@
   "git_staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "git_unstaged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "inventory_sha256": "f5838c2f132420b5cbd0c88fdd658b4a39c4d3891cdd3a1657742e3d6b0d7034",
+  "inventory_sha256": "0ddfdfcb4d8cc375eb8017d9033957734d46e079c2436e687c83ee1ad35dac88",
   "policy_sha256": "f68378cda1c2611e7bed121d0cdaefbfa990e8c684803d782df553aace60d39f",
   "schema": "ontologylab.release.source-snapshot.v1",
-  "snapshot_sha256": "464bed6588f9bc1857eb7a413aa4337121b08364be4f39485fed15ac800ff860",
+  "snapshot_sha256": "f25de5565828aa8b68242435c64c4a75fc989971bec0b9952a4da679023aadce",
   "uv_lock": {
     "bytes": 461552,
     "path": "uv.lock",
