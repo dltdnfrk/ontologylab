@@ -88,6 +88,39 @@ _JOB_JOIN_BUDGET_S = 10.0
 
 
 @pytest.fixture(autouse=True)
+def _never_boot_out_the_real_launchd(monkeypatch):
+    """No test may reach the real `launchctl`.
+
+    `uninstall_app` retires the legacy LaunchAgent, and its label
+    `at.ontologylab.server` is a LIVE service on any machine that ran the old
+    launcher — including this developer's, where it owns the server on port
+    8799. A test that constructed the production adapter would boot out a real
+    server, so the seam is replaced here rather than in each test: the guard is
+    structural, exactly like the settings sandbox above.
+
+    A test that wants to observe retirement injects its own fake afterwards and
+    wins, because it patches the same name later. This stand-in reports the
+    legacy service as absent — the normal state — so it keeps every existing
+    uninstall test meaningful instead of failing it.
+    """
+    from scripts import internal_deployment
+
+    class _AbsentLegacySystem:
+        def launchctl(self, arguments: tuple[str, ...]) -> int:
+            return 113  # launchd's "service not loaded"
+
+        def process_exists(self, pid: int) -> bool:
+            return False
+
+        def terminate(self, pid: int) -> None:
+            raise AssertionError(f"test tried to signal pid {pid}")
+
+    monkeypatch.setattr(
+        internal_deployment, "_retirement_system", _AbsentLegacySystem, raising=True
+    )
+
+
+@pytest.fixture(autouse=True)
 def _no_job_thread_outlives_its_test(monkeypatch):
     """No job worker may still be running when the next test begins.
 

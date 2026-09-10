@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts import internal_deployment
 from scripts.internal_deployment import (
     DeploymentRefused,
     SupportRequest,
@@ -210,3 +211,99 @@ def test_cli_refusal_is_nonzero_without_misleading_success(tmp_path: Path) -> No
     assert result.returncode == 2
     assert "acknowledgement_required" in result.stderr
     assert result.stdout == ""
+
+
+def test_confirmed_credential_removal_also_clears_the_legacy_service(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A confirmed wipe must not leave a pre-helper secret behind.
+
+    The bundled helper only knows `ontologylab.v2`. An account that was never
+    migrated still holds its secret under the old `ontologylab` service, so
+    deleting v2 alone means a user who typed the confirmation phrase keeps a
+    live credential after the app is gone. Measured against the exact signed
+    app before this was fixed: the legacy item survived an uninstall that
+    reported success.
+    """
+    # Given a configured account, a helper fake, and an observable `security`.
+    app = _app(tmp_path / "Applications")
+    home = tmp_path / "home"
+    data = home / "Library/Application Support/ontologylab/data"
+    data.mkdir(parents=True)
+    (data / "sources.json").write_text(
+        json.dumps({"sources": [{"keychain_account": "publisher"}]}),
+        encoding="utf-8",
+    )
+    helper = app / "Contents/Resources/keychain-helper"
+    helper.write_text(f"#!{sys.executable}\nimport sys\nsys.exit(0)\n", encoding="utf-8")
+    helper.chmod(0o755)
+
+    calls = tmp_path / "security-calls"
+    fake_security = tmp_path / "security"
+    fake_security.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\n"
+        f"open({str(calls)!r},'a').write(' '.join(sys.argv[1:]) + '\\n')\n",
+        encoding="utf-8",
+    )
+    fake_security.chmod(0o755)
+    monkeypatch.setattr(
+        internal_deployment, "_SECURITY_BIN", str(fake_security), raising=True
+    )
+
+    # When credential removal is confirmed.
+    uninstall_app(
+        UninstallRequest(
+            app, home, False, None, True, "REMOVE-ONTOLOGYLAB-CREDENTIALS"
+        )
+    )
+
+    # Then the legacy service was asked to delete that exact account.
+    recorded = calls.read_text(encoding="utf-8")
+    assert "delete-generic-password" in recorded
+    assert "-s ontologylab -a publisher" in recorded
+
+
+def test_uninstall_retires_the_legacy_launch_agent_before_removing_the_app(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A LaunchAgent left loaded would respawn a binary this call deletes.
+
+    The retirement seam is patched rather than exercised for real: the legacy
+    label is a live service on machines that ran the old launcher, so building
+    the production adapter here would boot out a real server.
+    """
+    # Given a loaded legacy service and its plist.
+    app = _app(tmp_path / "Applications")
+    home = tmp_path / "home"
+    agents = home / "Library/LaunchAgents"
+    agents.mkdir(parents=True)
+    plist = agents / "at.ontologylab.server.plist"
+    plist.write_text("<plist/>", encoding="utf-8")
+    actions: list[tuple[str, ...]] = []
+
+    class _LoadedLegacy:
+        def launchctl(self, arguments: tuple[str, ...]) -> int:
+            actions.append(arguments)
+            return 0  # present, and boots out cleanly
+
+        def process_exists(self, pid: int) -> bool:
+            return False
+
+        def terminate(self, pid: int) -> None:
+            raise AssertionError("no source pid should be signalled")
+
+    monkeypatch.setattr(
+        internal_deployment, "_retirement_system", _LoadedLegacy, raising=True
+    )
+
+    # When the app is uninstalled.
+    uninstall_app(UninstallRequest(app, home, False, None, False, None))
+
+    # Then the exact label was booted out and its plist is gone with the app.
+    assert [name for name, _target in actions] == ["print", "bootout"]
+    assert all(
+        target.endswith("/at.ontologylab.server") for _name, target in actions
+    )
+    assert not plist.exists()
+    assert not app.exists()

@@ -15,6 +15,15 @@ from typing import Final
 
 from pydantic import ValidationError
 
+from ontologylab.legacy_retirement import (
+    LEGACY_LAUNCHD_LABEL,
+    LegacyRetirementError,
+    LocalRetirementSystem,
+    RetirementPaths,
+    RetirementRequest,
+    RetirementSystem,
+    retire_legacy_ownership,
+)
 from scripts.internal_deployment_fs import atomic_copy_app, sha256_file, tree_sha256
 from scripts.internal_deployment_removal_apply import apply_retained_uninstall as _apply
 from scripts.internal_deployment_removal_prepare import prepare_retained_uninstall as _prepare
@@ -34,6 +43,11 @@ from scripts.internal_deployment_types import (
 
 _DATA_CONFIRMATION: Final = "REMOVE-ONTOLOGYLAB-DATA"
 _CREDENTIALS_CONFIRMATION: Final = "REMOVE-ONTOLOGYLAB-CREDENTIALS"
+# Mirrors ontologylab.keychain: new items live under the v2 service, but a
+# never-migrated account still holds its secret under the pre-helper name.
+_KEYCHAIN_SERVICE: Final = "ontologylab.v2"
+_LEGACY_KEYCHAIN_SERVICE: Final = "ontologylab"
+_SECURITY_BIN: Final = "/usr/bin/security"
 
 
 def _paths(home: Path) -> tuple[Path, Path, Path]:
@@ -123,13 +137,77 @@ def _credential_accounts(support: Path, explicit: tuple[str, ...]) -> tuple[str,
     return tuple(sorted(accounts))
 
 
+def _retirement_system() -> RetirementSystem:
+    """Seam so tests never reach the real launchctl on the developer's machine.
+
+    `LEGACY_LAUNCHD_LABEL` is a live service on machines that ran the old
+    launcher, so a test that constructs the production adapter would boot out
+    a real server.
+    """
+    return LocalRetirementSystem()
+
+
+def _retire_legacy(home: Path) -> None:
+    """Boot out the pre-supervisor launchd ownership as the app is removed.
+
+    The old launcher installed `at.ontologylab.server` as a user LaunchAgent.
+    Uninstalling the app without retiring it leaves a service that keeps
+    respawning a binary that is no longer there, which is how a "clean"
+    uninstall turns into a broken machine. Only the exact label and the exact
+    plist are addressed; `absent` is the normal outcome on a machine that never
+    ran the old launcher.
+    """
+    paths = RetirementPaths(
+        launch_agent=home / "Library/LaunchAgents" / f"{LEGACY_LAUNCHD_LABEL}.plist",
+        source_runtime_files=(),
+    )
+    try:
+        retire_legacy_ownership(
+            RetirementRequest(paths=paths, uid=os.getuid(), source_pid=None),
+            _retirement_system(),
+        )
+    except LegacyRetirementError as exc:
+        raise DeploymentRefused(f"legacy_retirement_{exc.kind}") from exc
+
+
+def _delete_legacy_credential(account: str) -> None:
+    """Remove the pre-helper item the bundled helper cannot address.
+
+    Deliberately a copy of `ontologylab.keychain._delete_legacy` rather than an
+    import, because scripts/ stays self-contained. The helper inside the bundle
+    being removed only knows the v2 service, so without this a confirmed
+    REMOVE-ONTOLOGYLAB-CREDENTIALS left the legacy secret live in the Keychain.
+    `security` exit 44 means "not found", which is the success case here, so
+    neither exit is treated as a failure.
+    """
+    if shutil.which(_SECURITY_BIN) is None:
+        return
+    try:
+        subprocess.run(
+            [
+                _SECURITY_BIN,
+                "delete-generic-password",
+                "-s",
+                _LEGACY_KEYCHAIN_SERVICE,
+                "-a",
+                account,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return
+
+
 def _delete_credentials(app: Path, accounts: tuple[str, ...]) -> None:
     helper = app / "Contents/Resources/keychain-helper"
     if accounts and not os.access(helper, os.X_OK):
         raise DeploymentRefused("credential_helper_missing")
     for account in accounts:
         payload = json.dumps(
-            {"operation": "delete", "service": "ontologylab.v2", "account": account}
+            {"operation": "delete", "service": _KEYCHAIN_SERVICE, "account": account}
         )
         try:
             result = subprocess.run(
@@ -144,6 +222,12 @@ def _delete_credentials(app: Path, accounts: tuple[str, ...]) -> None:
             raise DeploymentRefused("credential_helper_timeout") from exc
         if result.returncode != 0:
             raise DeploymentRefused("credential_delete_failed")
+        # The helper only knows the v2 service. An account that was never
+        # migrated still has its secret under the pre-helper `ontologylab`
+        # service, and leaving it there means a user who typed
+        # REMOVE-ONTOLOGYLAB-CREDENTIALS keeps a live secret after the app is
+        # gone. Measured on the exact signed app before this line existed.
+        _delete_legacy_credential(account)
 
 
 def apply_retained_uninstall(request: ApplyRetainedUninstallRequest) -> Path:
@@ -191,6 +275,9 @@ def uninstall_app(request: UninstallRequest) -> Path | None:
         _delete_credentials(
             request.app, _credential_accounts(support, request.credential_accounts)
         )
+    # Before the bundle goes: a legacy LaunchAgent left loaded would keep
+    # respawning a binary this call is about to delete.
+    _retire_legacy(request.home)
     if request.app.exists():
         shutil.rmtree(request.app)
     if runtime.exists():
