@@ -36,6 +36,19 @@ BUILD_PATHS: Final = (
     "release/licenses",
     "scripts/build-macos-runtime.sh",
     "scripts/build-macos-candidate.sh",
+    # The application itself, and the deployment tool bundled through
+    # release/pyinstaller/internal_deployment_entry.py. Without these the
+    # digest covered only the build harness: a 2026-09-10 change to
+    # scripts/internal_deployment.py moved the shipped deploy binary
+    # 220f572a -> b1426289 while build_inputs_sha256 stayed 766a61ec, so
+    # "same inputs" did not mean "same artifact".
+    "ontologylab",
+    "scripts/internal_deployment.py",
+    "scripts/internal_deployment_cli.py",
+    "scripts/internal_deployment_fs.py",
+    "scripts/internal_deployment_types.py",
+    "scripts/internal_deployment_removal_apply.py",
+    "scripts/internal_deployment_removal_prepare.py",
     "LICENSE",
     "README.md",
 )

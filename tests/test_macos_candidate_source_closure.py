@@ -41,7 +41,7 @@ def test_task11_policy_covers_every_authoritative_path_class() -> None:
         len(audit.task10_authoritative),
         len(audit.missing),
         len(audit.generated_violations),
-    ) == (101, 95, 27, 0, 0)
+    ) == (101, 349, 27, 0, 0)
     assert not audit.generated_violations
     assert covered("ontologylab/storage-compatibility.json", audit.declared)
     assert not any(
