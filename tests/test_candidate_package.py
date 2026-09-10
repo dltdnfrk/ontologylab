@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import stat
@@ -140,8 +141,6 @@ def test_the_runtime_manifest_describes_the_bytes_that_actually_ship(
 
     shipped = tmp_path / "out" / "scratch" / "Probe.app" / "Contents" / "Resources" / "runtime"
     at_manifest_time = json.loads(record.read_text(encoding="utf-8"))
-    import hashlib
-
     assert at_manifest_time == {
         path.relative_to(shipped).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in sorted(shipped.rglob("*"))
