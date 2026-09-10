@@ -29,14 +29,14 @@ from ontologylab.server.app import create_app
 # Current shipped-copy contract: served path, byte length, and SHA-256.
 # /static/index.html is intentionally retained as a directly served asset.
 _PINNED_ASSETS: tuple[tuple[str, int, str], ...] = (
-    ("index.html", 58433, "37c4d7ff5fd1d311bc24db8651868ed2f559d51a3b8c834e917bfa7623257efa"),
-    ("app.js", 268972, "1c9e4d42d4cb5a96bc105adffd290e80e3d6bd6a4933bb311d4dc88f16d6cee0"),
+    ("index.html", 58901, "b4eacc0a3434c14e06d2eeaba16777e09ee170bde78fb85c6906c73633b2fcd4"),
+    ("app.js", 269008, "115dca9da78046bc6161a8cf039d7990aed5fe48aa8c0e9720017c17d743e941"),
     ("chat-session.js", 4721, "45e80c4cc2a6f0cc311a910f2f731b6da9672bd436dc9f748b215f9c69b1e84f"),
     ("favicon.svg", 308, "4b123cf3e11827ffdf2e0a91d4b76acc37f707d764b429c09f70055ee7ae29f8"),
     ("localize.js", 6991, "544056dbaad1d1e605752d89db00d6b90f8be62f50b3fa13ba1a983802fcbff7"),
     ("research-summary.js", 4095, "29d69924c39e0dace71b25c00780b84bd6dc6fa70d011557753b2231acb524ab"),
     ("ui-utils.js", 5479, "e92a2aa7e33a05f55905486863a1a530d171cfa220782d832870855c03402c12"),
-    ("style.css", 105131, "f7e93f9670ab54af82ab5938c27cffae1bb585c3757f3c07c13a520dd69bb76b"),
+    ("style.css", 107559, "e79c657aa3a8de86f84f3280f2f8c1e4b0e3dce67707759047d504c221ab6c8c"),
     ("fonts/PretendardVariable.woff2", 2057688, "9599f12fd42fc0bce1cd50b47a0c022e108d7aa64dd0d1bb0ed44f3282d900b4"),
 )
 

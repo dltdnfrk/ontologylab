@@ -9,7 +9,8 @@ separation between operator actions (terracotta/white) and evidence state
 
 ## 2. Color
 
-The source of truth is `web/style.css :root`; this table names its roles.
+The source of truth is `ontologylab/web/style.css :root`; this table names its
+roles. (Root `web/` is the retired asset location and ships nothing.)
 
 | Role | Token | Value | Usage |
 |---|---|---|---|
@@ -28,6 +29,9 @@ The source of truth is `web/style.css :root`; this table names its roles.
 Rules:
 - Semantic colors never decorate.
 - New colors require a named role here and a `:root` token first.
+- A data URI cannot read a custom property, so `--chevron-down` (the select
+  disclosure mark) repeats `--muted-foreground`'s value inside its SVG. It is a
+  token, not a new role; change both together or the chevron drifts off-palette.
 - Dark mode is the only supported theme so evidence-state contrast is stable.
 
 ## 3. Typography
@@ -289,4 +293,4 @@ Accepted debt:
 
 | Item | Location | Why accepted | Owner / Exit |
 |---|---|---|---|
-| No light theme | `web/style.css` | Evidence-state colors are calibrated for the fixed dark review terminal | Revisit only with a separately tested semantic palette |
+| No light theme | `ontologylab/web/style.css` | Evidence-state colors are calibrated for the fixed dark review terminal | Revisit only with a separately tested semantic palette |

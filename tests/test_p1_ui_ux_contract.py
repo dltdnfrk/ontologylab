@@ -169,7 +169,10 @@ def test_job_results_and_artifacts_use_visible_machine_consumable_contracts() ->
     jobs = _function("renderJobs")
     assert "statusIcon" in jobs
     assert "statusKo" in jobs
-    assert '<th>날짜</th>' in HTML
+    # The column has to exist; its attributes are not the contract. Pinned as
+    # literal `<th>날짜</th>`, this broke the moment the headers gained
+    # scope="col" — a passing-to-failing flip with no behavior change.
+    assert re.search(r"<th[^>]*>날짜</th>", HTML)
     assert "shortIdentifier" in _function("loadArtifacts")
     assert "data-copy-identifier" in _function("loadArtifacts")
 

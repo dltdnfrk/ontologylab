@@ -4196,7 +4196,7 @@
       }
       html +=
         "<div class='table-wrap'><table><thead><tr>" +
-        "<th>이름</th><th>타입</th><th>상태</th>" +
+        "<th scope='col'>이름</th><th scope='col'>타입</th><th scope='col'>상태</th>" +
         "</tr></thead><tbody>";
       members.forEach(function (m) {
         html +=

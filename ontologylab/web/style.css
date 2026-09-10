@@ -104,6 +104,10 @@
 
   --border: #3f3f3b;                        /* hairline separator */
   --input: #4a4a45;
+  /* Select chevron. A data URI cannot read a custom property, so the stroke
+     repeats --muted-foreground's value; it lives here so the color still has
+     one declared home rather than being buried in a rule. */
+  --chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a3a29c' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --ring: #f2f5f2;
 
   /* 확실성 = 선명도.
@@ -808,8 +812,11 @@ label {
   letter-spacing: 0;
 }
 
-/* 입력칸은 테두리가 보여야 '칸'으로 읽힌다. 이전에는 투명 테두리 + 회색
-   채움이라, 폭이 제각각인 회색 덩어리가 떠 있는 것처럼 보였다. */
+/* 기본값이다. 실제 화면은 이 아래 테마 블록
+   (`input[type="text"] … { background-color: var(--muted); border-color:
+   transparent }`)이 덮어써서, 평소에는 테두리 없이 한 단계 밝은 면으로
+   보이고 포커스에서만 테두리가 생긴다. 여기 값을 고쳐도 그쪽을 함께
+   고치지 않으면 화면은 그대로다. */
 input, select, textarea {
   font-family: inherit;
   font-size: var(--fs-sm);
@@ -833,6 +840,27 @@ input, select, textarea {
 }
 
 textarea { height: auto; padding: var(--sp-2) var(--sp-3); line-height: var(--lh-snug); }
+
+/* macOS/WebKit draws an `appearance: auto` select as a native control and
+   discards the author radius: measured, every select computed
+   `border-radius: 5px` where every other field and the .btn on the same
+   --h-control row computed 7px. Opting out of the native widget is the only way
+   a select inherits the shared geometry, and it costs the disclosure chevron
+   that native rendering had been supplying — hence the background image. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: var(--chevron-down);
+  background-repeat: no-repeat;
+  background-position: right var(--sp-2) center;
+  background-size: 12px 12px;
+  padding-right: calc(var(--sp-2) * 2 + 12px);
+  cursor: pointer;
+}
+select:disabled { cursor: default; opacity: 0.55; }
+/* The options list is still the platform menu; give it readable colors on the
+   dark canvas instead of leaving it to the UA default. */
+select option { background: var(--popover); color: var(--foreground); }
 
 input::placeholder, textarea::placeholder { color: var(--muted-foreground); opacity: 1; }
 
@@ -2720,12 +2748,16 @@ tr.row-focused {
 }
 .composer-bar .btn { flex: 0 0 auto; }
 /* 눈에 띄지 않게 둔다 — 매번 고르는 값이 아니라 확인하는 값이다. */
+/* 조용한 인라인 컨트롤이라 면을 지운다. `background` 단축이 아니라 색만
+   지워야 셰브론이 남는다 — 네이티브 위젯을 끈 select에서 셰브론까지 없으면
+   이 자리는 그냥 글자가 되고, 누를 수 있다는 사실이 화면에서 사라진다. */
 .composer-engine select {
   border-color: transparent;
-  background: transparent;
+  background-color: transparent;
+  background-size: 10px 10px;
   color: var(--muted-foreground);
   font-size: var(--fs-xs);
-  padding: 0.2rem 0.35rem;
+  padding: 0.2rem calc(0.35rem + 12px) 0.2rem 0.35rem;
   height: auto;
 }
 .composer-engine select:hover,
@@ -2963,15 +2995,20 @@ nav.tabs .tab-btn {
 header.app-header { border-bottom: none; }
 .statusbar { border-top: none; color: var(--muted-foreground); }
 
-/* 입력 요소는 테두리 대신 한 단계 밝은 면으로. */
+/* 입력 요소는 테두리 대신 한 단계 밝은 면으로. 이 결정이 위쪽
+   `input, select, textarea`의 테두리를 덮는다 — 그 블록의 주석은 이전
+   결정을 설명한 것이고, 지금 화면에 나오는 건 이쪽이다.
+   `background` 단축은 background-image까지 지우므로 색만 바꾼다. 단축으로
+   두면 select의 셰브론이 사라지고, 네이티브 위젯을 끈 select는 열 수 있다는
+   표시를 잃는다. */
 input[type="text"], input[type="number"], input[type="search"],
 textarea, select {
-  background: var(--muted);
+  background-color: var(--muted);
   border-color: transparent;
 }
 input:focus, textarea:focus, select:focus {
   border-color: var(--border);
-  background: var(--card);
+  background-color: var(--card);
 }
 
 

@@ -6,7 +6,7 @@
   <meta name="application-name" content="ontologylab" />
   <title>온톨로지랩</title>
   <link rel="icon" href="/static/favicon.svg?v=4b123cf3e11827ffdf2e0a91d4b76acc37f707d764b429c09f70055ee7ae29f8" type="image/svg+xml" />
-  <link rel="stylesheet" href="/static/style.css?v=f7e93f9670ab54af82ab5938c27cffae1bb585c3757f3c07c13a520dd69bb76b" />
+  <link rel="stylesheet" href="/static/style.css?v=e79c657aa3a8de86f84f3280f2f8c1e4b0e3dce67707759047d504c221ab6c8c" />
 </head>
 <body data-active-tab="home">
   <header class="app-header">
@@ -221,12 +221,12 @@
           <table id="jobs-table">
             <thead>
               <tr>
-                <th>작업</th>
-                <th>엔진</th>
-                <th>상태</th>
-                <th title="+ 새로 추가 / ~ 기존과 병합">결과</th>
-                <th>시작</th>
-                <th>종료</th>
+                <th scope="col">작업</th>
+                <th scope="col">엔진</th>
+                <th scope="col">상태</th>
+                <th scope="col" title="+ 새로 추가 / ~ 기존과 병합">결과</th>
+                <th scope="col">시작</th>
+                <th scope="col">종료</th>
               </tr>
             </thead>
             <tbody id="jobs-body"></tbody>
@@ -334,13 +334,13 @@
           <table id="proposals-table">
             <thead>
               <tr>
-                <th><input type="checkbox" id="review-check-all" aria-label="전체 선택"></th>
-                <th>종류</th>
-                <th>이름</th>
-                <th title="AI가 스스로 매긴 확신도(0~1). 낮을수록 사람 확인이 더 필요하다는 뜻이지, 틀렸다는 뜻이 아닙니다">확신도</th>
-                <th>크리틱</th>
-                <th>등록</th>
-                <th>작업</th>
+                <th scope="col"><input type="checkbox" id="review-check-all" aria-label="전체 선택"></th>
+                <th scope="col">종류</th>
+                <th scope="col">이름</th>
+                <th scope="col" title="AI가 스스로 매긴 확신도(0~1). 낮을수록 사람 확인이 더 필요하다는 뜻이지, 틀렸다는 뜻이 아닙니다">확신도</th>
+                <th scope="col">크리틱</th>
+                <th scope="col">등록</th>
+                <th scope="col">작업</th>
               </tr>
             </thead>
             <tbody id="proposals-body"></tbody>
@@ -430,14 +430,14 @@
         <table id="packs-table">
           <thead>
             <tr>
-              <th>팩</th>
-              <th>생성</th>
-              <th class="num">문서</th>
-              <th class="num">개념</th>
-              <th class="num">관계</th>
-              <th title="팩 안에서 쓰는 검색 방식 (자동 선택됨)">검색 방식</th>
-              <th title="팩 내용의 지문 — 값이 같으면 내용이 완전히 같은 팩">지문</th>
-              <th>번들</th>
+              <th scope="col">팩</th>
+              <th scope="col">생성</th>
+              <th scope="col" class="num">문서</th>
+              <th scope="col" class="num">개념</th>
+              <th scope="col" class="num">관계</th>
+              <th scope="col" title="팩 안에서 쓰는 검색 방식 (자동 선택됨)">검색 방식</th>
+              <th scope="col" title="팩 내용의 지문 — 값이 같으면 내용이 완전히 같은 팩">지문</th>
+              <th scope="col">번들</th>
             </tr>
           </thead>
           <tbody id="packs-body"></tbody>
@@ -489,7 +489,7 @@
       <div class="table-wrap table-scroll">
         <table id="artifacts-docs-table">
           <thead>
-            <tr><th>제목</th><th>출처</th><th>날짜</th><th>작업</th></tr>
+            <tr><th scope="col">제목</th><th scope="col">출처</th><th scope="col">날짜</th><th scope="col">작업</th></tr>
           </thead>
           <tbody id="artifacts-docs"></tbody>
         </table>
@@ -560,10 +560,10 @@
         <table id="communities-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>구성원 수</th>
-              <th>요약</th>
-              <th>방식</th>
+              <th scope="col">ID</th>
+              <th scope="col">구성원 수</th>
+              <th scope="col">요약</th>
+              <th scope="col">방식</th>
             </tr>
           </thead>
           <tbody id="communities-body"></tbody>
@@ -639,12 +639,12 @@
         <table id="providers-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>종류</th>
-              <th>기본 주소</th>
-              <th>키</th>
-              <th>모델</th>
-              <th>작업</th>
+              <th scope="col">ID</th>
+              <th scope="col">종류</th>
+              <th scope="col">기본 주소</th>
+              <th scope="col">키</th>
+              <th scope="col">모델</th>
+              <th scope="col">작업</th>
             </tr>
           </thead>
           <tbody id="providers-body"></tbody>
@@ -707,10 +707,10 @@
           <table id="sources-table">
             <thead>
               <tr>
-                <th>소스</th>
-                <th>키</th>
-                <th>없을 때</th>
-                <th>작업</th>
+                <th scope="col">소스</th>
+                <th scope="col">키</th>
+                <th scope="col">없을 때</th>
+                <th scope="col">작업</th>
               </tr>
             </thead>
             <tbody id="sources-body"></tbody>
@@ -1016,6 +1016,6 @@
   <script src="/static/localize.js?v=544056dbaad1d1e605752d89db00d6b90f8be62f50b3fa13ba1a983802fcbff7"></script>
   <script src="/static/chat-session.js?v=45e80c4cc2a6f0cc311a910f2f731b6da9672bd436dc9f748b215f9c69b1e84f"></script>
   <script src="/static/research-summary.js?v=29d69924c39e0dace71b25c00780b84bd6dc6fa70d011557753b2231acb524ab"></script>
-  <script src="/static/app.js?v=1c9e4d42d4cb5a96bc105adffd290e80e3d6bd6a4933bb311d4dc88f16d6cee0"></script>
+  <script src="/static/app.js?v=115dca9da78046bc6161a8cf039d7990aed5fe48aa8c0e9720017c17d743e941"></script>
 </body>
 </html>
