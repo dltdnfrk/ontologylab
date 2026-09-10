@@ -1531,9 +1531,9 @@
       "sha256": "75b3058f6cc921a81ac4b4041070010979639ea644f47eb44636f5eb581dcb58"
     },
     {
-      "bytes": 8959,
+      "bytes": 12398,
       "path": "scripts/internal_deployment.py",
-      "sha256": "1d630c29481fa2049a600875740cbf2ee7ff0e2066565ca5667615713c81d8c7"
+      "sha256": "846dfa1a7539dba3ef203094b5da24c2881ea27ef49229ea1bbea972c02ea946"
     },
     {
       "bytes": 8329,
@@ -1706,9 +1706,9 @@
       "sha256": "6f38523b1da9dc7210e9b70a7126acd290ca21965bf13adbec620e47a92de647"
     },
     {
-      "bytes": 7155,
+      "bytes": 10877,
       "path": "tests/test_internal_deployment_safety.py",
-      "sha256": "c453a5fc1faedb9c5c45f9352e3de62ba3c38a6f57aad09c47b6e3ccff9870a4"
+      "sha256": "85e934d9fe6618ed57998e59d302c25ac0031b6dcd22fc6dd286d109fad0f14a"
     },
     {
       "bytes": 6761,
@@ -1834,10 +1834,10 @@
   "git_staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "git_unstaged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "inventory_sha256": "455228840fc6711d177522fbe5b626b9b7c74ac7ca1ea87a4563b95eda239eff",
+  "inventory_sha256": "e7ccd746a6cca91e78f3bbd72cc7c752fe6de48e7470ae1faa04b49dbca7d530",
   "policy_sha256": "ca95a5968557360e5082f98a43765e0c8facbf8a62122ad66080436b0cfa5aa3",
   "schema": "ontologylab.release.source-snapshot.v1",
-  "snapshot_sha256": "67207403049ba61c0689bfd3e78df9f7f09bdba333c4c76b4d96626dc15d3d7c",
+  "snapshot_sha256": "05143be4242e46e06cbc4b42b474c9ddab920a2a7aa97a6735674749a38100ab",
   "uv_lock": {
     "bytes": 461552,
     "path": "uv.lock",
