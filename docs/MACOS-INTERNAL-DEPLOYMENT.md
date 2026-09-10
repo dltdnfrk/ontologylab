@@ -16,6 +16,30 @@ The transfer includes `OntologyLab.app`, a receipt, and the SHA-256 of the recei
 
 The tree digest binds every relative path, file/directory type, permission mode, and file byte. Symlinks and special files are refused. The installer first rehashes the receipt, parses its closed schema, rehashes the supplied app, requires Apple Silicon and macOS 15+, checks the Task 7 canonical storage compatibility CLI and supervisor lock, and verifies that the destination is on APFS with the macOS atomic-exchange API before creating an install stage. It copies to a same-volume hidden directory and verifies the staged tree. Quarantine clearance walks the owned stage without following symlinks, inspects each path, and removes `com.apple.quarantine` only where that attribute is present. An attributed read-only path temporarily receives owner-write permission through its already-open file descriptor; its exact mode is restored and verified in all outcomes. Unattributed paths are never chmodded. The complete tree hash and strict nested code signatures are revalidated after clearance and before activation. A first install activates with one atomic rename. An update durably writes an activation journal and calls `renameatx_np(..., RENAME_SWAP)`, which exchanges the live and staged app in one filesystem transaction: there is no instant at which the live path is absent. The old app then occupies the stage path and is removed after the swap.
 
+## Producing the signed app, DMG, ZIP, and receipt
+
+`scripts/build-macos-candidate.sh` produces an unsigned Task 11 payload. `release.candidate_package` turns that payload into the artifact the installer accepts:
+
+```sh
+uv run --frozen --offline python -m release.candidate_package \
+  --candidate-app /candidate/payload/OntologyLab.app \
+  --native-inventory /candidate/inventories/native-inventory.json \
+  --output /controlled-final \
+  --version 0.1.0 \
+  --runtime-contract release/runtime-build.json \
+  --manifest-writer release/pyinstaller/write_manifest.py \
+  --release-receipt tests/fixtures/wave21/step10-release-receipt-v1.json
+```
+
+It copies the payload with owner-write restored, proves that `codesign --verify --deep --strict` actually rejects a stripped nested signature, signs every Mach-O in the native inventory ad-hoc with `--options runtime`, then signs the bundle. Four properties of this step are load-bearing and were each established by a failed install rather than by design:
+
+- The install receipt's `app_tree_sha256` is computed with `scripts.internal_deployment_fs.tree_sha256`, the same function `install` recomputes. Any other tree hash ships a receipt the artifact fails with `artifact_sha256_mismatch`.
+- Signing embeds a signature into every Mach-O, which invalidates every hash `runtime-manifest.json` recorded before signing. The manifest is therefore rewritten against the signed bundle and the bundle re-sealed. Skipping this produces an app that installs and then refuses to start with `runtime_preflight_refused code=file_mutated`.
+- The shipped bundle is **not** frozen read-only, despite the DMG being an immutable image. The installer's own cleanup removes its staging copy with `shutil.rmtree`, which cannot descend into read-only directories.
+- The source binding is read from the issued release receipt rather than written as a literal.
+
+`hdiutil` stamps creation time and volume identity into the image, so re-imaging identical bytes yields a different DMG hash. `manifests/package-manifest.json` therefore names `app_tree_sha256` and `zip_sha256` as the integrity anchors and records the DMG hash as the identifier of one specific image. A "rehash on the target Mac" step must compare the app tree after mounting, not the DMG file.
+
 ## Task12 terminal finalization
 
 Only after the signed `OntologyLab.app`, immutable DMG, deterministic ZIP, and install receipt exist, run the source-owned packaging workflow as its terminal operation:
