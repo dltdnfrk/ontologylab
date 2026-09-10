@@ -1396,6 +1396,11 @@
       "sha256": "ff953f90b573cef76e1a0b8254ac1cb11ab50eef99d6519a0460e9775ab66a1d"
     },
     {
+      "bytes": 13928,
+      "path": "release/candidate_package.py",
+      "sha256": "7698084610313a4c891f58017cd3570fac6d9c905553a78380add306df69ab3d"
+    },
+    {
       "bytes": 7480,
       "path": "release/candidate_receipt.py",
       "sha256": "955ffa7fafe050d9f0c0100e1cf9566b34a5f2bc3935744dbb4cb48a09fc03fc"
@@ -1416,9 +1421,9 @@
       "sha256": "29fb2bd4a5486a921b60f88f7370d93db4bc5f11dac6466ab7fcb9ef0b9569f5"
     },
     {
-      "bytes": 10169,
+      "bytes": 10205,
       "path": "release/candidate_stage.py",
-      "sha256": "7e91e46c8b93425bf9792af134dff5d98fc0f09d066ac5b951b6a38f3a0b8f70"
+      "sha256": "243380e8a3b8a738f124731dcea5cf65a1ab38dc1109424db0e13b30f682d6b5"
     },
     {
       "bytes": 3877,
@@ -1728,7 +1733,7 @@
     {
       "bytes": 10442,
       "path": "tests/test_macos_candidate_source_closure.py",
-      "sha256": "884c22bd88ae9319b953edd88811baf123ef7d1b8caa484d41ee24a65767068f"
+      "sha256": "c9ae4c8f8f174d88fa0ace67e8d72170d1a394794de9ed3e37075264bc1c954b"
     },
     {
       "bytes": 10788,
@@ -1834,10 +1839,10 @@
   "git_staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "git_unstaged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "inventory_sha256": "c1edf0d7d73fb136cc12b60588c548d10ad043a140f0738eae67bd448510465f",
-  "policy_sha256": "ca95a5968557360e5082f98a43765e0c8facbf8a62122ad66080436b0cfa5aa3",
+  "inventory_sha256": "f5838c2f132420b5cbd0c88fdd658b4a39c4d3891cdd3a1657742e3d6b0d7034",
+  "policy_sha256": "f68378cda1c2611e7bed121d0cdaefbfa990e8c684803d782df553aace60d39f",
   "schema": "ontologylab.release.source-snapshot.v1",
-  "snapshot_sha256": "dcb457affd3f6ff4d1923d8f4904ed3cf9355ca84185772ecb047ab9e6edccf6",
+  "snapshot_sha256": "464bed6588f9bc1857eb7a413aa4337121b08364be4f39485fed15ac800ff860",
   "uv_lock": {
     "bytes": 461552,
     "path": "uv.lock",
