@@ -26,6 +26,7 @@ BUILD_PATHS: Final = (
     "release/candidate_execution.py",
     "release/candidate_license_override.py",
     "release/candidate_licenses.py",
+    "release/candidate_package.py",
     "release/candidate_receipt.py",
     "release/candidate_resources.py",
     "release/candidate_source.py",
