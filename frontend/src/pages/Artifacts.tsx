@@ -198,7 +198,7 @@ const SPAN_TONE: Record<string, string> = {
 /** Viewport-relative panel heights: the modal panes scroll inside the dialog
     rather than growing it, and both panes must agree on one value. */
 const DIALOG_MAX_HEIGHT = "max-h-[88vh]";
-const PANE_HEIGHT = "h-[38vh] lg:h-[56vh]";
+const PANE_HEIGHT = "max-h-[38vh] lg:max-h-[56vh]";
 
 /* ---------------------------------------------------------------------------
    Typed failure. `api()` throws `Error("<status>: <body>")`, so the status is
@@ -510,7 +510,7 @@ function MetricCell({ label, value }: { label: string; value: number }) {
       <div className="font-mono text-md font-semibold tabular-nums">
         {value.toLocaleString("ko-KR")}
       </div>
-      <div className="text-label uppercase tracking-wide text-muted-foreground">
+      <div className="text-label tracking-wide text-muted-foreground">
         {label}
       </div>
     </div>
@@ -803,8 +803,10 @@ export default function ArtifactsPage() {
   const documentsLoading = documents === null && documentsError === null;
   const packsLoading = packs === null && packsError === null;
 
+  // 읽는 폭은 DESIGN.md §4의 --content-max(1080px)다. Tailwind가
+  // --container-content로는 유틸리티를 만들지 않으므로 토큰을 직접 참조한다.
   return (
-    <div className="mx-auto flex w-full max-w-content flex-col gap-6 p-6">
+    <div className="mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-6 p-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-display font-semibold tracking-tight">
@@ -875,12 +877,14 @@ export default function ArtifactsPage() {
                   <TableHead className="min-w-0 sm:min-w-56">제목</TableHead>
                   {/* 좁은 폭에서는 표를 가로로 밀지 않고 부차 열을 접는다 —
                       접힌 값은 원문 패널에 전부 남아 있다. */}
-                  <TableHead className="hidden min-w-40 md:table-cell">
+                  <TableHead className="hidden min-w-40 lg:table-cell">
                     출처
                   </TableHead>
-                  <TableHead className="hidden w-28 sm:table-cell">날짜</TableHead>
-                  <TableHead className="hidden w-28 sm:table-cell">
-                    개념 · 관계
+                  <TableHead className="hidden w-24 whitespace-nowrap sm:table-cell">
+                    날짜
+                  </TableHead>
+                  <TableHead className="hidden w-24 whitespace-nowrap sm:table-cell">
+                    개념·관계
                   </TableHead>
                   <TableHead className="w-24 text-right sm:w-28">작업</TableHead>
                 </TableRow>
@@ -920,7 +924,7 @@ export default function ArtifactsPage() {
                           </div>
                         ) : null}
                       </TableCell>
-                      <TableCell className="hidden max-w-72 md:table-cell">
+                      <TableCell className="hidden max-w-72 lg:table-cell">
                         <div className="text-sm">
                           {/* `source`는 빈 문자열로 오는 행이 있다 — null 검사만
                               하면 출처 칸이 비어 버리므로 참/거짓으로 넘긴다. */}
@@ -933,13 +937,13 @@ export default function ArtifactsPage() {
                           className="text-muted-foreground"
                         />
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell">
+                      <TableCell className="hidden whitespace-nowrap sm:table-cell">
                         <RelativeTime
                           ts={row.fetched_ts}
                           className="text-sm text-muted-foreground"
                         />
                       </TableCell>
-                      <TableCell className="hidden text-sm sm:table-cell">
+                      <TableCell className="hidden whitespace-nowrap text-sm sm:table-cell">
                         <EntityCountCell
                           docId={row.id}
                           detail={details[row.id]}
