@@ -38,7 +38,11 @@ from scripts.internal_deployment_fs import sha256_file, tree_sha256
 _CODESIGN: Final = "/usr/bin/codesign"
 _HDIUTIL: Final = "/usr/bin/hdiutil"
 _FILE: Final = "/usr/bin/file"
-_SIGN_ARGUMENTS: Final = ("--force", "--sign", "-", "--options", "runtime", "--timestamp=none")
+# No --options runtime: hardened runtime on an ad-hoc signature makes amfid
+# reject every extracted dylib with "different Team IDs" on a Gatekeeper-
+# enabled host (assessments enabled). The flag is only meaningful for a
+# notarized Developer-ID build; this package is explicitly unnotarized.
+_SIGN_ARGUMENTS: Final = ("--force", "--sign", "-", "--timestamp=none")
 _VERIFY_DEEP: Final = ("--verify", "--deep", "--strict", "--verbose=4")
 _ACKNOWLEDGEMENT: Final = (
     "OntologyLab internal ad-hoc build.\n"
