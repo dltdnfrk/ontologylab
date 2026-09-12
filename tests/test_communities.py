@@ -255,7 +255,7 @@ def test_cli_build_pack_with_mock_summaries(community_pack, tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
-# Dashboard API surface (/api/communities reads the working store)
+# Dashboard API surface (/api/communities reads the newest usable built pack)
 # ---------------------------------------------------------------------------
 
 
@@ -269,61 +269,115 @@ def _community_client(tmp_path: Path):
                                  packs_dir=tmp_path / "packs"))
 
 
-def _seed_working_store_community(tmp_path: Path) -> None:
-    """Write two verified nodes + one community into the dashboard's working
-    DB. Communities normally live only inside built packs, but the dashboard
-    reads the working store, so we populate it directly here."""
-    from ontologylab.paths import kg_db_path
+def test_api_communities_reads_pack(community_pack, tmp_path: Path) -> None:
+    # Given: a built pack with two clusters and an empty dashboard working KG.
+    packs, manifest = community_pack
+    with KGStore.open(tmp_path / "data" / "kg.sqlite") as store:
+        assert store.list_communities() == []
+    with KGStore.open(packs / manifest.pack_id / "pack.sqlite", read_only=True) as store:
+        expected = store.list_communities()
+    with _community_client(tmp_path) as client:
+        # When: the dashboard lists communities through its HTTP surface.
+        response = client.get("/api/communities")
+    # Then: it returns the immutable pack's rows, not the empty working KG.
+    assert response.status_code == 200
+    assert response.json() == {"communities": expected, "count": 2}
 
-    store = KGStore.open(kg_db_path(tmp_path / "data"))
-    doc, _ = store.insert_document(
-        source_kind="upload", source_uri="file:///c.txt", title="c",
-        raw_text="community text", content_hash="w12-api-h1",
+
+def test_api_communities_empty_when_no_packs(tmp_path: Path) -> None:
+    # Given: no pack directory, regardless of rows in the working KG.
+    with KGStore.open(tmp_path / "data" / "kg.sqlite") as store:
+        store.write_communities([{
+            "id": "working-only", "members": [], "top_members": [],
+            "summary": "", "summary_method": "extractive",
+        }])
+    with _community_client(tmp_path) as client:
+        # When: requesting the community list.
+        response = client.get("/api/communities")
+    # Then: working-store rows are never a fallback.
+    assert response.status_code == 200
+    assert response.json() == {"communities": [], "count": 0}
+
+
+def test_api_community_detail_reads_pack(community_pack, tmp_path: Path) -> None:
+    # Given: the same built pack that backs the list.
+    packs, manifest = community_pack
+    with KGStore.open(packs / manifest.pack_id / "pack.sqlite", read_only=True) as store:
+        expected = store.list_communities()[0]
+        members = store.community_members(expected["id"])
+    with _community_client(tmp_path) as client:
+        # When: opening its largest community.
+        response = client.get("/api/communities/community-000")
+    # Then: both metadata and member nodes come from the pack.
+    assert response.status_code == 200
+    assert response.json() == {"community": expected, "members": members}
+
+
+@pytest.mark.parametrize("community_id", ["nope", "community-999"])
+def test_api_community_404_when_unknown(community_pack, tmp_path: Path, community_id: str) -> None:
+    # Given: a usable pack without the requested id.
+    with _community_client(tmp_path) as client:
+        # When: requesting an unknown community.
+        response = client.get(f"/api/communities/{community_id}")
+    # Then: the existing UnknownItem mapping is preserved.
+    assert response.status_code == 404
+
+
+def test_api_community_404_when_no_packs(tmp_path: Path) -> None:
+    # Given: no built packs.
+    with _community_client(tmp_path) as client:
+        # When: requesting a community detail.
+        response = client.get("/api/communities/community-000")
+    # Then: absent communities remain a 404, not a list-shaped response.
+    assert response.status_code == 404
+
+
+def test_api_communities_limit_when_pack_exists(community_pack, tmp_path: Path) -> None:
+    # Given: a pack with two communities.
+    with _community_client(tmp_path) as client:
+        # When: requesting just the largest one.
+        response = client.get("/api/communities?limit=1")
+    # Then: count describes the limited list, preserving the API shape.
+    assert response.status_code == 200
+    assert response.json()["count"] == 1
+    assert [row["member_count"] for row in response.json()["communities"]] == [3]
+
+
+@pytest.mark.parametrize("new_timestamp", [100, 200, 300])
+def test_api_communities_selects_newest_usable(community_pack, tmp_path: Path, new_timestamp: int) -> None:
+    import json
+
+    # Given: two real packs with different rows and fixed build timestamps.
+    packs, original = community_pack
+    with KGStore.open(tmp_path / "singleton.sqlite") as store:
+        doc, _ = store.insert_document(
+            source_kind="upload", source_uri="file:///single.txt", title="single",
+            raw_text="Alpha", content_hash="single-api",
+        )
+        store.insert_proposed(
+            [ProposedEntity(id="n_A", entity_type="Component", name="Alpha")], [],
+            source_doc_id=doc.id, extractor_engine="mock",
+        )
+        store.bulk_approve(by="tester")
+    newer = build_pack(
+        tmp_path / "singleton.sqlite", packs, name="aaa-api",
+        allow_incomplete_extraction=True,
+        incomplete_extraction_intent="synthetic API selection fixture",
     )
-    ents = [
-        ProposedEntity(id="n_A", entity_type="Component", name="Alpha"),
-        ProposedEntity(id="n_B", entity_type="Component", name="Beta"),
-    ]
-    store.insert_proposed(ents, [], source_doc_id=doc.id,
-                          extractor_engine="mock")
-    store.bulk_approve(by="tester")
-    store.write_communities([
-        {
-            "id": "c1",
-            "members": ["n_A", "n_B"],
-            "top_members": ["Alpha"],
-            "summary": "Alpha and Beta cluster",
-            "summary_method": "extractive",
-        }
-    ])
-    store.close()
-
-
-def test_api_communities_empty_on_working_store(tmp_path):
-    client = _community_client(tmp_path)
-    res = client.get("/api/communities")
-    assert res.status_code == 200
-    assert res.json() == {"communities": [], "count": 0}
-
-
-def test_api_communities_list_detail_and_404(tmp_path):
-    _seed_working_store_community(tmp_path)
-    client = _community_client(tmp_path)
-
-    listing = client.get("/api/communities")
-    assert listing.status_code == 200
-    body = listing.json()
-    assert body["count"] == 1
-    community = body["communities"][0]
-    assert community["id"] == "c1"
-    assert community["member_count"] == 2
-    assert community["summary_method"] == "extractive"
-
-    detail = client.get(f"/api/communities/{community['id']}")
-    assert detail.status_code == 200
-    dbody = detail.json()
-    assert dbody["community"]["id"] == "c1"
-    assert {m["name"] for m in dbody["members"]} == {"Alpha", "Beta"}
-
-    missing = client.get("/api/communities/nope")
-    assert missing.status_code == 404
+    for pack_id, timestamp in ((original.pack_id, 200), (newer.pack_id, new_timestamp)):
+        path = packs / pack_id / "manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["created_ts"] = timestamp
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+    rejected = packs / "zzz-unusable"
+    rejected.mkdir()
+    (rejected / "manifest.json").write_text(
+        json.dumps({"pack_id": rejected.name, "created_ts": 9999999999}), encoding="utf-8",
+    )
+    with _community_client(tmp_path) as client:
+        # When: listing communities with an even newer but unusable pack present.
+        response = client.get("/api/communities")
+    # Then: build time wins, pack id breaks ties, and unusable packs are ignored.
+    assert response.status_code == 200
+    assert response.json()["count"] == (1 if new_timestamp > 200 else 2)
+    assert response.json()["communities"][0]["member_count"] == (1 if new_timestamp > 200 else 3)
