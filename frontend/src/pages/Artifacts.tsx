@@ -872,11 +872,17 @@ export default function ArtifactsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-56">제목</TableHead>
-                  <TableHead className="min-w-40">출처</TableHead>
-                  <TableHead className="w-28">날짜</TableHead>
-                  <TableHead className="w-28">개념 · 관계</TableHead>
-                  <TableHead className="w-28 text-right">작업</TableHead>
+                  <TableHead className="min-w-0 sm:min-w-56">제목</TableHead>
+                  {/* 좁은 폭에서는 표를 가로로 밀지 않고 부차 열을 접는다 —
+                      접힌 값은 원문 패널에 전부 남아 있다. */}
+                  <TableHead className="hidden min-w-40 md:table-cell">
+                    출처
+                  </TableHead>
+                  <TableHead className="hidden w-28 sm:table-cell">날짜</TableHead>
+                  <TableHead className="hidden w-28 sm:table-cell">
+                    개념 · 관계
+                  </TableHead>
+                  <TableHead className="w-24 text-right sm:w-28">작업</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -886,13 +892,13 @@ export default function ArtifactsPage() {
                       <TableCell>
                         <Skeleton className="h-4 w-64" />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <Skeleton className="h-4 w-32" />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         <Skeleton className="h-4 w-16" />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         <Skeleton className="h-4 w-10" />
                       </TableCell>
                       <TableCell>
@@ -904,7 +910,7 @@ export default function ArtifactsPage() {
                 {!documentsLoading &&
                   filtered.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell className="max-w-96">
+                      <TableCell className="max-w-48 sm:max-w-96">
                         <div className="truncate font-medium" title={documentTitle(row.title, row.id)}>
                           {documentTitle(row.title, row.id)}
                         </div>
@@ -914,7 +920,7 @@ export default function ArtifactsPage() {
                           </div>
                         ) : null}
                       </TableCell>
-                      <TableCell className="max-w-72">
+                      <TableCell className="hidden max-w-72 md:table-cell">
                         <div className="text-sm">
                           {/* `source`는 빈 문자열로 오는 행이 있다 — null 검사만
                               하면 출처 칸이 비어 버리므로 참/거짓으로 넘긴다. */}
@@ -927,13 +933,13 @@ export default function ArtifactsPage() {
                           className="text-muted-foreground"
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         <RelativeTime
                           ts={row.fetched_ts}
                           className="text-sm text-muted-foreground"
                         />
                       </TableCell>
-                      <TableCell className="text-sm">
+                      <TableCell className="hidden text-sm sm:table-cell">
                         <EntityCountCell
                           docId={row.id}
                           detail={details[row.id]}
@@ -1181,7 +1187,7 @@ export default function ArtifactsPage() {
             packPanel.current?.focus();
           }}
           className={cn(
-            "flex w-[calc(100vw-2rem)] flex-col gap-4 overflow-y-auto sm:max-w-3xl",
+            "flex w-[calc(100vw-2rem)] flex-col gap-4 overflow-y-auto focus-visible:outline-none sm:max-w-3xl",
             DIALOG_MAX_HEIGHT,
           )}
         >

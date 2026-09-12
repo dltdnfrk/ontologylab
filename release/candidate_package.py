@@ -366,7 +366,8 @@ def main(argv: list[str] | None = None) -> int:
             release_receipt=parsed.release_receipt,
         )
     )
-    print(json.dumps(result.__dict__ | {"operations": list(result.operations)}, sort_keys=True))
+    from dataclasses import asdict
+    print(json.dumps(asdict(result) | {"operations": list(result.operations)}, sort_keys=True))
     return 0
 
 

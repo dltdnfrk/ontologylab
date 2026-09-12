@@ -14,6 +14,13 @@ const params = new URLSearchParams(window.location.search);
 const scenario = params.get("scenario") ?? "loaded";
 const open = params.get("open");
 
+let reviewCalls = 0;
+const probe = document.createElement("div");
+probe.style.cssText =
+  "position:fixed;left:8px;bottom:8px;z-index:99;background:#000;color:#0f0;font:12px monospace;padding:4px 8px";
+probe.textContent = "review-calls=0";
+document.body.appendChild(probe);
+
 function reply(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -46,6 +53,8 @@ window.fetch = async (input: RequestInfo | URL): Promise<Response> => {
     );
   }
   if (/\/api\/document\/[^/]+\/review$/.test(url)) {
+    reviewCalls += 1;
+    probe.textContent = `review-calls=${reviewCalls}`;
     return reply(docReview);
   }
   if (/\/api\/packs\/[^/]+$/.test(url)) {

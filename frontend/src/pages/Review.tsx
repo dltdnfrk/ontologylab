@@ -1344,9 +1344,11 @@ export default function ReviewPage() {
                     <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
                     <span className="break-words">
                       기준선을 계산할 수 없습니다. 유의수준 {triage.alpha.toFixed(2)}에서는 비평
-                      점수가 있는 거부 이력이 최소 {NUM.format(triage.needed_rejected)}건 필요하며,
-                      현재 {NUM.format(triage.n_rejected)}건(승인 {NUM.format(triage.n_verified)}건)
-                      입니다. 숫자가 채워질 때까지 기준선 없이 검토합니다.
+                      점수가 있는 거부 이력이 최소 {NUM.format(triage.needed_rejected)}건
+                      필요하지만, 현재{" "}
+                      {NUM.format(triage.n_rejected)}건입니다(승인{" "}
+                      {NUM.format(triage.n_verified)}건). 숫자가 채워질 때까지 기준선 없이
+                      검토합니다.
                     </span>
                   </AlertDescription>
                 </Alert>
@@ -1424,9 +1426,9 @@ export default function ReviewPage() {
                       <AlertDescription className="flex items-start gap-2 text-xs leading-relaxed">
                         <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
                         <span className="break-words">
-                          검토 이력 {NUM.format(calibration.n)}건으로는 곡선을 적합하지 않습니다
-                          (최소 {NUM.format(calibration.min_required)}건). 측정값은 표본이 있는
-                          구간까지만 계산되며, 부족한 수치를 추정해 채우지 않습니다.
+                          검토 이력 {NUM.format(calibration.n)}건으로는 곡선을 적합하지
+                          않습니다(최소 {NUM.format(calibration.min_required)}건). 측정값은 표본이
+                          있는 구간까지만 계산되며, 부족한 수치를 추정해 채우지 않습니다.
                         </span>
                       </AlertDescription>
                     </Alert>
