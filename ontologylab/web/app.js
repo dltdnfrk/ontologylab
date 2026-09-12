@@ -6308,6 +6308,14 @@
         out.textContent = res.created
           ? "「" + (res.title || "샘플") + "」 문서를 추가했습니다."
           : "샘플 문서가 이미 등록되어 있습니다.";
+        try {
+          await loadDocuments();
+        } catch (refreshErr) {
+          /* 수집은 성공했다 — 목록 새로고침만 실패한 것이므로 수집 실패
+             문구로 덮어쓰지 않고 성공 메시지에 덧붙인다. */
+          out.textContent +=
+            " 문서 목록 새로고침에 실패했습니다: " + friendlyError(refreshErr);
+        }
       } else {
         out.textContent = uiUtils.errorText(res, "샘플을 추가하지 못했습니다.");
       }

@@ -2,8 +2,8 @@
   "assets": [
     {
       "path": "app.js",
-      "sha256": "115dca9da78046bc6161a8cf039d7990aed5fe48aa8c0e9720017c17d743e941",
-      "size": 269008
+      "sha256": "fc6638a5177549962f7c3bfa1995b15edbec881a928a251f1b2d429f4e84bc85",
+      "size": 269400
     },
     {
       "path": "chat-session.js",
@@ -22,7 +22,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "b4eacc0a3434c14e06d2eeaba16777e09ee170bde78fb85c6906c73633b2fcd4",
+      "sha256": "11975ccb5053bf1b59c0bb1793b3bb2d3e55934349d960d17d62f734a086edec",
       "size": 58901
     },
     {
