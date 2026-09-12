@@ -360,6 +360,32 @@ body:has(.doc-panel:not(.hidden)) {
 .nav-stat.is-todo { color: var(--warn-text); }
 .nav-stat.is-ok { color: var(--muted-foreground); }
 
+/* ---------- 접이식 공통 프리미티브 (.disclosure) ----------
+   네 곳의 details/summary가 같은 해부를 공유한다 — 기본 마커 숨김,
+   직접 그린 ▸ 셰브론, 열림 회전, 포커스 링. 각 변형(.prov, .log-group,
+   .adv-opts, .trace)은 간격·색·높이 같은 델타만 아래에서 덧입힌다. */
+
+.disclosure > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  user-select: none;
+}
+.disclosure > summary::-webkit-details-marker { display: none; }
+/* 접힘 표시는 직접 그린다 — 기본 삼각형은 브라우저마다 크기·색이 달라
+   같은 줄의 고정폭 글자와 축이 맞지 않는다. */
+.disclosure > summary::before {
+  content: "▸";
+  transition: transform 0.12s ease;
+}
+.disclosure[open] > summary::before { transform: rotate(90deg); }
+.disclosure > summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 /* ---------- 계보(provenance) ---------- */
 
 .prov {
@@ -368,21 +394,9 @@ body:has(.doc-panel:not(.hidden)) {
   padding-top: var(--sp-3);
 }
 .prov > summary {
-  cursor: pointer;
-  list-style: none;
   font-size: var(--fs-xs);
   color: var(--muted-foreground);
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  user-select: none;
 }
-.prov > summary::-webkit-details-marker { display: none; }
-.prov > summary::before {
-  content: "▸";
-  transition: transform 0.12s ease;
-}
-.prov[open] > summary::before { transform: rotate(90deg); }
 .prov > summary:hover { color: var(--foreground); }
 
 /* 라벨은 산문, 값은 값. 값을 고정폭으로 두면 엔진명·프롬프트 버전·타임
@@ -422,26 +436,14 @@ body:has(.doc-panel:not(.hidden)) {
 .log-group { border-bottom: 1px solid var(--border); }
 .log-group:last-child { border-bottom: none; }
 .log-group > summary {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
   height: var(--h-row);
   padding: 0 var(--sp-2);
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
 }
-.log-group > summary::-webkit-details-marker { display: none; }
-/* 접힘 표시는 직접 그린다 — 기본 삼각형은 브라우저마다 크기·색이 달라
-   같은 줄의 고정폭 글자와 축이 맞지 않는다. */
 .log-group > summary::before {
-  content: "▸";
   flex: none;
   width: 1em;
   color: var(--muted-foreground);
-  transition: transform 0.12s ease;
 }
-.log-group[open] > summary::before { transform: rotate(90deg); }
 .log-group > summary:hover { background: var(--muted); }
 .log-title {
   font-family: var(--font);
@@ -1114,26 +1116,14 @@ button:focus-visible, .btn:focus-visible, .step:focus-visible,
   margin-top: var(--sp-3);
 }
 .adv-opts > summary {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
   min-height: 30px;
   padding: 0 var(--sp-3);
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
   font-size: var(--fs-label);
   letter-spacing: var(--ls-label);
   text-transform: uppercase;
   color: var(--muted-foreground);
 }
-.adv-opts > summary::-webkit-details-marker { display: none; }
-.adv-opts > summary::before {
-  content: "▸";
-  flex: none;
-  transition: transform 0.12s ease;
-}
-.adv-opts[open] > summary::before { transform: rotate(90deg); }
+.adv-opts > summary::before { flex: none; }
 .adv-opts[open] > summary { border-bottom: 1px solid var(--border); }
 .adv-opts > summary:hover { color: var(--foreground); }
 .adv-opts > form,
@@ -2487,8 +2477,7 @@ tr.row-focused {
   .tab-panel.active { animation: none; }
   .live-pulse,
   .tstep.st-running .tstep-mark { animation: none !important; }
-  .trace > summary::before,
-  .adv-opts > summary::before { transition: none !important; }
+  .disclosure > summary::before { transition: none !important; }
 }
 
 /* ---------- 확인 대화상자와 오류 표면 ----------------------------------- */
@@ -2670,21 +2659,10 @@ tr.row-focused {
 }
 .trace { margin-bottom: var(--sp-3); }
 .trace > summary {
-  cursor: pointer;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
   font-size: var(--fs-xs);
   color: var(--muted-foreground);
-  user-select: none;
 }
-.trace > summary::-webkit-details-marker { display: none; }
-.trace > summary::before {
-  content: "›";
-  transition: transform 0.12s ease;
-}
-.trace[open] > summary::before { transform: rotate(90deg); }
+.trace > summary::before { content: "›"; }
 .trace > summary:hover { color: var(--foreground); }
 
 .trace-steps {

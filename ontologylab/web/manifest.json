@@ -2,8 +2,8 @@
   "assets": [
     {
       "path": "app.js",
-      "sha256": "fc6638a5177549962f7c3bfa1995b15edbec881a928a251f1b2d429f4e84bc85",
-      "size": 269400
+      "sha256": "1abc150a3ca5a42c9329cc887b7bbff7f68ee31c1503e017acf520d5bc3b6fdf",
+      "size": 269433
     },
     {
       "path": "chat-session.js",
@@ -22,8 +22,8 @@
     },
     {
       "path": "index.html",
-      "sha256": "11975ccb5053bf1b59c0bb1793b3bb2d3e55934349d960d17d62f734a086edec",
-      "size": 58901
+      "sha256": "c2554511439084d988a4d739b904b9471e14551569fd67cf48468015729f10d2",
+      "size": 58923
     },
     {
       "path": "localize.js",
@@ -37,8 +37,8 @@
     },
     {
       "path": "style.css",
-      "sha256": "e79c657aa3a8de86f84f3280f2f8c1e4b0e3dce67707759047d504c221ab6c8c",
-      "size": 107559
+      "sha256": "9b62581bf1e03099e9965aa11ca363bb0a2f7112d51cc43e2d9df9c1e0a4afb0",
+      "size": 107136
     },
     {
       "path": "ui-utils.js",

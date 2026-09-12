@@ -496,7 +496,7 @@
     // 다만 "왜 이걸 믿는가"는 이 도구의 질문 자체이므로 한 번의 클릭 거리에
     // 둔다 — 지금까지는 sqlite를 열어야 닿았다.
     html +=
-      "<details class='prov' data-kind='" + escapeHtml(item.kind || "") +
+      "<details class='prov disclosure' data-kind='" + escapeHtml(item.kind || "") +
       "' data-id='" + escapeHtml(item.id || "") + "'>" +
       "<summary>계보 — 이 항목을 무엇이 언제 만들었나</summary>" +
       "<div class='prov-body muted'><small>여는 중…</small></div></details>";
@@ -2960,7 +2960,7 @@
 
     groupProgress(lines).forEach(function (group) {
       var details = document.createElement("details");
-      details.className = "log-group";
+      details.className = "log-group disclosure";
       // 문제가 있는 단계는 펼친 채로 연다. 사용자가 로그를 여는 이유는
       // 대개 뭔가 잘못됐기 때문이고, 그때 한 번 더 클릭하게 만들 이유가 없다.
       if (group.trouble > 0) details.open = true;
@@ -5764,7 +5764,7 @@
     var rows = collapseSteps(steps);
     var elapsed = Math.max(0, Math.floor((Date.now() - (startedAt || Date.now())) / 1000));
     return (running ? renderLiveTraceChips(rows, elapsed) : "") +
-      "<details class='trace'" + (running ? " open" : "") + ">" +
+      "<details class='trace disclosure'" + (running ? " open" : "") + ">" +
       "<summary>" + escapeHtml(traceSummary(rows, running)) + "</summary>" +
       "<ol class='trace-steps'>" + rows.map(traceStepRow).join("") + "</ol>" +
       "</details>";
