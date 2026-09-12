@@ -1296,24 +1296,24 @@
       "sha256": "2fa13f633ea08515effa586db1c5c1bd954bf835297bb0682d268ae61e3471b4"
     },
     {
-      "bytes": 643617,
-      "path": "ontologylab/web/assets/index-Bs0bRGWk.js",
-      "sha256": "a69cc48991846a0f56e5e2b4a56f6dd189159ecce0b392c57881afd6b175dea0"
-    },
-    {
       "bytes": 39402,
       "path": "ontologylab/web/assets/index-Bx4-wYNQ.css",
       "sha256": "f0da82e6272b1256527a2f070b5d39c4e19c7fc1950edc9a814d2768931f0c19"
     },
     {
+      "bytes": 643607,
+      "path": "ontologylab/web/assets/index-DvXbqY7w.js",
+      "sha256": "1028837d82bc6909a37e45fdbe8ac56ac0cbc1fe9a5221b99fdf634382ad2509"
+    },
+    {
       "bytes": 619,
       "path": "ontologylab/web/index.html",
-      "sha256": "0d56cff4c58d29eb3e2e40f8483e3f48e2036081c73f3e11e2b14700f13ed07f"
+      "sha256": "7ef8f3ce3b2944430ebb1f978c1728f016f5f71c92db00e5984634ff4670e440"
     },
     {
       "bytes": 500,
       "path": "ontologylab/web/manifest.json",
-      "sha256": "484bd1966829425bdaac331c8e067d8d151787a847a774d09ba4e1bcd7e489e3"
+      "sha256": "a0a98f03836e8bcf5bb575b544e1671e90a2f4ed739cd894f103701ff5132ad5"
     },
     {
       "bytes": 10864,
@@ -1814,10 +1814,10 @@
   "git_staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "git_unstaged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "inventory_sha256": "323a91a3452f65dee76463dcbef80331072ca5cbc7d6e0095927c4b95e4058e6",
+  "inventory_sha256": "d40682fbecfccd6ef1c36c13662ecbecb599079a7b8b1ff432f40c13df7f26e0",
   "policy_sha256": "2b484e2ba505c6d1edbc0136cb8f6c397bd3eb38110676982d9f926e0c789866",
   "schema": "ontologylab.release.source-snapshot.v1",
-  "snapshot_sha256": "c5044c84a47e8f91cd83ccfd8381453dd8dbed9e71567d87f8bbe62dac53c126",
+  "snapshot_sha256": "db7e591d3e97118026417ca6a61320a7e7b9d0e54f39014ff64286813a20b396",
   "uv_lock": {
     "bytes": 461552,
     "path": "uv.lock",
