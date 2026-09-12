@@ -42,3 +42,6 @@ launcher/supervisor/.build/
 
 # Plan-runner scratch, same class as .omo/ above.
 .sisyphus/
+frontend/.verify/
+frontend/dist/
+frontend/node_modules/

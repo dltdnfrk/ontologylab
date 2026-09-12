@@ -1,49 +1,19 @@
 {
   "assets": [
     {
-      "path": "app.js",
-      "sha256": "1abc150a3ca5a42c9329cc887b7bbff7f68ee31c1503e017acf520d5bc3b6fdf",
-      "size": 269433
+      "path": "assets/index-CHFN3mhY.css",
+      "sha256": "4a4bbd84a6d1cec8e82f9a1c1a2f6c7a3b8dc6602f4af9591e23b127a4c8a0cf",
+      "size": 50164
     },
     {
-      "path": "chat-session.js",
-      "sha256": "45e80c4cc2a6f0cc311a910f2f731b6da9672bd436dc9f748b215f9c69b1e84f",
-      "size": 4721
-    },
-    {
-      "path": "favicon.svg",
-      "sha256": "4b123cf3e11827ffdf2e0a91d4b76acc37f707d764b429c09f70055ee7ae29f8",
-      "size": 308
-    },
-    {
-      "path": "fonts/PretendardVariable.woff2",
-      "sha256": "9599f12fd42fc0bce1cd50b47a0c022e108d7aa64dd0d1bb0ed44f3282d900b4",
-      "size": 2057688
+      "path": "assets/index-DMC0LhFj.js",
+      "sha256": "9d6fd4ff29857549ead7ee465bb2448d2f4d28dc529ca4f1012a397023f4fd63",
+      "size": 641288
     },
     {
       "path": "index.html",
-      "sha256": "c2554511439084d988a4d739b904b9471e14551569fd67cf48468015729f10d2",
-      "size": 58923
-    },
-    {
-      "path": "localize.js",
-      "sha256": "544056dbaad1d1e605752d89db00d6b90f8be62f50b3fa13ba1a983802fcbff7",
-      "size": 6991
-    },
-    {
-      "path": "research-summary.js",
-      "sha256": "29d69924c39e0dace71b25c00780b84bd6dc6fa70d011557753b2231acb524ab",
-      "size": 4095
-    },
-    {
-      "path": "style.css",
-      "sha256": "9b62581bf1e03099e9965aa11ca363bb0a2f7112d51cc43e2d9df9c1e0a4afb0",
-      "size": 107136
-    },
-    {
-      "path": "ui-utils.js",
-      "sha256": "e92a2aa7e33a05f55905486863a1a530d171cfa220782d832870855c03402c12",
-      "size": 5479
+      "sha256": "106d3518c8c0b11ae641a47b6a42beb3a3e05ebcb4cd1228d01314171cdcdf50",
+      "size": 619
     }
   ],
   "version": 1

@@ -1,0 +1,279 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ==========================================================================
+   Design tokens — ported verbatim from the documented source of truth
+   (DESIGN.md §2–§4; legacy `ontologylab/web/style.css :root`).
+
+   Dark is the only supported theme: the state triad (초록=검증됨,
+   호박=제안됨, 진홍=거부) carries meaning, so the canvas it sits on may not
+   change with an OS setting. Semantic color never decorates.
+
+   New values belong here as a named role first. Writing a raw color, size or
+   spacing inline is how the scale rots back into nine arbitrary values.
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* Canvas / text */
+  --background: #262624;
+  --foreground: #ecebe6;
+
+  /* Surfaces — depth is a tonal step plus a hairline, never a shadow */
+  --card: #30302e;
+  --card-foreground: #ecebe6;
+  --popover: #3a3a37;
+  --popover-foreground: #ecebe6;
+  --shell: #262624;
+
+  /* Operator action */
+  --primary: #b54d30;
+  --primary-foreground: #ffffff;
+
+  /* Fills, chips, code backgrounds */
+  --secondary: #3a3a37;
+  --secondary-foreground: #ecebe6;
+  --muted: #353532;
+  --muted-foreground: #a3a29c;
+
+  /* Single interaction accent — deliberately outside the state triad.
+
+     역할이 둘이라 토큰도 둘이다. shadcn 프리미티브가 `accent` 라는 이름으로
+     칠하는 자리는 포인트색이 아니라 "은은한 면"이다 — ghost 버튼 hover,
+     Select 항목 focus, 레일의 활성 탭. 거기에 #e99573 을 그대로 얹으면
+     hover 마다 선명한 살구색 덩어리가 깔리고, 원본에서 그 자리를 맡던 값
+     (--sidebar-accent #353532)과도 어긋난다. 면은 --accent, 포인트색은
+     --point 로 나눠 둔다. */
+  --accent: #353532;
+  --accent-foreground: #ecebe6;
+  --point: #e99573;
+  --point-foreground: #1f1f1d;
+  --point-soft: rgba(233, 149, 115, 0.14);
+
+  --destructive: #e5787a;
+  --destructive-foreground: #1f1f1d;
+  --destructive-soft: rgba(229, 120, 122, 0.14);
+
+  --border: #3f3f3b;
+  --input: #4a4a45;
+  --ring: #f2f5f2;
+
+  /* Certainty reads as ink density */
+  --ink-draft: #8d8c86;
+  --ink-verified: var(--foreground);
+
+  /* Evidence state machine */
+  --ok: #7fb069;
+  --warn: #d9a441;
+  --ok-text: #8fc47a;
+  --warn-text: #e0b45a;
+  --ok-soft: rgba(127, 176, 105, 0.14);
+  --warn-soft: rgba(217, 164, 65, 0.16);
+
+  /* Left rail — sits below the canvas so content comes forward */
+  --sidebar: #1f1f1d;
+  --sidebar-foreground: #a3a29c;
+  --sidebar-primary: #ecebe6;
+  --sidebar-accent: #353532;
+  --sidebar-accent-foreground: #ecebe6;
+  --sidebar-border: #3f3f3b;
+  --sidebar-ring: #f2f5f2;
+
+  /* Data visualization */
+  --chart-1: #00c805;
+  --chart-2: #e5787a;
+  --chart-3: #d9a441;
+  --chart-4: #a3a29c;
+  --chart-5: #ecebe6;
+
+  /* Type — one family covers Latin and Hangul so numbers do not bold out
+     of a Korean sentence. Pretendard when present, system UI otherwise. */
+  --font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    "SF Pro Text", "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", system-ui,
+    sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  --fs-display: 22px;
+  --fs-lg: 17px;
+  --fs-md: 15px;
+  --fs-base: 14px;
+  --fs-sm: 13px;
+  --fs-xs: 12px;
+  --fs-label: 11px;
+
+  --lh-tight: 1.2;
+  --lh-snug: 1.4;
+  --lh-body: 1.5;
+
+  --ls-display: 0;
+  --ls-tight: 0;
+  --ls-label: 0.08em;
+
+  --fw-normal: 400;
+  --fw-medium: 550;
+  --fw-bold: 600;
+
+  /* Density */
+  --h-chrome: 44px;
+  --h-control: 28px;
+  --h-row: 34px;
+  --h-statusbar: 26px;
+
+  /* Motion (DESIGN.md §6). Only opacity, transform, and color animate. */
+  --t-micro: 150ms;
+  --t-tab: 140ms;
+  --t-standard: 200ms;
+
+  /* Reading width */
+  --measure: 72ch;
+  --content-max: 1080px;
+}
+
+/* ==========================================================================
+   Tailwind mapping. `inline` keeps the utilities pointing at the variables
+   above, so the roles stay the single theme-swap point.
+   ========================================================================== */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-shell: var(--shell);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-point: var(--point);
+  --color-point-foreground: var(--point-foreground);
+  --color-point-soft: var(--point-soft);
+  /* '진행 중'은 판정색(초록·호박·빨강)을 쓸 수 없는 자리다 — 아직 아무것도
+     판정되지 않았으므로. 새 색을 만들지 않고, 상태 3색과 겹치지 않도록 이미
+     고른 상호작용색에 이름만 하나 더 붙인다. */
+  --color-highlight: var(--point);
+  --color-highlight-soft: var(--point-soft);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ink-draft: var(--ink-draft);
+  --color-ok: var(--ok);
+  --color-ok-text: var(--ok-text);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-text: var(--warn-text);
+  --color-warn-soft: var(--warn-soft);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+
+  /* The declared seven-step scale, mapped onto the utilities the generated
+     shadcn primitives already use. */
+  --text-label: var(--fs-label);
+  --text-label--line-height: var(--lh-snug);
+  --text-xs: var(--fs-xs);
+  --text-xs--line-height: var(--lh-snug);
+  --text-sm: var(--fs-sm);
+  --text-sm--line-height: var(--lh-snug);
+  --text-base: var(--fs-base);
+  --text-base--line-height: var(--lh-body);
+  --text-md: var(--fs-md);
+  --text-md--line-height: var(--lh-snug);
+  --text-lg: var(--fs-lg);
+  --text-lg--line-height: var(--lh-snug);
+  --text-xl: var(--fs-lg);
+  --text-xl--line-height: var(--lh-tight);
+  --text-2xl: var(--fs-display);
+  --text-2xl--line-height: var(--lh-tight);
+
+  /* 작은 라벨은 벌려야 읽힌다(DESIGN.md §3). 인라인 임의값 대신 이름으로. */
+  --tracking-label: var(--ls-label);
+  --tracking-tight: var(--ls-tight);
+
+  --font-weight-normal: var(--fw-normal);
+  --font-weight-medium: var(--fw-medium);
+  --font-weight-semibold: var(--fw-bold);
+  --font-weight-bold: var(--fw-bold);
+
+  --tracking-label: var(--ls-label);
+
+  /* 4px grid */
+  --spacing: 4px;
+
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 14px;
+
+  /* §7: depth is tonal, so every shadow utility resolves to nothing. */
+  --shadow-2xs: none;
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-xl: none;
+  --shadow-2xl: none;
+}
+
+@layer base {
+  /* Tailwind v4 defaults a border to currentColor; the hairline is a role. */
+  *,
+  ::after,
+  ::before {
+    border-color: var(--border);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font);
+    font-size: var(--fs-base);
+    line-height: var(--lh-body);
+    letter-spacing: var(--ls-tight);
+    -webkit-font-smoothing: antialiased;
+    /* Korean breaks by syllable under the default; keep 어절 whole and only
+       force a break inside unbreakable tokens (URLs, hashes). */
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+
+  a {
+    color: var(--accent);
+  }
+
+  code,
+  kbd,
+  samp {
+    font-family: var(--mono);
+  }
+}
