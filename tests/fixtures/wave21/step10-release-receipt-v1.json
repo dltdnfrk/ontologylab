@@ -8,8 +8,8 @@
   },
   "performance": {
     "ceiling_ms": 10195.704249618575,
-    "evidence_sha256": "207ee078e851a576e6546e1374a98e57b7b6827f08b159b256cc07f79bd17e5d",
-    "mutation_receipt_sha256": "8d77ff6fb01d327617276933d2ef99cb17c1ec48cdacf3a1384a25fcf31ca9d2",
+    "evidence_sha256": "d2e930a2b5ce801aef5df9851e7727f425aab968423b37e0571e16beac695025",
+    "mutation_receipt_sha256": "c6429b056952a892f120170e2b44952aa144865defeff8c7db42255a26e2651b",
     "outputs": {
       "create": {
         "conflicts": 500,
@@ -24,11 +24,11 @@
         "failures": 0
       }
     },
-    "p95_ms": 5077.748167001118,
+    "p95_ms": 4734.644207997917,
     "samples_ms": [
-      4500.678874999721,
-      4496.621917001903,
-      5077.748167001118
+      4629.211125000438,
+      4624.567834001937,
+      4734.644207997917
     ],
     "statistic": "nearest-rank-p95"
   },
