@@ -1286,9 +1286,9 @@
       "sha256": "6607a5523f03ac9c70ecb4686478e5b53a62baf9ef283575b656fb310d0a4ca1"
     },
     {
-      "bytes": 4361,
+      "bytes": 2301,
       "path": "ontologylab/web/AGENTS.md",
-      "sha256": "731fe33b1be3fa0ea0cce8fe121c573c9cbd87b427b9e957d6ca36c57827dd00"
+      "sha256": "40c8cb21196cc5dcbb03c55e258a7983c071d81258e76312fe0d3319c58cfa1c"
     },
     {
       "bytes": 347,
@@ -1296,54 +1296,24 @@
       "sha256": "2fa13f633ea08515effa586db1c5c1bd954bf835297bb0682d268ae61e3471b4"
     },
     {
-      "bytes": 269433,
-      "path": "ontologylab/web/app.js",
-      "sha256": "1abc150a3ca5a42c9329cc887b7bbff7f68ee31c1503e017acf520d5bc3b6fdf"
+      "bytes": 50164,
+      "path": "ontologylab/web/assets/index-CHFN3mhY.css",
+      "sha256": "4a4bbd84a6d1cec8e82f9a1c1a2f6c7a3b8dc6602f4af9591e23b127a4c8a0cf"
     },
     {
-      "bytes": 4721,
-      "path": "ontologylab/web/chat-session.js",
-      "sha256": "45e80c4cc2a6f0cc311a910f2f731b6da9672bd436dc9f748b215f9c69b1e84f"
+      "bytes": 641288,
+      "path": "ontologylab/web/assets/index-DMC0LhFj.js",
+      "sha256": "9d6fd4ff29857549ead7ee465bb2448d2f4d28dc529ca4f1012a397023f4fd63"
     },
     {
-      "bytes": 308,
-      "path": "ontologylab/web/favicon.svg",
-      "sha256": "4b123cf3e11827ffdf2e0a91d4b76acc37f707d764b429c09f70055ee7ae29f8"
-    },
-    {
-      "bytes": 2057688,
-      "path": "ontologylab/web/fonts/PretendardVariable.woff2",
-      "sha256": "9599f12fd42fc0bce1cd50b47a0c022e108d7aa64dd0d1bb0ed44f3282d900b4"
-    },
-    {
-      "bytes": 58923,
+      "bytes": 619,
       "path": "ontologylab/web/index.html",
-      "sha256": "c2554511439084d988a4d739b904b9471e14551569fd67cf48468015729f10d2"
+      "sha256": "106d3518c8c0b11ae641a47b6a42beb3a3e05ebcb4cd1228d01314171cdcdf50"
     },
     {
-      "bytes": 6991,
-      "path": "ontologylab/web/localize.js",
-      "sha256": "544056dbaad1d1e605752d89db00d6b90f8be62f50b3fa13ba1a983802fcbff7"
-    },
-    {
-      "bytes": 1372,
+      "bytes": 500,
       "path": "ontologylab/web/manifest.json",
-      "sha256": "b359bf7410325048faf08f7e222d0637af2bee5b7b16574c8cb7fe8dacd1937d"
-    },
-    {
-      "bytes": 4095,
-      "path": "ontologylab/web/research-summary.js",
-      "sha256": "29d69924c39e0dace71b25c00780b84bd6dc6fa70d011557753b2231acb524ab"
-    },
-    {
-      "bytes": 107136,
-      "path": "ontologylab/web/style.css",
-      "sha256": "9b62581bf1e03099e9965aa11ca363bb0a2f7112d51cc43e2d9df9c1e0a4afb0"
-    },
-    {
-      "bytes": 5479,
-      "path": "ontologylab/web/ui-utils.js",
-      "sha256": "e92a2aa7e33a05f55905486863a1a530d171cfa220782d832870855c03402c12"
+      "sha256": "3e31e226abe2caebcf1e5dccbe2828d47f409ba59788e945217a6d5c5c2757cf"
     },
     {
       "bytes": 10864,
@@ -1401,9 +1371,9 @@
       "sha256": "ff953f90b573cef76e1a0b8254ac1cb11ab50eef99d6519a0460e9775ab66a1d"
     },
     {
-      "bytes": 14198,
+      "bytes": 14232,
       "path": "release/candidate_package.py",
-      "sha256": "066df734fb20fcae3de1d8c37db31650c403333de50955486503de032908d58d"
+      "sha256": "3e002eea2a7bc21588061b0cb8aeacfb44b7278ecd2edf7be767d4cb723d1c3c"
     },
     {
       "bytes": 7480,
@@ -1842,12 +1812,12 @@
     }
   ],
   "git_staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "git_unstaged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "inventory_sha256": "47b459c546fae73860b22f2be3853be0215f7080dada30e25deb2d7bc9b011cc",
+  "git_status_sha256": "043d4b166c903924a9709213a893747a0039204beda5d066181ce068980f03ec",
+  "git_unstaged_diff_sha256": "96db11d1e5bcb29552224b5d2741d2a6f0d4c2a9ef029506164ee948a13c2e9a",
+  "inventory_sha256": "788e3011d4c758cabf1fe752549684fde77c4ecd5faf01134f56605347597285",
   "policy_sha256": "2b484e2ba505c6d1edbc0136cb8f6c397bd3eb38110676982d9f926e0c789866",
   "schema": "ontologylab.release.source-snapshot.v1",
-  "snapshot_sha256": "090b51a512f8051d83dafb575996c890cf5d4942342e5d39e97d76387cda786e",
+  "snapshot_sha256": "f38f5ae91fc02f22b2d78869aed78da580e916bdaeda67969a60c98c0885f794",
   "uv_lock": {
     "bytes": 461552,
     "path": "uv.lock",
