@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ComponentType } from "react";
 import {
   AlertCircle,
-  Beaker,
   CheckCircle2,
   Cpu,
   Database,
@@ -92,13 +91,6 @@ type CollectResponse = {
   created?: number;
   duplicates?: number;
   failures?: { source_uri: string; error_class: string; kind: string }[];
-};
-
-type SampleResponse = {
-  ok: boolean;
-  created: boolean;
-  document_id: string;
-  title: string;
 };
 
 type StartResponse = {
@@ -285,7 +277,6 @@ export default function SourcesPage() {
   const [extractEngine, setExtractEngine] = useState("");
 
   const [collecting, setCollecting] = useState(false);
-  const [sampling, setSampling] = useState(false);
   const [researching, setResearching] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [testing, setTesting] = useState<Record<string, boolean>>({});
@@ -384,29 +375,6 @@ export default function SourcesPage() {
     }
   }
 
-  async function runSample() {
-    setSampling(true);
-    setCollectResult(null);
-    try {
-      const res = await post<SampleResponse>("/collect/sample");
-      if (!res.ok) {
-        setCollectResult({ tone: "danger", text: "샘플 문서를 수집하지 못했습니다." });
-        return;
-      }
-      setDocId(res.document_id);
-      setCollectResult({
-        tone: "ok",
-        text: res.created
-          ? `샘플 문서를 수집했습니다: ${res.title} — 문서 ID를 추출 폼에 채웠습니다.`
-          : `샘플 문서가 이미 있습니다: ${res.title} — 문서 ID를 추출 폼에 채웠습니다.`,
-      });
-    } catch (err) {
-      setCollectResult({ tone: "danger", text: errorText(err) });
-    } finally {
-      setSampling(false);
-    }
-  }
-
   async function runResearch() {
     const trimmed = topic.trim();
     if (!trimmed || !researchEngine) return;
@@ -478,7 +446,7 @@ export default function SourcesPage() {
     }
   }
 
-  const busy = collecting || sampling || researching || extracting;
+  const busy = collecting || researching || extracting;
 
   return (
     <div className="mx-auto w-full max-w-[var(--content-max)] space-y-6 p-6">
@@ -614,10 +582,6 @@ export default function SourcesPage() {
               >
                 {collecting ? <Loader2 className="animate-spin" /> : <Search />}
                 수집 시작
-              </Button>
-              <Button variant="outline" onClick={() => void runSample()} disabled={busy}>
-                {sampling ? <Loader2 className="animate-spin" /> : <Beaker />}
-                샘플 수집
               </Button>
             </div>
             <ResultNote result={collectResult} />

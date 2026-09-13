@@ -493,8 +493,8 @@ export default function HomePage() {
           </section>
 
           <div className="grid gap-4 lg:grid-cols-3">
-            <Card className="lg:col-span-2">
-              <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+            <Card className="min-w-0 lg:col-span-2">
+              <CardHeader className="flex-row flex-wrap items-start justify-between gap-4 space-y-0">
                 <div className="space-y-1">
                   <CardTitle className="text-md">검토 대기열</CardTitle>
                   <CardDescription>

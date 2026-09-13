@@ -6,14 +6,16 @@ kinds are supported: ``anthropic`` (the Anthropic Messages API) and
 ``openai`` (any OpenAI-compatible ``/chat/completions`` endpoint — OpenAI,
 OpenRouter, a local Ollama/LM Studio server, ...).
 
-Secret posture (load-bearing): a provider stores the *name* of an environment
-variable (``api_key_env``), never the key itself. That name is not chosen by
-the caller — it is bound to the provider origin and id (official Anthropic /
-OpenAI / OpenRouter hosts use their dedicated vars; everything else uses
-``ONTOLOGYLAB_PROVIDER_<ID>_<12-hex-origin>``). The key is read from ``os.environ`` at call
-time (:func:`resolve_api_key`) and never serialized. The registry file lives
-in the gitignored working data area (:func:`ontologylab.paths.providers_path`),
-so it is never committed.
+Secret posture (load-bearing): a provider stores *locators*, never a key.
+``api_key_env`` names an environment variable bound to the provider origin
+and id (official Anthropic / OpenAI / OpenRouter hosts use their dedicated
+vars; everything else uses ``ONTOLOGYLAB_PROVIDER_<ID>_<12-hex-origin>``).
+``keychain_account`` names a macOS Keychain item — the same posture
+``sources.py`` takes for publisher keys — used by keys pasted in the UI and
+by the OpenRouter OAuth flow (:mod:`ontologylab.oauth_connect`). The key is
+read at call time (:func:`resolve_api_key`, Keychain first then env) and
+never serialized. The registry file lives in the gitignored working data
+area (:func:`ontologylab.paths.providers_path`), so it is never committed.
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
+from ontologylab.keychain import ACCOUNT_RE, delete_key, resolve_key
 from ontologylab.paths import providers_path
 
 _REGISTRY_FILE_MODE = 0o600
@@ -64,8 +67,9 @@ class ProviderCredentialError(ProviderError):
 class Provider:
     """One registered model backend.
 
-    ``api_key_env`` is the NAME of an environment variable, not a key —
-    resolve the actual key with :func:`resolve_api_key` at call time.
+    ``api_key_env`` is the NAME of an environment variable, not a key, and
+    ``keychain_account`` is the NAME of a Keychain item, not a key — resolve
+    the actual key with :func:`resolve_api_key` at call time.
     """
 
     id: str
@@ -74,9 +78,10 @@ class Provider:
     api_key_env: str
     models: tuple[str, ...] = ()
     label: str = ""
+    keychain_account: str = ""
 
     def to_dict(self) -> dict:
-        """Serializable view — id/kind/base_url/api_key_env/models/label only.
+        """Serializable view — locators and metadata only.
 
         Never includes a resolved key; there is no key field to leak.
         """
@@ -87,6 +92,7 @@ class Provider:
             "api_key_env": self.api_key_env,
             "models": list(self.models),
             "label": self.label,
+            "keychain_account": self.keychain_account,
         }
 
 
@@ -102,6 +108,7 @@ def _provider_from_dict(raw: dict) -> Provider:
         api_key_env=str(raw["api_key_env"]),
         models=tuple(str(m) for m in models),
         label=str(raw.get("label") or ""),
+        keychain_account=str(raw.get("keychain_account") or ""),
     )
 
 
@@ -126,6 +133,16 @@ def _normalized_origin(url: str) -> str | None:
     if ":" in host:
         return f"{scheme}://[{host}]:{port}"
     return f"{scheme}://{host}:{port}"
+
+
+def canonical_keychain_account(provider_id: str) -> str:
+    """Return the one-account-per-provider Keychain locator.
+
+    The ``provider.`` prefix keeps these items in the same service as
+    publisher-source keys (``ontologylab.<source>``) without colliding with
+    them.
+    """
+    return f"provider.{provider_id}"
 
 
 def dedicated_api_key_env(provider_id: str, base_url: str) -> str:
@@ -183,18 +200,50 @@ def validate_provider(provider: Provider) -> Provider:
         raise ProviderCredentialError(
             "api_key_env is not bound to this provider origin"
         )
+    if provider.keychain_account and not ACCOUNT_RE.fullmatch(
+        provider.keychain_account
+    ):
+        raise ProviderError(
+            f"invalid keychain_account {provider.keychain_account!r}: must "
+            r"match ^[a-z0-9][a-z0-9._-]{0,63}$"
+        )
     return provider
 
 
 def resolve_api_key(provider: Provider) -> Optional[str]:
-    """Read the provider's API key from the environment at call time.
+    """Read the provider's API key at call time; None when unconfigured.
 
-    Returns the stripped value of ``os.environ[provider.api_key_env]`` or
-    ``None`` when the variable is unset or empty. The key is never stored;
-    this is the ONLY place it enters the process from configuration.
+    Keychain first, then the environment — the same order
+    :func:`ontologylab.keychain.resolve_key` documents: a machine that has
+    both has deliberately stored one, and an environment variable is the
+    more likely leftover. The key is never stored; this is the ONLY place
+    it enters the process from configuration.
     """
-    value = os.environ.get(provider.api_key_env, "").strip()
-    return value or None
+    return resolve_key(provider.keychain_account, provider.api_key_env)
+
+
+def api_key_present(provider: Provider) -> bool:
+    """Passive presence check for listings — never opens the Keychain.
+
+    Mirrors ``offline_policy.passive_source_view``: a configured Keychain
+    account means a key was stored through this app (the forget-key endpoint
+    clears the account when it deletes the item), and an env var counts only
+    when it is actually set.
+    """
+    if provider.keychain_account:
+        return True
+    return bool(os.environ.get(provider.api_key_env, "").strip())
+
+
+def forget_api_key(provider: Provider) -> bool:
+    """Delete the provider's Keychain item, if one is configured.
+
+    Returns whether an item was removed. Env-var keys are the user's own
+    environment and are never touched.
+    """
+    if not provider.keychain_account:
+        return False
+    return delete_key(provider.keychain_account)
 
 
 def _restrict_dir(path: Path) -> None:
@@ -299,7 +348,10 @@ __all__ = [
     "ProviderCredentialError",
     "PROVIDER_ID_RE",
     "PROVIDER_KINDS",
+    "api_key_present",
+    "canonical_keychain_account",
     "dedicated_api_key_env",
+    "forget_api_key",
     "validate_provider",
     "resolve_api_key",
     "load_providers",

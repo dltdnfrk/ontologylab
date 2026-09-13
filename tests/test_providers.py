@@ -176,6 +176,9 @@ def test_saved_registry_never_contains_key_value(tmp_path, monkeypatch):
     raw = providers_path(tmp_path).read_text(encoding="utf-8")
     assert "sk-super-secret-value" not in raw
     assert "ANTHROPIC_API_KEY" in raw  # only the bound env-var NAME is stored
-    # And the parsed shape carries no key-like field.
+    # And the parsed shape carries no key-like field — locators only.
     stored = json.loads(raw)["providers"][0]
-    assert set(stored) == {"id", "kind", "base_url", "api_key_env", "models", "label"}
+    assert set(stored) == {
+        "id", "kind", "base_url", "api_key_env", "models", "label",
+        "keychain_account",
+    }

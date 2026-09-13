@@ -1,10 +1,7 @@
-"""Task-2 relocation pin for the dashboard HTTP surface.
+"""Shipped-copy pins for the React dashboard HTTP surface.
 
-Before the dashboard assets moved from the repository ``web/`` directory
-into the ``ontologylab.web`` package resources, their served bytes and
-status codes were captured here. The move must not change what the browser
-receives: every assertion below passed against the pre-move checkout server
-and must keep passing against the manifest-verified package resources.
+The approved React rewrite replaced the legacy vanilla asset set. These
+literal pins retain byte-for-byte HTTP verification of the current bundle.
 
 The authority tests at the bottom lock the new behavior: a committed
 manifest (path + size + SHA-256) that must match the shipped tree exactly,
@@ -29,15 +26,9 @@ from ontologylab.server.app import create_app
 # Current shipped-copy contract: served path, byte length, and SHA-256.
 # /static/index.html is intentionally retained as a directly served asset.
 _PINNED_ASSETS: tuple[tuple[str, int, str], ...] = (
-    ("index.html", 58923, "c2554511439084d988a4d739b904b9471e14551569fd67cf48468015729f10d2"),
-    ("app.js", 269433, "1abc150a3ca5a42c9329cc887b7bbff7f68ee31c1503e017acf520d5bc3b6fdf"),
-    ("chat-session.js", 4721, "45e80c4cc2a6f0cc311a910f2f731b6da9672bd436dc9f748b215f9c69b1e84f"),
-    ("favicon.svg", 308, "4b123cf3e11827ffdf2e0a91d4b76acc37f707d764b429c09f70055ee7ae29f8"),
-    ("localize.js", 6991, "544056dbaad1d1e605752d89db00d6b90f8be62f50b3fa13ba1a983802fcbff7"),
-    ("research-summary.js", 4095, "29d69924c39e0dace71b25c00780b84bd6dc6fa70d011557753b2231acb524ab"),
-    ("ui-utils.js", 5479, "e92a2aa7e33a05f55905486863a1a530d171cfa220782d832870855c03402c12"),
-    ("style.css", 107136, "9b62581bf1e03099e9965aa11ca363bb0a2f7112d51cc43e2d9df9c1e0a4afb0"),
-    ("fonts/PretendardVariable.woff2", 2057688, "9599f12fd42fc0bce1cd50b47a0c022e108d7aa64dd0d1bb0ed44f3282d900b4"),
+    ("index.html", 619, "6c721268320a59413014f5c768b40d65ac6e007917c76dbd95aa4dbe63151fd8"),
+    ("assets/index-Bw9snlwz.js", 645856, "419e8ac309f273a948494d80342f3e9423a84031627fb1a63054978fe1d77224"),
+    ("assets/index-9ca2WeHB.css", 39474, "78152dded307545236cd0075e22e9e361a5c343d467f18f01c4b1728cbaa459b"),
 )
 
 # nosniff-safe families, not exact strings: StaticFiles took the MIME table
@@ -70,7 +61,7 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> TestClient:
 
 
 # --------------------------------------------------------------------------
-# PIN: the pre-move HTTP surface, byte for byte
+# PIN: the current HTTP surface, byte for byte
 # --------------------------------------------------------------------------
 
 
@@ -265,3 +256,12 @@ def test_packaged_javascript_passes_node_check() -> None:
                 check=False,
             )
         assert proc.returncode == 0, f"{path}: {proc.stderr}"
+
+
+def test_shipped_dashboard_has_no_sample_collection_action() -> None:
+    assets = web_assets.verify_assets()
+
+    scripts = [body for path, body in assets.content.items() if path.endswith(".js")]
+
+    assert scripts
+    assert all(b"/collect/sample" not in body for body in scripts)

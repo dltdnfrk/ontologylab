@@ -104,11 +104,15 @@ from ontologylab.providers import (
     Provider,
     ProviderError,
     add_provider,
+    api_key_present,
+    canonical_keychain_account as provider_keychain_account,
     dedicated_api_key_env,
+    forget_api_key,
     get_provider,
     load_providers,
     remove_provider,
     resolve_api_key,
+    save_providers,
 )
 from ontologylab.research_artifacts import (
     ResearchArtifactError,
@@ -384,14 +388,22 @@ def get_cost(deps: AppDependency) -> CostSummary:
 
 
 def _provider_public(provider: Provider) -> ProviderModel:
-    """Public projection of a Provider: presence only, never a key or locator."""
+    """Public projection of a Provider: presence only, never a key or locator.
+
+    ``api_key_present`` is passive — it reports a configured Keychain account
+    or a set env var without opening the Keychain, the same posture
+    ``passive_source_view`` takes for publisher sources.
+    """
     return ProviderModel(
         id=provider.id,
         kind=provider.kind,
         base_url=provider.base_url,
         models=list(provider.models),
         label=provider.label,
-        key_present=resolve_api_key(provider) is not None,
+        key_present=api_key_present(provider),
+        key_location=(
+            "keychain" if provider.keychain_account else "env"
+        ),
     )
 
 
@@ -403,9 +415,20 @@ def list_providers(deps: AppDependency) -> dict[str, Any]:
 
 @router.post("/providers")
 def create_provider(deps: AppDependency, body: ProviderCreate) -> dict[str, Any]:
+    """Register a provider; an optional pasted key goes to the Keychain.
+
+    Same contract as ``POST /api/sources``: the key is write-only, never
+    echoed in any response or error, and a machine without the Keychain is
+    told to use the env-var path instead.
+    """
+    key = (body.key or "").strip()
+    if key and len(key) > MAX_SOURCE_KEY_LEN:
+        return {"ok": False, "error_kind": "rejected",
+                "detail": f"key is longer than {MAX_SOURCE_KEY_LEN} characters"}
     env = (body.api_key_env or "").strip() or dedicated_api_key_env(
         body.id, body.base_url
     )
+    account = provider_keychain_account(body.id) if key else ""
     provider = Provider(
         id=body.id,
         kind=body.kind,
@@ -413,7 +436,25 @@ def create_provider(deps: AppDependency, body: ProviderCreate) -> dict[str, Any]
         api_key_env=env,
         models=tuple(body.models or ()),
         label=body.label or "",
+        keychain_account=account,
     )
+    if key:
+        if not keychain_available():
+            return {
+                "ok": False,
+                "error_kind": "unsupported",
+                "detail": (
+                    "this machine has no macOS Keychain; set the key as an "
+                    "environment variable and give its name as api_key_env"
+                ),
+            }
+        try:
+            write_key(account, key)
+        except KeychainError as exc:
+            detail = str(exc)
+            if key in detail:
+                detail = "the Keychain rejected the key"
+            return {"ok": False, "error_kind": "failed", "detail": detail}
     try:
         add_provider(deps.data_dir, provider)
     except ProviderError as exc:
@@ -423,8 +464,37 @@ def create_provider(deps: AppDependency, body: ProviderCreate) -> dict[str, Any]
 
 @router.delete("/providers/{provider_id}")
 def delete_provider(deps: AppDependency, provider_id: str) -> dict[str, Any]:
+    """Unregister a provider. The stored key is left alone.
+
+    Same split as sources: removing a configuration row and destroying a
+    credential are different decisions. ``key_retained`` tells the UI
+    whether to offer the second one.
+    """
+    provider = get_provider(deps.data_dir, provider_id)
     removed = remove_provider(deps.data_dir, provider_id)
-    return {"ok": True, "removed": removed}
+    retained = bool(provider is not None and provider.keychain_account)
+    return {"ok": True, "removed": removed, "key_retained": retained}
+
+
+@router.delete("/providers/{provider_id}/key")
+def forget_provider_key(deps: AppDependency, provider_id: str) -> dict[str, Any]:
+    """Delete the provider's stored Keychain key, leaving the row in place.
+
+    The dangling locator is cleared in the same action so the passive
+    listing reads the truth — "not connected" — without opening the
+    Keychain. Env-var keys are the user's own environment and untouched.
+    """
+    provider = get_provider(deps.data_dir, provider_id)
+    if provider is None or not provider.keychain_account:
+        return {"ok": True, "forgotten": False, "reason": "no stored key"}
+    forgotten = forget_api_key(provider)
+    cleared = dataclasses.replace(provider, keychain_account="")
+    providers = [
+        cleared if p.id == provider_id else p
+        for p in load_providers(deps.data_dir)
+    ]
+    save_providers(deps.data_dir, providers)
+    return {"ok": True, "forgotten": forgotten}
 
 
 @router.post("/providers/{provider_id}/test", response_model=ProviderTestResult)
@@ -451,8 +521,8 @@ async def test_provider(deps: AppDependency, provider_id: str) -> ProviderTestRe
         return ProviderTestResult(
             ok=False,
             error=(
-                "전용 환경변수가 설정되지 않았습니다. "
-                "키를 설정한 뒤 서버를 다시 시작해야 합니다."
+                "저장된 키가 없습니다. "
+                "키를 입력하거나 OpenRouter 연결을 사용하세요."
             ),
         )
     engine = resolve_engine(f"api:{provider_id}", data_dir=deps.data_dir)

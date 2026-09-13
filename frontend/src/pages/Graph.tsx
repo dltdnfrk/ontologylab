@@ -386,6 +386,7 @@ export default function GraphPage() {
   const rafRef = React.useRef<number | null>(null);
   const fitPendingRef = React.useRef(false);
   const selectedIdRef = React.useRef<string | null>(null);
+  const detailSeqRef = React.useRef(0);
   const dragRef = React.useRef<SimNode | null>(null);
   const panRef = React.useRef<{ px: number; py: number; vx: number; vy: number } | null>(null);
   const downAtRef = React.useRef<{ x: number; y: number } | null>(null);
@@ -610,6 +611,7 @@ export default function GraphPage() {
         nodeElsRef.current = new Map();
         edgeElsRef.current = new Map();
         viewRef.current = { x: 0, y: 0, k: 1 };
+        detailSeqRef.current += 1;
         setSelectedId(null);
         setDetail(null);
         setDetailError(null);
@@ -643,7 +645,10 @@ export default function GraphPage() {
     const svg = svgRef.current;
     if (!svg || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
-      if (nodesRef.current.length > 0) reheat(0.25);
+      if (nodesRef.current.length > 0) {
+        fitPendingRef.current = true;
+        reheat(0.25);
+      }
     });
     observer.observe(svg);
     return () => observer.disconnect();
@@ -652,12 +657,14 @@ export default function GraphPage() {
   /* ---------- 상세 ---------- */
 
   const loadDetail = React.useCallback(async (id: string) => {
+    const seq = ++detailSeqRef.current;
     setDetailLoading(true);
     setDetailError(null);
     try {
       /* 자유 탐색용 엔티티 상세는 review 컨텍스트가 그대로 담고 있다
          (엔티티 + 관계 + 출처 + 크리틱 점수). 별도 엔드포인트는 없다. */
       const payload = await get<EntityDetail>(`/entity/${encodeURIComponent(id)}/review`);
+      if (seq !== detailSeqRef.current) return;
       /* HTTP 응답은 시스템 경계다 — 목록 필드가 빠진 응답 하나가 화면 전체를
          내리지 않도록 여기서 한 번만 정규화한다. JSX 안에 옵셔널 체이닝을
          흩뿌리는 대신 경계에서 형태를 보장한다. */
@@ -674,10 +681,11 @@ export default function GraphPage() {
         },
       });
     } catch (err) {
+      if (seq !== detailSeqRef.current) return;
       setDetail(null);
       setDetailError(errorText(err));
     } finally {
-      setDetailLoading(false);
+      if (seq === detailSeqRef.current) setDetailLoading(false);
     }
   }, []);
 
@@ -687,8 +695,10 @@ export default function GraphPage() {
       selectedIdRef.current = id;
       position();
       if (!id) {
+        detailSeqRef.current += 1;
         setDetail(null);
         setDetailError(null);
+        setDetailLoading(false);
         return;
       }
       void loadDetail(id);
@@ -927,7 +937,7 @@ export default function GraphPage() {
   const isEmpty = !loading && !error && scene.nodes.length === 0;
 
   return (
-    <div className="flex h-full flex-col gap-4 p-6">
+    <div className="flex min-h-full flex-col gap-4 p-6 lg:h-full">
       <style>{GRAPH_CSS}</style>
 
       <header className="flex flex-wrap items-baseline justify-between gap-2">

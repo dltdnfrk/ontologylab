@@ -190,10 +190,10 @@ def test_provider_delete(tmp_path: Path) -> None:
     client = _client(tmp_path)
     client.post("/api/providers", json=_OPENAI_BODY)
     removed = client.request("DELETE", "/api/providers/orouter").json()
-    assert removed == {"ok": True, "removed": True}
+    assert removed == {"ok": True, "removed": True, "key_retained": False}
     # Idempotent: deleting again reports removed=False, still ok.
     again = client.request("DELETE", "/api/providers/orouter").json()
-    assert again == {"ok": True, "removed": False}
+    assert again == {"ok": True, "removed": False, "key_retained": False}
     assert client.get("/api/providers").json() == {"providers": []}
 
 
@@ -205,7 +205,7 @@ def test_provider_test_missing_key_is_clear_not_error(
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     res = client.post("/api/providers/orouter/test").json()
     assert res["ok"] is False
-    assert "환경변수" in res["error"] or "전용" in res["error"]
+    assert "키" in res["error"]
 
 
 def test_provider_test_with_key_pings_via_monkeypatched_http(

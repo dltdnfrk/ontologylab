@@ -53,7 +53,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { get, post } from "@/lib/api";
+import { api, get, post } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /* ==========================================================================
@@ -73,7 +73,7 @@ type EngineInfo = {
 };
 
 /** GET /api/providers → { providers: ProviderModel[] }. 키 값은 절대 실리지 않고
- *  `key_present` 로 존재 여부만 온다. */
+ *  `key_present` 로 존재 여부만, `key_location` 으로 저장 위치만 온다. */
 type ProviderModel = {
   id: string;
   kind: string;
@@ -81,6 +81,7 @@ type ProviderModel = {
   models: string[];
   label: string;
   key_present: boolean;
+  key_location: "keychain" | "env";
 };
 
 /** GET /api/cost → 잡 provenance 에 기록된 엔진 호출 집계 */
@@ -358,6 +359,80 @@ function Field({
 }
 
 /* ==========================================================================
+   OpenRouter OAuth 연결
+   ========================================================================== */
+
+/** POST /api/providers/openrouter/connect → { auth_url }. 브라우저가 그대로
+ *  이동하고, 돌아올 때는 /engines?connected=openrouter 로 리다이렉트된다. */
+function ConnectOpenRouter({ onError }: { onError: (message: string) => void }) {
+  const [starting, setStarting] = React.useState(false);
+
+  async function connect() {
+    setStarting(true);
+    try {
+      const result = await post<{ ok: boolean; auth_url: string }>(
+        "/providers/openrouter/connect",
+      );
+      window.location.assign(result.auth_url);
+    } catch (err) {
+      onError(errorText(err));
+      setStarting(false);
+    }
+  }
+
+  return (
+    <Button variant="outline" size="sm" onClick={connect} disabled={starting}>
+      {starting ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
+      OpenRouter 연결
+    </Button>
+  );
+}
+
+/** 콜백이 /engines?connected=… / ?connect_error=… 로 돌려보낸 결과를 읽어
+ *  한 번 보여주고 주소창에서 지운다. */
+function useConnectResult(onChanged: () => void) {
+  const [notice, setNotice] = React.useState<
+    { kind: "ok"; id: string } | { kind: "error"; detail: string } | null
+  >(null);
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("connected");
+    const connectError = params.get("connect_error");
+    if (!connected && !connectError) return;
+    if (connected) {
+      setNotice({ kind: "ok", id: connected });
+      onChanged();
+    } else {
+      setNotice({
+        kind: "error",
+        detail: CONNECT_ERROR_TEXT[connectError ?? ""] ??
+          "연결을 완료하지 못했습니다.",
+      });
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete("connected");
+    url.searchParams.delete("connect_error");
+    window.history.replaceState(null, "", url);
+  }, [onChanged]);
+
+  return notice;
+}
+
+/* 서버가 리다이렉트에 싣는 typed code(ontologylab/server/oauth_routes.py).
+   메시지가 아니라 코드가 오는 이유: upstream 응답에서 온 문자열이 URL 에
+   실리지 않게 하려고 서버가 코드만 보낸다. */
+const CONNECT_ERROR_TEXT: Record<string, string> = {
+  denied: "OpenRouter 에서 승인이 거부되었습니다.",
+  malformed: "연결 응답이 올바르지 않습니다. 다시 시도하세요.",
+  state: "연결 상태가 만료되었거나 올바르지 않습니다. 다시 시도하세요.",
+  offline: "오프라인 모드라 키 교환이 차단되었습니다.",
+  exchange: "OpenRouter 키 교환에 실패했습니다. 다시 시도하세요.",
+  keychain: "키를 Keychain 에 저장하지 못했습니다.",
+  register: "프로바이더 등록에 실패했습니다.",
+};
+
+/* ==========================================================================
    프로바이더 추가
    ========================================================================== */
 
@@ -369,6 +444,7 @@ function AddProviderDialog({ onCreated }: { onCreated: () => void }) {
   const [baseUrl, setBaseUrl] = React.useState("");
   const [models, setModels] = React.useState("");
   const [apiKeyEnv, setApiKeyEnv] = React.useState("");
+  const [apiKey, setApiKey] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -381,6 +457,7 @@ function AddProviderDialog({ onCreated }: { onCreated: () => void }) {
     setBaseUrl("");
     setModels("");
     setApiKeyEnv("");
+    setApiKey("");
     setError(null);
   }
 
@@ -398,6 +475,8 @@ function AddProviderDialog({ onCreated }: { onCreated: () => void }) {
           .map((model) => model.trim())
           .filter(Boolean),
         label: label.trim(),
+        // 빈 문자열은 보내지 않는다 — 서버는 key 가 있을 때만 Keychain 에 쓴다.
+        ...(apiKey.trim() ? { key: apiKey.trim() } : {}),
       });
       setOpen(false);
       reset();
@@ -523,9 +602,26 @@ function AddProviderDialog({ onCreated }: { onCreated: () => void }) {
           </Field>
 
           <Field
+            htmlFor="provider-api-key"
+            label="API 키 (선택)"
+            hint="붙여넣은 키는 macOS Keychain 에 저장되고 서버 응답·로그에 다시 나타나지 않습니다."
+          >
+            <Input
+              id="provider-api-key"
+              type="password"
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
+              placeholder="sk-…"
+              className="font-mono"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </Field>
+
+          <Field
             htmlFor="provider-api-key-env"
             label="API 키 환경변수 (선택)"
-            hint="비워 두면 서버가 이 식별자와 origin 에 묶인 전용 이름을 정합니다."
+            hint="키를 직접 붙여넣지 않을 때의 대안입니다. 비워 두면 서버가 이 식별자와 origin 에 묶인 전용 이름을 정합니다."
           >
             <Input
               id="provider-api-key-env"
@@ -538,14 +634,13 @@ function AddProviderDialog({ onCreated }: { onCreated: () => void }) {
             />
           </Field>
 
-          {/* 화면이 받지 않는 값을 받는 척하지 않는다. 서버는 키 자체를 저장하지도
-              전송받지도 않고, 실행 시점에 환경변수에서 읽는다. */}
           <Alert>
             <KeyRound className="h-4 w-4" />
-            <AlertTitle>키 값은 이 화면으로 보내지 않습니다</AlertTitle>
+            <AlertTitle>키는 Keychain 또는 환경변수에만 둡니다</AlertTitle>
             <AlertDescription className="text-muted-foreground">
-              서버는 위 환경변수에서만 키를 읽습니다. 변수를 설정한 뒤 서버를 다시
-              시작하면 상태가 “키 있음”으로 바뀝니다.
+              붙여넣은 키는 Keychain 에 저장되고, 환경변수 경로는 실행 시점에만
+              읽습니다. OpenRouter 는 “OpenRouter 연결” 버튼으로 키 입력 없이
+              연결할 수 있습니다.
             </AlertDescription>
           </Alert>
 
@@ -793,12 +888,32 @@ export default function EnginesPage() {
   const engineList = engines.data ?? [];
   const providerList = providers.data?.providers ?? [];
   const busy = engines.loading || providers.loading || cost.loading;
+  const [connectError, setConnectError] = React.useState<string | null>(null);
 
   const reloadAll = React.useCallback(() => {
     engines.reload();
     providers.reload();
     cost.reload();
   }, [engines, providers, cost]);
+
+  const reloadProviders = React.useCallback(() => {
+    providers.reload();
+    engines.reload();
+  }, [providers, engines]);
+
+  const connectNotice = useConnectResult(reloadProviders);
+
+  async function forgetKey(providerId: string) {
+    try {
+      await api<{ ok: boolean; forgotten: boolean }>(
+        `/providers/${providerId}/key`,
+        { method: "DELETE" },
+      );
+      providers.reload();
+    } catch (err) {
+      setConnectError(errorText(err));
+    }
+  }
 
   async function runTest(providerId: string) {
     setTests((previous) => ({ ...previous, [providerId]: { loading: true } }));
@@ -1006,18 +1121,42 @@ export default function EnginesPage() {
                 프로바이더
               </CardTitle>
               <CardDescription>
-                HTTP API 로 부르는 엔진입니다. 키는 서버 환경변수에서만 읽고 이
-                화면에는 존재 여부만 옵니다.
+                HTTP API 로 부르는 엔진입니다. 키는 Keychain 이나 환경변수에만
+                저장되고 이 화면에는 존재 여부만 옵니다.
               </CardDescription>
             </div>
-            <AddProviderDialog
-              onCreated={() => {
-                providers.reload();
-                engines.reload();
-              }}
-            />
+            <div className="flex items-center gap-2">
+              <ConnectOpenRouter onError={setConnectError} />
+              <AddProviderDialog
+                onCreated={() => {
+                  providers.reload();
+                  engines.reload();
+                }}
+              />
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {connectNotice?.kind === "ok" ? (
+              <Alert>
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertTitle>연결되었습니다</AlertTitle>
+                <AlertDescription className="text-muted-foreground">
+                  <span className="font-mono">{connectNotice.id}</span> 의 키가
+                  Keychain 에 저장되었습니다.
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            {connectNotice?.kind === "error" || connectError ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>연결하지 못했습니다</AlertTitle>
+                <AlertDescription>
+                  {connectNotice?.kind === "error"
+                    ? connectNotice.detail
+                    : connectError}
+                </AlertDescription>
+              </Alert>
+            ) : null}
             {providers.error ? (
               <SectionError message={providers.error} onRetry={providers.reload} />
             ) : null}
@@ -1064,15 +1203,30 @@ export default function EnginesPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {provider.key_present ? (
-                            <StatusBadge tone="ok" icon={CheckCircle2}>
-                              키 있음
-                            </StatusBadge>
-                          ) : (
-                            <StatusBadge tone="warn" icon={KeyRound}>
-                              키 없음
-                            </StatusBadge>
-                          )}
+                          <div className="flex flex-col items-start gap-1.5">
+                            {provider.key_present ? (
+                              <StatusBadge tone="ok" icon={CheckCircle2}>
+                                키 있음
+                                {provider.key_location === "keychain"
+                                  ? " · Keychain"
+                                  : " · 환경변수"}
+                              </StatusBadge>
+                            ) : (
+                              <StatusBadge tone="warn" icon={KeyRound}>
+                                키 없음
+                              </StatusBadge>
+                            )}
+                            {provider.key_location === "keychain" ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs text-muted-foreground"
+                                onClick={() => forgetKey(provider.id)}
+                              >
+                                키 삭제
+                              </Button>
+                            ) : null}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col items-end gap-1.5">

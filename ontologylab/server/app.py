@@ -17,6 +17,7 @@ from ontologylab.paths import default_data_dir, default_packs_dir
 from ontologylab.server.entity_routes import router as entity_router
 from ontologylab.server.ingest_routes import router as ingest_router
 from ontologylab.server.jobs import JobRegistry
+from ontologylab.server.oauth_routes import router as oauth_router
 from ontologylab.server.routes import router
 from ontologylab.server.security import (
     HARDENING_HEADERS,
@@ -45,6 +46,10 @@ from ontologylab.web_assets import content_type, verify_assets
 # so the dashboard can retry, instead of an unhandled 500.
 _BUSY_MARKERS = ("database is locked", "database table is locked", "busy")
 _RETRY_AFTER_S = "2"
+_DASHBOARD_PATHS = (
+    "/", "/sources", "/review", "/packs", "/artifacts", "/mcp",
+    "/merge", "/communities", "/graph", "/engines", "/settings",
+)
 
 
 def _hardened_response(response):
@@ -93,6 +98,10 @@ def create_app(
     app.include_router(router)
     app.include_router(entity_router)
     app.include_router(ingest_router)
+    # OAuth callback lives outside /api/*: the samesite=strict session
+    # cookie is not sent on the cross-site top-level navigation back from
+    # the provider, so the single-use state parameter guards it instead.
+    app.include_router(oauth_router)
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(
@@ -181,11 +190,15 @@ def create_app(
     async def healthz() -> dict[str, bool]:
         return {"ok": True}
 
-    @app.get("/", include_in_schema=False)
     async def index() -> Response:
         return Response(
             content=assets.content["index.html"],
             media_type=content_type("index.html"),
+        )
+
+    for dashboard_path in _DASHBOARD_PATHS:
+        app.add_api_route(
+            dashboard_path, index, methods=["GET"], include_in_schema=False,
         )
 
     # Local single-user app: the UI iterates often, and browsers apply
@@ -196,7 +209,7 @@ def create_app(
     async def _no_cache_ui(request, call_next):  # type: ignore[no-untyped-def]
         response = await call_next(request)
         path = request.url.path
-        if path == "/" or path.startswith("/static/"):
+        if path in _DASHBOARD_PATHS or path.startswith("/static/"):
             response.headers.setdefault("Cache-Control", "no-cache")
         return response
 
@@ -224,7 +237,7 @@ def create_app(
         peer = request.client.host if request.client is not None else None
         if (
             request.method.upper() == "GET"
-            and path == "/"
+            and path in _DASHBOARD_PATHS
             and host_header_is_local(request.headers.get("host"))
             and is_local_hostname(peer)
         ):

@@ -42,7 +42,7 @@ packages = ["ontologylab", "ontologylab.connectors", "ontologylab.server", "onto
 
 [tool.setuptools.package-data]
 ontologylab = ["*.json"]
-"ontologylab.web" = ["*.html", "*.js", "*.css", "*.svg", "*.json", "fonts/*.woff2"]
+"ontologylab.web" = ["*.html", "*.json", "assets/*.js", "assets/*.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

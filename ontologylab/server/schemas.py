@@ -203,9 +203,9 @@ class CostSummary(BaseModel):
 class ProviderModel(BaseModel):
     """Public view of one registered API provider (never carries a key).
 
-    The env locator is origin-bound and is not projected. ``key_present``
-    reports whether the bound variable is currently set — the value itself
-    is never serialized.
+    Neither locator is projected. ``key_present`` is a passive check — a
+    configured Keychain account or a set env var — and ``key_location`` says
+    which, so the UI can offer "forget key" only where forgetting applies.
     """
 
     id: str
@@ -214,6 +214,7 @@ class ProviderModel(BaseModel):
     models: list[str] = Field(default_factory=list)
     label: str = ""
     key_present: bool = False
+    key_location: str = "env"
 
 
 class ProviderCreate(BaseModel):
@@ -221,6 +222,10 @@ class ProviderCreate(BaseModel):
 
     ``api_key_env`` is optional. An empty value is replaced with the
     origin-bound name; any other value must already be that name.
+
+    ``key`` is write-only: it goes straight into the Keychain and is never
+    echoed — the same posture ``SourceCreate.key`` takes. (The app strips
+    ``input``/``ctx`` from every 422 for the same reason.)
     """
 
     id: str
@@ -229,6 +234,7 @@ class ProviderCreate(BaseModel):
     api_key_env: str = ""
     models: list[str] = Field(default_factory=list)
     label: str = ""
+    key: Optional[str] = None
 
 
 class ProviderTestResult(BaseModel):
