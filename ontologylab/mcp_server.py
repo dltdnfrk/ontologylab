@@ -5,8 +5,11 @@ Exposes fifteen read-only/session tools against one active immutable pack
 that mutates anything is ``load_pack``, and it only updates in-memory
 session state (which file is open) — never KG rows.
 
-Tool logic lives on ``PackSession``; the local ``McpApp`` registry owns
-schema validation and stdio delivery without requiring the ``mcp`` SDK.
+Tool logic lives on ``PackSession``. The serving registry is the official
+``mcp`` SDK's ``FastMCP`` when it is installed (the ``[mcp]`` extra); the
+local ``McpApp`` registry is the stdlib-only fallback so the server still
+runs without the SDK. Both share the same decorator surface, so the tool
+and resource registration below is backend-agnostic.
 """
 
 from __future__ import annotations
@@ -32,6 +35,11 @@ from ontologylab.method_mcp import (
 )
 from ontologylab.method_mcp_sql import MethodPackSql
 from ontologylab.mcp_runtime import McpApp
+
+try:  # official MCP SDK — the standard registry when installed
+    from mcp.server.fastmcp import FastMCP
+except ImportError:  # pragma: no cover — stdlib-only fallback path
+    FastMCP = None  # type: ignore[assignment]
 from ontologylab.engines import EngineError, engine_name_arg, resolve_engine
 from ontologylab.expansion import expand_query
 from ontologylab.packbuilder import (
@@ -1072,9 +1080,20 @@ class PathResult(TypedDict):
     pack: PackProvenance
 
 
-def build_mcp_app(session: PackSession) -> Any:
-    """Wire ``PackSession`` onto the bounded local MCP stdio registry."""
-    mcp = McpApp("ontologylab")
+def build_mcp_app(session: PackSession, *, backend: str = "auto") -> Any:
+    """Wire ``PackSession`` onto an MCP stdio registry.
+
+    ``backend="auto"`` (the default) uses the official ``mcp`` SDK's
+    ``FastMCP`` when it is installed and falls back to the stdlib-only
+    ``McpApp`` otherwise. ``backend="stdlib"`` forces the fallback so the
+    no-SDK path stays exercised in tests.
+    """
+    if backend not in {"auto", "stdlib", "fastmcp"}:
+        raise ValueError(f"unknown MCP backend: {backend!r}")
+    if backend == "fastmcp" and FastMCP is None:
+        raise RuntimeError("backend='fastmcp' requires the 'mcp' package")
+    use_fastmcp = backend == "fastmcp" or (backend == "auto" and FastMCP is not None)
+    mcp = FastMCP("ontologylab") if (use_fastmcp and FastMCP is not None) else McpApp("ontologylab")
 
     if session.pinned_pack_id is None:
         @mcp.tool()

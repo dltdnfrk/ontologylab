@@ -26,7 +26,9 @@ def graph_contract(tmp_path):
                 )
                 for name in ("traverse_relations", "find_path", "graph_query")
             }
-            yield build_mcp_app(session), calls
+            # stdio_requests drives app._dispatch, which only the stdlib
+            # registry exposes — pin the fallback backend here.
+            yield build_mcp_app(session, backend="stdlib"), calls
     finally:
         session.close()
 

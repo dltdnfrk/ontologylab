@@ -14,7 +14,9 @@ from ontologylab.mcp_server import PackPinned, PackSession, build_mcp_app, main
 
 
 def _tool_names(session: PackSession) -> set[str]:
-    listing = build_mcp_app(session)._dispatch({"method": "tools/list"})
+    # The pin boundary is backend-agnostic; exercise it on the stdlib registry
+    # whose _dispatch surface this test drives directly.
+    listing = build_mcp_app(session, backend="stdlib")._dispatch({"method": "tools/list"})
     return {tool["name"] for tool in listing["tools"]}
 
 

@@ -1,4 +1,10 @@
-"""Small stdio MCP registry with no optional HTTP or validation imports."""
+"""Stdlib-only MCP registry — the fallback when the ``mcp`` SDK is absent.
+
+The serving registry is the official ``mcp`` SDK's ``FastMCP`` whenever the
+``[mcp]`` extra is installed (see ``mcp_server.build_mcp_app``). This module
+keeps the same decorator surface so the server still runs with no optional
+dependencies; it is not the primary path when the SDK is present.
+"""
 from __future__ import annotations
 
 import asyncio
