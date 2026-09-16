@@ -158,16 +158,40 @@ func prepareStorageQuiescence(
     let initial = try discoverStorageHolders(configuration.applicationSupportRoot)
     let holderPids = initial.holders.keys.sorted()
     let record = try loadOwnerRecord(configuration.stateRoot)
-    let owner: VerifiedBackendOwner?
-    let signals: [String]
+    var owner: VerifiedBackendOwner?
+    var signals: [String]
     switch (holderPids.isEmpty, record) {
     case (true, nil):
         owner = nil
         signals = []
     case (false, nil):
         throw SupervisorError.instance("unrecorded_backend")
-    case (true, .some):
-        throw SupervisorError.instance("stale_owner_record")
+    case (true, .some(let state)):
+        // No live storage holder: the record is stale unless its backend is
+        // genuinely still running. A crashed or force-quit previous run leaves
+        // instance.json behind, so refusing here would brick every later launch.
+        let recordedAlive = Darwin.kill(state.childPid, 0) == 0
+        let fingerprintMatches = recordedAlive
+            && (try? processFingerprint(state.childPid)) == state.backendFingerprint
+        if fingerprintMatches {
+            // Recorded backend is alive but holds no storage — orphaned; stop it.
+            try validateOwnerIdentity(state, configuration: configuration)
+            let verifiedOwner = VerifiedBackendOwner(
+                pid: state.childPid,
+                version: state.version,
+                bundleIdentifier: state.bundleIdentifier,
+                fingerprint: state.backendFingerprint
+            )
+            owner = verifiedOwner
+            signals = try stopRecordedBackend(
+                verifiedOwner,
+                timeoutMilliseconds: configuration.shutdownTimeoutMilliseconds
+            )
+        } else {
+            // Recorded backend is dead or its pid was reused — drop the record.
+            owner = nil
+            signals = []
+        }
     case (false, .some(let state)):
         guard state.schema == "ontologylab.instance.v2",
               holderPids == [state.childPid]
