@@ -134,6 +134,7 @@ from ontologylab.server.rate_limit import (
 )
 from ontologylab.server.schemas import (
     AnnotationDecision,
+    BulkApproveAction,
     ChatMessage,
     CollectRequest,
     CostSummary,
@@ -639,6 +640,73 @@ def list_proposals(deps: AppDependency,
             "has_more": has_more,
             "next_cursor": next_cursor,
         }
+    finally:
+        store.close()
+
+
+@router.get("/proposals/decided")
+def list_decided_proposals(
+    deps: AppDependency,
+    decision: str | None = Query(
+        None, description="verified | rejected; omit for both"
+    ),
+    kind: str | None = Query(None, description="node | edge"),
+    limit: int = Query(200, ge=1, le=500),
+) -> dict[str, Any]:
+    """Server-backed review history: verified/rejected rows, newest first.
+
+    The pending queue only serves proposed rows, so decided tabs were
+    session-memory before this route — a reload erased them. Each row
+    carries verified_ts/verified_by/review_note so the UI can say who
+    decided what and why.
+    """
+    store = _open_store(deps)
+    try:
+        try:
+            items = store.decided_review(
+                decision=decision, kind=kind, limit=limit
+            )
+        except KGStoreError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"items": items, "count": len(items)}
+    finally:
+        store.close()
+
+
+@router.get("/proposals/stale")
+def list_stale_decisions(deps: AppDependency) -> dict[str, Any]:
+    """Verified items whose source document has a newer fetch.
+
+    A re-fetched source_uri creates a new document row; the verified
+    node/edge still points at the old one. The reviewer approved against
+    evidence that has since changed — this surfaces those rows so the
+    UI can flag them for re-review.
+    """
+    store = _open_store(deps)
+    try:
+        items = store.stale_decisions()
+        return {"items": items, "count": len(items)}
+    finally:
+        store.close()
+
+
+@router.post("/proposals/bulk-approve")
+def bulk_approve_proposals(
+    deps: AppDependency, body: BulkApproveAction
+) -> dict[str, Any]:
+    """Approve the explicit id selection the reviewer checked.
+
+    Nodes are approved first so an edge in the same batch can see its
+    endpoints verified; an edge whose endpoints are still unverified is
+    reported as skipped, never silently approved. Per-item failures are
+    reported with their reason rather than aborting the batch.
+    """
+    store = _open_store(deps)
+    try:
+        result = store.approve_many(body.ids, by=body.by, note=body.note)
+        return {"ok": True, **result}
+    except KGStoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:
         store.close()
 

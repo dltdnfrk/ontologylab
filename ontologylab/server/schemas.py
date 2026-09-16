@@ -294,6 +294,19 @@ class ProposalAction(BaseModel):
     cascade: bool = False
 
 
+class BulkApproveAction(BaseModel):
+    """Approve an explicit selection of proposed node/edge ids.
+
+    Unlike the filter-based ``bulk_approve`` CLI path, the ids are the
+    rows the human checked in the review queue — nothing outside the
+    list is touched.
+    """
+
+    ids: list[str] = Field(min_length=1, max_length=500)
+    by: str = DEFAULT_ACTOR
+    note: Optional[str] = None
+
+
 class GroundingWaiverAction(BaseModel):
     """Scoped grounding waiver for named members only."""
 
