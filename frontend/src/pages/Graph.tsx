@@ -5,12 +5,16 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  MousePointer2,
   Network,
   RefreshCw,
   Search,
   Share2,
   X,
 } from "lucide-react";
+import Graph from "graphology";
+import Sigma from "sigma";
+import type { NodeDisplayData } from "sigma/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +30,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { get } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import NodeStatusProgram from "@/lib/graphNodeProgram";
 
 /* ==========================================================================
    자유 탐색용 지식그래프 화면.
@@ -34,11 +39,20 @@ import { cn } from "@/lib/utils";
    여기서 하는 일은 "무엇이 있고 무엇이 아직 사람 눈을 기다리는지"를 한 화면에
    보여 주는 것까지다.
 
+   렌더러는 sigma.js(WebGL) + graphology. SVG DOM 이었던 구 구현보다 큰
+   그래프에서 훨씬 가볍다. 레이아웃 물리는 검증된 기존 힘 시뮬레이션을 그대로
+   쓰고, 매 프레임 좌표만 graphology 노드 속성으로 흘려 sigma가 그린다.
+
    두 개의 색 축을 쓴다. 섞으면 화면이 거짓말을 한다:
      · 채움(fill)  = 엔티티 타입  → --chart-1..5 순환
      · 링(stroke)  = 검토 상태    → 실선 초록(승인) / 점선 호박(대기)
    선택은 '상호작용 상태'라 '데이터 상태'를 덮지 않는다 — 상태 링은 그대로
-   두고 바깥에 --accent 후광만 덧댄다.
+   두고 바깥에 --point 후광만 덧댄다. 둘 다 NodeStatusProgram 한 프로그램이
+   그린다.
+
+   캔버스 위 세 가지 상호작용은 이름 있는 액션이다 — 노드 선택(selectNode),
+   상세 보기(inspectNode), 이웃 펼치기(expandNeighbors). 클릭·더블클릭·키보드
+   모두 같은 액션을 호출하고, 선택 카드의 버튼으로도 명시적으로 실행할 수 있다.
    ========================================================================== */
 
 type EntityStatus = "proposed" | "verified" | "rejected";
@@ -136,19 +150,13 @@ interface SimEdge {
   status: EntityStatus;
 }
 
-interface Viewport {
-  x: number;
-  y: number;
-  k: number;
-}
-
 interface Size {
   w: number;
   h: number;
 }
 
 /* ---------- 상수 ----------
-   값은 구 구현(web/app.js)에서 그대로 가져왔다. 노드 200개 스코프에서
+   물리 값은 구 구현(web/app.js)에서 그대로 가져왔다. 노드 200개 스코프에서
    실제로 가라앉는 것이 확인된 조합이라, 임의로 바꾸면 배치가 진동한다. */
 
 const NODE_LIMIT = 200;
@@ -160,18 +168,8 @@ const GRAVITY = 0.002;
 const DAMPING = 0.85;
 const ALPHA_DECAY = 0.985;
 const ALPHA_MIN = 0.02;
-const ZOOM_MIN = 0.2;
-const ZOOM_MAX = 4;
-const FIT_ZOOM_MAX = 1.6;
-const FIT_PADDING = 64;
 const LABEL_BASE_PX = 11; /* --fs-label */
-const TYPE_PALETTE = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-];
+const TYPE_VARS = ["--chart-1", "--chart-2", "--chart-3", "--chart-4", "--chart-5"];
 
 const STATUS_KO: Record<string, string> = {
   proposed: "검토 대기",
@@ -196,11 +194,6 @@ function nodeRadius(degree: number): number {
   return Math.min(16, 6 + 1.6 * Math.sqrt(degree));
 }
 
-/** 확대해도 라벨의 화면상 크기가 일정하도록 역보정한다. */
-function labelFontSize(scale: number): number {
-  return LABEL_BASE_PX / Math.max(0.05, scale || 1);
-}
-
 /* ---------- 오류 문장 ----------
    api 클라이언트는 `"<status>: <body>"` 형태로 throw 한다. 사용자에게
    원문(raw)을 그대로 보여 주지 않고, 상태코드별 한국어 한 문장으로 번역한다. */
@@ -218,64 +211,52 @@ function errorText(err: unknown): string {
   return "요청을 처리하지 못했습니다.";
 }
 
-/* ---------- 라벨 겹침 제거 ----------
-   전부 그리면 200개가 서로를 덮어 아무것도 못 읽는다. 차수 높은 것과 선택된
-   것을 먼저 놓고, 이미 놓인 상자와 겹치면 버린다. */
+/* ---------- 테마 색 ----------
+   sigma는 WebGL이라 CSS 변수를 직접 못 읽는다. computed style의 사용값을
+   1px 캔버스에 칠해 sRGB로 확정한다 — oklch()/color() 같은 함수 표기도 이
+   경로면 실제 rgb가 나온다. */
 
-interface LabelCandidate {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  degree: number;
+interface ThemePalette {
+  typeHex: string[];
+  okRgb: string;
+  warnRgb: string;
+  pointRgb: string;
+  fgHex: string;
+  draftHex: string;
 }
 
-interface LabelBox {
-  left: number;
-  right: number;
-  top: number;
-  bottom: number;
+function probeColor(varName: string, fallback: string): { hex: string; rgb: string } {
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue(varName)
+    .trim();
+  if (!raw) return { hex: fallback, rgb: "128,128,128" };
+  const ctx = document.createElement("canvas").getContext("2d");
+  if (!ctx) return { hex: fallback, rgb: "128,128,128" };
+  ctx.fillStyle = raw;
+  ctx.fillRect(0, 0, 1, 1);
+  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+  const hex = `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+  return { hex, rgb: `${r},${g},${b}` };
 }
 
-function overlaps(a: LabelBox, b: LabelBox): boolean {
-  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+function readPalette(): ThemePalette {
+  return {
+    typeHex: TYPE_VARS.map((v) => probeColor(v, "#888888").hex),
+    okRgb: probeColor("--ok", "134,180,120").rgb,
+    warnRgb: probeColor("--warn", "200,160,80").rgb,
+    pointRgb: probeColor("--point", "120,160,220").rgb,
+    fgHex: probeColor("--foreground", "#cccccc").hex,
+    draftHex: probeColor("--ink-draft", "#999999").hex,
+  };
 }
 
-function visibleLabelIds(
-  nodes: LabelCandidate[],
-  view: Viewport,
-  size: Size,
-  selectedId: string | null,
-): Set<string> {
-  const scale = Math.max(0.05, view.k || 1);
-  const maxLabels = scale < 0.55 ? 14 : scale < 0.9 ? 24 : scale < 1.4 ? 40 : 70;
-  const boxes: LabelBox[] = [];
-  const visible = new Set<string>();
-
-  const ordered = [...nodes].sort((a, b) => {
-    if (a.id === selectedId) return -1;
-    if (b.id === selectedId) return 1;
-    return b.degree - a.degree || a.name.localeCompare(b.name);
-  });
-
-  for (const node of ordered) {
-    if (visible.size >= maxLabels && node.id !== selectedId) break;
-    const x = view.x + node.x * scale;
-    const y = view.y + node.y * scale + 14;
-    const width = Math.max(24, node.name.length * 7);
-    const box: LabelBox = {
-      left: x - width / 2,
-      right: x + width / 2,
-      top: y - 7,
-      bottom: y + 7,
-    };
-    const inView = box.right >= 0 && box.left <= size.w && box.bottom >= 0 && box.top <= size.h;
-    if (!inView && node.id !== selectedId) continue;
-    if (node.id !== selectedId && boxes.some((placed) => overlaps(box, placed))) continue;
-    boxes.push(box);
-    visible.add(node.id);
+/** sigma는 WebGL2를 요구한다 — 지원 여부를 한 번만 검사한다. */
+function supportsWebGL(): boolean {
+  try {
+    return Boolean(document.createElement("canvas").getContext("webgl2"));
+  } catch {
+    return false;
   }
-  return visible;
 }
 
 /* ---------- 물리 한 스텝 ---------- */
@@ -359,6 +340,10 @@ export default function GraphPage() {
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [expanding, setExpanding] = React.useState(false);
   const [expandError, setExpandError] = React.useState<string | null>(null);
+  /* WebGL이 없으면 sigma를 올리지 않는다 — 캔버스만 안내문으로 대체하고
+     목록·검색·상세는 그대로 살린다(앱 전체가 죽으면 안 된다). */
+  const [webgl] = React.useState(supportsWebGL);
+  const [canvasError, setCanvasError] = React.useState<string | null>(null);
 
   const [detail, setDetail] = React.useState<EntityDetail | null>(null);
   const [detailLoading, setDetailLoading] = React.useState(false);
@@ -371,157 +356,122 @@ export default function GraphPage() {
 
   /* 시뮬레이션은 매 프레임 좌표를 바꾼다. 그것을 React 상태로 들고 있으면
      200개 노드가 60fps 로 리렌더된다 — 구조는 상태로, 좌표는 ref + 속성
-     직접 쓰기로 나눈다. */
-  const svgRef = React.useRef<SVGSVGElement | null>(null);
-  const rootRef = React.useRef<SVGGElement | null>(null);
+     직접 쓰기로 나눈다. sigma는 graphRef의 graphology 인스턴스를 본다. */
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const graphRef = React.useRef<Graph>(new Graph());
+  const sigmaRef = React.useRef<Sigma | null>(null);
   const nodesRef = React.useRef<SimNode[]>([]);
   const edgesRef = React.useRef<SimEdge[]>([]);
   const indexRef = React.useRef<Map<string, SimNode>>(new Map());
   const degreeRef = React.useRef<Map<string, number>>(new Map());
   const typeColorRef = React.useRef<Map<string, string>>(new Map());
-  const nodeElsRef = React.useRef<Map<string, SVGGElement>>(new Map());
-  const edgeElsRef = React.useRef<Map<string, SVGLineElement>>(new Map());
-  const viewRef = React.useRef<Viewport>({ x: 0, y: 0, k: 1 });
+  const paletteRef = React.useRef<ThemePalette>({
+    typeHex: [],
+    okRgb: "134,180,120",
+    warnRgb: "200,160,80",
+    pointRgb: "120,160,220",
+    fgHex: "#cccccc",
+    draftHex: "#999999",
+  });
   const alphaRef = React.useRef(0);
   const rafRef = React.useRef<number | null>(null);
   const fitPendingRef = React.useRef(false);
   const selectedIdRef = React.useRef<string | null>(null);
   const detailSeqRef = React.useRef(0);
-  const dragRef = React.useRef<SimNode | null>(null);
-  const panRef = React.useRef<{ px: number; py: number; vx: number; vy: number } | null>(null);
-  const downAtRef = React.useRef<{ x: number; y: number } | null>(null);
+  const dragIdRef = React.useRef<string | null>(null);
   const queryRef = React.useRef("");
 
   selectedIdRef.current = selectedId;
   queryRef.current = query;
 
   const measure = React.useCallback((): Size => {
-    const rect = svgRef.current?.getBoundingClientRect();
+    const rect = containerRef.current?.getBoundingClientRect();
     return { w: rect?.width || 900, h: rect?.height || 520 };
   }, []);
 
   const typeColor = React.useCallback((type: string): string => {
     const known = typeColorRef.current.get(type);
     if (known) return known;
-    const next = TYPE_PALETTE[typeColorRef.current.size % TYPE_PALETTE.length];
+    const palette = paletteRef.current.typeHex;
+    const next = palette[typeColorRef.current.size % Math.max(1, palette.length)] ?? "#888888";
     typeColorRef.current.set(type, next);
     return next;
   }, []);
 
-  /* ---------- 좌표를 DOM 에 반영 ---------- */
+  /* ---------- 좌표를 sigma에 반영 ---------- */
 
-  const position = React.useCallback(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const view = viewRef.current;
-    root.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`);
-
-    for (const edge of edgesRef.current) {
-      const el = edgeElsRef.current.get(edge.id);
-      if (!el) continue;
-      const s = indexRef.current.get(edge.source);
-      const t = indexRef.current.get(edge.target);
-      if (!s || !t) continue;
-      el.setAttribute("x1", String(s.x));
-      el.setAttribute("y1", String(s.y));
-      el.setAttribute("x2", String(t.x));
-      el.setAttribute("y2", String(t.y));
-    }
-
-    const size = measure();
-    const selected = selectedIdRef.current;
-    const labels = visibleLabelIds(
-      nodesRef.current.map((n) => ({
-        id: n.id,
-        name: n.name,
-        x: n.x,
-        y: n.y,
-        degree: degreeRef.current.get(n.id) ?? 0,
-      })),
-      view,
-      size,
-      selected,
-    );
-    const needle = queryRef.current.trim().toLowerCase();
-
+  const syncScene = React.useCallback(() => {
+    const graph = graphRef.current;
     for (const node of nodesRef.current) {
-      const el = nodeElsRef.current.get(node.id);
-      if (!el) continue;
-      el.setAttribute("transform", `translate(${node.x},${node.y})`);
-      el.classList.toggle("g-selected", selected === node.id);
-      /* 검색어가 있으면 일치하지 않는 노드를 가라앉힌다(지우지 않는다 —
-         맥락이 사라지면 왜 강조됐는지 알 수 없다). */
-      el.classList.toggle("g-dim", Boolean(needle) && !node.name.toLowerCase().includes(needle));
-      const label = el.querySelector<SVGTextElement>(".g-label");
-      if (label) {
-        label.style.fontSize = `${labelFontSize(view.k)}px`;
-        label.setAttribute(
-          "dy",
-          String(nodeRadius(degreeRef.current.get(node.id) ?? 0) + 12 / Math.max(0.05, view.k)),
-        );
-        label.classList.toggle("g-label-hidden", !labels.has(node.id));
+      if (graph.hasNode(node.id)) {
+        graph.setNodeAttribute(node.id, "x", node.x);
+        graph.setNodeAttribute(node.id, "y", node.y);
       }
     }
-  }, [measure]);
+    sigmaRef.current?.refresh();
+  }, []);
 
-  /* ---------- 화면 맞춤 ---------- */
+  /* ---------- 화면 맞춤 ----------
+     sigma의 framed 좌표계는 그래프 전체를 [0,1] 상자로 정규화하므로, 맞춤은
+     카메라를 중심(0.5,0.5)으로 옮기고 표시된 노드 bbox가 채우는 비율만큼만
+     잡으면 된다. 디스플레이 데이터가 아직 없으면 전체 보기로 되돌린다. */
 
   const fitToView = React.useCallback(() => {
-    const nodes = nodesRef.current;
-    if (nodes.length === 0) return;
-    /* rect 0 (탭이 숨겨진 상태)에서는 맞출 기준이 없다. */
-    if (!svgRef.current || svgRef.current.getBoundingClientRect().width === 0) return;
-    const size = measure();
+    const sigma = sigmaRef.current;
+    const graph = graphRef.current;
+    if (!sigma || graph.order === 0) return;
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
     let maxY = -Infinity;
-    for (const n of nodes) {
-      if (!Number.isFinite(n.x) || !Number.isFinite(n.y)) continue;
-      minX = Math.min(minX, n.x);
-      maxX = Math.max(maxX, n.x);
-      minY = Math.min(minY, n.y);
-      maxY = Math.max(maxY, n.y);
+    let complete = true;
+    graph.forEachNode((id) => {
+      const dd = sigma.getNodeDisplayData(id);
+      if (!dd || !Number.isFinite(dd.x) || !Number.isFinite(dd.y)) {
+        complete = false;
+        return;
+      }
+      minX = Math.min(minX, dd.x);
+      maxX = Math.max(maxX, dd.x);
+      minY = Math.min(minY, dd.y);
+      maxY = Math.max(maxY, dd.y);
+    });
+    const camera = sigma.getCamera();
+    if (!complete || !Number.isFinite(minX) || !Number.isFinite(minY)) {
+      camera.setState({ x: 0.5, y: 0.5, ratio: 1.05 });
+      return;
     }
-    if (!Number.isFinite(minX) || !Number.isFinite(minY)) return;
-    const w = Math.max(maxX - minX, 1);
-    const h = Math.max(maxY - minY, 1);
-    /* 노드가 서너 개뿐일 때 화면을 꽉 채우겠다고 과확대하면 맥락이 사라진다. */
-    const k = Math.min(
-      FIT_ZOOM_MAX,
-      Math.max(ZOOM_MIN, Math.min((size.w - FIT_PADDING * 2) / w, (size.h - FIT_PADDING * 2) / h)),
+    /* framed 좌표는 정규화라 노드가 적을수록 bbox가 작게 나온다 — 작은
+       그래프에서 과확대되지 않도록 필요 비율에 하한을 둔다. */
+    const needed = Math.min(1.6, Math.max(0.4, Math.max(maxX - minX, maxY - minY) * 1.12));
+    camera.animate(
+      { x: (minX + maxX) / 2, y: (minY + maxY) / 2, ratio: needed },
+      { duration: 250 },
     );
-    viewRef.current = {
-      k,
-      x: size.w / 2 - ((minX + maxX) / 2) * k,
-      y: size.h / 2 - ((minY + maxY) / 2) * k,
-    };
-    position();
-  }, [measure, position]);
+  }, []);
 
   /* ---------- rAF 루프 ---------- */
 
   const loop = React.useCallback(() => {
     /* 화면에서 빠지면(폭 0) 좌표가 엉뚱하게 드리프트하므로 루프를 멈춘다. */
-    if (!svgRef.current || svgRef.current.getBoundingClientRect().width === 0) {
+    if (!containerRef.current || containerRef.current.getBoundingClientRect().width === 0) {
       rafRef.current = null;
       return;
     }
     if (alphaRef.current > ALPHA_MIN) {
       tick(nodesRef.current, edgesRef.current, indexRef.current, measure(), alphaRef.current);
       alphaRef.current *= ALPHA_DECAY;
-      position();
+      syncScene();
       rafRef.current = requestAnimationFrame(loop);
       return;
     }
-    /* 가라앉은 뒤 한 번만 맞춘다. 스프링 길이가 90px 고정이라 캔버스가 크면
-       그래프가 가운데 작게 뭉쳐 남는다. */
+    /* 가라앉은 뒤 한 번만 맞춘다. */
     if (fitPendingRef.current) {
       fitPendingRef.current = false;
       fitToView();
     }
     rafRef.current = null;
-  }, [fitToView, measure, position]);
+  }, [fitToView, measure, syncScene]);
 
   const reheat = React.useCallback(
     (alpha: number) => {
@@ -540,6 +490,7 @@ export default function GraphPage() {
       const cy = anchor ? anchor.y : size.h / 2;
       /* 확장이면 앵커 근처에 좁게 흩뿌려 "여기서 자라났다"가 보이게 한다. */
       const spread = anchor ? 90 : Math.max(size.w, size.h) * 0.7;
+      const graph = graphRef.current;
 
       for (const raw of payload.nodes ?? []) {
         if (indexRef.current.has(raw.id)) continue;
@@ -558,6 +509,17 @@ export default function GraphPage() {
         };
         indexRef.current.set(node.id, node);
         nodesRef.current.push(node);
+        if (!graph.hasNode(node.id)) {
+          graph.addNode(node.id, {
+            x: node.x,
+            y: node.y,
+            label: node.name,
+            entityType: node.entityType,
+            status: node.status,
+            size: nodeRadius(0),
+            type: "status",
+          });
+        }
       }
 
       const seen = new Set(edgesRef.current.map((e) => e.id));
@@ -573,6 +535,12 @@ export default function GraphPage() {
           relationType: raw.relation_type,
           status: raw.status,
         });
+        if (!graph.hasEdge(raw.id)) {
+          graph.addEdgeWithKey(raw.id, raw.source_id, raw.target_id, {
+            status: raw.status,
+            size: 1.4,
+          });
+        }
       }
 
       const degree = new Map<string, number>();
@@ -581,14 +549,20 @@ export default function GraphPage() {
         degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1);
       }
       degreeRef.current = degree;
+      for (const node of nodesRef.current) {
+        if (graph.hasNode(node.id)) {
+          graph.setNodeAttribute(node.id, "size", nodeRadius(degree.get(node.id) ?? 0));
+        }
+      }
 
       for (const node of nodesRef.current) typeColor(node.entityType);
       setLegend(
         [...typeColorRef.current.entries()].map(([type, color]) => ({ type, color })),
       );
       setScene({ nodes: [...nodesRef.current], edges: [...edgesRef.current] });
+      syncScene();
     },
-    [measure, typeColor],
+    [measure, syncScene, typeColor],
   );
 
   /* ---------- 전체 그래프 적재 ---------- */
@@ -608,9 +582,7 @@ export default function GraphPage() {
         indexRef.current = new Map();
         degreeRef.current = new Map();
         typeColorRef.current = new Map();
-        nodeElsRef.current = new Map();
-        edgeElsRef.current = new Map();
-        viewRef.current = { x: 0, y: 0, k: 1 };
+        graphRef.current.clear();
         detailSeqRef.current += 1;
         setSelectedId(null);
         setDetail(null);
@@ -642,17 +614,149 @@ export default function GraphPage() {
 
   /* 캔버스 크기가 바뀌면 중력의 중심이 옮겨진다 — 다시 데운다. */
   React.useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg || typeof ResizeObserver === "undefined") return;
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
       if (nodesRef.current.length > 0) {
         fitPendingRef.current = true;
         reheat(0.25);
       }
     });
-    observer.observe(svg);
+    observer.observe(el);
     return () => observer.disconnect();
   }, [reheat]);
+
+  /* ---------- sigma 장착 ----------
+     한 번 만든다. 데이터는 graphRef의 graphology 인스턴스를 공유하므로
+     병합/리셋은 그래프 쪽만 바꾸면 된다. */
+
+  React.useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !webgl) return;
+    paletteRef.current = readPalette();
+
+    let sigma: Sigma;
+    try {
+      sigma = new Sigma(graphRef.current, container, {
+      nodeProgramClasses: { status: NodeStatusProgram },
+      defaultNodeType: "status",
+      labelFont: getComputedStyle(document.body).fontFamily,
+      labelSize: LABEL_BASE_PX,
+      labelWeight: "500",
+      labelColor: { attribute: "labelColor" },
+      labelDensity: 0.08,
+      labelGridCellSize: 110,
+      labelRenderedSizeThreshold: 5,
+      minCameraRatio: 0.25,
+      maxCameraRatio: 4.5,
+      stagePadding: 28,
+      zIndex: true,
+      /* 데이터 상태는 노드 속성에, 상호작용 상태(선택 후광·검색 흐림)는
+         리듀서가 매 프레임 ref를 읽어 계산한다 — 그래프 속성을 만지지 않아
+         200 노드 기준으로도 부담이 없다. */
+      nodeReducer: (node, data) => {
+        const needle = queryRef.current.trim().toLowerCase();
+        const dimmed =
+          Boolean(needle) && !String(data.label ?? "").toLowerCase().includes(needle);
+        const selected = selectedIdRef.current === node;
+        const palette = paletteRef.current;
+        const status = String(data.status ?? "proposed");
+        const res: Partial<NodeDisplayData> & Record<string, unknown> = {
+          color: typeColorRef.current.get(String(data.entityType ?? "?")) ?? "#888888",
+          ringColor:
+            status === "verified" ? `rgba(${palette.okRgb},0.9)` : `rgba(${palette.warnRgb},0.85)`,
+          haloColor: selected ? `rgba(${palette.pointRgb},0.85)` : "#00000000",
+          dashed: status !== "verified",
+          dimmed,
+          labelColor: status === "verified" ? palette.fgHex : palette.draftHex,
+        };
+        if (dimmed) res.label = "";
+        return res;
+      },
+      edgeReducer: (_edge, data) => ({
+        color:
+          String(data.status ?? "proposed") === "verified"
+            ? `rgba(${paletteRef.current.okRgb},0.75)`
+            : `rgba(${paletteRef.current.warnRgb},0.32)`,
+      }),
+      });
+    } catch (err) {
+      /* WebGL 컨텍스트가 런타임에 거절되는 경우(GPU 블록리스트 등) —
+         캔버스만 안내문으로 대체하고 페이지의 나머지는 살린다. */
+      setCanvasError(err instanceof Error ? err.message : String(err));
+      return;
+    }
+
+    /* 포인터 제스처는 전부 이름 있는 액션으로 흐른다. */
+    sigma.on("clickNode", (event) => selectRef.current(event.node));
+    sigma.on("clickStage", () => selectRef.current(null));
+    sigma.on("doubleClickNode", (event) => expandRef.current(event.node));
+
+    sigma.on("downNode", (event) => {
+      dragIdRef.current = event.node;
+      const node = indexRef.current.get(event.node);
+      if (node) {
+        node.fx = node.x;
+        node.fy = node.y;
+      }
+      sigma.getCamera().disable();
+    });
+    sigma.on("enterNode", () => {
+      container.style.cursor = "pointer";
+    });
+    sigma.on("leaveNode", () => {
+      container.style.cursor = "";
+    });
+
+    const captor = sigma.getMouseCaptor();
+    const onDragMove = (event: { x: number; y: number }) => {
+      const id = dragIdRef.current;
+      if (!id) return;
+      const node = indexRef.current.get(id);
+      if (!node) return;
+      const point = sigma.viewportToGraph({ x: event.x, y: event.y });
+      node.fx = point.x;
+      node.fy = point.y;
+      node.x = point.x;
+      node.y = point.y;
+      reheat(0.35);
+    };
+    const onDragEnd = () => {
+      const id = dragIdRef.current;
+      if (id) {
+        const node = indexRef.current.get(id);
+        if (node) {
+          node.fx = null;
+          node.fy = null;
+        }
+      }
+      dragIdRef.current = null;
+      sigma.getCamera().enable();
+    };
+    captor.on("mousemovebody", onDragMove);
+    captor.on("mouseup", onDragEnd);
+
+    sigmaRef.current = sigma;
+    return () => {
+      sigma.kill();
+      sigmaRef.current = null;
+    };
+  }, [reheat, webgl]);
+
+  /* 테마가 바뀌면 팔레트를 다시 읽고 다시 칠한다 — 색은 reducer가 매
+     프레임 팔레트를 참조하므로 리프레시만으로 충분하다. */
+  React.useEffect(() => {
+    if (typeof MutationObserver === "undefined") return;
+    const observer = new MutationObserver(() => {
+      paletteRef.current = readPalette();
+      sigmaRef.current?.refresh();
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => observer.disconnect();
+  }, []);
 
   /* ---------- 상세 ---------- */
 
@@ -689,11 +793,24 @@ export default function GraphPage() {
     }
   }, []);
 
-  const select = React.useCallback(
+  /* ---------- 이름 있는 액션 ----------
+
+     selectNode  — 노드 선택: 후광을 켜고 상세 패널을 연다.
+     inspectNode — 상세 보기: 선택된 노드의 상세를 (다시) 불러온다.
+     expandNeighbors — 이웃 펼치기: 한 홉 이웃을 씬에 합친다. */
+
+  const inspectNode = React.useCallback(
+    (id: string) => {
+      void loadDetail(id);
+    },
+    [loadDetail],
+  );
+
+  const selectNode = React.useCallback(
     (id: string | null) => {
       setSelectedId(id);
       selectedIdRef.current = id;
-      position();
+      sigmaRef.current?.refresh();
       if (!id) {
         detailSeqRef.current += 1;
         setDetail(null);
@@ -701,14 +818,12 @@ export default function GraphPage() {
         setDetailLoading(false);
         return;
       }
-      void loadDetail(id);
+      inspectNode(id);
     },
-    [loadDetail, position],
+    [inspectNode],
   );
 
-  /* ---------- 이웃 확장 ---------- */
-
-  const expand = React.useCallback(
+  const expandNeighbors = React.useCallback(
     async (id: string) => {
       const anchor = indexRef.current.get(id);
       if (!anchor) return;
@@ -731,6 +846,12 @@ export default function GraphPage() {
     [includeProposed, mergePayload, reheat],
   );
 
+  /* sigma의 once-effect 핸들러는 ref를 통해 항상 최신 액션을 부른다. */
+  const selectRef = React.useRef(selectNode);
+  const expandRef = React.useRef(expandNeighbors);
+  selectRef.current = selectNode;
+  expandRef.current = expandNeighbors;
+
   /* ---------- 검색 ----------
      서버 이름 검색. 마지막 입력만 반영하도록 세대 번호로 늦게 온 응답을 버린다. */
 
@@ -742,7 +863,7 @@ export default function GraphPage() {
       setHits([]);
       setSearching(false);
       setSearchError(null);
-      position();
+      sigmaRef.current?.refresh();
       return;
     }
     const seq = searchSeqRef.current + 1;
@@ -765,30 +886,25 @@ export default function GraphPage() {
       }
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [query, position]);
+  }, [query]);
 
   /* 검색어가 바뀌면 강조(가라앉힘)를 즉시 반영한다. */
   React.useEffect(() => {
-    position();
-  }, [query, scene, position]);
+    sigmaRef.current?.refresh();
+  }, [query, scene]);
 
   /** 검색 결과를 고르면: 화면에 있으면 선택, 없으면 이웃을 불러 합친다. */
   const openHit = React.useCallback(
     async (hit: SearchHit) => {
       if (indexRef.current.has(hit.id)) {
-        select(hit.id);
-        const node = indexRef.current.get(hit.id);
-        if (node) {
-          const size = measure();
+        selectNode(hit.id);
+        const sigma = sigmaRef.current;
+        const dd = sigma?.getNodeDisplayData(hit.id);
+        if (sigma && dd) {
           /* 고른 것을 화면 가운데로 — 목록에서 골랐는데 어디 있는지 못 찾으면
              검색이 제 일을 못한 것이다. */
-          viewRef.current = {
-            k: viewRef.current.k,
-            x: size.w / 2 - node.x * viewRef.current.k,
-            y: size.h / 2 - node.y * viewRef.current.k,
-          };
           fitPendingRef.current = false;
-          position();
+          sigma.getCamera().animate({ x: dd.x, y: dd.y }, { duration: 250 });
         }
         return;
       }
@@ -803,134 +919,41 @@ export default function GraphPage() {
         mergePayload(payload, null);
         fitPendingRef.current = true;
         reheat(0.8);
-        select(hit.id);
+        selectNode(hit.id);
       } catch (err) {
         setExpandError(errorText(err));
       } finally {
         setExpanding(false);
       }
     },
-    [includeProposed, measure, mergePayload, position, reheat, select],
+    [includeProposed, mergePayload, reheat, selectNode],
   );
 
-  /* ---------- 포인터: 팬 / 드래그 / 줌 ---------- */
+  /* ---------- 키보드 ----------
+     WebGL 노드는 DOM 포커스를 받지 못한다 — 캔버스가 포커스를 받고
+     화살표키로 선택을 옮긴다(구 구현의 노드별 tabIndex를 대신한다). */
+  const focusIdxRef = React.useRef(-1);
 
-  const nodeIdFromEvent = (target: EventTarget | null): string | null => {
-    if (!(target instanceof Element)) return null;
-    return target.closest("g.g-node")?.getAttribute("data-id") ?? null;
-  };
-
-  const onPointerDown = (ev: React.PointerEvent<SVGSVGElement>) => {
-    downAtRef.current = { x: ev.clientX, y: ev.clientY };
-    const id = nodeIdFromEvent(ev.target);
-    if (id) {
-      const node = indexRef.current.get(id) ?? null;
-      dragRef.current = node;
-      if (node) {
-        node.fx = node.x;
-        node.fy = node.y;
-      }
-    } else {
-      panRef.current = {
-        px: ev.clientX,
-        py: ev.clientY,
-        vx: viewRef.current.x,
-        vy: viewRef.current.y,
-      };
-    }
-    try {
-      ev.currentTarget.setPointerCapture(ev.pointerId);
-    } catch {
-      /* 캡처 실패는 치명적이지 않다 — 포인터가 캔버스를 벗어나면 끝난다. */
-    }
-  };
-
-  const onPointerMove = (ev: React.PointerEvent<SVGSVGElement>) => {
-    const drag = dragRef.current;
-    if (drag) {
-      const rect = ev.currentTarget.getBoundingClientRect();
-      const view = viewRef.current;
-      drag.fx = (ev.clientX - rect.left - view.x) / view.k;
-      drag.fy = (ev.clientY - rect.top - view.y) / view.k;
-      reheat(0.35);
-      return;
-    }
-    const pan = panRef.current;
-    if (!pan) return;
-    viewRef.current = {
-      k: viewRef.current.k,
-      x: pan.vx + (ev.clientX - pan.px),
-      y: pan.vy + (ev.clientY - pan.py),
-    };
-    /* 사용자가 직접 시야를 잡았으면 자동 맞춤을 취소한다 — 배치가 가라앉는
-       사이에 화면이 튕겨 나가면 안 된다. */
-    fitPendingRef.current = false;
-    position();
-  };
-
-  const onPointerUp = (ev: React.PointerEvent<SVGSVGElement>) => {
-    const from = downAtRef.current;
-    /* movementX/Y 는 pointerup 에서 신뢰할 수 없다 — 시작점과의 거리로 본다. */
-    const moved = from ? Math.abs(ev.clientX - from.x) + Math.abs(ev.clientY - from.y) : 0;
-    const drag = dragRef.current;
-    if (drag) {
-      const id = drag.id;
-      drag.fx = null;
-      drag.fy = null;
-      dragRef.current = null;
-      if (moved < 4) select(id);
-    }
-    panRef.current = null;
-    downAtRef.current = null;
-  };
-
-  const onWheel = React.useCallback(
-    (ev: WheelEvent) => {
+  const onCanvasKeyDown = (ev: React.KeyboardEvent<HTMLDivElement>) => {
+    const nodes = nodesRef.current;
+    if (nodes.length === 0) return;
+    if (ev.key === "ArrowRight" || ev.key === "ArrowDown") {
       ev.preventDefault();
-      const svg = svgRef.current;
-      if (!svg) return;
-      const rect = svg.getBoundingClientRect();
-      const mx = ev.clientX - rect.left;
-      const my = ev.clientY - rect.top;
-      const view = viewRef.current;
-      const k = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, view.k * Math.exp(-ev.deltaY * 0.0015)));
-      /* 커서 아래 지점을 고정한 채 스케일 — 그러지 않으면 확대할 때마다
-         보고 있던 곳이 화면 밖으로 밀려난다. */
-      viewRef.current = {
-        k,
-        x: mx - ((mx - view.x) / view.k) * k,
-        y: my - ((my - view.y) / view.k) * k,
-      };
-      fitPendingRef.current = false;
-      position();
-    },
-    [position],
-  );
-
-  /* 휠은 passive 가 아니어야 preventDefault 가 듣는다 — React 의 onWheel 은
-     passive 로 붙으므로 직접 등록한다. */
-  React.useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    svg.addEventListener("wheel", onWheel, { passive: false });
-    return () => svg.removeEventListener("wheel", onWheel);
-  }, [onWheel]);
-
-  const onDoubleClick = (ev: React.MouseEvent<SVGSVGElement>) => {
-    const id = nodeIdFromEvent(ev.target);
-    if (!id) return;
-    ev.preventDefault();
-    void expand(id);
-  };
-
-  /* 포인터와 키보드는 같은 기하(g.g-node)에 묶인다 — 둘이 갈라지면 키보드
-     사용자만 다른 화면을 쓰게 된다. */
-  const onKeyDown = (ev: React.KeyboardEvent<SVGSVGElement>) => {
-    if (ev.key !== "Enter" && ev.key !== " ") return;
-    const id = nodeIdFromEvent(ev.target);
-    if (!id) return;
-    ev.preventDefault();
-    select(id);
+      focusIdxRef.current = Math.min(focusIdxRef.current + 1, nodes.length - 1);
+      selectNode(nodes[focusIdxRef.current].id);
+    } else if (ev.key === "ArrowLeft" || ev.key === "ArrowUp") {
+      ev.preventDefault();
+      focusIdxRef.current = Math.max(focusIdxRef.current - 1, 0);
+      selectNode(nodes[focusIdxRef.current].id);
+    } else if (ev.key === "Enter" || ev.key === " ") {
+      ev.preventDefault();
+      if (selectedId) inspectNode(selectedId);
+    } else if (ev.key === "e" || ev.key === "E") {
+      ev.preventDefault();
+      if (selectedId) void expandNeighbors(selectedId);
+    } else if (ev.key === "Escape") {
+      selectNode(null);
+    }
   };
 
   const selectedNode = selectedId ? indexRef.current.get(selectedId) ?? null : null;
@@ -946,7 +969,7 @@ export default function GraphPage() {
           그래프
         </h1>
         <p className="text-xs text-muted-foreground">
-          노드를 누르면 상세가 열립니다 · 엔터 또는 스페이스바로 선택 · 두 번 누르면 이웃을 펼칩니다 ·
+          노드를 누르면 상세가 열립니다 · 두 번 누르면 이웃을 펼칩니다 · 화살표키로 노드 이동 ·
           승인과 거부는 검토 화면에서 수행합니다
         </p>
       </header>
@@ -1074,7 +1097,7 @@ export default function GraphPage() {
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="relative min-h-[420px] overflow-hidden rounded-lg border bg-card">
           {loading ? (
-            <div className="absolute inset-0 grid place-items-center gap-3 p-6">
+            <div className="absolute inset-0 z-10 grid place-items-center gap-3 p-6">
               <div className="flex w-full max-w-sm flex-col items-center gap-3">
                 <Skeleton className="h-32 w-32 rounded-full" />
                 <Skeleton className="h-3 w-40" />
@@ -1085,7 +1108,7 @@ export default function GraphPage() {
           ) : null}
 
           {isEmpty ? (
-            <div className="absolute inset-0 grid place-items-center p-6">
+            <div className="absolute inset-0 z-10 grid place-items-center p-6">
               <div className="flex max-w-sm flex-col items-center gap-2 text-center">
                 <Share2 className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
                 <p className="text-md font-semibold">표시할 그래프가 없습니다</p>
@@ -1109,66 +1132,53 @@ export default function GraphPage() {
             </div>
           ) : null}
 
-          <svg
-            ref={svgRef}
-            className="g-canvas block h-full w-full"
-            role="group"
-            aria-label="지식그래프 탐색 화면"
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-            onDoubleClick={onDoubleClick}
-            onKeyDown={onKeyDown}
-          >
-            <g ref={rootRef}>
-              <g>
-                {scene.edges.map((edge) => (
-                  <line
-                    key={edge.id}
-                    ref={(el) => {
-                      if (el) edgeElsRef.current.set(edge.id, el);
-                      else edgeElsRef.current.delete(edge.id);
-                    }}
-                    className={cn("g-edge", edge.status === "verified" && "g-edge-verified")}
-                  >
-                    <title>{`${edge.relationType} (${statusKo(edge.status)})`}</title>
-                  </line>
-                ))}
-              </g>
-              <g>
-                {scene.nodes.map((node) => {
-                  const degree = degreeRef.current.get(node.id) ?? 0;
-                  const r = nodeRadius(degree);
-                  return (
-                    <g
-                      key={node.id}
-                      ref={(el) => {
-                        if (el) nodeElsRef.current.set(node.id, el);
-                        else nodeElsRef.current.delete(node.id);
-                      }}
-                      data-id={node.id}
-                      className={cn(
-                        "g-node",
-                        node.status === "verified" ? "g-verified" : "g-proposed",
-                      )}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`${node.name} · ${node.entityType} · ${statusKo(node.status)} · 연결 ${degree}개`}
-                    >
-                      <title>{`${node.name} · ${node.entityType} · ${statusKo(node.status)}`}</title>
-                      {/* 포인터와 키보드가 같은 히트 타겟을 공유한다 */}
-                      <circle className="g-hit-target" r={Math.max(22, r + 8)} />
-                      <circle r={r} fill={typeColor(node.entityType)} />
-                      <text className="g-label" dy={r + 11}>
-                        {node.name}
-                      </text>
-                    </g>
-                  );
-                })}
-              </g>
-            </g>
-          </svg>
+          <div
+            ref={containerRef}
+            className="g-canvas block h-full w-full outline-none"
+            role="application"
+            aria-label="지식그래프 탐색 화면. 화살표키로 노드를 이동하고 엔터로 상세를 엽니다."
+            tabIndex={0}
+            data-nodes={scene.nodes.length}
+            data-edges={scene.edges.length}
+            onKeyDown={onCanvasKeyDown}
+          />
+
+          {/* WebGL이 없거나 sigma가 거절되면 캔버스 자리에 한계를 명시한다 —
+             목록·검색·상세·확장은 아래 숨겨진 목록을 통해 계속 동작한다. */}
+          {(!webgl || canvasError) && !loading && !isEmpty ? (
+            <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center p-6">
+              <div className="max-w-sm space-y-1.5 rounded-md border bg-card/95 p-4 text-center shadow-sm">
+                <p className="text-sm font-medium">
+                  이 브라우저에서는 그래프 화면을 그릴 수 없습니다
+                </p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {webgl
+                    ? `WebGL 캔버스 초기화가 거절되었습니다(${canvasError ?? "알 수 없는 오류"}).`
+                    : "이 환경은 WebGL2를 지원하지 않습니다."}{" "}
+                  노드 목록·검색·상세 보기는 그대로 사용할 수 있습니다.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {/* WebGL 노드는 스크린리더가 못 읽는다 — 숨겨진 목록이 같은 지형을
+             AT·키보드 탐색·테스트에 제공한다. 클릭과 엔터는 selectNode로 흐른다. */}
+          <ul className="sr-only" aria-label="그래프 노드 목록">
+            {scene.nodes.map((node) => (
+              <li key={node.id}>
+                <button
+                  type="button"
+                  className={cn("g-node", selectedId === node.id && "g-selected")}
+                  data-id={node.id}
+                  data-status={node.status}
+                  aria-label={`${node.name} · ${node.entityType} · ${statusKo(node.status)}`}
+                  onClick={() => selectNode(node.id)}
+                >
+                  {node.name}
+                </button>
+              </li>
+            ))}
+          </ul>
 
           {/* 범례 — 두 색 축을 모두 설명해야 화면을 읽을 수 있다 */}
           {!isEmpty && !loading ? (
@@ -1193,7 +1203,8 @@ export default function GraphPage() {
             </div>
           ) : null}
 
-          {/* 선택한 노드 요약 */}
+          {/* 선택한 노드 요약 — 세 액션(상세 보기 · 이웃 펼치기 · 선택 해제)을
+             이름 붙은 버튼으로도 제공한다 */}
           {selectedNode ? (
             <Card className="absolute top-3 right-3 w-64">
               <CardHeader className="flex-row items-start justify-between gap-2 space-y-0 p-4">
@@ -1209,7 +1220,7 @@ export default function GraphPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => select(null)}
+                  onClick={() => selectNode(null)}
                   aria-label="선택 해제"
                   className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
@@ -1224,7 +1235,21 @@ export default function GraphPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => void expand(selectedNode.id)}
+                  onClick={() => inspectNode(selectedNode.id)}
+                  disabled={detailLoading}
+                >
+                  {detailLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <MousePointer2 className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  상세 보기
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void expandNeighbors(selectedNode.id)}
                   disabled={expanding}
                 >
                   {expanding ? (
@@ -1233,14 +1258,25 @@ export default function GraphPage() {
                     <Share2 className="h-4 w-4" aria-hidden="true" />
                   )}
                   이웃 펼치기
+                  {detail && detail.relations.length > 0
+                    ? ` (${detail.relations.length})`
+                    : ""}
                 </Button>
+                {detail &&
+                nodesRef.current.length + detail.relations.length > NODE_LIMIT ? (
+                  <p className="w-full text-xs text-warn-text">
+                    현재 {nodesRef.current.length}개 + 이웃{" "}
+                    {detail.relations.length}개 = 표시 한도 {NODE_LIMIT}개를 넘을 수
+                    있습니다. 일부만 표시됩니다.
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
           ) : null}
         </div>
 
         {/* ---------- 상세 패널 ---------- */}
-        <Card className="flex min-h-0 flex-col overflow-hidden">
+        <Card className="g-detail flex min-h-0 flex-col overflow-hidden">
           <CardHeader className="p-4">
             <CardTitle className="text-md">개념 상세</CardTitle>
             <CardDescription className="text-xs">
@@ -1404,73 +1440,35 @@ export default function GraphPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ---------- 하단 상태 바 ---------- */}
+      {!isEmpty && !loading ? (
+        <footer className="flex items-center justify-between rounded-md border bg-card px-3 py-1.5 text-xs text-muted-foreground">
+          <span>
+            표시 {scene.nodes.length}개 노드 · {scene.edges.length}개 관계
+            {scene.nodes.length >= NODE_LIMIT
+              ? ` (한도 ${NODE_LIMIT}개)`
+              : ""}
+          </span>
+          <span>
+            {selectedNode
+              ? `선택: ${selectedNode.name} · 연결 ${degreeRef.current.get(selectedNode.id) ?? 0}개`
+              : "노드를 선택하면 상세가 표시됩니다"}
+          </span>
+        </footer>
+      ) : null}
     </div>
   );
 }
 
 /* --------------------------------------------------------------------------
-   SVG 전용 규칙. Tailwind 유틸리티로는 표현할 수 없는 것만 남긴다
-   (paint-order, stroke-dasharray, focus-visible 상태의 자식 선택자).
+   캔버스와 범례 전용 규칙. Tailwind 유틸리티로는 표현할 수 없는 것만 남긴다.
    색은 전부 토큰을 참조한다 — 이 블록에 리터럴 색을 적지 말 것.
-
-   주의: circle 의 fill/r 과 g.g-node 의 transform 은 JS 가 속성으로 직접
-   쓴다. 여기서 그 셋을 지정하면 타입별 색·차수별 크기·힘기반 배치가 한꺼번에
-   죽는다.
    -------------------------------------------------------------------------- */
 const GRAPH_CSS = `
 .g-canvas { cursor: grab; touch-action: none; user-select: none; }
 .g-canvas:active { cursor: grabbing; }
-
-.g-edge {
-  stroke: var(--warn);
-  stroke-opacity: 0.32;
-  stroke-width: 1.4;
-  stroke-dasharray: 4 3;
-}
-.g-edge-verified {
-  stroke: var(--ok);
-  stroke-opacity: 0.75;
-  stroke-dasharray: none;
-}
-
-.g-node { cursor: pointer; outline: none; }
-.g-node .g-hit-target { fill: transparent; stroke: none; pointer-events: all; }
-.g-node:focus-visible .g-hit-target {
-  fill: none;
-  stroke: var(--ring);
-  stroke-width: 2;
-}
-.g-node circle { stroke: var(--card); stroke-width: 1.5; transition: opacity var(--t-micro) ease; }
-
-/* 확실성 = 선명도. 미검증은 흐린 초안처럼 가라앉고 승인된 것만 또렷하다 —
-   검토를 진행할수록 그래프가 실제로 선명해진다. */
-.g-node.g-proposed circle {
-  stroke: var(--warn);
-  stroke-width: 2;
-  stroke-dasharray: 3 2;
-  opacity: 0.55;
-}
-.g-node.g-proposed text { fill: var(--ink-draft); }
-.g-node.g-verified circle { stroke: var(--ok); stroke-width: 2; opacity: 1; }
-.g-node.g-verified text { fill: var(--foreground); }
-
-/* 선택은 상호작용 상태다 — 데이터 상태(링 색·점선)를 덮지 않고 후광만 덧댄다.
-   후광은 상호작용 단일 포인트색(--point)이다. --accent 는 이 팔레트에서
-   중성 채움면(#353532)이라, 여기에 쓰면 어두운 캔버스에서 후광이 보이지 않는다. */
-.g-node.g-selected circle { opacity: 1; filter: drop-shadow(0 0 3px var(--point)); }
-.g-node.g-dim { opacity: 0.15; }
-
-/* 라벨은 엣지 위에 얹힌다. 캔버스색 테두리를 글자 뒤에 깔아 선을 끊어 준다. */
-.g-node text {
-  font-size: var(--fs-label);
-  text-anchor: middle;
-  pointer-events: none;
-  paint-order: stroke;
-  stroke: var(--card);
-  stroke-width: 3px;
-  stroke-linejoin: round;
-}
-.g-label-hidden { display: none; }
+.g-canvas:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 
 .g-chip {
   display: inline-flex;

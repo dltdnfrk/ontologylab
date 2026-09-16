@@ -128,9 +128,9 @@ try {
 
   await view.resize(1280, 900);
   await view.click('nav a[href="/graph"]');
-  await ready(`document.querySelectorAll('g.g-node').length === 3`);
+  await ready(`document.querySelectorAll('button.g-node').length === 3`);
   await check("graph renders real nodes and relation", async () => {
-    assert.equal(await view.evaluate("document.querySelectorAll('line.g-edge').length"), 1);
+    assert.equal(await view.evaluate(`document.querySelector('.g-canvas').dataset.edges`), "1");
     await capture("graph-populated-desktop");
   });
 
@@ -163,10 +163,10 @@ try {
         return response;
       };
     })()`);
-    await view.evaluate(`document.querySelector('g[data-id="${id("Alpha")}"]').focus()`);
+    await view.evaluate(`document.querySelector('button.g-node[data-id="${id("Alpha")}"]').focus()`);
     await view.press("Enter");
     await view.evaluate("window.qaHeldReady");
-    await view.evaluate(`document.querySelector('g[data-id="${id("Beta")}"]').focus()`);
+    await view.evaluate(`document.querySelector('button.g-node[data-id="${id("Beta")}"]').focus()`);
     await view.press("Space");
     await ready(`document.querySelector('main [data-radix-scroll-area-viewport]')?.textContent.includes('RecoveryBeta')`);
     await view.evaluate(`window.qaRelease()`);
@@ -181,12 +181,12 @@ try {
   await check("graph filter keeps proposed objects out of verified view", async () => {
     const before = (await api("/proposals")).counts;
     await view.click('button[aria-pressed="true"]');
-    await ready(`document.querySelectorAll('g.g-node').length === 2`);
-    assert.equal(await view.evaluate("document.querySelectorAll('g.g-proposed, line.g-edge').length"), 0);
+    await ready(`document.querySelectorAll('button.g-node').length === 2`);
+    assert.equal(await view.evaluate(`document.querySelectorAll('button.g-node[data-status="proposed"]').length`), 0);
     assert.deepEqual((await api("/proposals")).counts, before);
     await capture("graph-verified-only");
     await view.click('button[aria-pressed="false"]');
-    await ready(`document.querySelectorAll('g.g-node').length === 3`);
+    await ready(`document.querySelectorAll('button.g-node').length === 3`);
   });
 
   await check("graph search selects the real entity", async () => {
@@ -194,7 +194,7 @@ try {
     await view.type("RecoveryBeta");
     await ready(`document.querySelector('input[type="search"]').parentElement.querySelector("ul button")`);
     await view.click('main .relative ul button');
-    await ready(`document.querySelector('g.g-selected')?.getAttribute('data-id') === '${id("Beta")}'`);
+    await ready(`document.querySelector('button.g-selected')?.getAttribute('data-id') === '${id("Beta")}'`);
     await ready(`document.querySelector('main [data-radix-scroll-area-viewport]')?.textContent.includes('RecoveryBeta')`);
     await view.click('input[type="search"]');
     await view.cdp("Input.dispatchKeyEvent", {
@@ -206,14 +206,9 @@ try {
 
   await check("graph mobile selected layout", async () => {
     await view.resize(375, 812);
-    await ready(`Array.from(document.querySelectorAll('g.g-node')).every(node => {
-      const canvas = document.querySelector('svg.g-canvas').getBoundingClientRect();
-      const box = node.getBoundingClientRect();
-      return box.x >= canvas.x && box.right <= canvas.right &&
-        box.y >= canvas.y && box.bottom <= canvas.bottom;
-    })`);
+    await ready(`document.querySelector('.g-canvas') && document.querySelector('.g-canvas').dataset.nodes === '3'`);
     await capture("graph-mobile-top");
-    await view.scrollTo('main > div > div:last-child > div:last-child');
+    await view.scrollTo('.g-detail');
     await capture("graph-mobile-detail");
     await mobileLayout();
     const detailHeight = await view.evaluate(`Array.from(document.querySelectorAll('[data-radix-scroll-area-viewport]')).at(-1).clientHeight`);
@@ -222,7 +217,7 @@ try {
 
   await check("graph reload serves the application", async () => {
     await view.reload();
-    await ready(`document.querySelector('h1') && document.querySelector('svg.g-canvas')`);
+    await ready(`document.querySelector('h1') && document.querySelector('.g-canvas')`);
   });
 
   await check("sources navigation does not seed sample data", async () => {

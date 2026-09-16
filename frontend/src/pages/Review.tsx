@@ -40,12 +40,21 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -84,6 +93,32 @@ type Proposal = {
   doc_source: string;
   evidence_grade: string;
   excerpt: string;
+  /** Present only on rows from /proposals/decided. */
+  status?: "verified" | "rejected";
+  verified_ts?: number | null;
+  verified_by?: string | null;
+  review_note?: string | null;
+};
+
+type DecidedPage = { items: Proposal[]; count: number };
+
+type BulkResult = {
+  approved: string[];
+  skipped: { id: string; reason: string }[];
+  failed: { id: string; reason: string }[];
+};
+
+type StaleItem = {
+  kind: Kind;
+  id: string;
+  label: string;
+  type_name: string;
+  verified_ts: number | null;
+  verified_by: string | null;
+  doc_title: string | null;
+  doc_ts: number;
+  newer_ts: number;
+  newer_doc_id: string;
 };
 
 type ReviewCounts = {
@@ -721,62 +756,177 @@ function DocumentCell({ item }: { item: Proposal }) {
   );
 }
 
-function ProposalRow({
+// ---------------------------------------------------------------------------
+// Master-detail queue. The list on the left stays compact (one line of
+// identity + the numbers needed to triage); the detail on the right carries
+// the full evidence — excerpt, source document, confidence breakdown, and
+// the action control. j/k moves the focus on the pending tab and the detail
+// follows it, so the evidence under review is always the keyboard target.
+// ---------------------------------------------------------------------------
+
+function ProposalListItem({
   item,
   view,
   threshold,
-  actions,
+  checked,
+  onCheckedChange,
+  active,
+  decisionBadge,
+  onSelect,
 }: {
   item: Proposal;
   view: StatusView;
   threshold: number | null;
-  actions: ReactNode;
+  checked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+  active?: boolean;
+  decisionBadge?: ReactNode;
+  onSelect: () => void;
 }) {
   const Icon = KIND_ICON[item.kind];
+  const belowLine =
+    threshold != null && item.critic_score != null && item.critic_score <= threshold;
   return (
-    <TableRow>
-      <TableCell className="py-3 align-top">
-        <div className="flex items-start gap-2">
-          <Icon className="mt-1 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+    <li data-focused={active || undefined}>
+      <div
+        className={cn(
+          "flex items-start gap-2 rounded-md border px-2.5 py-2 transition-colors",
+          active ? "border-point bg-accent/60" : "border-transparent hover:bg-accent/40"
+        )}
+      >
+        {onCheckedChange ? (
+          <input
+            type="checkbox"
+            aria-label={`${item.label} 선택`}
+            className="mt-1 h-4 w-4 shrink-0 accent-point"
+            checked={checked ?? false}
+            onChange={(event) => onCheckedChange(event.target.checked)}
+          />
+        ) : null}
+        <button
+          type="button"
+          onClick={onSelect}
+          className="flex min-w-0 flex-1 items-start gap-2 text-left"
+          aria-current={active || undefined}
+        >
+          <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">{item.label}</span>
+            <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+              <span>{KIND_LABEL[item.kind]}</span>
+              <Badge variant="outline" className="px-1 py-0 font-mono text-[10px]">
+                {item.type_name}
+              </Badge>
+              <span className="font-mono tabular-nums">{percent(item.confidence)}</span>
+              {item.critic_disagreement || belowLine ? (
+                <AlertTriangle className="h-3 w-3 text-warn-text" aria-label="비평 경고" />
+              ) : null}
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center gap-1.5">
+            {decisionBadge}
+            <StatusBadge view={view} />
+          </span>
+        </button>
+      </div>
+    </li>
+  );
+}
+
+function ProposalDetail({
+  item,
+  view,
+  threshold,
+  stale,
+  decision,
+  actions,
+}: {
+  item: Proposal | null;
+  view: StatusView;
+  threshold: number | null;
+  stale?: boolean;
+  decision?: ReactNode;
+  actions?: ReactNode;
+}) {
+  if (!item) {
+    return (
+      <div className="flex h-full min-h-40 flex-col items-center justify-center gap-2 rounded-md border border-dashed px-4 py-8 text-center">
+        <ListChecks className="h-5 w-5 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">
+          왼쪽 목록에서 항목을 고르면 근거 문장과 신뢰도가 여기에 표시됩니다.
+        </p>
+      </div>
+    );
+  }
+  const Icon = KIND_ICON[item.kind];
+  return (
+    <div className="flex flex-col gap-4 rounded-md border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-2">
+          <Icon className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 space-y-1">
-            <div className="font-medium">{item.label}</div>
+            <div className="font-medium leading-snug">{item.label}</div>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="text-xs text-muted-foreground">{KIND_LABEL[item.kind]}</span>
+              <Badge variant="outline" className="font-mono">
+                {item.type_name}
+              </Badge>
               <CopyableId value={item.id} label="항목 ID" />
               <RelativeTime ts={item.created_ts} className="text-xs text-muted-foreground" />
             </div>
-            {item.excerpt ? (
-              <p className="line-clamp-2 max-w-[72ch] text-xs leading-relaxed text-muted-foreground">
-                “<Excerpt text={item.excerpt} />”
-              </p>
-            ) : null}
           </div>
         </div>
-      </TableCell>
-      <TableCell className="py-3 align-top">
-        <Badge variant="outline" className="font-mono">
-          {item.type_name}
-        </Badge>
-      </TableCell>
-      <TableCell className="hidden py-3 align-top lg:table-cell">
-        <DocumentCell item={item} />
-      </TableCell>
-      <TableCell className="py-3 align-top">
-        <ConfidenceCell item={item} threshold={threshold} />
-      </TableCell>
-      <TableCell className="hidden py-3 align-top md:table-cell">
-        <StatusBadge view={view} />
-      </TableCell>
-      <TableCell className="py-3 text-right align-top">{actions}</TableCell>
-    </TableRow>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {stale ? (
+            <Badge variant="warning" className="text-[10px]">
+              원본 변경됨
+            </Badge>
+          ) : null}
+          <StatusBadge view={view} />
+        </div>
+      </div>
+
+      {item.excerpt ? (
+        <section className="space-y-1.5">
+          <FieldCaption>근거 문장</FieldCaption>
+          <p className="max-w-[72ch] text-sm leading-relaxed text-muted-foreground">
+            “<Excerpt text={item.excerpt} />”
+          </p>
+        </section>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <section className="space-y-1.5">
+          <FieldCaption>출처 문서</FieldCaption>
+          <DocumentCell item={item} />
+        </section>
+        <section className="space-y-1.5">
+          <FieldCaption>신뢰도</FieldCaption>
+          <ConfidenceCell item={item} threshold={threshold} />
+        </section>
+      </div>
+
+      {item.critic_rationale ? (
+        <section className="space-y-1.5">
+          <FieldCaption>비평 근거</FieldCaption>
+          <p className="break-words text-xs leading-relaxed text-muted-foreground">
+            {item.critic_rationale}
+          </p>
+        </section>
+      ) : null}
+
+      {decision ? <div className="border-t pt-3">{decision}</div> : null}
+
+      {actions ? (
+        <div className="flex flex-wrap justify-end gap-2 border-t pt-3">{actions}</div>
+      ) : null}
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
-
-type DecidedRow = { item: Proposal; decision: Decision };
 
 const QUEUE_DESCRIPTION: Record<StatusFilter, string> = {
   pending:
@@ -803,9 +953,21 @@ export default function ReviewPage() {
   const [actionFailure, setActionFailure] = useState<Failure | null>(null);
 
   const [filter, setFilter] = useState<StatusFilter>("pending");
-  const [decided, setDecided] = useState<DecidedRow[]>([]);
+  const [decided, setDecided] = useState<Proposal[]>([]);
+  const [decidedLoading, setDecidedLoading] = useState(false);
+  const [decidedFailure, setDecidedFailure] = useState<Failure | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<string | null>(null);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<Proposal | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
+  const [focusedIdx, setFocusedIdx] = useState(-1);
+  const [staleIds, setStaleIds] = useState<ReadonlySet<string>>(new Set());
+  /** Master-detail selection on the decided tabs (pending uses focusedIdx). */
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const load = useCallback(async (mode: "initial" | "refresh") => {
     if (mode === "initial") setLoading(true);
@@ -883,20 +1045,45 @@ export default function ReviewPage() {
     }
   }
 
-  async function decide(item: Proposal, decision: Decision) {
+  const loadDecided = useCallback(async (decision: Decision) => {
+    setDecidedLoading(true);
+    setDecidedFailure(null);
+    try {
+      const serverDecision = decision === "approved" ? "verified" : "rejected";
+      const res = await get<DecidedPage>(
+        `/proposals/decided?decision=${serverDecision}`
+      );
+      setDecided(res.items ?? []);
+      if (decision === "approved") {
+        const stale = await get<{ items: StaleItem[] }>("/proposals/stale");
+        setStaleIds(new Set(stale.items.map((row) => row.id)));
+      }
+    } catch (err) {
+      setDecidedFailure(asFailure(err));
+    } finally {
+      setDecidedLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (filter !== "pending") void loadDecided(filter);
+  }, [filter, loadDecided]);
+
+  async function decide(item: Proposal, decision: Decision, note?: string) {
     setBusyId(item.id);
     setActionFailure(null);
     setReceipt(null);
     try {
       await post<{ ok: boolean }>(
         decision === "approved" ? "/proposals/approve" : "/proposals/reject",
-        { id: item.id }
+        { id: item.id, ...(note ? { note } : {}) }
       );
       setItems((prev) => prev.filter((row) => row.id !== item.id));
-      setDecided((prev) => [
-        { item, decision },
-        ...prev.filter((row) => row.item.id !== item.id),
-      ]);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
       setCounts((prev) => (prev ? moveCount(prev, item.kind, "proposed", decision) : prev));
       setReceipt(`${DECISION_VERB[decision]}했습니다 — ${item.label}`);
       await syncStats();
@@ -907,29 +1094,63 @@ export default function ReviewPage() {
     }
   }
 
-  async function reopen(row: DecidedRow) {
-    setBusyId(row.item.id);
+  async function reopen(item: Proposal) {
+    setBusyId(item.id);
     setActionFailure(null);
     setReceipt(null);
     try {
-      await post<{ ok: boolean }>("/proposals/reopen", { id: row.item.id });
-      setDecided((prev) => prev.filter((entry) => entry.item.id !== row.item.id));
+      await post<{ ok: boolean }>("/proposals/reopen", { id: item.id });
+      setDecided((prev) => prev.filter((entry) => entry.id !== item.id));
       // The row is back in the queue; the queue is ordered by creation time,
       // so it goes back where the server would have served it.
       setItems((prev) =>
-        [...prev.filter((entry) => entry.id !== row.item.id), row.item].sort(
+        [...prev.filter((entry) => entry.id !== item.id), item].sort(
           (a, b) => a.created_ts - b.created_ts
         )
       );
+      const decision: Decision =
+        item.status === "verified" ? "approved" : "rejected";
       setCounts((prev) =>
-        prev ? moveCount(prev, row.item.kind, row.decision, "proposed") : prev
+        prev ? moveCount(prev, item.kind, decision, "proposed") : prev
       );
-      setReceipt(`되돌렸습니다 — ${row.item.label}`);
+      setReceipt(`되돌렸습니다 — ${item.label}`);
       await syncStats();
     } catch (err) {
       setActionFailure(asFailure(err));
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function bulkApprove() {
+    setBulkBusy(true);
+    setActionFailure(null);
+    setReceipt(null);
+    try {
+      const res = await post<BulkResult & { ok: boolean }>(
+        "/proposals/bulk-approve",
+        { ids: [...selected] }
+      );
+      setBulkResult(res);
+      const approved = new Set(res.approved);
+      setItems((prev) => prev.filter((row) => !approved.has(row.id)));
+      setSelected(new Set());
+      setCounts((prev) => {
+        if (!prev) return prev;
+        let next = prev;
+        for (const row of items) {
+          if (approved.has(row.id)) {
+            next = moveCount(next, row.kind, "proposed", "approved");
+          }
+        }
+        return next;
+      });
+      await syncStats();
+    } catch (err) {
+      setActionFailure(asFailure(err));
+    } finally {
+      setBulkBusy(false);
+      setBulkConfirm(false);
     }
   }
 
@@ -939,6 +1160,7 @@ export default function ReviewPage() {
     setFilter(next);
     setActionFailure(null);
     setReceipt(null);
+    setDetailId(null);
   }
 
   const pendingTotal = counts ? counts.nodes_proposed + counts.edges_proposed : 0;
@@ -951,10 +1173,12 @@ export default function ReviewPage() {
 
   const threshold = triage?.available ? triage.threshold : null;
 
-  const sessionRows = useMemo(
-    () => decided.filter((row) => row.decision === filter),
-    [decided, filter]
+  const selectedItems = useMemo(
+    () => items.filter((row) => selected.has(row.id)),
+    [items, selected]
   );
+  const selectedNodes = selectedItems.filter((row) => row.kind === "node").length;
+  const selectedEdges = selectedItems.filter((row) => row.kind === "edge").length;
 
   const belowLine = useMemo(() => {
     if (threshold == null) return 0;
@@ -962,6 +1186,71 @@ export default function ReviewPage() {
       (item) => item.critic_score != null && item.critic_score <= threshold
     ).length;
   }, [items, threshold]);
+
+  /* Keyboard shortcuts: j/k navigate, a approve, r reject, x toggle select.
+     Only active on the pending tab with no dialog open and no input focused. */
+  useEffect(() => {
+    if (filter !== "pending") return;
+    const handler = (event: KeyboardEvent) => {
+      const tag = (event.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (bulkConfirm || bulkResult || rejectTarget) return;
+      const item = items[focusedIdx];
+      switch (event.key) {
+        case "j":
+          event.preventDefault();
+          setFocusedIdx((prev) => Math.min(prev + 1, items.length - 1));
+          break;
+        case "k":
+          event.preventDefault();
+          setFocusedIdx((prev) => Math.max(prev - 1, 0));
+          break;
+        case "a":
+          if (item) void decide(item, "approved");
+          break;
+        case "r":
+          if (item) {
+            setRejectTarget(item);
+            setRejectNote("");
+          }
+          break;
+        case "x":
+          if (item) {
+            setSelected((prev) => {
+              const next = new Set(prev);
+              if (next.has(item.id)) next.delete(item.id);
+              else next.add(item.id);
+              return next;
+            });
+          }
+          break;
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [filter, items, focusedIdx, bulkConfirm, bulkResult, rejectTarget]);
+
+  /* Master-detail: the detail pane always shows the focused row. When a
+     decision removes a row, the focus slides onto what is now in its place;
+     an empty queue or an unstarted focus picks the first row. */
+  useEffect(() => {
+    if (filter !== "pending" || items.length === 0) return;
+    setFocusedIdx((prev) => (prev < 0 ? 0 : Math.min(prev, items.length - 1)));
+  }, [filter, items.length]);
+
+  useEffect(() => {
+    if (filter === "pending") return;
+    if (detailId && decided.some((row) => row.id === detailId)) return;
+    setDetailId(decided[0]?.id ?? null);
+  }, [filter, decided, detailId]);
+
+  /* j/k can walk the focus past the visible window — keep it on screen. */
+  useEffect(() => {
+    if (focusedIdx < 0) return;
+    document.querySelector("[data-focused]")?.scrollIntoView({ block: "nearest" });
+  }, [focusedIdx]);
+
+  const decidedDetail = decided.find((row) => row.id === detailId) ?? null;
 
   const filterCount: Record<StatusFilter, number> = {
     pending: pendingTotal,
@@ -1089,9 +1378,13 @@ export default function ReviewPage() {
                 <CardTitle>
                   {filter === "pending"
                     ? "대기 중인 제안"
-                    : `이번 세션에서 ${DECISION_VERB[filter]}한 항목`}
+                    : `${DECISION_VERB[filter]}한 항목`}
                 </CardTitle>
-                <CardDescription>{QUEUE_DESCRIPTION[filter]}</CardDescription>
+                <CardDescription>
+                  {filter === "pending"
+                    ? QUEUE_DESCRIPTION.pending
+                    : `서버에 기록된 ${DECISION_VERB[filter]} 이력입니다. 되돌리면 대기 큐로 돌아갑니다.`}
+                </CardDescription>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1137,82 +1430,161 @@ export default function ReviewPage() {
                   />
                 ) : (
                   <>
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent">
-                          <TableHead>항목</TableHead>
-                          <TableHead>유형</TableHead>
-                          <TableHead className="hidden lg:table-cell">출처 문서</TableHead>
-                          <TableHead>신뢰도</TableHead>
-                          <TableHead className="hidden md:table-cell">상태</TableHead>
-                          <TableHead className="text-right">동작</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {items.map((item) => (
-                          <ProposalRow
-                            key={item.id}
-                            item={item}
-                            view={STATUS_VIEW.pending}
-                            threshold={threshold}
-                            actions={
-                              <div className="flex justify-end gap-2">
+                    {selected.size > 0 ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
+                        <span className="text-xs text-muted-foreground">
+                          {NUM.format(selected.size)}건 선택됨
+                          {selectedNodes > 0 || selectedEdges > 0
+                            ? ` (개념 ${NUM.format(selectedNodes)} · 관계 ${NUM.format(selectedEdges)})`
+                            : ""}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelected(new Set())}
+                          >
+                            선택 해제
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => setBulkConfirm(true)}
+                            disabled={bulkBusy}
+                          >
+                            {bulkBusy ? (
+                              <Loader2 className="animate-spin" />
+                            ) : (
+                              <Check />
+                            )}
+                            선택 승인
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+                      <div className="min-w-0 space-y-2">
+                        <div className="flex items-center gap-2 border-b pb-2">
+                          <input
+                            type="checkbox"
+                            aria-label="전체 선택"
+                            className="h-4 w-4 accent-point"
+                            checked={
+                              items.length > 0 &&
+                              items.every((row) => selected.has(row.id))
+                            }
+                            onChange={(event) => {
+                              if (event.target.checked) {
+                                setSelected(new Set(items.map((row) => row.id)));
+                              } else {
+                                setSelected(new Set());
+                              }
+                            }}
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            {NUM.format(items.length)}건
+                          </span>
+                        </div>
+                        <ScrollArea className="h-[30rem] pr-2">
+                          <ul className="space-y-1">
+                            {items.map((item, idx) => (
+                              <ProposalListItem
+                                key={item.id}
+                                item={item}
+                                view={STATUS_VIEW.pending}
+                                threshold={threshold}
+                                active={idx === focusedIdx}
+                                checked={selected.has(item.id)}
+                                onCheckedChange={(checked) => {
+                                  setSelected((prev) => {
+                                    const next = new Set(prev);
+                                    if (checked) next.add(item.id);
+                                    else next.delete(item.id);
+                                    return next;
+                                  });
+                                }}
+                                onSelect={() => setFocusedIdx(idx)}
+                              />
+                            ))}
+                          </ul>
+                        </ScrollArea>
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+                          <span className="text-xs text-muted-foreground">
+                            {NUM.format(items.length)}건 표시 · 대기 전체{" "}
+                            {NUM.format(pendingTotal)}건
+                            {belowLine > 0 ? ` · 기준선 이하 ${NUM.format(belowLine)}건` : ""}
+                          </span>
+                          {hasMore ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void loadMore()}
+                              disabled={loadingMore}
+                            >
+                              {loadingMore ? (
+                                <Loader2 className="animate-spin" />
+                              ) : (
+                                <ChevronDown />
+                              )}
+                              더 보기
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <ProposalDetail
+                          item={items[focusedIdx] ?? null}
+                          view={STATUS_VIEW.pending}
+                          threshold={threshold}
+                          actions={
+                            items[focusedIdx] ? (
+                              <>
                                 <Button
                                   size="sm"
-                                  onClick={() => void decide(item, "approved")}
-                                  disabled={busyId === item.id}
+                                  onClick={() =>
+                                    void decide(items[focusedIdx], "approved")
+                                  }
+                                  disabled={busyId === items[focusedIdx].id}
                                 >
-                                  {busyId === item.id ? (
+                                  {busyId === items[focusedIdx].id ? (
                                     <Loader2 className="animate-spin" />
                                   ) : (
                                     <Check />
                                   )}
-                                  승인
+                                  승인 <kbd className="ml-1 text-[10px] opacity-60">a</kbd>
                                 </Button>
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => void decide(item, "rejected")}
-                                  disabled={busyId === item.id}
+                                  onClick={() => {
+                                    setRejectTarget(items[focusedIdx]);
+                                    setRejectNote("");
+                                  }}
+                                  disabled={busyId === items[focusedIdx].id}
                                 >
                                   <X />
-                                  거부
+                                  거부 <kbd className="ml-1 text-[10px] opacity-60">r</kbd>
                                 </Button>
-                              </div>
-                            }
-                          />
-                        ))}
-                      </TableBody>
-                    </Table>
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-                      <span className="text-xs text-muted-foreground">
-                        {NUM.format(items.length)}건 표시 · 대기 전체{" "}
-                        {NUM.format(pendingTotal)}건
-                        {belowLine > 0 ? ` · 기준선 이하 ${NUM.format(belowLine)}건` : ""}
-                      </span>
-                      {hasMore ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => void loadMore()}
-                          disabled={loadingMore}
-                        >
-                          {loadingMore ? (
-                            <Loader2 className="animate-spin" />
-                          ) : (
-                            <ChevronDown />
-                          )}
-                          더 보기
-                        </Button>
-                      ) : null}
+                              </>
+                            ) : undefined
+                          }
+                        />
+                      </div>
                     </div>
                   </>
                 )
-              ) : sessionRows.length === 0 ? (
+              ) : decidedLoading ? (
+                <TableSkeleton rows={3} cols={5} />
+              ) : decidedFailure ? (
+                <ErrorSurface
+                  failure={decidedFailure}
+                  onRetry={() => void loadDecided(filter)}
+                  retrying={decidedLoading}
+                />
+              ) : decided.length === 0 ? (
                 <EmptyState
                   icon={STATUS_VIEW[filter].icon}
-                  title={`이번 세션에서 ${DECISION_VERB[filter]}한 항목이 없습니다`}
-                  description={`누적 ${DECISION_VERB[filter]} ${NUM.format(decidedTotal[filter])}건은 위 요약에 있습니다. 대기 큐에서 제안을 ${DECISION_VERB[filter]}하면 이 표에 남고, 여기서 되돌릴 수 있습니다.`}
+                  title={`${DECISION_VERB[filter]}한 항목이 없습니다`}
+                  description={`대기 큐에서 제안을 ${DECISION_VERB[filter]}하면 여기에 기록됩니다.`}
                   action={
                     <Button variant="outline" size="sm" onClick={() => changeFilter("pending")}>
                       <Inbox />
@@ -1221,49 +1593,88 @@ export default function ReviewPage() {
                   }
                 />
               ) : (
-                <>
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead>항목</TableHead>
-                        <TableHead>유형</TableHead>
-                        <TableHead className="hidden lg:table-cell">출처 문서</TableHead>
-                        <TableHead>신뢰도</TableHead>
-                        <TableHead className="hidden md:table-cell">상태</TableHead>
-                        <TableHead className="text-right">동작</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sessionRows.map((row) => (
-                        <ProposalRow
-                          key={row.item.id}
-                          item={row.item}
-                          view={STATUS_VIEW[row.decision]}
-                          threshold={threshold}
-                          actions={
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => void reopen(row)}
-                              disabled={busyId === row.item.id}
-                            >
-                              {busyId === row.item.id ? (
-                                <Loader2 className="animate-spin" />
-                              ) : (
-                                <Undo2 />
-                              )}
-                              되돌리기
-                            </Button>
-                          }
-                        />
-                      ))}
-                    </TableBody>
-                  </Table>
-                  <p className="border-t pt-3 text-xs text-muted-foreground">
-                    {NUM.format(sessionRows.length)}건 표시 · 누적{" "}
-                    {DECISION_VERB[filter]} {NUM.format(decidedTotal[filter])}건
-                  </p>
-                </>
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+                  <div className="min-w-0 space-y-2">
+                    <ScrollArea className="h-[30rem] pr-2">
+                      <ul className="space-y-1">
+                        {decided.map((item) => (
+                          <ProposalListItem
+                            key={item.id}
+                            item={item}
+                            view={STATUS_VIEW[item.status === "verified" ? "approved" : "rejected"]}
+                            threshold={threshold}
+                            active={item.id === detailId}
+                            decisionBadge={
+                              staleIds.has(item.id) ? (
+                                <Badge variant="warning" className="text-[10px]">
+                                  원본 변경됨
+                                </Badge>
+                              ) : undefined
+                            }
+                            onSelect={() => setDetailId(item.id)}
+                          />
+                        ))}
+                      </ul>
+                    </ScrollArea>
+                    <p className="border-t pt-3 text-xs text-muted-foreground">
+                      {NUM.format(decided.length)}건 표시 · 누적{" "}
+                      {DECISION_VERB[filter]} {NUM.format(decidedTotal[filter])}건
+                    </p>
+                  </div>
+                  <div className="min-w-0">
+                    <ProposalDetail
+                      item={decidedDetail}
+                      view={
+                        decidedDetail
+                          ? STATUS_VIEW[
+                              decidedDetail.status === "verified" ? "approved" : "rejected"
+                            ]
+                          : STATUS_VIEW[filter]
+                      }
+                      threshold={threshold}
+                      stale={decidedDetail ? staleIds.has(decidedDetail.id) : false}
+                      decision={
+                        decidedDetail ? (
+                          <div className="space-y-1 text-xs">
+                            {decidedDetail.verified_by ? (
+                              <div className="text-muted-foreground">
+                                {decidedDetail.verified_by}
+                              </div>
+                            ) : null}
+                            {decidedDetail.verified_ts ? (
+                              <RelativeTime
+                                ts={decidedDetail.verified_ts}
+                                className="text-muted-foreground"
+                              />
+                            ) : null}
+                            {decidedDetail.review_note ? (
+                              <div className="text-muted-foreground">
+                                {decidedDetail.review_note}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : undefined
+                      }
+                      actions={
+                        decidedDetail ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void reopen(decidedDetail)}
+                            disabled={busyId === decidedDetail.id}
+                          >
+                            {busyId === decidedDetail.id ? (
+                              <Loader2 className="animate-spin" />
+                            ) : (
+                              <Undo2 />
+                            )}
+                            되돌리기
+                          </Button>
+                        ) : undefined
+                      }
+                    />
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -1540,6 +1951,124 @@ export default function ReviewPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Bulk-approve confirmation */}
+      <Dialog open={bulkConfirm} onOpenChange={setBulkConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>선택한 {selected.size}건을 승인할까요?</DialogTitle>
+            <DialogDescription>
+              개념 {selectedNodes}건 · 관계 {selectedEdges}건. 관계는 양쪽 개념이
+              이미 승인됐거나 같은 선택 안에 있을 때만 승인됩니다 — 그렇지 않은
+              관계는 건너뛰고 결과에 표시됩니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setBulkConfirm(false)}
+              disabled={bulkBusy}
+            >
+              취소
+            </Button>
+            <Button onClick={() => void bulkApprove()} disabled={bulkBusy}>
+              {bulkBusy ? <Loader2 className="animate-spin" /> : <Check />}
+              승인
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk-approve result receipt */}
+      <Dialog
+        open={bulkResult !== null}
+        onOpenChange={(open) => {
+          if (!open) setBulkResult(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>일괄 승인 결과</DialogTitle>
+            <DialogDescription>
+              승인 {bulkResult?.approved.length ?? 0}건 · 건너뜀{" "}
+              {bulkResult?.skipped.length ?? 0}건 · 실패{" "}
+              {bulkResult?.failed.length ?? 0}건
+            </DialogDescription>
+          </DialogHeader>
+          {bulkResult && bulkResult.skipped.length + bulkResult.failed.length > 0 ? (
+            <div className="max-h-48 space-y-1 overflow-y-auto text-xs">
+              {bulkResult.skipped.map((row) => (
+                <p key={row.id} className="text-muted-foreground">
+                  건너뜀 {row.id} — {row.reason}
+                </p>
+              ))}
+              {bulkResult.failed.map((row) => (
+                <p key={row.id} className="text-destructive">
+                  실패 {row.id} — {row.reason}
+                </p>
+              ))}
+            </div>
+          ) : null}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setBulkResult(null)}>
+              닫기
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject with optional reason */}
+      <Dialog
+        open={rejectTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRejectTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{rejectTarget?.label}을(를) 거부할까요?</DialogTitle>
+            <DialogDescription>
+              거부 사유를 남기면 나중에 같은 제안이 올라왔을 때 참고할 수 있습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={rejectNote}
+            onChange={(event) => setRejectNote(event.target.value)}
+            placeholder="거부 사유 (선택)"
+            rows={3}
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setRejectTarget(null)}
+              disabled={busyId === rejectTarget?.id}
+            >
+              취소
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (rejectTarget) {
+                  void decide(
+                    rejectTarget,
+                    "rejected",
+                    rejectNote.trim() || undefined
+                  );
+                  setRejectTarget(null);
+                }
+              }}
+              disabled={busyId === rejectTarget?.id}
+            >
+              {busyId === rejectTarget?.id ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <X />
+              )}
+              거부
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
