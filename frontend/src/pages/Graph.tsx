@@ -661,7 +661,11 @@ export default function GraphPage() {
         const selected = selectedIdRef.current === node;
         const palette = paletteRef.current;
         const status = String(data.status ?? "proposed");
+        /* nodeReducer output replaces the node's display data — dropping x/y
+           makes Sigma throw "could not find a valid position" and unmount the
+           tree. Spread data so the position passes through. */
         const res: Partial<NodeDisplayData> & Record<string, unknown> = {
+          ...data,
           color: typeColorRef.current.get(String(data.entityType ?? "?")) ?? "#888888",
           ringColor:
             status === "verified" ? `rgba(${palette.okRgb},0.9)` : `rgba(${palette.warnRgb},0.85)`,
