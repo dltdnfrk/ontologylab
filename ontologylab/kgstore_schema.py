@@ -441,6 +441,127 @@ class SchemaMixin:
             [json.dumps(self.type_filter_values(entity_type))],
         )
 
+    # ------------------------------------------------------------------
+    # Competency questions bound to a schema version
+    # ------------------------------------------------------------------
+    #
+    # competency.py pins three frozen pipeline gates; these CQs are the
+    # design-time counterpart — the questions a schema version must be
+    # able to answer, declared before or alongside the vocabulary. A CQ
+    # records the term names it depends on; check_schema_cqs reports
+    # coverage so a schema that cannot express its own questions fails
+    # loudly instead of drifting.
+
+    def add_schema_cq(
+        self,
+        question: str,
+        *,
+        requires: list[str] | None = None,
+        schema_version_id: int | None = None,
+        reviewer: str,
+        provenance: str,
+    ) -> dict[str, Any]:
+        """Bind a competency question to a schema version.
+
+        ``requires`` names the entity/relation types the question needs.
+        Existence is deliberately not checked here — a CQ may name a term
+        the schema does not have yet, and that gap is exactly what
+        ``check_schema_cqs`` reports.
+        """
+        self._assert_writable()
+        if not question.strip():
+            raise KGStoreError("competency question must not be empty")
+        sv = (
+            self.active_schema_version()
+            if schema_version_id is None
+            else self.conn.execute(
+                "SELECT * FROM schema_version WHERE id = ?", (schema_version_id,)
+            ).fetchone()
+        )
+        if sv is None:
+            raise UnknownItem(f"unknown schema version id {schema_version_id!r}")
+        cq_id = uuid.uuid4().hex
+        self.conn.execute(
+            "INSERT INTO schema_cq "
+            "(id, schema_version_id, question, requires_json, reviewer, "
+            "provenance, created_ts) VALUES (?,?,?,?,?,?,?)",
+            (
+                cq_id,
+                sv["id"],
+                question.strip(),
+                json.dumps(requires or []),
+                reviewer,
+                provenance,
+                time.time(),
+            ),
+        )
+        self.conn.commit()
+        return {
+            "id": cq_id,
+            "schema_version_id": sv["id"],
+            "question": question.strip(),
+            "requires": requires or [],
+        }
+
+    def list_schema_cqs(
+        self, schema_version_id: int | None = None
+    ) -> list[dict[str, Any]]:
+        sv = (
+            self.active_schema_version()
+            if schema_version_id is None
+            else self.conn.execute(
+                "SELECT * FROM schema_version WHERE id = ?", (schema_version_id,)
+            ).fetchone()
+        )
+        if sv is None:
+            raise UnknownItem(f"unknown schema version id {schema_version_id!r}")
+        return [
+            {
+                "id": r["id"],
+                "question": r["question"],
+                "requires": json.loads(r["requires_json"]),
+                "reviewer": r["reviewer"],
+                "provenance": r["provenance"],
+                "created_ts": r["created_ts"],
+            }
+            for r in self.conn.execute(
+                "SELECT * FROM schema_cq WHERE schema_version_id = ? "
+                "ORDER BY created_ts, id",
+                (sv["id"],),
+            )
+        ]
+
+    def check_schema_cqs(
+        self, schema_version_id: int | None = None
+    ) -> dict[str, Any]:
+        """Coverage check: does the schema declare every term its CQs need?
+
+        Each CQ's ``requires`` names are looked up in the version's
+        entity_type and relation_type tables. A CQ with no requirements
+        is reported uncovered with reason 'unscoped' — a question that
+        names nothing cannot be checked, and silently counting it as
+        covered would hide the gap it was written to close.
+        """
+        schema = self.get_schema(schema_version_id)
+        declared = {e["name"] for e in schema["entity_types"]} | {
+            r["name"] for r in schema["relation_types"]
+        }
+        results = []
+        for cq in self.list_schema_cqs(schema["schema_version_id"]):
+            missing = [t for t in cq["requires"] if t not in declared]
+            if not cq["requires"]:
+                results.append({**cq, "covered": False, "missing": [],
+                                "reason": "unscoped"})
+            else:
+                results.append({**cq, "covered": not missing,
+                                "missing": missing, "reason": None})
+        return {
+            "schema_version_id": schema["schema_version_id"],
+            "total": len(results),
+            "covered": sum(1 for r in results if r["covered"]),
+            "questions": results,
+        }
+
     def get_schema(self, schema_version_id: int | None = None) -> dict[str, Any]:
         """Return one ontology version (entity + relation types) as plain data.
 

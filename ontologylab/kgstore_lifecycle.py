@@ -463,6 +463,23 @@ class LifecycleMixin:
                 """
             )
             conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS schema_cq (
+                    id                  TEXT PRIMARY KEY,
+                    schema_version_id   INTEGER NOT NULL REFERENCES schema_version(id),
+                    question            TEXT NOT NULL,
+                    requires_json       TEXT NOT NULL DEFAULT '[]',
+                    reviewer            TEXT NOT NULL,
+                    provenance          TEXT NOT NULL,
+                    created_ts          REAL NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_schema_cq_version "
+                "ON schema_cq (schema_version_id, created_ts)"
+            )
+            conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_term_alias_term "
                 "ON term_alias (term_id, created_ts)"
             )
