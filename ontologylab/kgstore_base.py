@@ -195,6 +195,10 @@ CREATE TABLE IF NOT EXISTS entity_type (
     name              TEXT NOT NULL,
     description       TEXT,
     attributes_json   TEXT NOT NULL DEFAULT '{}',
+    -- is-a: the name of another entity_type in the same schema_version.
+    -- NULL = top-level. Names, not ids, so a schema document stays
+    -- self-contained and order-independent at install time.
+    parent_name       TEXT,
     UNIQUE (schema_version_id, name)
 );
 

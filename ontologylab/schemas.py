@@ -21,6 +21,7 @@ is studying.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from ontologylab import ontology_schema as _default
@@ -29,7 +30,7 @@ from ontologylab import ontology_schema as _default
 def _schema(
     label: str,
     description: str,
-    entities: dict[str, tuple[str, dict]],
+    entities: Mapping[str, tuple[str, dict] | tuple[str, dict, str]],
     relations: dict[str, tuple[str, str, str, bool]],
     relation_qualifiers: dict[str, dict[str, dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
@@ -41,10 +42,12 @@ def _schema(
         "entity_types": [
             {
                 "name": name,
-                "description": desc,
-                "attributes": attrs,
+                "description": spec[0],
+                "attributes": spec[1],
+                # Optional third tuple element: the is-a parent type name.
+                **({"parent": spec[2]} if len(spec) > 2 else {}),
             }
-            for name, (desc, attrs) in entities.items()
+            for name, spec in entities.items()
         ],
         "relation_types": [
             {

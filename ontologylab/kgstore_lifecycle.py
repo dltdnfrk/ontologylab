@@ -289,6 +289,14 @@ class LifecycleMixin:
         ):
             if column not in edge_columns:
                 conn.execute(ddl)
+        entity_type_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(entity_type)")
+        }
+        if "parent_name" not in entity_type_columns:
+            conn.execute(
+                "ALTER TABLE entity_type ADD COLUMN parent_name TEXT"
+            )
         relation_type_columns = {
             row["name"]
             for row in conn.execute("PRAGMA table_info(relation_type)")

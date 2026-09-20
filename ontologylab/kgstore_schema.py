@@ -261,6 +261,30 @@ class SchemaMixin:
             ),
         )
         names = {e["name"] for e in entity_types}
+        # is-a validation: a parent must be a type in this same schema, and
+        # the parent chain must not cycle. Names, not ids, so the check runs
+        # on the document itself before anything is inserted.
+        parent_of = {
+            e["name"]: e.get("parent") for e in entity_types if e.get("parent")
+        }
+        for name, parent in parent_of.items():
+            if parent not in names:
+                raise KGStoreError(
+                    f"entity type {name!r} has parent {parent!r}, which is "
+                    f"not an entity type in this schema "
+                    f"({', '.join(sorted(names))})"
+                )
+        for name in parent_of:
+            seen = {name}
+            node = parent_of.get(name)
+            while node is not None:
+                if node in seen:
+                    raise KGStoreError(
+                        f"entity type {name!r} has a cyclic parent chain "
+                        f"(reached {node!r})"
+                    )
+                seen.add(node)
+                node = parent_of.get(node)
         for relation in relation_types:
             self._validate_qualifier_specs(
                 relation["name"], relation.get("qualifiers", {})
@@ -291,9 +315,11 @@ class SchemaMixin:
             for entity in entity_types:
                 type_cur = self.conn.execute(
                     "INSERT INTO entity_type (schema_version_id, name, "
-                    "description, attributes_json) VALUES (?,?,?,?)",
+                    "description, attributes_json, parent_name) "
+                    "VALUES (?,?,?,?,?)",
                     (sv_id, entity["name"], entity.get("description", ""),
-                     json.dumps(entity.get("attributes", {}))),
+                     json.dumps(entity.get("attributes", {})),
+                     entity.get("parent")),
                 )
                 self._insert_schema_term(
                     self.conn,
@@ -393,6 +419,7 @@ class SchemaMixin:
                 "name": r["name"],
                 "description": r["description"],
                 "attributes": json.loads(r["attributes_json"]),
+                "parent": r["parent_name"],
             }
             for r in self.conn.execute(
                 "SELECT * FROM entity_type WHERE schema_version_id = ? ORDER BY name",

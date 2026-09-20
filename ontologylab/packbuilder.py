@@ -94,6 +94,7 @@ _PACK_COPY_COLUMNS: dict[str, tuple[str, ...]] = {
     "schema_version": ("id", "label", "description", "created_ts", "is_active"),
     "entity_type": (
         "id", "schema_version_id", "name", "description", "attributes_json",
+        "parent_name",
     ),
     "relation_type": (
         "id", "schema_version_id", "name", "description", "domain_type",

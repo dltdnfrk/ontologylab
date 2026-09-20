@@ -168,7 +168,8 @@ def _schema_block(schema: dict[str, Any]) -> str:
         attrs = ""
         if et["attributes"]:
             attrs = f" Attributes: {json.dumps(et['attributes'])}"
-        lines.append(f"- {et['name']}: {et['description']}{attrs}")
+        parent = f" (is-a {et['parent']})" if et.get("parent") else ""
+        lines.append(f"- {et['name']}: {et['description']}{parent}{attrs}")
     lines.append("Relation types:")
     for rt in schema["relation_types"]:
         domain = rt["domain_type"]
