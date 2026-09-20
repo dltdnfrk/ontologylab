@@ -27,6 +27,7 @@ import argparse
 import asyncio
 import ipaddress
 import json
+import math
 import os
 import pathlib
 import re
@@ -876,6 +877,159 @@ class ApiEngine:
 
 
 # ---------------------------------------------------------------------------
+# Decision engines (typed answers, no text generation)
+# ---------------------------------------------------------------------------
+
+JEV_DEFAULT_MODEL = "jev-latest"
+
+# The critic stream key for Jev scores: Jev answers a different question
+# than the text critic rubric, so its rows are recorded under their own
+# version (critic.py imports this; engines.py cannot import critic).
+JEV_CRITIC_PROMPT_VERSION = "jev-critic-v1"
+
+# The advisory question Jev answers for each pending item. The item's own
+# evidence excerpt lives in ``state.items``; the instruction only names which
+# row to judge, so the question stays identical in shape across items.
+_JEV_SUPPORT_INSTRUCTION = (
+    "For the object in state.items whose id is {id!r}: does that object's "
+    "evidence field support the extraction it describes? Judge only evidence "
+    "support, not the extractor's own confidence."
+)
+
+
+class JevEngine:
+    """Engine backed by a TypeSafe Jev provider (``kind="jev"``).
+
+    Jev is a System One decision model: it takes a state plus typed
+    questions and returns probabilities — it never generates text. It
+    therefore cannot serve the generative engine contract (``generate``
+    raises), and instead exposes ``judge(items)``, which the critic path
+    uses to score evidence support for proposed extractions. One HTTP call
+    carries one Noul question per item, evaluated in parallel against the
+    same state.
+
+    Selected as ``api:<provider.id>`` where the provider's kind is ``jev``.
+    The API key resolves from the provider's ``api_key_env`` (or Keychain)
+    at call time and is never stored, logged, or echoed in an error.
+    """
+
+    critic_prompt_version = JEV_CRITIC_PROMPT_VERSION
+
+    def __init__(
+        self,
+        provider: Provider,
+        model: Optional[str] = None,
+        timeout_s: float = _DEFAULT_TIMEOUT_S,
+    ) -> None:
+        self._provider = provider
+        self._model = model or (
+            provider.models[0] if provider.models else JEV_DEFAULT_MODEL
+        )
+        self._timeout_s = timeout_s
+
+    def name(self) -> str:
+        return f"api:{self._provider.id}"
+
+    async def generate(
+        self, prompt: str, *, model: Optional[str] = None
+    ) -> tuple[str, dict]:
+        raise EngineError(
+            f"engine {self.name()!r} is a decision engine: it answers typed "
+            "questions and cannot generate text (no extraction, summary, or "
+            "expansion output)"
+        )
+
+    async def judge(
+        self, items: list[dict], *, model: Optional[str] = None
+    ) -> dict[str, dict[str, Any]]:
+        """Score each item's evidence support; returns {id: {score, rationale}}.
+
+        Each item needs ``id``, ``kind``, ``type``, ``label`` and ``evidence``.
+        The score is the Noul probability that the cited evidence supports
+        the extraction — the same 0..1 advisory scale the text critic uses.
+        Jev returns no rationale, so it is always None here.
+        """
+        provider_id = self._provider.id
+        key = resolve_api_key(self._provider)
+        if not key:
+            raise EngineError(
+                f"provider {provider_id!r}: env var "
+                f"{self._provider.api_key_env} is not set"
+            )
+        effective_model = model or self._model
+        url = f"{self._provider.base_url.rstrip('/')}/systemone"
+        state = {
+            "items": [
+                {
+                    "id": item["id"],
+                    "kind": item["kind"],
+                    "type": item["type"],
+                    "label": item["label"],
+                    "evidence": item.get("evidence") or "",
+                }
+                for item in items
+            ]
+        }
+        questions = {
+            item["id"]: {
+                "type": "noul",
+                "instructions": _JEV_SUPPORT_INSTRUCTION.format(
+                    id=item["id"]
+                ),
+            }
+            for item in items
+        }
+        body = {"state": state, "model": effective_model,
+                "questions": questions}
+        headers = {
+            "Authorization": f"Bearer {key}",
+            "content-type": "application/json",
+        }
+        if not _url_is_loopback(url):
+            assert_network_allowed(f"api provider {provider_id!r} ({url})")
+        try:
+            response = await asyncio.to_thread(
+                _http_post_json, url, headers, body, self._timeout_s
+            )
+        except HTTPError as exc:
+            raise EngineError(
+                f"provider {provider_id!r}: HTTP {exc.code} from the jev "
+                "endpoint"
+            ) from None
+        except (URLError, TimeoutError, OSError) as exc:
+            raise EngineError(
+                f"provider {provider_id!r}: request failed "
+                f"({type(exc).__name__})"
+            ) from None
+        except (json.JSONDecodeError, ValueError):
+            raise EngineError(
+                f"provider {provider_id!r}: response was not valid JSON"
+            ) from None
+        answers = response.get("answers")
+        if not isinstance(answers, dict):
+            raise EngineError(
+                f"provider {provider_id!r}: response has no 'answers' object"
+            )
+        out: dict[str, dict[str, Any]] = {}
+        for item in items:
+            answer = answers.get(item["id"])
+            if not isinstance(answer, dict) or answer.get("type") != "noul":
+                continue
+            noul = answer.get("noul")
+            if (
+                not isinstance(noul, (int, float))
+                or isinstance(noul, bool)
+                or not math.isfinite(noul)
+            ):
+                continue
+            out[item["id"]] = {
+                "score": min(1.0, max(0.0, float(noul))),
+                "rationale": None,
+            }
+        return out
+
+
+# ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
 
@@ -954,6 +1108,13 @@ def get_engine(
                 f"unknown provider {provider_id!r}; register it with "
                 "`ontologylab provider add`"
             )
+        if provider.kind == "jev":
+            if decode_params is not None:
+                raise EngineError(
+                    f"provider {provider_id!r} is a decision engine and has "
+                    "no sampling parameters to apply"
+                )
+            return JevEngine(provider, model=model)
         return ApiEngine(provider, model=model, decode_params=decode_params)
     raise EngineError(f"unknown engine {name!r}; expected one of {_ENGINE_NAMES}")
 

@@ -24,6 +24,7 @@ from typing import Any, Optional
 from ontologylab.engines import (
     CRITIC_MARKER_CLOSE,
     CRITIC_MARKER_OPEN,
+    JEV_CRITIC_PROMPT_VERSION,
     EngineError,
     extract_fenced_block,
 )
@@ -37,6 +38,16 @@ from ontologylab.kgstore import (
 from ontologylab.paths import CRITIC_MODEL
 
 CRITIC_PROMPT_VERSION = "critic-v1"
+
+# Decision engines (e.g. Jev) score evidence support without the text prompt,
+# so their stream is keyed under a distinct version: a jev row and a
+# critic-v1 row for the same item are answers to different questions. The
+# constant itself lives in engines.py (critic imports engines, not reverse).
+
+
+def _critic_prompt_version(engine) -> str:
+    """The prompt/rubric version this engine's scores were produced under."""
+    return getattr(engine, "critic_prompt_version", CRITIC_PROMPT_VERSION)
 
 # Evidence excerpt window: same definition the review views use.
 EVIDENCE_CONTEXT_CHARS = SPAN_EXCERPT_CONTEXT_CHARS
@@ -142,6 +153,7 @@ def _pending_items(
     model: Optional[str],
     limit: int,
     docs_unloadable: Optional[set[str]] = None,
+    prompt_version: str = CRITIC_PROMPT_VERSION,
 ) -> list[dict]:
     """Proposed nodes/edges the current critic stream has not scored yet.
 
@@ -181,7 +193,7 @@ def _pending_items(
         " AND c.item_id = n.id AND c.engine = ? AND c.model IS ? "
         " AND c.prompt_version = ?) "
         "ORDER BY n.created_ts ASC LIMIT ?",
-        (engine_name, model, CRITIC_PROMPT_VERSION, limit),
+        (engine_name, model, prompt_version, limit),
     ).fetchall()
     for row in node_rows:
         span = json.loads(row["source_span"]) if row["source_span"] else None
@@ -206,7 +218,7 @@ def _pending_items(
             " AND c.item_id = e.id AND c.engine = ? AND c.model IS ? "
             " AND c.prompt_version = ?) "
             "ORDER BY e.created_ts ASC LIMIT ?",
-            (engine_name, model, CRITIC_PROMPT_VERSION, remaining),
+            (engine_name, model, prompt_version, remaining),
         ).fetchall()
         for row in edge_rows:
             span = json.loads(row["source_span"]) if row["source_span"] else None
@@ -242,10 +254,11 @@ async def critic_review(
     in the returned stats) and never raises out of the loop.
     """
     engine_name = engine.name() if hasattr(engine, "name") else str(engine)
+    prompt_version = _critic_prompt_version(engine)
     docs_unloadable: set[str] = set()
     items = _pending_items(
         store, engine_name=engine_name, model=model, limit=limit,
-        docs_unloadable=docs_unloadable,
+        docs_unloadable=docs_unloadable, prompt_version=prompt_version,
     )
     # An item with no evidence is not a thing this critic can judge. Asked
     # anyway, the model answers "no evidence provided" and — following the
@@ -271,10 +284,14 @@ async def critic_review(
     }
     for start in range(0, len(items), batch_size):
         batch = items[start : start + batch_size]
-        prompt = build_critic_prompt(batch)
         try:
-            raw_text, _usage = await engine.generate(prompt, model=model)
-            reviews = parse_critic(raw_text, {i["id"] for i in batch})
+            if hasattr(engine, "judge"):
+                # Decision engine (e.g. Jev): typed questions, no prompt text.
+                reviews = await engine.judge(batch, model=model)
+            else:
+                prompt = build_critic_prompt(batch)
+                raw_text, _usage = await engine.generate(prompt, model=model)
+                reviews = parse_critic(raw_text, {i["id"] for i in batch})
         except Exception as exc:
             stats["batches_failed"] += 1
             stats["errors"].append(str(exc))
@@ -287,7 +304,7 @@ async def critic_review(
                 item_id,
                 engine=engine_name,
                 model=model,
-                prompt_version=CRITIC_PROMPT_VERSION,
+                prompt_version=prompt_version,
                 score=review["score"],
                 rationale=review["rationale"],
             )
@@ -304,6 +321,7 @@ async def critic_review(
 
 __all__ = [
     "CRITIC_PROMPT_VERSION",
+    "JEV_CRITIC_PROMPT_VERSION",
     "build_critic_prompt",
     "parse_critic",
     "critic_review",

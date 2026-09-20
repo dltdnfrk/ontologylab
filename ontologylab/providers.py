@@ -45,13 +45,14 @@ _ENV_NAME_RE = re.compile(r"[A-Z][A-Z0-9_]*")
 # Ollama / LM Studio server works without forcing TLS; everything else needs https.
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
-PROVIDER_KINDS = ("anthropic", "openai")
+PROVIDER_KINDS = ("anthropic", "openai", "jev")
 
 # Official HTTPS origins (scheme, hostname, default port) own a single env.
 _OFFICIAL_ENV_BY_ORIGIN: dict[tuple[str, str, int], str] = {
     ("https", "api.anthropic.com", 443): "ANTHROPIC_API_KEY",
     ("https", "api.openai.com", 443): "OPENAI_API_KEY",
     ("https", "openrouter.ai", 443): "OPENROUTER_API_KEY",
+    ("https", "api.typesafe.ai", 443): "TYPESAFE_API_KEY",
 }
 
 

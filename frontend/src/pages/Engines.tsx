@@ -111,12 +111,13 @@ type CriticRunResult = {
   errors: unknown[];
 };
 
-/* 서버가 받는 유일한 두 종류(ontologylab/providers.py:PROVIDER_KINDS).
+/* 서버가 받는 세 종류(ontologylab/providers.py:PROVIDER_KINDS).
    고를 수 있는 값을 보여주기만 하고, 검증은 서버가 400 으로 한다. 라벨은
    기계값을 대체하지 않고 옆에 붙는다(DESIGN.md §5). */
 const PROVIDER_KINDS = [
   { value: "anthropic", label: "Anthropic Messages" },
   { value: "openai", label: "OpenAI 호환" },
+  { value: "jev", label: "TypeSafe Jev (결정 전용)" },
 ] as const;
 
 const NUM = new Intl.NumberFormat("ko-KR");
