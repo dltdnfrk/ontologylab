@@ -562,6 +562,53 @@ class SchemaMixin:
             "questions": results,
         }
 
+    def diff_schema_versions(
+        self, a_id: int, b_id: int
+    ) -> dict[str, Any]:
+        """Field-level diff between two schema versions.
+
+        Versions are additive history — nothing is ever edited in place —
+        so the only way to see what a revision changed is to compare two
+        snapshots. Entity types compare on name/description/attributes/
+        parent; relation types on name/description/domain/range/directed/
+        qualifiers. A type present in both with any field changed lands in
+        ``changed`` with the old and new values per field.
+        """
+        a = self.get_schema(a_id)
+        b = self.get_schema(b_id)
+
+        def _diff_types(a_rows, b_rows, fields):
+            a_by = {r["name"]: r for r in a_rows}
+            b_by = {r["name"]: r for r in b_rows}
+            added = sorted(n for n in b_by if n not in a_by)
+            removed = sorted(n for n in a_by if n not in b_by)
+            changed = []
+            for name in sorted(set(a_by) & set(b_by)):
+                delta = {
+                    f: {"from": a_by[name].get(f), "to": b_by[name].get(f)}
+                    for f in fields
+                    if a_by[name].get(f) != b_by[name].get(f)
+                }
+                if delta:
+                    changed.append({"name": name, "fields": delta})
+            return {"added": added, "removed": removed, "changed": changed}
+
+        return {
+            "from": {"schema_version_id": a["schema_version_id"],
+                     "label": a["schema_label"]},
+            "to": {"schema_version_id": b["schema_version_id"],
+                   "label": b["schema_label"]},
+            "entity_types": _diff_types(
+                a["entity_types"], b["entity_types"],
+                ("description", "attributes", "parent"),
+            ),
+            "relation_types": _diff_types(
+                a["relation_types"], b["relation_types"],
+                ("description", "domain_type", "range_type", "directed",
+                 "qualifiers"),
+            ),
+        }
+
     def get_schema(self, schema_version_id: int | None = None) -> dict[str, Any]:
         """Return one ontology version (entity + relation types) as plain data.
 
