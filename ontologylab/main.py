@@ -1396,6 +1396,120 @@ def cmd_build_mcpb(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def cmd_ontology_list(args: argparse.Namespace) -> int:
+    store = _open_store(args)
+    try:
+        for s in store.list_schemas():
+            active = "*" if s.get("active") else " "
+            print(
+                f"{active} {s['id']:<4} {s.get('label', ''):<24} "
+                f"items={s.get('items', 0):<6} {s.get('description', '')}"
+            )
+    finally:
+        store.close()
+    return 0
+
+
+def cmd_ontology_show(args: argparse.Namespace) -> int:
+    store = _open_store(args)
+    try:
+        schema = store.get_schema(args.version)
+    finally:
+        store.close()
+    print(json.dumps(schema, indent=2))
+    return 0
+
+
+def cmd_ontology_diff(args: argparse.Namespace) -> int:
+    store = _open_store(args)
+    try:
+        print(json.dumps(store.diff_schema_versions(args.a, args.b), indent=2))
+    finally:
+        store.close()
+    return 0
+
+
+def cmd_ontology_audit(args: argparse.Namespace) -> int:
+    from ontologylab.schema_audit import audit_schema
+
+    store = _open_store(args)
+    try:
+        out = audit_schema(store, args.version)
+    finally:
+        store.close()
+    print(json.dumps(out, indent=2))
+    return 1 if out["warnings"] else 0
+
+
+def cmd_ontology_import_skos(args: argparse.Namespace) -> int:
+    from ontologylab.skos_import import import_skos
+
+    store = _open_store(args)
+    try:
+        result = import_skos(store, Path(args.path).read_text(), label=args.label)
+    finally:
+        store.close()
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+def cmd_ontology_export_skos(args: argparse.Namespace) -> int:
+    from ontologylab.skos_export import export_skos
+
+    store = _open_store(args)
+    try:
+        print(export_skos(store, args.version))
+    finally:
+        store.close()
+    return 0
+
+
+def cmd_ontology_export_owl(args: argparse.Namespace) -> int:
+    from ontologylab.owl_export import export_owl
+
+    store = _open_store(args)
+    try:
+        print(export_owl(store, args.version))
+    finally:
+        store.close()
+    return 0
+
+
+def cmd_ontology_cq_add(args: argparse.Namespace) -> int:
+    store = _open_store(args)
+    try:
+        cq = store.add_schema_cq(
+            args.question,
+            requires=[t.strip() for t in args.requires.split(",") if t.strip()],
+            schema_version_id=args.version,
+            reviewer=args.reviewer,
+            provenance=args.provenance,
+        )
+    finally:
+        store.close()
+    print(json.dumps(cq, indent=2))
+    return 0
+
+
+def cmd_ontology_cq_list(args: argparse.Namespace) -> int:
+    store = _open_store(args)
+    try:
+        print(json.dumps(store.list_schema_cqs(args.version), indent=2))
+    finally:
+        store.close()
+    return 0
+
+
+def cmd_ontology_cq_check(args: argparse.Namespace) -> int:
+    store = _open_store(args)
+    try:
+        out = store.check_schema_cqs(args.version)
+    finally:
+        store.close()
+    print(json.dumps(out, indent=2))
+    return 0 if out["covered"] == out["total"] else 1
+
+
 def cmd_search(args: argparse.Namespace) -> int:
     try:
         store = _open_store(args)
@@ -2184,6 +2298,87 @@ def build_arg_parser() -> argparse.ArgumentParser:
                              help="Override the model for this test call.")
     _add_data_dir(p_prov_test)
     p_prov_test.set_defaults(func=cmd_provider_test)
+
+    p_onto = sub.add_parser(
+        "ontology",
+        help="Schema/ontology surface: list, show, diff, audit, SKOS/OWL "
+        "import+export, competency questions.",
+    )
+    onto_sub = p_onto.add_subparsers(dest="ontology_command", required=True)
+
+    p_onto_list = onto_sub.add_parser("list", help="List schema versions.")
+    _add_data_dir(p_onto_list)
+    p_onto_list.set_defaults(func=cmd_ontology_list)
+
+    p_onto_show = onto_sub.add_parser(
+        "show", help="Print one schema version (default: active)."
+    )
+    _add_data_dir(p_onto_show)
+    p_onto_show.add_argument("--version", type=int, default=None)
+    p_onto_show.set_defaults(func=cmd_ontology_show)
+
+    p_onto_diff = onto_sub.add_parser(
+        "diff", help="Field-level diff between two schema versions."
+    )
+    _add_data_dir(p_onto_diff)
+    p_onto_diff.add_argument("--a", type=int, required=True)
+    p_onto_diff.add_argument("--b", type=int, required=True)
+    p_onto_diff.set_defaults(func=cmd_ontology_diff)
+
+    p_onto_audit = onto_sub.add_parser(
+        "audit", help="Static pitfall audit of a schema version."
+    )
+    _add_data_dir(p_onto_audit)
+    p_onto_audit.add_argument("--version", type=int, default=None)
+    p_onto_audit.set_defaults(func=cmd_ontology_audit)
+
+    p_onto_import = onto_sub.add_parser(
+        "import-skos", help="Import a SKOS Turtle file as a schema version."
+    )
+    _add_data_dir(p_onto_import)
+    p_onto_import.add_argument("path", help="SKOS Turtle file.")
+    p_onto_import.add_argument("--label", required=True)
+    p_onto_import.set_defaults(func=cmd_ontology_import_skos)
+
+    p_onto_export_skos = onto_sub.add_parser(
+        "export-skos", help="Export a schema version as SKOS Turtle."
+    )
+    _add_data_dir(p_onto_export_skos)
+    p_onto_export_skos.add_argument("--version", type=int, default=None)
+    p_onto_export_skos.set_defaults(func=cmd_ontology_export_skos)
+
+    p_onto_export_owl = onto_sub.add_parser(
+        "export-owl", help="Export a schema version as OWL 2 / RDFS Turtle."
+    )
+    _add_data_dir(p_onto_export_owl)
+    p_onto_export_owl.add_argument("--version", type=int, default=None)
+    p_onto_export_owl.set_defaults(func=cmd_ontology_export_owl)
+
+    p_onto_cq = onto_sub.add_parser(
+        "cq", help="Manage competency questions bound to a schema version."
+    )
+    cq_sub = p_onto_cq.add_subparsers(dest="cq_command", required=True)
+    p_cq_add = cq_sub.add_parser("add", help="Add a competency question.")
+    _add_data_dir(p_cq_add)
+    p_cq_add.add_argument("question")
+    p_cq_add.add_argument(
+        "--requires", default="",
+        help="Comma-separated entity/relation type names the question needs.",
+    )
+    p_cq_add.add_argument("--version", type=int, default=None)
+    p_cq_add.add_argument("--reviewer", required=True)
+    p_cq_add.add_argument("--provenance", required=True)
+    p_cq_add.set_defaults(func=cmd_ontology_cq_add)
+    p_cq_list = cq_sub.add_parser("list", help="List competency questions.")
+    _add_data_dir(p_cq_list)
+    p_cq_list.add_argument("--version", type=int, default=None)
+    p_cq_list.set_defaults(func=cmd_ontology_cq_list)
+    p_cq_check = cq_sub.add_parser(
+        "check", help="Report which CQs the schema can express."
+    )
+    _add_data_dir(p_cq_check)
+    p_cq_check.add_argument("--version", type=int, default=None)
+    p_cq_check.set_defaults(func=cmd_ontology_cq_check)
 
     from ontologylab.h1_cli import add_h1_parser
 
