@@ -133,7 +133,7 @@ class SearchMixin:
         (over-fetched so status/type filtering can't starve the top_k), else
         every embedded row for this embedder (brute force)."""
         status_sql = _status_clause(include_proposed)
-        type_sql = " AND entity_type = ?" if entity_type else ""
+        type_sql, type_args = self._type_filter_sql(entity_type, "entity_type")
         use_vec = (
             self._vec_available()
             and self._table_exists("vec_nodes")
@@ -164,13 +164,11 @@ class SearchMixin:
                 rows = self.conn.execute(
                     f"SELECT * FROM nodes WHERE id IN ({placeholders}) "
                     f"AND embedding_model = ? AND {status_sql}{type_sql}",
-                    [*ids, embedder.name(), *([entity_type] if entity_type else [])],
+                    [*ids, embedder.name(), *type_args],
                 ).fetchall()
                 # preserve KNN order isn't needed — we rescore exactly below.
                 return rows
-        args: list[Any] = [embedder.name()]
-        if entity_type:
-            args.append(entity_type)
+        args: list[Any] = [embedder.name(), *type_args]
         return self.conn.execute(
             f"SELECT * FROM nodes WHERE embedding_model = ? AND {status_sql}{type_sql}",
             args,

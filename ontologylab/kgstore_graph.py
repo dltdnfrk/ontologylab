@@ -35,8 +35,9 @@ class GraphMixin:
         where = [status_sql]
         args: list[Any] = []
         if entity_type:
-            where.append("entity_type = ?")
-            args.append(entity_type)
+            type_sql, type_args = self._type_filter_sql(entity_type, "entity_type")
+            where.append(type_sql.strip()[4:])  # strip leading "AND "
+            args.extend(type_args)
         for prop_key, value in (property_filters or {}).items():
             where.append("json_extract(properties_json, ?) = ?")
             args.extend([f"$.{prop_key}", value])

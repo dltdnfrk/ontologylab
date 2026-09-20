@@ -390,8 +390,9 @@ class ReviewMixin:
         node_where = ["status = 'proposed'"]
         node_args: list[Any] = []
         if entity_type:
-            node_where.append("entity_type = ?")
-            node_args.append(entity_type)
+            type_sql, type_args = self._type_filter_sql(entity_type, "entity_type")
+            node_where.append(type_sql.strip()[4:])  # strip leading "AND "
+            node_args.extend(type_args)
         if source_doc_id:
             node_where.append("source_doc_id = ?")
             node_args.append(source_doc_id)

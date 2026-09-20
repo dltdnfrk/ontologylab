@@ -90,8 +90,7 @@ class QueryMixin:
             raise KGStoreError("entity_lookup requires id or name")
 
         key = normalize_name(name)
-        type_sql = " AND entity_type = ?" if entity_type else ""
-        type_args = [entity_type] if entity_type else []
+        type_sql, type_args = self._type_filter_sql(entity_type, "entity_type")
 
         cur = self.conn.execute(
             f"SELECT * FROM nodes WHERE normalized_name = ? AND {status_sql}{type_sql}",
@@ -100,7 +99,7 @@ class QueryMixin:
         for row in cur.fetchall():
             add(row, 1.0)
 
-        aliased_type_sql = " AND n.entity_type = ?" if entity_type else ""
+        aliased_type_sql, _ = self._type_filter_sql(entity_type, "n.entity_type")
         cur = self.conn.execute(
             "SELECT n.* FROM node_aliases a JOIN nodes n ON n.id = a.node_id "
             f"WHERE a.normalized_alias = ? AND {_status_clause(include_proposed, 'n')}"
@@ -275,10 +274,8 @@ class QueryMixin:
             return []
         match_expr = " OR ".join(f'"{t}"' for t in terms)
         status_sql = _status_clause(include_proposed, "n")
-        type_sql = " AND n.entity_type = ?" if entity_type else ""
-        args: list[Any] = [match_expr]
-        if entity_type:
-            args.append(entity_type)
+        type_sql, type_args = self._type_filter_sql(entity_type, "n.entity_type")
+        args: list[Any] = [match_expr, *type_args]
         args.append(top_k * 4)  # over-fetch before status/type/score filtering
         cur = self.conn.execute(
             "SELECT n.*, bm25(nodes_fts) AS raw_rank FROM nodes_fts "

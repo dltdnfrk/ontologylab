@@ -395,6 +395,52 @@ class SchemaMixin:
                 (schema_id,),
             )
 
+    def type_filter_values(self, entity_type: str) -> list[str]:
+        """The type plus every descendant under the is-a hierarchy.
+
+        ``entity_type.parent_name`` made the hierarchy real, but a filter
+        that only matched the named type made it decorative: asking for
+        ``Chemical`` would not find a ``Herbicide``. Query-side filters
+        expand through this helper; identity resolution stays exact —
+        a node proposed as ``Herbicide`` must not silently become the
+        ``Chemical`` another document meant.
+
+        Descendants are collected across every schema version the store
+        holds, because nodes keep pointing at the version they were
+        extracted under and a parent may exist in more than one. A type
+        no version declares returns itself — the filter degrades to the
+        exact match it always was.
+        """
+        rows = self.conn.execute(
+            "SELECT name, parent_name FROM entity_type"
+        ).fetchall()
+        children: dict[str, list[str]] = {}
+        for r in rows:
+            if r["parent_name"]:
+                children.setdefault(r["parent_name"], []).append(r["name"])
+        values = {entity_type}
+        stack = [entity_type]
+        while stack:
+            for child in children.get(stack.pop(), []):
+                if child not in values:
+                    values.add(child)
+                    stack.append(child)
+        return sorted(values)
+
+    def _type_filter_sql(self, entity_type: str | None, column: str) -> tuple[str, list[str]]:
+        """(SQL fragment, args) for an is-a-aware entity_type filter.
+
+        Emits ``column IN (SELECT value FROM json_each(?))`` — the same
+        json_each idiom the edge id-set uses, so the parameter count stays
+        one regardless of hierarchy width.
+        """
+        if not entity_type:
+            return "", []
+        return (
+            f" AND {column} IN (SELECT value FROM json_each(?))",
+            [json.dumps(self.type_filter_values(entity_type))],
+        )
+
     def get_schema(self, schema_version_id: int | None = None) -> dict[str, Any]:
         """Return one ontology version (entity + relation types) as plain data.
 
