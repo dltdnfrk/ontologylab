@@ -183,18 +183,49 @@ def _schema_block(schema: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def build_extraction_prompt(schema: dict[str, Any], chunk_text: str) -> str:
+def _rejected_feedback_block(rejected: list[dict[str, Any]] | None) -> str:
+    """Render recent human rejections as a negative-examples section.
+
+    The review→extract feedback loop: rows come from
+    ``KGStore.rejected_extraction_feedback`` (status='rejected', newest
+    first). An empty list renders nothing — a first-run graph has no
+    rejections to teach from, and an empty section header would only
+    invite the model to hallucinate one.
+    """
+    if not rejected:
+        return ""
+    lines = [
+        "Previously rejected extractions (do NOT re-propose these or "
+        "near-duplicates):"
+    ]
+    for row in rejected:
+        note = (row.get("review_note") or "").strip()
+        suffix = f" — {note}" if note else ""
+        lines.append(
+            f"- {row['type_name']} {row['label']!r} ({row['kind']}){suffix}"
+        )
+    return "\n".join(lines) + "\n\n"
+
+
+def build_extraction_prompt(
+    schema: dict[str, Any],
+    chunk_text: str,
+    rejected: list[dict[str, Any]] | None = None,
+) -> str:
     """Build the extraction prompt for one document chunk.
 
     Embeds the active ontology schema and the chunk between explicit
     <document-chunk> markers, and pins the exact JSON output contract.
+    ``rejected`` is the review→extract feedback: human-rejected proposals
+    rendered as negative examples so the same artifact class is not
+    re-proposed on the next document.
     """
     return f"""You are an information-extraction engine. Extract entities and relations \
 from the document chunk below, strictly following the ontology schema.
 
 {_schema_block(schema)}
 
-Rules:
+{_rejected_feedback_block(rejected)}Rules:
 1. Return EXACTLY ONE fenced ```json block and nothing else.
 2. The JSON shape is {{"entities": [...], "relations": [...]}}.
 3. Each entity: name, entity_type (one of the schema types), aliases (list),
@@ -778,6 +809,18 @@ async def run_extract_job(
         decode_params=decode_params,
     )
     provenance.log("extract.end", {"totals": totals, "stopped": stopped_reason})
+    # Merge reflux: extraction just minted new proposed nodes, so the
+    # duplicate queue is stale until it is rescanned. Running it here — the
+    # shared CLI/worker completion point — means the merge queue reflects
+    # this run without a separate manual `merge-scan`. Fail-open: a scan
+    # error must not fail a completed extraction.
+    try:
+        from ontologylab.merge import scan_merge_candidates
+
+        merge_stats = scan_merge_candidates(store)
+        provenance.log("extract.merge_scan", merge_stats)
+    except Exception as exc:  # noqa: BLE001 — advisory scan, never fatal
+        provenance.log("extract.merge_scan_error", {"error": str(exc)})
     return stopped_reason
 
 
@@ -816,6 +859,10 @@ async def run_extraction(
     one malformed response must not discard the document's other chunks.
     """
     schema = store.get_schema()
+    # Review→extract feedback: human rejections become negative examples in
+    # every prompt this run emits. Fetched once — the run's job is to learn
+    # from the queue as it stood at start, not to chase live edits.
+    rejected_feedback = store.rejected_extraction_feedback()
     has_organisms = any(
         entity["name"] in ORGANISM_ENTITY_TYPES
         and "eppo_code" in entity["attributes"]
@@ -883,7 +930,9 @@ async def run_extraction(
                             break
                     if not lifecycle.claim(plan.run_id, chunk.index):
                         continue
-                    prompt = build_extraction_prompt(schema, chunk.text)
+                    prompt = build_extraction_prompt(
+                        schema, chunk.text, rejected=rejected_feedback
+                    )
                     try:
                         raw_response, usage = await engine.generate(
                             prompt, model=extractor_model

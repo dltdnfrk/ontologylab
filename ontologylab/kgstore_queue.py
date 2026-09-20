@@ -261,6 +261,41 @@ class QueueMixin:
         self._attach_evidence(rows)
         return rows
 
+    def rejected_extraction_feedback(
+        self, *, limit: int = 30
+    ) -> list[dict[str, Any]]:
+        """Recent human rejections, shaped for the extraction prompt.
+
+        The review→extract feedback loop: rejected proposals stay in the
+        store with ``status='rejected'`` and their ``review_note`` carries
+        the human's reason. Surfacing them to the extractor is what stops
+        the same artifact class (hallucinated surface forms, off-schema
+        types, unsupported relations) from being re-proposed on every
+        document. Newest first, capped — the prompt is a budget, not a log.
+        """
+        rows: list[dict[str, Any]] = []
+        cur = self.conn.execute(
+            "SELECT 'node' AS kind, entity_type AS type_name, name AS label, "
+            "review_note, verified_ts FROM nodes "
+            "WHERE status = 'rejected' "
+            "ORDER BY verified_ts DESC LIMIT ?",
+            (limit,),
+        )
+        rows.extend(dict(r) for r in cur.fetchall())
+        cur = self.conn.execute(
+            "SELECT 'edge' AS kind, relation_type AS type_name, "
+            "s.name || ' -[' || e.relation_type || ']-> ' || d.name AS label, "
+            "e.review_note, e.verified_ts FROM edges e "
+            "JOIN nodes s ON s.id = e.src_node_id "
+            "JOIN nodes d ON d.id = e.dst_node_id "
+            "WHERE e.status = 'rejected' "
+            "ORDER BY e.verified_ts DESC LIMIT ?",
+            (limit,),
+        )
+        rows.extend(dict(r) for r in cur.fetchall())
+        rows.sort(key=lambda r: (r.get("verified_ts") or 0), reverse=True)
+        return rows[:limit]
+
     def stale_decisions(self) -> list[dict[str, Any]]:
         """Verified items whose source document has a newer fetch.
 
