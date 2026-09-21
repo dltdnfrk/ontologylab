@@ -39,8 +39,8 @@ communities community_members critic_reviews documents edges
 entity_enrichments entity_type merge_candidates node_aliases nodes nodes_fts
 nodes_fts_config nodes_fts_data nodes_fts_docsize nodes_fts_idx ontology_term
 ontologylab_storage_metadata
-relation_type runs schema_version sqlite_sequence sqlite_stat1 term_alias
-term_xref""".split())
+relation_type runs schema_cq schema_version sqlite_sequence sqlite_stat1
+term_alias term_xref""".split())
 
 # Every Method/compiled-method table name any later phase may introduce.
 BLOCKED_METHOD_TABLE_NAMES = set("""bridge_evidence bridge_proposal
