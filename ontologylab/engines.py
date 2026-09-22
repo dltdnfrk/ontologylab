@@ -556,7 +556,9 @@ _DEFAULT_TIMEOUT_S = 300.0
 # Extraction needs only the model's text; these tools would let injected
 # document content act on the local machine.
 _CLAUDE_DISALLOWED_TOOLS = (
-    "Bash,Edit,Write,NotebookEdit,Read,Glob,Grep,WebFetch,WebSearch,Agent,mcp"
+    # `mcp` is not a tool name the CLI recognises; listing it makes the
+    # whole invocation exit 1 before the prompt is even read.
+    "Bash,Edit,Write,NotebookEdit,Read,Glob,Grep,WebFetch,WebSearch,Agent"
 )
 
 
