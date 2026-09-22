@@ -139,20 +139,30 @@ async def extract_research_documents(
     if session.raw_documents:
         attach_explicit_completeness_variants(store, session.raw_documents)
     selected: list[str] = []
+    skipped = 0
     for work_id in _work_ids(store, collected_ids):
         receipt = put_selection_receipt(store.conn, work_id, PolicyVersion.V1)
         if receipt.selected_representation_id is None:
-            raise SelectionRefused(
-                SelectionRefusalCode.NO_ELIGIBLE_READY_FULL_TEXT,
-                work_id,
-                f"no eligible ready full text for work {work_id}",
-            )
+            # A Work with no ready full text is skipped, not fatal: the
+            # docstring contract is "extract only those" that have one.
+            # Raising here made one abstract-only Work abort the whole run
+            # even when sibling Works carried ready full text.
+            skipped += 1
+            continue
         _bind_run_receipt(store, receipt, session)
         selected.append(receipt.selected_representation_id)
     if store.conn.in_transaction:
         store.conn.commit()
     if not selected:
-        return ExtractionOutcome("")
+        raise SelectionRefused(
+            SelectionRefusalCode.NO_ELIGIBLE_READY_FULL_TEXT,
+            "",
+            "no eligible ready full text in any collected work",
+        )
+    if skipped:
+        session.on_progress(
+            f"[ontologylab] skipped {skipped} work(s) with no ready full text"
+        )
     decode_params = json.loads(session.decode_params_json)
     return await run_extraction(
         store,
