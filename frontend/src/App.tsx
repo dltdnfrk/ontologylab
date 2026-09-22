@@ -1,6 +1,6 @@
 import { Routes, Route, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Home, Download, CheckSquare, Package, FolderOpen, Plug, Merge, Users, Network, Cpu, Settings } from "lucide-react";
+import { Home, Download, CheckSquare, Package, FolderOpen, Plug, Merge, Users, Network, BookOpen, Cpu, Settings } from "lucide-react";
 import HomePage from "@/pages/Home";
 import SourcesPage from "@/pages/Sources";
 import ReviewPage from "@/pages/Review";
@@ -10,6 +10,7 @@ import McpPage from "@/pages/Mcp";
 import MergePage from "@/pages/Merge";
 import CommunitiesPage from "@/pages/Communities";
 import GraphPage from "@/pages/Graph";
+import OntologyPage from "@/pages/Ontology";
 import EnginesPage from "@/pages/Engines";
 import SettingsPage from "@/pages/Settings";
 
@@ -23,6 +24,7 @@ const NAV = [
   { to: "/merge", icon: Merge, label: "병합" },
   { to: "/communities", icon: Users, label: "커뮤니티" },
   { to: "/graph", icon: Network, label: "그래프" },
+  { to: "/ontology", icon: BookOpen, label: "온톨로지" },
   { to: "/engines", icon: Cpu, label: "엔진" },
   { to: "/settings", icon: Settings, label: "설정" },
 ];
@@ -48,6 +50,7 @@ export default function App() {
           <Route path="/merge" element={<MergePage />} />
           <Route path="/communities" element={<CommunitiesPage />} />
           <Route path="/graph" element={<GraphPage />} />
+          <Route path="/ontology" element={<OntologyPage />} />
           <Route path="/engines" element={<EnginesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>

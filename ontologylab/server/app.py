@@ -48,7 +48,7 @@ _BUSY_MARKERS = ("database is locked", "database table is locked", "busy")
 _RETRY_AFTER_S = "2"
 _DASHBOARD_PATHS = (
     "/", "/sources", "/review", "/packs", "/artifacts", "/mcp",
-    "/merge", "/communities", "/graph", "/engines", "/settings",
+    "/merge", "/communities", "/graph", "/ontology", "/engines", "/settings",
 )
 
 

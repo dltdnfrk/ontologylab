@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import ValidationError
 
 from ontologylab import paths
@@ -963,6 +963,69 @@ def activate_schema(deps: AppDependency, schema_id: int) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     finally:
         store.close()
+
+
+@router.get("/ontology/audit")
+def ontology_audit(deps: AppDependency, version: int | None = None) -> dict[str, Any]:
+    """Ontology-design pitfall findings for the active (or named) schema."""
+    from ontologylab.schema_audit import audit_schema
+
+    store = _open_store(deps)
+    try:
+        return audit_schema(store, version)
+    finally:
+        store.close()
+
+
+@router.get("/ontology/cq")
+def ontology_cq_list(deps: AppDependency, version: int | None = None) -> dict[str, Any]:
+    """Competency questions for a schema with their coverage verdicts."""
+    store = _open_store(deps)
+    try:
+        return {
+            "questions": store.list_schema_cqs(version),
+            "coverage": store.check_schema_cqs(version),
+        }
+    finally:
+        store.close()
+
+
+@router.get("/ontology/diff")
+def ontology_diff(deps: AppDependency, a: int, b: int) -> dict[str, Any]:
+    """Structural diff between two installed schema versions."""
+    store = _open_store(deps)
+    try:
+        return store.diff_schema_versions(a, b)
+    except KGStoreError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    finally:
+        store.close()
+
+
+@router.get("/ontology/export/skos")
+def ontology_export_skos(deps: AppDependency, version: int | None = None) -> Response:
+    """The schema as a SKOS concept scheme, as downloadable Turtle."""
+    from ontologylab.skos_export import export_skos
+
+    store = _open_store(deps)
+    try:
+        turtle = export_skos(store, version)
+    finally:
+        store.close()
+    return Response(content=turtle, media_type="text/turtle")
+
+
+@router.get("/ontology/export/owl")
+def ontology_export_owl(deps: AppDependency, version: int | None = None) -> Response:
+    """The schema as OWL classes and object properties, as Turtle."""
+    from ontologylab.owl_export import export_owl
+
+    store = _open_store(deps)
+    try:
+        turtle = export_owl(store, version)
+    finally:
+        store.close()
+    return Response(content=turtle, media_type="text/turtle")
 
 
 # ---------------------------------------------------------------------------
