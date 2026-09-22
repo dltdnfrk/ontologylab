@@ -700,20 +700,18 @@ class JobRegistry:
                     # chunk already committed: the user asked to stop, so the
                     # status names their action, not the partial output.
                     job.status = "cancelled"
-                elif stopped_reason or chunk_failed:
-                    # A run that stopped early (budget/engine-cap) or lost
-                    # chunks but still produced proposals is "partial", not
-                    # "cancelled" or "failed": the user gets the extracted
-                    # work and an honest signal the run did not finish clean.
-                    if produced:
-                        job.status = "partial"
-                        if chunk_failed:
-                            job.error = ENGINE_FAILURE_SUMMARY
-                    elif stopped_reason:
-                        job.status = "cancelled"
-                    else:
-                        job.status = "failed"
-                        job.error = ENGINE_FAILURE_SUMMARY
+                elif stopped_reason:
+                    # A run stopped early by a budget or engine cap (not a
+                    # user cancel, handled above) that still produced
+                    # proposals is "partial": the user keeps the extracted
+                    # work and gets an honest signal the run did not finish.
+                    job.status = "partial" if produced else "cancelled"
+                elif chunk_failed:
+                    # A chunk that errored is a defect, not a budget stop:
+                    # the durable extraction_runs row is "failed" and the
+                    # job must agree with it.
+                    job.status = "failed"
+                    job.error = ENGINE_FAILURE_SUMMARY
                 else:
                     job.status = "complete"
                 job.finished_ts = time.time()
