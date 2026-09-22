@@ -238,7 +238,19 @@ def assess_acquisition(inputs: AcquisitionInput) -> AcquisitionAssessment:
     occupied = tuple(occupancy)
     missing_mandatory = any(item.mandatory and not item.occupied for item in occupied)
     dimensions = _dimensions(documents, occupied)
-    if not missing_mandatory and dimensions.fulltext_candidate_count:
+    # The extraction gate follows each need's own minimum content class, but
+    # never below ABSTRACT: eligible_documents already cleared the need's bar,
+    # yet a metadata-only record has no text worth extracting from. A
+    # universal full-text requirement dead-ends any topic whose sources only
+    # serve abstracts, even when every mandatory need is occupied.
+    extractable_candidates = {
+        item.document_id
+        for need in occupied
+        for item in need.eligible_documents
+        if item.content_class
+        in (research_spec.ContentClass.ABSTRACT, research_spec.ContentClass.FULLTEXT)
+    }
+    if not missing_mandatory and extractable_candidates:
         recommendation = AcquisitionRecommendation.EXTRACT
         stop_reason = None
     elif (

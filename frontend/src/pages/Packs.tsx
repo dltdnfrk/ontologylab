@@ -103,6 +103,12 @@ type BuildResponse = {
   manifest?: PackManifest;
   detail?: string;
   error_code?: string;
+  extraction_completeness?: {
+    status?: string;
+    relevant_document_ids?: string[];
+    unknown_streams?: { document_id?: string }[];
+    incomplete_streams?: { document_id?: string }[];
+  };
 };
 
 type VerifyResponse = {
@@ -527,9 +533,16 @@ export default function PacksPage() {
   const [building, setBuilding] = useState(false);
   const [buildResult, setBuildResult] = useState<
     | { kind: "ok"; packId: string; counts: PackCounts }
-    | { kind: "failed"; message: string; detail: string }
+    | {
+        kind: "failed";
+        message: string;
+        detail: string;
+        blockingDocs?: { id: string; title: string }[];
+        canOverride?: boolean;
+      }
     | null
   >(null);
+  const [overrideIntent, setOverrideIntent] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
 
   const [verifying, setVerifying] = useState<Record<string, boolean>>({});
@@ -597,15 +610,17 @@ export default function PacksPage() {
     };
   }, [openId, detailNonce]);
 
-  const buildPack = async () => {
+  const buildPack = async (opts?: { override?: boolean }) => {
     const trimmed = name.trim();
     if (!trimmed || building) return;
+    if (opts?.override && !overrideIntent.trim()) return;
     setBuilding(true);
     setBuildResult(null);
     try {
       const res = await post<BuildResponse>("/packs/build", {
         name: trimmed,
-        allow_incomplete_extraction: false,
+        allow_incomplete_extraction: !!opts?.override,
+        ...(opts?.override ? { override_intent: overrideIntent.trim() } : {}),
       });
       if (res.ok) {
         setBuildResult({
@@ -614,14 +629,46 @@ export default function PacksPage() {
           counts: res.manifest?.counts ?? {},
         });
         setName("");
+        setOverrideIntent("");
         await load("refresh");
-      } else {
+      } else if (res.error_code === "incomplete_extraction") {
+        const blockingIds = [
+          ...new Set([
+            ...(res.extraction_completeness?.unknown_streams ?? []).map(
+              (stream) => stream.document_id ?? ""
+            ),
+            ...(res.extraction_completeness?.incomplete_streams ?? []).map(
+              (stream) => stream.document_id ?? ""
+            ),
+          ]),
+        ].filter(Boolean);
+        let blockingDocs: { id: string; title: string }[] = [];
+        try {
+          const docs = await get<{ documents?: { id: string; title?: string }[] }>(
+            "/documents?limit=1000"
+          );
+          const titles = new Map(
+            (docs.documents ?? []).map((doc) => [doc.id, doc.title ?? ""])
+          );
+          blockingDocs = blockingIds.map((id) => ({
+            id,
+            title: titles.get(id) || "(제목 없음)",
+          }));
+        } catch {
+          blockingDocs = blockingIds.map((id) => ({ id, title: "" }));
+        }
         setBuildResult({
           kind: "failed",
           message:
-            res.error_code === "incomplete_extraction"
-              ? "추출이 끝나지 않은 문서가 있어 팩을 만들지 않았습니다."
-              : "팩을 만들지 못했습니다.",
+            "추출이 끝나지 않은 문서가 있어 팩을 만들지 않았습니다. 아래 문서를 재추출하거나, 사유를 남기고 미완료 상태로 빌드할 수 있습니다.",
+          detail: res.detail ?? res.error_code ?? "",
+          blockingDocs,
+          canOverride: true,
+        });
+      } else {
+        setBuildResult({
+          kind: "failed",
+          message: "팩을 만들지 못했습니다.",
           detail: res.detail ?? res.error_code ?? "",
         });
       }
@@ -878,8 +925,48 @@ export default function PacksPage() {
               <Alert variant="destructive">
                 <TriangleAlert className="h-4 w-4" aria-hidden="true" />
                 <AlertTitle>팩 빌드를 마치지 못했습니다.</AlertTitle>
-                <AlertDescription className="mt-2 space-y-2">
+                <AlertDescription className="mt-2 space-y-3">
                   <p>{buildResult.message}</p>
+                  {buildResult.blockingDocs && buildResult.blockingDocs.length > 0 && (
+                    <div className="rounded-md border border-destructive/30 bg-background/60 p-3">
+                      <p className="mb-2 text-xs font-medium text-foreground">
+                        추출 완료가 필요한 문서 {buildResult.blockingDocs.length}건
+                      </p>
+                      <ul className="max-h-40 space-y-1 overflow-y-auto text-xs text-muted-foreground">
+                        {buildResult.blockingDocs.map((doc) => (
+                          <li key={doc.id} className="leading-snug">
+                            <span className="mr-1 font-mono text-[10px]">{doc.id.slice(0, 14)}…</span>
+                            {doc.title}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {buildResult.canOverride && (
+                    <div className="space-y-2 rounded-md border border-warn/40 bg-warn-soft p-3">
+                      <p className="text-xs text-foreground">
+                        오퍼레이터 오버라이드: 미완료 스트림을 이해했음을 사유와 함께 기록하고
+                        그래도 빌드합니다. 사유는 팩 매니페스트에 남습니다.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Input
+                          value={overrideIntent}
+                          onChange={(event) => setOverrideIntent(event.target.value)}
+                          placeholder="오버라이드 사유 (예: 구형 mock 추출분, 수용 가능)"
+                          className="h-8 min-w-64 flex-1 text-xs"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={building || !overrideIntent.trim()}
+                          onClick={() => void buildPack({ override: true })}
+                        >
+                          사유 기록 후 빌드
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   {buildResult.detail ? (
                     <details className="text-xs text-muted-foreground">
                       <summary className="cursor-pointer">기술 세부 정보</summary>

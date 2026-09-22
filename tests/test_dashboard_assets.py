@@ -26,8 +26,8 @@ from ontologylab.server.app import create_app
 # Current shipped-copy contract: served path, byte length, and SHA-256.
 # /static/index.html is intentionally retained as a directly served asset.
 _PINNED_ASSETS: tuple[tuple[str, int, str], ...] = (
-    ("index.html", 619, "a2c30c5116abc1a2dbb3f9fad87205770537e09e53ec6f962c4ba7b4efa610d9"),
-    ("assets/index-Drg7n-Vl.js", 835507, "48aed4a4ea77e19273a594035293e3f713296602163abbd24a400f342de5abc9"),
+    ("index.html", 619, "dbb36cf1ba588f4bd10952c0ae17bd2662b57be561de24fe6c2fd9e46be29c0d"),
+    ("assets/index-DMU57FZO.js", 835645, "67e283662f416dda881cf29441bc603fd834a9d475d180bb04200d009d48b924"),
     ("assets/index-DH5tqcb5.css", 40901, "1809eed3149891bddac93895f851bab8e114d0fb0d96df11d93ca3880fae79ed"),
 )
 

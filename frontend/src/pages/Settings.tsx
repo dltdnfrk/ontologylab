@@ -349,7 +349,7 @@ export default function SettingsPage() {
     setSwitching(true);
     setSchemaMessage(null);
     try {
-      await post("/schema", { name: selectedPreset });
+      await post("/schema", { preset: selectedPreset });
       await loadSchema();
       setSchemaMessage({ ok: true, text: "온톨로지를 전환했습니다." });
       setSelectedPreset("");

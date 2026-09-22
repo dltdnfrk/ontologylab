@@ -84,4 +84,15 @@ def build_signed_helper(work_dir: str) -> str | None:
     )
     if signed.returncode != 0:
         return None
+    # A sandboxed builder (Aside CLI runtime) stamps com.apple.quarantine on
+    # freshly written executables, and syspolicyd prompts on every exec of a
+    # quarantined binary — the exact infinite-warning loop this builder exists
+    # to avoid. The attribute is a transport artifact, not a property of the
+    # binary, so strip it: a Developer-ID-signed, non-quarantined helper runs
+    # without a Gatekeeper prompt.
+    subprocess.run(
+        ["xattr", "-d", "com.apple.quarantine", binary],
+        capture_output=True,
+        timeout=15,
+    )
     return binary

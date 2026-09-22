@@ -14,6 +14,7 @@ from tests.macos_supervisor_support import (
     AppFixture,
     build_supervisor,
     launch,
+    resign_bundle,
     managed_process,
     open_arguments,
     read_event,
@@ -42,6 +43,9 @@ def _real_backend(app: AppFixture) -> None:
         encoding="utf-8",
     )
     backend.chmod(0o755)
+    # The rewrite broke the bundle seal; re-sign so exec is not kernel-killed.
+    # executable is <app>/Contents/MacOS/<bin>, so the bundle root is parents[2].
+    resign_bundle(app.executable.parents[2])
 
 
 def _persist(path: Path, sql: str) -> None:

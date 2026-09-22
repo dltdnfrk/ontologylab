@@ -18,6 +18,43 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures" / "macos_supervisor"
 
 
+def _strip_quarantine(path: Path) -> None:
+    """Best-effort removal of sandbox-stamped quarantine from a fixture.
+
+    The Aside CLI runtime stamps com.apple.quarantine on executables it
+    writes; left in place, syspolicyd shows a Gatekeeper prompt on every
+    exec and no approval can stick across fresh tmp paths.
+    """
+    subprocess.run(
+        ["xattr", "-dr", "com.apple.quarantine", str(path)],
+        capture_output=True,
+        timeout=15,
+    )
+
+
+def resign_bundle(app_path: Path) -> None:
+    """Re-seal a fixture bundle after a test rewrites a resource in it.
+
+    codesign seals every resource at sign time; swapping the backend file
+    afterwards breaks the seal and the kernel kills the next exec with the
+    Gatekeeper “damaged” dialog. Re-signing is the only honest repair.
+    """
+    subprocess.run(
+        [
+            "codesign",
+            "--force",
+            "--sign",
+            "-",
+            "--timestamp=none",
+            str(app_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    _strip_quarantine(app_path)
+
+
 @dataclass(frozen=True, slots=True)
 class AppFixture:
     executable: Path
@@ -55,7 +92,10 @@ def build_supervisor(tmp_path: Path) -> AppFixture:
         capture_output=True,
         text=True,
     )
-    (resources / "ontologylab-serve-desktop").symlink_to(FIXTURES / "fake_backend.py")
+    (resources / "ontologylab-serve-desktop").write_bytes(
+        (FIXTURES / "fake_backend.py").read_bytes()
+    )
+    (resources / "ontologylab-serve-desktop").chmod(0o755)
     (resources / "storage-compatibility.json").write_bytes(
         (ROOT / "ontologylab" / "storage-compatibility.json").read_bytes()
     )
@@ -67,6 +107,25 @@ def build_supervisor(tmp_path: Path) -> AppFixture:
         "CFBundleVersion": "0.1.0",
     }
     (contents / "Info.plist").write_bytes(plistlib.dumps(plist))
+    # Ad-hoc sign the assembled bundle, not merely the linked executable.
+    # swiftc ad-hoc signs the binary at link time, before the resources and
+    # Info.plist exist; launching the .app then fails bundle validation
+    # ("code has no resources but signature indicates they must be present")
+    # and Gatekeeper reports the fixture as damaged.
+    subprocess.run(
+        [
+            "codesign",
+            "--force",
+            "--sign",
+            "-",
+            "--timestamp=none",
+            str(contents.parent),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    _strip_quarantine(contents.parent)
     state_root = tmp_path / "Library/Caches/ontologylab/runtime"
     environment = os.environ | {
         "HOME": str(tmp_path),

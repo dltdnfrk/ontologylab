@@ -144,7 +144,7 @@ def fetch_fulltext(url: str, *, http_get=None) -> str:
 
 
 def enrich_with_fulltext(
-    documents: list[RawDocument], *, http_get=None
+    documents: list[RawDocument], *, http_get=None, should_cancel=None
 ) -> tuple[list[RawDocument], dict[str, int]]:
     """Replace abstracts with full text where an open-access copy exists.
 
@@ -157,10 +157,18 @@ def enrich_with_fulltext(
 
     The title is preserved as the first line so the extractor sees the same
     shape it always has.
+
+    `should_cancel` is consulted between documents: a job-level cancellation
+    must not wait out a hundred sequential network fetches before it is
+    noticed. Documents not yet attempted pass through untouched.
     """
     stats = {"eligible": 0, "fetched": 0, "too_short": 0, "failed": 0}
     enriched: list[RawDocument] = []
     for document in documents:
+        if should_cancel is not None and should_cancel():
+            stats["cancelled"] = stats.get("cancelled", 0) + 1
+            enriched.append(document)
+            continue
         if not document.fulltext_url:
             enriched.append(document)
             continue

@@ -227,6 +227,11 @@ async def run_research(
                     search_axis=axis.axis,
                     query_terms=axis.terms,
                 )
+                if abort_reason := callbacks.abort_reason():
+                    callbacks.on_progress(
+                        "[ontologylab] cancelled during source collection"
+                    )
+                    return ResearchRunResult(ExtractionOutcome(abort_reason))
                 for source, documents in query_batches:
                     attributed = [
                         replace(
@@ -325,7 +330,10 @@ async def run_research(
                         )
                     )
                 ]
-                enriched, ft_stats = enrich_with_fulltext(uncached)
+                enriched, ft_stats = enrich_with_fulltext(
+                    uncached,
+                    should_cancel=lambda: bool(callbacks.abort_reason()),
+                )
                 fulltext_cache.update(
                     {document.dedupe_key: document for document in enriched}
                 )
