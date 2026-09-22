@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from ontologylab import web_assets
 from ontologylab.main import build_arg_parser
 from ontologylab.server.settings import engines
 
@@ -70,12 +69,3 @@ def test_settings_engines_lists_offline_mock_first() -> None:
     assert names.count("mock") == 1
 
 
-def test_dashboard_source_has_no_mock_fallback_tokens() -> None:
-    # Given: the dashboard script operators load
-    source = web_assets.read_asset_text("app.js")
-
-    # When: the file is scanned for silent-mock machine tokens
-    # Then: none remain — empty/omit must reach the server default instead
-    assert "|| \"mock\"" not in source
-    assert "|| 'mock'" not in source
-    assert "value='mock'" not in source

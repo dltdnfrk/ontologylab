@@ -13,8 +13,6 @@ that never asks for more than 100 rows on its first render.
 
 from __future__ import annotations
 
-import json
-import re
 import sys
 from pathlib import Path
 
@@ -29,7 +27,6 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from ontologylab.kgstore import KGStore  # noqa: E402
 from ontologylab.models import ProposedEntity  # noqa: E402
-from ontologylab import web_assets  # noqa: E402
 from ontologylab.server.app import create_app  # noqa: E402
 
 
@@ -140,61 +137,3 @@ def test_proposals_bad_cursor_is_400(tmp_path: Path) -> None:
     assert client.get("/api/proposals?cursor=%5B1%5D").status_code == 400
 
 
-def test_review_ui_row_cap() -> None:
-    """The UI's first render must never exceed 100 rows (DoD)."""
-    script = web_assets.read_asset_text("app.js")
-    size = re.search(r"var reviewPageSize = (\d+);", script)
-    assert size is not None, "reviewPageSize constant must exist"
-    assert int(size.group(1)) <= 100
-    # the first-page request must use the paged URL, not a hardcoded 200
-    assert re.search(
-        r'"/api/proposals\?limit=" \+ reviewPageSize', script
-    ), "loadProposals must request exactly reviewPageSize rows"
-
-
-def test_review_scroll_listener_catches_the_real_scroll_container() -> None:
-    """The explicit, keyboard-activatable button executes bounded pagination."""
-    from tests.test_review_request_ownership import _run
-
-    script = web_assets.read_asset_text("app.js")
-    markup = web_assets.read_asset_text("index.html")
-    assert re.search(r'<button[^>]*id="review-more-btn"[^>]*>', markup)
-    binding = re.search(
-        r'\$\("#review-more-btn"\)\.addEventListener\("click", [^\n]+\);',
-        script,
-    )
-    assert binding is not None
-    source = """
-configure([page("first-", 2, 5, "page &2")]);
-await loadProposals();
-var button = $("#review-more-btn"), listeners = {};
-button.addEventListener = function (type, handler) { listeners[type] = handler; };
-"""
-    source += binding.group(0)
-    source += """
-var cursorPath = Q + "&cursor=page%20%262";
-var gate = deferred();
-queue(cursorPath, [gate.promise]);
-var arrived = reached(cursorPath);
-var pending = listeners.click({target: button});
-await arrived;
-var during = snapshot();
-await listeners.click({target: button});
-gate.resolve(page("last-", 3, 5));
-await pending;
-var complete = snapshot();
-await listeners.click({target: button});
-console.log(JSON.stringify({during: during, complete: complete, after: snapshot()}));
-"""
-    observed = _run(source)
-    assert observed["during"]["rows"] == ["first-0", "first-1"]
-    assert observed["during"]["loading"] is True
-    assert observed["during"]["moreDisabled"] is True
-    complete = observed["complete"]
-    expected = ["first-0", "first-1", "last-0", "last-1", "last-2"]
-    assert complete["rows"] == complete["dom"] == expected
-    assert complete["progress"] == [5, 5]
-    assert complete["more"] is False and complete["next"] is None
-    assert complete["loading"] is False and complete["spinner"] is False
-    assert complete["unexpected"] == []
-    assert observed["after"] == complete

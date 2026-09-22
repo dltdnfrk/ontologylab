@@ -278,3 +278,53 @@ def test_optional_unmet_need_never_forces_broaden() -> None:
     assert assessment.recommendation is AcquisitionRecommendation.EXTRACT
     assert assessment.stop_reason is None
     assert assessment.need_occupancy[1].occupied is False
+
+
+def _need_with_minimum(
+    kind: EvidenceNeedKind,
+    description: str,
+    minimum: ContentClass,
+    *,
+    mandatory: bool = True,
+) -> EvidenceNeed:
+    return build_evidence_need(
+        EvidenceNeedDraft(kind, description, mandatory, minimum)
+    )
+
+
+def test_abstract_minimum_need_extracts_from_abstract_only_corpus() -> None:
+    """Regression: the degraded planner issues ABSTRACT-minimum needs.
+
+    An abstract-only corpus fully occupies them, but the gate used to demand
+    a full-text candidate anyway and stopped with no_usable_source — the
+    exact failure observed in production on 2026-09-22 (128 eligible docs,
+    recommendation stop).
+    """
+    need = _need_with_minimum(
+        EvidenceNeedKind.GENERAL, "degraded abstract-level need", ContentClass.ABSTRACT
+    )
+    spec = _spec((need,))
+    plan = _plan(spec, (_axis("topic", need),))
+    documents = (
+        _document("abstract-a", ContentClass.ABSTRACT, "topic"),
+        _document("abstract-b", ContentClass.ABSTRACT, "topic", sources=("openalex",)),
+    )
+    assessment = _assessment(spec, plan, documents)
+
+    assert assessment.need_occupancy[0].occupied is True
+    assert assessment.overlap_and_diversity.fulltext_candidate_count == 0
+    assert assessment.recommendation is AcquisitionRecommendation.EXTRACT
+    assert assessment.stop_reason is None
+
+
+def test_fulltext_minimum_need_still_stops_on_abstract_only_corpus() -> None:
+    """The policy floor for GENERAL needs stays FULLTEXT by default."""
+    need = _need(EvidenceNeedKind.GENERAL, "default fulltext-minimum need")
+    spec = _spec((need,))
+    plan = _plan(spec, (_axis("topic", need),))
+    documents = (_document("abstract-only", ContentClass.ABSTRACT, "topic"),)
+    assessment = _assessment(spec, plan, documents)
+
+    assert assessment.need_occupancy[0].occupied is False
+    assert assessment.recommendation is AcquisitionRecommendation.STOP
+    assert assessment.stop_reason is AcquisitionStopReason.NO_USABLE_SOURCE

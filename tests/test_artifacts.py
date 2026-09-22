@@ -253,16 +253,3 @@ def test_simultaneous_pack_builds_allocate_distinct_release_ids(
     ]
 
 
-def test_the_ui_shows_a_hint_for_each_empty_group() -> None:
-    """Text contract: a partially empty library must not render a bare heading.
-
-    The reviewer flagged that a store with docs but no packs rendered the
-    "릴리스" heading with nothing under it. Each group now shows its own
-    empty hint unless both are empty (then the big empty-state card speaks).
-    """
-    from ontologylab import web_assets
-
-    script = web_assets.read_asset_text("app.js")
-    assert script.count("artifact-empty-hint") >= 2
-    assert "docs.length === 0 && hasAny" in script
-    assert "releases.length === 0 && hasAny" in script

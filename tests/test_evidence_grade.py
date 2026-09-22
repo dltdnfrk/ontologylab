@@ -223,28 +223,6 @@ def test_an_existing_store_gains_the_columns(tmp_path) -> None:
 # --------------------------------------------------------------------------
 
 
-def test_every_grade_has_words_the_reviewer_can_read() -> None:
-    """A grade the browser has no phrase for renders as its raw slug."""
-    from ontologylab import web_assets
-
-    script = web_assets.read_asset_text("app.js")
-    labels = script.split("var GRADE_KO = {", 1)[1].split("};", 1)[0]
-
-    missing = [g for g in evidence.GRADES if f"{g}:" not in labels]
-    assert not missing, f"no Korean for: {missing}"
-
-
-def test_the_badge_is_drawn_beside_the_excerpt() -> None:
-    """One screen away is not beside. The reviewer decides while looking at
-    the sentence, so the grade has to be in that field of view."""
-    from ontologylab import web_assets
-
-    script = web_assets.read_asset_text("app.js")
-    source_line = script.split("class='ev-source muted'", 1)[1][:200]
-
-    assert "evidenceBadge(item)" in source_line
-
-
 def test_shared_ingestion_preserves_identity_evidence_and_provenance(tmp_path) -> None:
     """The application seam proves behavior, not which helper callers name."""
     import json

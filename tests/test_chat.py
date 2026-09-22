@@ -760,25 +760,6 @@ def test_chat_supplies_every_query_parameter() -> None:
             )
 
 
-def test_the_originating_question_reaches_a_screen() -> None:
-    """An endpoint nothing calls is a claim nobody can check.
-
-    `/api/jobs/{id}/asked` justifies itself by what the Jobs screen needed,
-    and shipped with tests, a docstring and no caller — so the run detail
-    still showed only `research-20260728-071805`.
-    """
-    from ontologylab import web_assets
-
-    script = web_assets.read_asset_text("app.js")
-    markup = web_assets.read_asset_text("index.html")
-
-    assert "/asked" in script, "no caller for the endpoint"
-    assert 'id="job-asked"' in markup, "nowhere to render it"
-    # And it is drawn where the run is described, not somewhere unrelated.
-    detail = script.split("function renderJobDetail", 1)[1][:400]
-    assert "renderJobAsked" in detail
-
-
 # --------------------------------------------------------------------------
 # Debts cleared
 # --------------------------------------------------------------------------

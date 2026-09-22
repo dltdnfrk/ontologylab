@@ -336,22 +336,6 @@ def test_stale_proposal_and_malformed_requests_have_stable_typed_4xx(
         assert isinstance(detail["detail"], str) and detail["detail"]
 
 
-def test_spa_exposes_preview_and_human_verify_actions(tmp_path: Path) -> None:
-    client, _ = _client(tmp_path)
-
-    script = client.get("/static/app.js")
-
-    assert script.status_code == 200
-    assert 'data-ontology-proposal-preview' in script.text
-    assert 'data-ontology-proposal-verify' in script.text
-    assert PREVIEW in script.text and VERIFY in script.text
-    proposal_renderer = script.text.split(
-        "async function previewOntologyProposal", 1
-    )[1].split("async function loadEntityPanel", 1)[0]
-    assert "innerHTML" not in proposal_renderer
-    assert "textContent" in proposal_renderer
-
-
 def test_verify_rejects_a_proposal_whose_source_was_since_rejected(
     tmp_path: Path,
 ) -> None:

@@ -230,7 +230,7 @@ def test_research_status_and_phase_vocabularies_remain_separate() -> None:
     status = job.as_status()
 
     # Then: phase is not encoded as another terminal status
-    assert TERMINAL_STATUSES == frozenset({"complete", "failed", "cancelled"})
+    assert TERMINAL_STATUSES == frozenset({"complete", "partial", "failed", "cancelled"})
     assert status["status"] == "running"
     assert status["phase"] == ""
 

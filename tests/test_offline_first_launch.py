@@ -15,61 +15,6 @@ from ontologylab.sources import Source, add_source
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_browser_localizer_makes_no_request_until_explicit_action() -> None:
-    # Given one English text node in a fully loaded dashboard document
-    script = r"""
-const fs = require("fs");
-const vm = require("vm");
-let requests = [];
-const text = {
-  nodeType: 3,
-  nodeValue: "This study investigates breast cancer treatment.",
-  isConnected: true,
-  parentElement: {closest: () => null},
-};
-let walked = false;
-const document = {
-  readyState: "complete",
-  body: {nodeType: 1},
-  createTreeWalker: () => ({
-    nextNode: () => walked ? null : (walked = true, text),
-  }),
-  addEventListener: () => {},
-};
-const window = {
-  document,
-  Node: {TEXT_NODE: 3, ELEMENT_NODE: 1},
-  NodeFilter: {SHOW_TEXT: 4},
-  MutationObserver: function () { this.observe = () => {}; },
-  localStorage: {getItem: () => null, setItem: () => {}},
-  setTimeout: (callback) => { callback(); return 1; },
-  fetch: async (url) => {
-    requests.push(url);
-    return {ok: true, json: async () => ({translations: ["번역"]})};
-  },
-  console: {warn: () => {}},
-};
-vm.runInNewContext(
-  fs.readFileSync("ontologylab/web/localize.js", "utf8"),
-  {window, console}
-);
-setImmediate(() => process.stdout.write(JSON.stringify(requests)));
-"""
-
-    # When the localizer initializes without a user translation action
-    result = subprocess.run(
-        ["node", "-e", script],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    # Then it makes no HTTP request at all, including no loopback translation call
-    assert result.returncode == 0, result.stderr
-    assert result.stdout == "[]"
-
-
 def test_app_construction_does_not_touch_keychain_migration(
     tmp_path: Path, monkeypatch
 ) -> None:

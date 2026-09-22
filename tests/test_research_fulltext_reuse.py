@@ -60,7 +60,7 @@ def test_broadening_reuses_prior_fulltext_enrichment(
     monkeypatch.setattr(research_run_module, "fetch_sources", fake_fetch)
     enrichment_calls: list[tuple[str | None, ...]] = []
 
-    def observe_enrichment(documents):
+    def observe_enrichment(documents, should_cancel=None):
         enrichment_calls.append(tuple(document.doi for document in documents))
         return documents, {
             "eligible": len(documents),

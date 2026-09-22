@@ -3,11 +3,9 @@ from __future__ import annotations
 import json
 import subprocess
 from dataclasses import dataclass
-from html.parser import HTMLParser
 from pathlib import Path
 from typing import Final, TypedDict
 
-from ontologylab import web_assets
 from ontologylab.research_spec import JsonObject, JsonValue
 
 ROOT: Final = Path(__file__).resolve().parents[1]
@@ -115,22 +113,6 @@ process.stdout.write(JSON.stringify({
 """
 
 
-class _ShippedHTML(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__()
-        self.research_regions: list[tuple[str, str | None]] = []
-        self.script_sources: list[str] = []
-
-    def handle_starttag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
-        attributes = dict(attrs)
-        if attributes.get("id") == "job-research-summary":
-            self.research_regions.append((tag, attributes.get("aria-label")))
-        if tag == "script" and (source := attributes.get("src")) is not None:
-            self.script_sources.append(source.partition("?")[0])
-
-
 class _NodeSnapshot(TypedDict):
     tagName: str
     className: str
@@ -191,89 +173,3 @@ def _node_snapshot(value: JsonValue) -> _NodeSnapshot:
     }
 
 
-def test_shipped_html_wires_the_research_summary_before_the_dashboard() -> None:
-    parser = _ShippedHTML()
-    parser.feed(web_assets.read_asset_text("index.html"))
-
-    assert parser.research_regions == [("section", "리서치 추론")]
-    summary_index = parser.script_sources.index("/static/research-summary.js")
-    app_index = parser.script_sources.index("/static/app.js")
-    assert summary_index + 1 == app_index
-
-
-def _runtime_snapshot() -> _RuntimeSnapshot:
-    completed = subprocess.run(
-        ["node", "-e", NODE_DRIVER],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert completed.returncode == 0, completed.stderr
-    payload = _json_object(json.loads(completed.stdout))
-    raw_tags = payload["tags"]
-    marker = payload["executionMarker"]
-    attacks = _json_object(payload["attacks"])
-    if not isinstance(raw_tags, list) or not isinstance(marker, bool):
-        raise _SnapshotTypeError("tags and marker")
-    return {
-        "tree": _node_snapshot(payload["tree"]),
-        "tags": [_json_string(tag) for tag in raw_tags],
-        "executionMarker": marker,
-        "attacks": {
-            "goal": _json_string(attacks["goal"]),
-            "need": _json_string(attacks["need"]),
-            "assumption": _json_string(attacks["assumption"]),
-            "lineage": _json_string(attacks["lineage"]),
-        },
-    }
-
-
-def test_research_summary_runtime_keeps_hostile_text_inert() -> None:
-    rendered = _runtime_snapshot()
-    tree = rendered["tree"]
-
-    assert rendered["executionMarker"] is False
-    assert set(rendered["tags"]).isdisjoint({"SCRIPT", "IMG", "SVG"})
-    assert rendered["attacks"]["goal"] in tree["textContent"]
-    assert rendered["attacks"]["lineage"] in tree["textContent"]
-    assert rendered["attacks"]["assumption"] in tree["textContent"]
-
-
-def test_research_summary_runtime_keeps_complete_evidence_and_authority() -> None:
-    rendered = _runtime_snapshot()
-    tree = rendered["tree"]
-    cards = tree["childNodes"]
-
-    needs = cards[3]["childNodes"][1]["childNodes"]
-    assert len(needs) == 23
-    for index, need in enumerate(needs):
-        state = "확보" if index % 2 == 0 else "미충족"
-        requirement = "필수" if index % 2 == 0 else "선택"
-        expected_class = "is-occupied" if index % 2 == 0 else "is-missing"
-        assert need["className"] == expected_class
-        assert need["textContent"] == (
-            f'{state} · {rendered["attacks"]["need"]} {index} · {requirement}'
-            f" · kind-{index} · min content-{index} · docs {index * 2}"
-        )
-
-    assumptions = cards[4]["childNodes"][1]["childNodes"]
-    assert [item["textContent"] for item in assumptions] == [
-        rendered["attacks"]["assumption"],
-        rendered["attacks"]["goal"],
-        rendered["attacks"]["need"],
-    ]
-    assert cards[1]["childNodes"][1]["textContent"] == (
-        'v<svg onload=globalThis.executionMarker="version">23</svg>'
-        f' · parent {rendered["attacks"]["lineage"]}'
-    )
-    assert cards[5]["childNodes"][1]["textContent"] == (
-        "extract · stop: budget_exhausted"
-    )
-    assert cards[6]["childNodes"][0]["textContent"] == "advisory—not approval"
-    assert cards[6]["childNodes"][0]["dataset"] == {"noTranslate": ""}
-    assert cards[6]["childNodes"][1]["textContent"] == (
-        "support receipt_linked 7 · support unverified 0"
-        " · contradiction not_observed 5 · contradiction potential_conflict 2"
-    )

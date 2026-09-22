@@ -461,3 +461,46 @@ def test_turning_it_off_stores_the_abstract(tmp_path, monkeypatch) -> None:
 
     assert "RecA protein" not in text
     assert "A real abstract sentence." in text
+
+
+def test_enrich_with_fulltext_stops_between_documents_when_cancelled() -> None:
+    """A job cancellation must be noticed between fetches, not after all."""
+    from ontologylab.connectors.base import RawDocument
+    from ontologylab.connectors.fulltext import enrich_with_fulltext
+
+    def _doc(suffix: str) -> RawDocument:
+        return RawDocument(
+            source_kind="paper_api",
+            source_uri=f"https://doi.org/10.1000/{suffix}",
+            title=f"Fixture {suffix}",
+            raw_text=f"abstract {suffix}",
+            doi=f"10.1000/{suffix}",
+            source="crossref",
+            content_kind="abstract",
+            fulltext_url=f"https://example.org/{suffix}.pdf",
+        )
+
+    calls = {"fetches": 0}
+
+    def _http_get(url: str) -> str:
+        calls["fetches"] += 1
+        return JATS
+
+    state = {"cancel": False}
+
+    def _should_cancel() -> bool:
+        return state["cancel"]
+
+    docs = [_doc("a"), _doc("b"), _doc("c")]
+    enriched, stats = enrich_with_fulltext(
+        docs, http_get=_http_get, should_cancel=_should_cancel
+    )
+    assert "cancelled" not in stats and stats["fetched"] == 3
+
+    calls["fetches"] = 0
+    enriched, stats = enrich_with_fulltext(
+        docs, http_get=_http_get, should_cancel=lambda: True
+    )
+    assert stats["fetched"] == 0
+    assert stats["cancelled"] == 3
+    assert calls["fetches"] == 0

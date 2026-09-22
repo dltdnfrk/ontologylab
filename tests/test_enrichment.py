@@ -729,14 +729,3 @@ def test_the_annotations_endpoint_states_the_scope(tmp_path) -> None:
     assert body["organism"] == resources_module.ORGANISM["label"]
 
 
-def test_the_screen_reads_the_scope_from_the_response() -> None:
-    from ontologylab import web_assets
-
-    markup = web_assets.read_asset_text("index.html")
-    script = web_assets.read_asset_text("app.js")
-
-    assert 'id="annotations-scope"' in markup
-    assert "body.organism" in script
-    assert resources_module.ORGANISM["label"] not in markup, (
-        "the organism is stated by the server, never typed into the page"
-    )

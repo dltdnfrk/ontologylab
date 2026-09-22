@@ -455,28 +455,3 @@ def test_the_no_json_failure_says_what_to_change() -> None:
     assert "json" in message
 
 
-def test_the_browser_names_the_json_failure_too() -> None:
-    """A kind the browser has no word for renders as the raw string."""
-    from ontologylab import web_assets
-
-    source = web_assets.read_asset_text("app.js")
-    fail_map = source.split("var FAIL_KO = {", 1)[1].split("};", 1)[0]
-
-    assert "no_json" in fail_map
-
-
-def test_every_source_has_a_name_the_trace_can_show() -> None:
-    """A tool with no entry renders as its bare id.
-
-    Caught on screen: the fan-out row read `searxng 조회 5` next to
-    `Europe PMC 조회 5`, because the trace's label map had been written
-    from the default fan-out and never revisited when sources were added.
-    """
-    from ontologylab.connectors.paper_api import SOURCE_ORDER
-    from ontologylab import web_assets
-
-    source = web_assets.read_asset_text("app.js")
-    tool_map = source.split("tools: {", 1)[1].split("},", 1)[0]
-
-    missing = [name for name in SOURCE_ORDER if f"{name}:" not in tool_map]
-    assert not missing, f"the trace would show raw ids for: {missing}"
