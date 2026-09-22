@@ -44,6 +44,7 @@ from ontologylab.providers import (
 )
 from ontologylab.server.app import create_app
 from tests.conftest import drop_test_session
+from tests.keychain_helper_build import build_signed_helper
 
 SECRET = "sk-or-v1-testsecret0123456789abcdef"
 
@@ -60,18 +61,9 @@ needs_keychain = pytest.mark.skipif(
 def keychain_helper():
     """Compile the real Swift helper once, like test_sources_routes does."""
     work = tempfile.mkdtemp(prefix="ol-keychain-helper-oauth-")
-    binary = os.path.join(work, "keychain-helper")
-    import subprocess
-
-    completed = subprocess.run(
-        ["swiftc", "-O", str(_HELPER_SRC), "-o", binary],
-        capture_output=True,
-        text=True,
-        timeout=180,
-        check=False,
-    )
-    if completed.returncode != 0:
-        pytest.skip(f"swiftc unavailable or failed: {completed.stderr.strip()}")
+    binary = build_signed_helper(work)
+    if binary is None:
+        pytest.skip("swiftc unavailable or helper build failed")
     return binary
 
 

@@ -36,6 +36,7 @@ from ontologylab.keychain import keychain_available, read_key, write_key
 from ontologylab.paths import sources_path
 from ontologylab.server import routes
 from ontologylab.server.app import create_app
+from tests.keychain_helper_build import build_signed_helper
 
 SECRET = "ELS-key-that-must-never-come-back-9f3a"
 _REAL_RUN = subprocess.run
@@ -61,33 +62,9 @@ def _ensure_module_helper() -> str | None:
     global _MODULE_HELPER_DIR, _MODULE_HELPER
     if _MODULE_HELPER and os.path.isfile(_MODULE_HELPER):
         return _MODULE_HELPER
-    if sys.platform != "darwin" or shutil.which("swiftc") is None:
-        return None
-    if not _HELPER_SRC.is_file():
-        return None
     work = tempfile.mkdtemp(prefix="ol-keychain-helper-routes-")
-    binary = os.path.join(work, "keychain-helper")
-    compiled = _REAL_RUN(
-        [
-            "swiftc", "-O",
-            "-sdk", subprocess.check_output(
-                ["xcrun", "--show-sdk-path"], text=True,
-            ).strip(),
-            "-framework", "Security",
-            "-framework", "Foundation",
-            "-o", binary,
-            str(_HELPER_SRC),
-        ],
-        capture_output=True, text=True, timeout=120,
-    )
-    if compiled.returncode != 0:
-        shutil.rmtree(work, ignore_errors=True)
-        return None
-    signed = _REAL_RUN(
-        ["codesign", "--force", "--sign", "-", binary],
-        capture_output=True, text=True, timeout=30,
-    )
-    if signed.returncode != 0:
+    binary = build_signed_helper(work)
+    if binary is None:
         shutil.rmtree(work, ignore_errors=True)
         return None
     _MODULE_HELPER_DIR = work
