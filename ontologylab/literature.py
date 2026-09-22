@@ -192,12 +192,38 @@ def parse_research_plan(raw_text: str, topic: str, sources: tuple[str, ...], *, 
     return research_plan.PlannerReading(goal, tuple(needs), assumptions, tuple(axes), None)
 
 
+def _topic_terms(topic: str) -> tuple[str, ...]:
+    """Distill a raw topic into searchable keywords for the degraded path.
+
+    The planner-degraded axis used to send the whole topic string as one
+    term, so a long mixed-language topic became a single phrase that no
+    scholarly index could match — every source returned zero. Splitting
+    into content words keeps the query inside each index's term model.
+    """
+    words = [
+        word.strip("()[]{},.:;!?\"'").lower()
+        for word in topic.split()
+    ]
+    terms = tuple(
+        word for word in words
+        if len(word) > 2 and not word.isdigit()
+    )[:MAX_TERMS]
+    return terms or (topic,)
+
+
 def _baseline_reading(topic: str, sources: tuple[str, ...], reason: research_plan.DegradedReason) -> research_plan.PlannerReading:
-    query = ScholarlyQuery(topic, "topic", (topic,))
+    # `query` stays the raw topic — it is the axis's provenance label, and
+    # tests pin it. The searchable keywords go into `terms`, and the
+    # per-source strings are built from a terms-only ScholarlyQuery so the
+    # fallback dialects (which read `query`) also get keywords, not the
+    # whole topic sentence.
+    terms = _topic_terms(topic)
+    query = ScholarlyQuery(topic, "topic", terms)
+    search = ScholarlyQuery(" ".join(terms), "topic", terms)
     axis = research_plan.NeedLinkedAxis(
-        axis="topic", query=topic, terms=(topic,), need_ids=("pending",),
+        axis="topic", query=topic, terms=terms, need_ids=("pending",),
         dependencies=(),
-        source_queries=tuple((source, query.for_source(source)) for source in sources),
+        source_queries=tuple((source, search.for_source(source)) for source in sources),
     )
     return research_plan.degraded_reading(topic, axis, reason)
 
