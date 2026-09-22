@@ -79,6 +79,7 @@ type Job = {
   model: string | null;
   started_ts: number;
   finished_ts: number | null;
+  error?: string | null;
 };
 
 type TestResponse = { ok: boolean; verification_status: number };
@@ -122,6 +123,7 @@ type StatusView = { label: string; tone: Tone; icon: IconType; spin?: boolean };
 const JOB_STATUS: Record<string, StatusView> = {
   running: { label: "실행 중", tone: "busy", icon: Loader2, spin: true },
   complete: { label: "완료", tone: "ok", icon: CheckCircle2 },
+  partial: { label: "부분 완료", tone: "warn", icon: CheckCircle2 },
   failed: { label: "실패", tone: "danger", icon: XCircle },
   cancelled: { label: "취소됨", tone: "muted", icon: XCircle },
 };
@@ -336,6 +338,32 @@ export default function SourcesPage() {
   useEffect(() => {
     void load("initial");
   }, [load]);
+
+  // Long-running jobs (a research run can take over an hour) must not need a
+  // manual refresh to show progress. Poll while anything is running; stop
+  // once the queue settles so an idle page never spins.
+  const hasRunningJobs = jobs.some((job) => job.status === "running");
+  useEffect(() => {
+    if (!hasRunningJobs) return;
+    const timer = window.setInterval(() => {
+      void loadJobs().catch(() => undefined);
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [hasRunningJobs, loadJobs]);
+
+  const [cancelling, setCancelling] = useState<Record<string, boolean>>({});
+  const cancelJob = async (jobId: string) => {
+    if (cancelling[jobId]) return;
+    setCancelling((prev) => ({ ...prev, [jobId]: true }));
+    try {
+      await post(`/jobs/${encodeURIComponent(jobId)}/cancel`, {});
+      await loadJobs();
+    } catch {
+      // The next poll reconciles the row either way.
+    } finally {
+      setCancelling((prev) => ({ ...prev, [jobId]: false }));
+    }
+  };
 
   const modelFor = useCallback(
     (engineName: string) =>
@@ -733,7 +761,7 @@ export default function SourcesPage() {
           <div className="space-y-1.5">
             <CardTitle>최근 작업</CardTitle>
             <CardDescription>
-              최근 리서치·추출 작업 {JOB_LIMIT}건입니다. 상태는 새로고침할 때 갱신됩니다.
+              최근 리서치·추출 작업 {JOB_LIMIT}건입니다. 실행 중인 작업은 자동으로 갱신됩니다.
             </CardDescription>
           </div>
         </CardHeader>
@@ -776,7 +804,23 @@ export default function SourcesPage() {
                             {job.status === "running" && job.phase && (
                               <span className="text-xs text-muted-foreground">{job.phase}</span>
                             )}
+                            {job.status === "running" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                disabled={!!cancelling[job.job_id]}
+                                onClick={() => void cancelJob(job.job_id)}
+                              >
+                                {cancelling[job.job_id] ? "취소 중…" : "취소"}
+                              </Button>
+                            )}
                           </div>
+                          {(job.status === "failed" || job.status === "partial") && job.error && (
+                            <div className="mt-1 max-w-md text-xs text-destructive">
+                              {job.error}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1.5 text-xs">

@@ -193,6 +193,29 @@ def test_cancellation_is_not_a_failure(tmp_path, monkeypatch) -> None:
     assert job.error is None
 
 
+def test_a_budget_stopped_run_with_output_is_partial(tmp_path, monkeypatch) -> None:
+    """A run the budget cut after producing proposals is `partial`, not
+    `cancelled` (nobody cancelled it) and not `complete` (it did not finish).
+    """
+    data_dir = tmp_path / "data"
+    _seed(data_dir)
+    _gate(monkeypatch)
+    registry = JobRegistry(data_dir)
+
+    job = registry.create(
+        engine="mock",
+        model=None,
+        doc_ids=[],
+        max_engine_calls=1,  # first chunk lands, the cap stops the rest
+        time_budget=600.0,
+        seed=0,
+    )
+    _await_terminal(job)
+
+    assert job.status == "partial"
+    assert job.totals["nodes_new"] > 0, "the first chunk's output is kept"
+
+
 def test_what_was_extracted_before_the_stop_is_kept(tmp_path, monkeypatch) -> None:
     """Stopping between chunks, not mid-write.
 

@@ -80,7 +80,7 @@ MAX_RETAINED_JOBS = 20
 
 # A job in one of these is done and may be evicted. `cancelled` belongs here:
 # the worker has stopped, so retaining it forever would defeat the bound.
-TERMINAL_STATUSES = frozenset({"complete", "failed", "cancelled"})
+TERMINAL_STATUSES = frozenset({"complete", "failed", "cancelled", "partial"})
 
 logger = logging.getLogger(__name__)
 
@@ -691,14 +691,29 @@ class JobRegistry:
                 # complete run look truncated, inviting the reviewer to pay
                 # for the same documents twice. `stopped_reason` is non-empty
                 # only when the loop really stopped early.
+                produced = any(job.totals.values())
                 if stopped_reason == RESEARCH_NO_SOURCES:
                     job.status = "failed"
                     job.error = NO_SOURCES_SUMMARY
-                elif stopped_reason:
+                elif stopped_reason == job.cancel_reason() and stopped_reason:
+                    # A user-requested cancel stays "cancelled" even when a
+                    # chunk already committed: the user asked to stop, so the
+                    # status names their action, not the partial output.
                     job.status = "cancelled"
-                elif chunk_failed:
-                    job.status = "failed"
-                    job.error = ENGINE_FAILURE_SUMMARY
+                elif stopped_reason or chunk_failed:
+                    # A run that stopped early (budget/engine-cap) or lost
+                    # chunks but still produced proposals is "partial", not
+                    # "cancelled" or "failed": the user gets the extracted
+                    # work and an honest signal the run did not finish clean.
+                    if produced:
+                        job.status = "partial"
+                        if chunk_failed:
+                            job.error = ENGINE_FAILURE_SUMMARY
+                    elif stopped_reason:
+                        job.status = "cancelled"
+                    else:
+                        job.status = "failed"
+                        job.error = ENGINE_FAILURE_SUMMARY
                 else:
                     job.status = "complete"
                 job.finished_ts = time.time()

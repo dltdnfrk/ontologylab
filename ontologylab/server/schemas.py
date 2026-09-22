@@ -493,7 +493,7 @@ class JobStatus(BaseModel):
 
     job_id: str
     kind: str = "extract"  # "extract" | "research"
-    status: str  # "running" | "complete" | "failed" | "cancelled"
+    status: str  # "running" | "complete" | "partial" | "failed" | "cancelled"
     # Which half of a research run is executing. Kept out of `status` so the
     # dashboard's running→terminal edge detection keeps working.
     phase: str = ""
