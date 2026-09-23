@@ -96,19 +96,45 @@ def _resolve_chunk(
                 "explicit extraction chunk receipt was not found",
             )
         return row
-    rows = conn.execute(
-        "SELECT c.receipt_id, c.run_receipt_id, c.start_offset, c.end_offset, "
-        "c.coordinate_profile, c.chunk_text_hash, c.plan_receipt_id "
-        "FROM extraction_chunk_receipts c "
-        "JOIN extraction_run_receipts r ON r.receipt_id = c.run_receipt_id "
-        "WHERE r.representation_id = ? AND c.chunk_index = ? "
-        "AND c.start_offset = ? ORDER BY c.receipt_id",
-        (
-            batch.representation_id,
-            batch.chunk_index,
-            batch.chunk_start_offset,
-        ),
-    ).fetchall()
+    # When the caller knows which run produced this chunk, scope the lookup
+    # to it: re-extracting a representation under a new engine or model
+    # creates a second run whose chunks cover the same spans, and an
+    # unscoped (representation, index, offset) query then matches both and
+    # refuses as ambiguous even though the producing run is known.
+    if batch.run_receipt_id is not None:
+        rows = conn.execute(
+            "SELECT c.receipt_id, c.run_receipt_id, c.start_offset, "
+            "c.end_offset, c.coordinate_profile, c.chunk_text_hash, "
+            "c.plan_receipt_id "
+            "FROM extraction_chunk_receipts c "
+            "JOIN extraction_run_receipts r "
+            "ON r.receipt_id = c.run_receipt_id "
+            "WHERE r.representation_id = ? AND c.chunk_index = ? "
+            "AND c.start_offset = ? AND c.run_receipt_id = ? "
+            "ORDER BY c.receipt_id",
+            (
+                batch.representation_id,
+                batch.chunk_index,
+                batch.chunk_start_offset,
+                batch.run_receipt_id,
+            ),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT c.receipt_id, c.run_receipt_id, c.start_offset, "
+            "c.end_offset, c.coordinate_profile, c.chunk_text_hash, "
+            "c.plan_receipt_id "
+            "FROM extraction_chunk_receipts c "
+            "JOIN extraction_run_receipts r "
+            "ON r.receipt_id = c.run_receipt_id "
+            "WHERE r.representation_id = ? AND c.chunk_index = ? "
+            "AND c.start_offset = ? ORDER BY c.receipt_id",
+            (
+                batch.representation_id,
+                batch.chunk_index,
+                batch.chunk_start_offset,
+            ),
+        ).fetchall()
     if not rows:
         return None
     if len(rows) > 1:

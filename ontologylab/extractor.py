@@ -837,6 +837,7 @@ async def run_extraction(
     on_stats: Callable[[dict[str, int]], None],
     should_abort: Callable[[], str] | None = None,
     decode_params: dict[str, Any] | None = None,
+    receipt_sets: dict[str, Any] | None = None,
 ) -> ExtractionOutcome:
     """Extract every chunk and return its stop reason and failure outcome.
 
@@ -1010,6 +1011,24 @@ async def run_extraction(
                             decode_params=usage.get("decode_params"),
                             commit=False,
                         )
+                        # Bind citations to THIS run's receipts when the
+                        # caller supplied them. Without the explicit ids the
+                        # binder resolves a chunk by (representation, index,
+                        # offset) alone, which is ambiguous once a second
+                        # extraction run covers the same span — re-extracting
+                        # a representation under a new model made every
+                        # citation refuse as "multiple extraction chunks".
+                        receipt_set = (
+                            (receipt_sets or {}).get(doc_id)
+                        )
+                        run_receipt_id = None
+                        chunk_receipt_id = None
+                        if receipt_set is not None:
+                            run_receipt_id = receipt_set.run.receipt_id
+                            for cr in receipt_set.chunks:
+                                if cr.chunk_index == chunk.index:
+                                    chunk_receipt_id = cr.receipt_id
+                                    break
                         persist_chunk_citations(
                             store.conn,
                             ChunkCitationBatch(
@@ -1022,6 +1041,8 @@ async def run_extraction(
                                     str(key): str(value)
                                     for key, value in stats["id_map"].items()
                                 },
+                                run_receipt_id=run_receipt_id,
+                                chunk_receipt_id=chunk_receipt_id,
                             ),
                         )
                         lifecycle.succeeded(plan.run_id, chunk.index, stats)

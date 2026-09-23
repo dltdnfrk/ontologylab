@@ -140,6 +140,7 @@ async def extract_research_documents(
         attach_explicit_completeness_variants(store, session.raw_documents)
     selected: list[str] = []
     skipped = 0
+    receipt_sets: dict[str, object] = {}
     for work_id in _work_ids(store, collected_ids):
         receipt = put_selection_receipt(store.conn, work_id, PolicyVersion.V1)
         if receipt.selected_representation_id is None:
@@ -149,7 +150,9 @@ async def extract_research_documents(
             # even when sibling Works carried ready full text.
             skipped += 1
             continue
-        _bind_run_receipt(store, receipt, session)
+        bound = _bind_run_receipt(store, receipt, session)
+        if bound is not None:
+            receipt_sets[receipt.selected_representation_id] = bound
         selected.append(receipt.selected_representation_id)
     if store.conn.in_transaction:
         store.conn.commit()
@@ -176,6 +179,7 @@ async def extract_research_documents(
         on_stats=session.on_stats,
         should_abort=session.should_abort,
         decode_params=decode_params if decode_params else None,
+        receipt_sets=receipt_sets,
     )
 
 
@@ -201,10 +205,10 @@ def _bind_run_receipt(
     store: KGStore,
     selection: SelectionReceipt,
     session: ResearchExtractSession,
-) -> None:
+):
     representation_id = selection.selected_representation_id
     if representation_id is None:
-        return
+        return None
     text = read_ready_text(
         store.conn, store_root_from_conn(store.conn), representation_id,
     )
@@ -221,7 +225,7 @@ def _bind_run_receipt(
         for chunk in chunks
     )
     schema = store.get_schema()
-    put_extraction_receipts(
+    return put_extraction_receipts(
         store.conn,
         ExtractionRunBinding(
             representation_id=representation_id,
