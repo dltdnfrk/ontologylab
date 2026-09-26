@@ -26,9 +26,9 @@ from ontologylab.server.app import create_app
 # Current shipped-copy contract: served path, byte length, and SHA-256.
 # /static/index.html is intentionally retained as a directly served asset.
 _PINNED_ASSETS: tuple[tuple[str, int, str], ...] = (
-    ("index.html", 619, "dbb36cf1ba588f4bd10952c0ae17bd2662b57be561de24fe6c2fd9e46be29c0d"),
-    ("assets/index-DMU57FZO.js", 835645, "67e283662f416dda881cf29441bc603fd834a9d475d180bb04200d009d48b924"),
-    ("assets/index-DH5tqcb5.css", 40901, "1809eed3149891bddac93895f851bab8e114d0fb0d96df11d93ca3880fae79ed"),
+    ("index.html", 619, "ed24518ac18c145c4baee2c04331425e8a87aac300a50082926bdc495e61f06d"),
+    ("assets/index-m6XcWTUT.js", 842806, "b0a76cd4783606dea1ef18aa8e13c35b07522228c379bd98531bc03f3b66f402"),
+    ("assets/index-Cd6RqYJP.css", 41148, "ee33e19f3744ee771163a882f403967210f717b86c5f2417df22efb3bd707276"),
 )
 
 # nosniff-safe families, not exact strings: StaticFiles took the MIME table

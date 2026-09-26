@@ -572,3 +572,31 @@ def preset(name: str) -> dict[str, Any]:
         raise KeyError(
             f"unknown preset {name!r}; available: {', '.join(sorted(PRESETS))}"
         ) from None
+
+# Pipeline-stage view (claim layer O-5): the agrochem relations grouped in
+# the order a crop-protection question is worked through. A read-side
+# layout only; the store has no notion of stage. Relations not listed land
+# in "other" instead of disappearing.
+STAGE_LAYOUTS: dict[str, list[tuple[str, str, tuple[str, ...]]]] = {
+    "agrochem": [
+        ("threat", "위협: 무엇이 작물을 해치나",
+         ("infects", "damages", "causes", "occurs_in")),
+        ("control", "방제: 무엇이 막나",
+         ("controls", "contains", "registered_for", "inhibits", "synergizes_with")),
+        ("mechanism", "작용 기작",
+         ("has_mode_of_action", "targets", "encodes", "participates_in")),
+        ("resistance", "저항성",
+         ("has_variant", "confers_resistance_to", "resistant_to", "cross_resistant_with")),
+        ("application", "처리 조건",
+         ("formulated_as", "applied_by", "applied_at_rate", "applied_at_stage")),
+        ("trial", "시험과 결과", ("evaluated_in", "reports_efficacy")),
+        ("safety", "잔류·안전·규제",
+         ("has_residue_limit", "has_preharvest_interval", "has_toxicity", "toxic_to",
+          "phytotoxic_to", "regulated_by")),
+        ("diagnostics", "진단",
+         ("detects", "cross_reacts_with", "interferes_with", "labeled_with",
+          "measured_in", "has_performance", "run_under")),
+        ("interpretation", "해석 (큐레이션)",
+         ("asks_about", "evidenced_by", "follows", "predicts", "checked_by")),
+    ],
+}

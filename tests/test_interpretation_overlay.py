@@ -15,7 +15,7 @@ from ontologylab.models import ProposedEntity, ProposedRelation
 from ontologylab.packbuilder import UnevidencedInterpretationError, build_pack
 from ontologylab.server.app import create_app
 from tests.conftest import insert
-from tests.factories import make_entity
+from tests.factories import make_entity, make_relation
 
 
 def _overlay_schema(store: KGStore) -> None:
@@ -146,6 +146,38 @@ def test_interpretation_endpoint_records_proposed_curated_rows(client) -> None:
     body = response.json()
     assert body["ok"] is True and body["edges_new"] == 1
     assert len(body["node_ids"]) == 2
+
+
+def test_interpretation_list_carries_origin_and_links(client) -> None:
+    client.post("/api/interpretations", json={
+        "curator": "analyst",
+        "entities": [{"name": "Will it rain?", "entity_type": "Question"},
+                     {"name": "RainGauge", "entity_type": "Component"}],
+        "relations": [{"relation_type": "evidenced_by", "src": 0, "dst": 1}],
+    })
+    body = client.get("/api/interpretations").json()
+    names = {row["name"] for row in body["interpretations"]}
+    assert names == {"Will it rain?", "RainGauge"}
+    question = next(r for r in body["interpretations"] if r["name"] == "Will it rain?")
+    assert [link["dst_name"] for link in question["links"]] == ["RainGauge"]
+
+
+def test_stage_view_groups_relations_and_keeps_unmapped(client, tmp_path) -> None:
+    with KGStore.open(tmp_path / "data" / "kg.sqlite") as store:
+        doc, _ = store.insert_document(
+            source_kind="upload", source_uri="file:///s.txt", title="s",
+            raw_text="ApiGateway RateLimiter", content_hash="sha256:stage",
+        )
+        a, b = make_entity("ApiGateway"), make_entity("RateLimiter")
+        insert(store, doc, [a, b], [make_relation(a, b)])
+    body = client.get("/api/claims/stages?include_proposed=true").json()
+    stages = {stage["key"]: stage for stage in body["stages"]}
+    assert "control" in stages and "interpretation" in stages
+    assert stages["other"]["relations"] == [
+        {"relation_type": "uses", "polarity": {"unspecified": 1}, "total": 1},
+    ]
+    verified_only = client.get("/api/claims/stages").json()
+    assert all(stage["total"] == 0 for stage in verified_only["stages"])
 
 
 @pytest.mark.parametrize(

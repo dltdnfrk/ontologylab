@@ -914,6 +914,103 @@ def get_schema(deps: AppDependency) -> dict[str, Any]:
         store.close()
 
 
+@router.get("/interpretations")
+def list_interpretations(
+    deps: AppDependency,
+    include_proposed: bool = Query(True),
+    limit: int = Query(200, ge=1, le=1000),
+) -> dict[str, Any]:
+    """Curated overlay nodes with the facts they link to, for the panel.
+
+    Every row carries its origin, so the UI can never render a curated
+    interpretation as if it were an extracted claim.
+    """
+    status = "('proposed','verified')" if include_proposed else "('verified')"
+    store = _open_store(deps)
+    try:
+        nodes = [
+            dict(row) for row in store.conn.execute(
+                "SELECT id, entity_type, name, status, properties_json, created_ts "
+                f"FROM nodes WHERE origin = 'curated' AND status IN {status} "
+                "ORDER BY created_ts DESC, id LIMIT ?",
+                (limit,),
+            )
+        ]
+        ids = [node["id"] for node in nodes]
+        links: list[dict[str, Any]] = []
+        if ids:
+            marks = ",".join("?" * len(ids))
+            links = [
+                dict(row) for row in store.conn.execute(
+                    "SELECT e.id, e.relation_type, e.src_node_id, e.dst_node_id, "
+                    "e.status, d.name AS dst_name, d.entity_type AS dst_type, "
+                    "d.origin AS dst_origin, d.status AS dst_status "
+                    "FROM edges e JOIN nodes d ON d.id = e.dst_node_id "
+                    f"WHERE e.src_node_id IN ({marks}) AND e.status IN {status} "
+                    "AND e.invalidated_ts IS NULL ORDER BY e.relation_type, e.id",
+                    ids,
+                )
+            ]
+    finally:
+        store.close()
+    for node in nodes:
+        node["properties"] = json.loads(node.pop("properties_json") or "{}")
+        node["links"] = [link for link in links if link["src_node_id"] == node["id"]]
+    return {"interpretations": nodes, "count": len(nodes)}
+
+
+@router.get("/claims/stages")
+def claim_stages(
+    deps: AppDependency,
+    include_proposed: bool = Query(False),
+) -> dict[str, Any]:
+    """Edge counts per relation, grouped into pipeline stages.
+
+    The layout is read-side only (schemas.STAGE_LAYOUTS). A relation the
+    layout does not name is reported under "other" rather than dropped.
+    """
+    from ontologylab.schemas import STAGE_LAYOUTS
+
+    status = "('proposed','verified')" if include_proposed else "('verified')"
+    store = _open_store(deps)
+    try:
+        rows = store.conn.execute(
+            "SELECT relation_type, "
+            "COALESCE(json_extract(qualifiers_json, '$.polarity'), '') AS polarity, "
+            f"COUNT(*) AS n FROM edges WHERE status IN {status} "
+            "AND invalidated_ts IS NULL GROUP BY 1, 2"
+        ).fetchall()
+    finally:
+        store.close()
+    counts: dict[str, dict[str, int]] = {}
+    for row in rows:
+        counts.setdefault(row["relation_type"], {})[row["polarity"] or "unspecified"] = row["n"]
+    placed: set[str] = set()
+    stages = []
+    for key, label, relations in STAGE_LAYOUTS["agrochem"]:
+        placed.update(relations)
+        stages.append({
+            "key": key, "label": label,
+            "relations": [
+                {"relation_type": name, "polarity": counts.get(name, {}),
+                 "total": sum(counts.get(name, {}).values())}
+                for name in relations
+            ],
+        })
+    other = sorted(set(counts) - placed)
+    stages.append({
+        "key": "other", "label": "기타",
+        "relations": [
+            {"relation_type": name, "polarity": counts[name],
+             "total": sum(counts[name].values())}
+            for name in other
+        ],
+    })
+    for stage in stages:
+        stage["total"] = sum(rel["total"] for rel in stage["relations"])
+    return {"stages": stages, "include_proposed": include_proposed}
+
+
 @router.post("/interpretations")
 def create_interpretation(
     deps: AppDependency, body: InterpretationCreate
