@@ -80,6 +80,10 @@ type Job = {
   started_ts: number;
   finished_ts: number | null;
   error?: string | null;
+  // Per-source outcome of a research fan-out, exactly as `Job.as_status`
+  // serialises `job.sources`: a LIST of `{name, status, detail}` (status is
+  // running | ok | failed), never a name-keyed map.
+  sources?: Array<{ name: string; status: string; detail?: string }>;
 };
 
 type TestResponse = { ok: boolean; verification_status: number };
@@ -821,6 +825,28 @@ export default function SourcesPage() {
                               {job.error}
                             </div>
                           )}
+                          {/* Sources that did not answer, one line each. The ok
+                              ones are already counted in the totals; what the
+                              operator needs to see is which source failed and
+                              why, instead of digging it out of the log. */}
+                          {(job.sources ?? [])
+                            .filter(
+                              (source) =>
+                                source.status !== "ok" && source.status !== "success",
+                            )
+                            .map((source) => (
+                              <div
+                                key={source.name}
+                                className={cn(
+                                  "mt-1 max-w-md text-xs",
+                                  source.status === "failed"
+                                    ? "text-destructive"
+                                    : "text-muted-foreground",
+                                )}
+                              >
+                                {source.name}: {source.detail || source.status}
+                              </div>
+                            ))}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1.5 text-xs">

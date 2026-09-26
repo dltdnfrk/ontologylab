@@ -22,6 +22,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import ValidationError
+from starlette.convertors import Convertor, register_url_convertor
 
 from ontologylab import paths
 from ontologylab.chatstore import MAX_TURNS, ChatStore
@@ -83,6 +84,7 @@ from ontologylab.offline_policy import configured_source_ids, passive_source_vie
 from ontologylab.packbuilder import (
     PackBuildError,
     build_pack_release,
+    safe_pack_component,
     scan_packs,
 )
 from ontologylab.paths import (
@@ -3232,6 +3234,76 @@ def packs_download_mcpb(deps: AppDependency, pack_id: str) -> Any:
         media_type="application/zip",
         filename=f"{pack_id}.mcpb",
     )
+
+
+class _AnyTextConvertor(Convertor[str]):
+    """Match every string, so the handler is the one that refuses an id.
+
+    Starlette's `path` convertor is `.*`, and `.` does not match a newline:
+    an id carrying a percent-encoded LF never matched the route and fell
+    through the router as a bare 404 before `safe_pack_component` ran (gate
+    review B1). `[\\s\\S]*` has no such gap, so control characters,
+    whitespace, empty segments and encoded separators all reach the typed
+    422 below.
+    """
+
+    regex = r"[\s\S]*"
+
+    def convert(self, value: str) -> str:
+        return value
+
+    def to_string(self, value: str) -> str:
+        return value
+
+
+register_url_convertor("anytext", _AnyTextConvertor())
+
+
+@router.post("/packs/{pack_id:anytext}/verify")
+def packs_verify(deps: AppDependency, pack_id: str) -> dict[str, Any]:
+    """Re-verify one built pack's bytes against its integrity receipt.
+
+    The same verifier MCP runs at load time (`verified_pack_reader`): verify
+    the source bytes, copy them into a temporary serving directory, reverify
+    the copy, open its store read-only, then discard the copy. The pack
+    directory itself is never written — packs are immutable.
+
+    A pack that fails is a 200 with `ok: false` and the typed reason in
+    `problems`: the operator asked "is this pack still intact?", and "no,
+    and here is why" answers that. An unknown id is 404. An id that is not
+    a safe single path segment is 422 before the filesystem is consulted;
+    the `anytext` convertor above exists so that every id, `../x` and a
+    newline included, reaches this check instead of the router's generic
+    404 that says nothing about why.
+    """
+    from ontologylab.verified_pack_reader import (
+        PackIntegrityError,
+        opened_verified_pack,
+    )
+
+    try:
+        safe_pack_component(pack_id, kind="pack id")
+    except PackBuildError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    pack_dir = Path(deps.packs_dir) / pack_id
+    if not pack_dir.is_symlink() and not pack_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"unknown pack {pack_id!r}")
+    try:
+        with opened_verified_pack(pack_dir) as (snapshot, _store):
+            integrity_level = snapshot.integrity_level
+    except PackIntegrityError as exc:
+        return {
+            "ok": False,
+            "pack_id": pack_id,
+            "integrity_level": None,
+            "problems": [str(exc)],
+        }
+    return {
+        "ok": True,
+        "pack_id": pack_id,
+        "integrity_level": integrity_level,
+        "problems": [],
+    }
 
 
 # ---------------------------------------------------------------------------

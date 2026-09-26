@@ -119,6 +119,12 @@ type VerifyResponse = {
   checked_at?: number;
   content_hash?: string;
   checks?: { name?: string; ok?: boolean; detail?: string }[];
+  // POST /api/packs/{id}/verify answers `{ok, pack_id, integrity_level,
+  // problems}`: `integrity_level` names what the receipt covers when the pack
+  // is intact, `problems` carries the typed reason when it is not.
+  pack_id?: string;
+  integrity_level?: string | null;
+  problems?: string[];
 };
 
 type PackEntity = {
@@ -511,15 +517,18 @@ function readVerdict(res: VerifyResponse): Verdict {
     return {
       kind: "pass",
       message: res.detail ?? "무결성 검증을 통과했습니다.",
-      detail: res.content_hash,
+      detail: res.content_hash ?? res.integrity_level ?? undefined,
     };
   }
   return {
     kind: "fail",
     message: res.detail ?? "무결성 검증에 실패했습니다.",
-    detail: failedChecks
-      .map((check) => `${check.name ?? "검사"}: ${check.detail ?? "실패"}`)
-      .join("\n"),
+    detail: [
+      ...(res.problems ?? []),
+      ...failedChecks.map(
+        (check) => `${check.name ?? "검사"}: ${check.detail ?? "실패"}`,
+      ),
+    ].join("\n"),
   };
 }
 
@@ -694,9 +703,9 @@ export default function PacksPage() {
       );
       setVerdicts((prev) => ({ ...prev, [packId]: readVerdict(res) }));
     } catch (err) {
-      const typed = errorText(err, "무결성 검증을 실행하지 못했습니다.", {
-        notFound: "이 서버는 무결성 재검증을 지원하지 않습니다.",
-      });
+      /* 404 here is the route's own answer — the pack id is unknown to the
+         server (deleted after the list loaded) — so the default copy applies. */
+      const typed = errorText(err, "무결성 검증을 실행하지 못했습니다.");
       setVerdicts((prev) => ({
         ...prev,
         [packId]: {
