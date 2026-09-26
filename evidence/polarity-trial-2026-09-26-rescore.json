@@ -1,0 +1,5386 @@
+{
+  "task": 16,
+  "base": "0346b36",
+  "gold_sha256": "c899bc553773f2ee4986d0d808165c7791ad7e5cd9c8ba8ff7a9187458a55203",
+  "read_mode": "mode=ro&immutable=1; WAL files confirmed empty before opening",
+  "retained_files_checked": 188,
+  "retained_files_changed": [],
+  "store_hashes": [
+    {
+      "directory": "/private/tmp/ol-polarity-20260926T144836389Z",
+      "files": [
+        {
+          "file": "kg.sqlite",
+          "before": "148a719dd2362756b4370097a5cae59c7e83bb387946d6535024e21a2c191696",
+          "after": "148a719dd2362756b4370097a5cae59c7e83bb387946d6535024e21a2c191696"
+        },
+        {
+          "file": "kg.sqlite-wal",
+          "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "file": "kg.sqlite-shm",
+          "before": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+          "after": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+        }
+      ]
+    },
+    {
+      "directory": "/private/tmp/ol-polarity-20260926T144836389Z-r2",
+      "files": [
+        {
+          "file": "kg.sqlite",
+          "before": "21bad5769320f792b05f6cd5b72f6f6b5817d1328394b34f530c47f86e4a8ab8",
+          "after": "21bad5769320f792b05f6cd5b72f6f6b5817d1328394b34f530c47f86e4a8ab8"
+        },
+        {
+          "file": "kg.sqlite-wal",
+          "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "file": "kg.sqlite-shm",
+          "before": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+          "after": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+        }
+      ]
+    },
+    {
+      "directory": "/private/tmp/ol-polarity-20260926T144836389Z-r3",
+      "files": [
+        {
+          "file": "kg.sqlite",
+          "before": "1a5ce7a60458bfce7b7886ef194229ed4d3ebdc27c6fa27118d5c403bcc1137e",
+          "after": "1a5ce7a60458bfce7b7886ef194229ed4d3ebdc27c6fa27118d5c403bcc1137e"
+        },
+        {
+          "file": "kg.sqlite-wal",
+          "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "file": "kg.sqlite-shm",
+          "before": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+          "after": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+        }
+      ]
+    }
+  ],
+  "sql_counts": [
+    {
+      "run": 1,
+      "counts": {
+        "documents": 5,
+        "nodes": 63,
+        "node_aliases": 7,
+        "edges": 49,
+        "extraction_runs": 5,
+        "extraction_chunks": 5
+      },
+      "current_edges": 49,
+      "groups": [
+        {
+          "relation_type": "applied_at_rate",
+          "polarity": null,
+          "n": 3
+        },
+        {
+          "relation_type": "applied_by",
+          "polarity": null,
+          "n": 1
+        },
+        {
+          "relation_type": "controls",
+          "polarity": "no_effect",
+          "n": 8
+        },
+        {
+          "relation_type": "controls",
+          "polarity": "supports",
+          "n": 19
+        },
+        {
+          "relation_type": "damages",
+          "polarity": "supports",
+          "n": 1
+        },
+        {
+          "relation_type": "evaluated_in",
+          "polarity": null,
+          "n": 4
+        },
+        {
+          "relation_type": "resistant_to",
+          "polarity": "refutes",
+          "n": 2
+        },
+        {
+          "relation_type": "resistant_to",
+          "polarity": "supports",
+          "n": 7
+        },
+        {
+          "relation_type": "synergizes_with",
+          "polarity": "no_effect",
+          "n": 1
+        },
+        {
+          "relation_type": "synergizes_with",
+          "polarity": "refutes",
+          "n": 1
+        },
+        {
+          "relation_type": "synergizes_with",
+          "polarity": "supports",
+          "n": 2
+        }
+      ],
+      "runs": [
+        {
+          "id": "778c88493b4c4650b995b9968ad3a70d",
+          "document_id": "rep-1131dec589e0",
+          "status": "complete"
+        },
+        {
+          "id": "bf30e6904b7a4b7880b390a09424d043",
+          "document_id": "rep-2ae1bfcc4183",
+          "status": "complete"
+        },
+        {
+          "id": "70f6828285cc40fbafc0da155dfaaf82",
+          "document_id": "rep-5ba0e09575ec",
+          "status": "complete"
+        },
+        {
+          "id": "87961d77f0714596a319be194755f0ec",
+          "document_id": "rep-dce0d78dadec",
+          "status": "complete"
+        },
+        {
+          "id": "934641f0f7df4aa28d0ddd707edec9c0",
+          "document_id": "rep-e479d944c9e1",
+          "status": "complete"
+        }
+      ],
+      "documents": [
+        {
+          "id": "rep-2ae1bfcc4183",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC11298438.txt",
+          "content_hash": "sha256:8d4bfc54ea578a01da92c798048b868120be8372bf6cb781a0d2642c6a1fbf88"
+        },
+        {
+          "id": "rep-dce0d78dadec",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC12546283.txt",
+          "content_hash": "sha256:f4058de5cec36a1c1f2d1045075c2d661cdf6fa01d91b6545a90ede0ad8b3be8"
+        },
+        {
+          "id": "rep-1131dec589e0",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC12563837.txt",
+          "content_hash": "sha256:436d765d666cc633efecc53a061b5e941b3f6c27de733dc5f16d1cd31929b9f2"
+        },
+        {
+          "id": "rep-5ba0e09575ec",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC12632097.txt",
+          "content_hash": "sha256:bd554447c224aba1e20b8a0e2bb484cf93da891e39aa3f41c4f78ba19340acdd"
+        },
+        {
+          "id": "rep-e479d944c9e1",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC12713700.txt",
+          "content_hash": "sha256:e7af2ffe781b53e5d24f013c96716e153ca494f70fe7fbebcb35f968c942b7e5"
+        }
+      ],
+      "integrity": [
+        {
+          "integrity_check": "ok"
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "counts": {
+        "documents": 5,
+        "nodes": 55,
+        "node_aliases": 1,
+        "edges": 45,
+        "extraction_runs": 5,
+        "extraction_chunks": 5
+      },
+      "current_edges": 45,
+      "groups": [
+        {
+          "relation_type": "controls",
+          "polarity": "no_effect",
+          "n": 7
+        },
+        {
+          "relation_type": "controls",
+          "polarity": "refutes",
+          "n": 2
+        },
+        {
+          "relation_type": "controls",
+          "polarity": "supports",
+          "n": 21
+        },
+        {
+          "relation_type": "damages",
+          "polarity": "supports",
+          "n": 1
+        },
+        {
+          "relation_type": "evaluated_in",
+          "polarity": null,
+          "n": 4
+        },
+        {
+          "relation_type": "resistant_to",
+          "polarity": "refutes",
+          "n": 2
+        },
+        {
+          "relation_type": "resistant_to",
+          "polarity": "supports",
+          "n": 7
+        },
+        {
+          "relation_type": "synergizes_with",
+          "polarity": "no_effect",
+          "n": 1
+        }
+      ],
+      "runs": [
+        {
+          "id": "2e3de76f305e4ca59a0e03495c6b75d7",
+          "document_id": "rep-3dc38eb076c1",
+          "status": "complete"
+        },
+        {
+          "id": "7bf0fd81c6a44974abee412411c126fc",
+          "document_id": "rep-9756d3025ad0",
+          "status": "complete"
+        },
+        {
+          "id": "e1e2ff1f19974b72bff17b2187df661a",
+          "document_id": "rep-b98b275bd0e4",
+          "status": "complete"
+        },
+        {
+          "id": "031351fc45de4f45b9f200706cac8033",
+          "document_id": "rep-bfcb1f3838c9",
+          "status": "complete"
+        },
+        {
+          "id": "bb9f6dfd693c4669a40b6ab719530f2a",
+          "document_id": "rep-d05dab6ce997",
+          "status": "complete"
+        }
+      ],
+      "documents": [
+        {
+          "id": "rep-9756d3025ad0",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC11298438.txt",
+          "content_hash": "sha256:8d4bfc54ea578a01da92c798048b868120be8372bf6cb781a0d2642c6a1fbf88"
+        },
+        {
+          "id": "rep-bfcb1f3838c9",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC12546283.txt",
+          "content_hash": "sha256:f4058de5cec36a1c1f2d1045075c2d661cdf6fa01d91b6545a90ede0ad8b3be8"
+        },
+        {
+          "id": "rep-d05dab6ce997",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC12563837.txt",
+          "content_hash": "sha256:436d765d666cc633efecc53a061b5e941b3f6c27de733dc5f16d1cd31929b9f2"
+        },
+        {
+          "id": "rep-3dc38eb076c1",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC12632097.txt",
+          "content_hash": "sha256:bd554447c224aba1e20b8a0e2bb484cf93da891e39aa3f41c4f78ba19340acdd"
+        },
+        {
+          "id": "rep-b98b275bd0e4",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC12713700.txt",
+          "content_hash": "sha256:e7af2ffe781b53e5d24f013c96716e153ca494f70fe7fbebcb35f968c942b7e5"
+        }
+      ],
+      "integrity": [
+        {
+          "integrity_check": "ok"
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "counts": {
+        "documents": 5,
+        "nodes": 65,
+        "node_aliases": 2,
+        "edges": 52,
+        "extraction_runs": 5,
+        "extraction_chunks": 5
+      },
+      "current_edges": 52,
+      "groups": [
+        {
+          "relation_type": "applied_at_rate",
+          "polarity": null,
+          "n": 3
+        },
+        {
+          "relation_type": "applied_by",
+          "polarity": null,
+          "n": 1
+        },
+        {
+          "relation_type": "controls",
+          "polarity": "no_effect",
+          "n": 5
+        },
+        {
+          "relation_type": "controls",
+          "polarity": "refutes",
+          "n": 2
+        },
+        {
+          "relation_type": "controls",
+          "polarity": "supports",
+          "n": 19
+        },
+        {
+          "relation_type": "damages",
+          "polarity": "supports",
+          "n": 1
+        },
+        {
+          "relation_type": "evaluated_in",
+          "polarity": null,
+          "n": 5
+        },
+        {
+          "relation_type": "occurs_in",
+          "polarity": null,
+          "n": 2
+        },
+        {
+          "relation_type": "resistant_to",
+          "polarity": "refutes",
+          "n": 2
+        },
+        {
+          "relation_type": "resistant_to",
+          "polarity": "supports",
+          "n": 9
+        },
+        {
+          "relation_type": "synergizes_with",
+          "polarity": "no_effect",
+          "n": 1
+        },
+        {
+          "relation_type": "synergizes_with",
+          "polarity": "supports",
+          "n": 2
+        }
+      ],
+      "runs": [
+        {
+          "id": "ab077fad18f34fc0a82e95765c2ee445",
+          "document_id": "rep-0e2fb3bb5441",
+          "status": "complete"
+        },
+        {
+          "id": "05a7856ef0ae450693756a94ab4e9328",
+          "document_id": "rep-305a38bcef4a",
+          "status": "complete"
+        },
+        {
+          "id": "cc402604c3994423aea20d4c2fc821b3",
+          "document_id": "rep-5fbe94b08f52",
+          "status": "complete"
+        },
+        {
+          "id": "1cd5c49d9f204de98e1182488df69021",
+          "document_id": "rep-b01f7cf4e3d1",
+          "status": "complete"
+        },
+        {
+          "id": "2950f19a0dcc44ba8290245df3ba0125",
+          "document_id": "rep-f2596289f936",
+          "status": "complete"
+        }
+      ],
+      "documents": [
+        {
+          "id": "rep-0e2fb3bb5441",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC11298438.txt",
+          "content_hash": "sha256:8d4bfc54ea578a01da92c798048b868120be8372bf6cb781a0d2642c6a1fbf88"
+        },
+        {
+          "id": "rep-f2596289f936",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC12546283.txt",
+          "content_hash": "sha256:f4058de5cec36a1c1f2d1045075c2d661cdf6fa01d91b6545a90ede0ad8b3be8"
+        },
+        {
+          "id": "rep-5fbe94b08f52",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC12563837.txt",
+          "content_hash": "sha256:436d765d666cc633efecc53a061b5e941b3f6c27de733dc5f16d1cd31929b9f2"
+        },
+        {
+          "id": "rep-305a38bcef4a",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC12632097.txt",
+          "content_hash": "sha256:bd554447c224aba1e20b8a0e2bb484cf93da891e39aa3f41c4f78ba19340acdd"
+        },
+        {
+          "id": "rep-b01f7cf4e3d1",
+          "source_uri": "file:///Users/hyunjun/Documents/MUNI/ontologylab-wt/w4-t12/tests/gold/agrochem-polarity/sources/PMC12713700.txt",
+          "content_hash": "sha256:e7af2ffe781b53e5d24f013c96716e153ca494f70fe7fbebcb35f968c942b7e5"
+        }
+      ],
+      "integrity": [
+        {
+          "integrity_check": "ok"
+        }
+      ]
+    }
+  ],
+  "legacy_matched_counts": [
+    0,
+    0,
+    0
+  ],
+  "scorer": {
+    "runs": [
+      {
+        "labels": [
+          "supports",
+          "refutes",
+          "no_effect",
+          "omitted"
+        ],
+        "confusion_matrix": {
+          "supports": {
+            "supports": 3,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "refutes": {
+            "supports": 1,
+            "refutes": 2,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "no_effect": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 1,
+            "omitted": 0
+          },
+          "omitted": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          }
+        },
+        "counts": {
+          "gold_relations": 34,
+          "matched_relations": 7,
+          "missing_relations": 27,
+          "matched_predictions": 7,
+          "conflicting_matched_relations": 0,
+          "found_four_tuples": 49,
+          "spurious_four_tuples": 43
+        },
+        "recall_no_effect": {
+          "value": 0.08333333333333333,
+          "numerator": 1,
+          "denominator": 12,
+          "ci95": {
+            "low": 0,
+            "high": 0.25
+          }
+        },
+        "recall_refutes": {
+          "value": 0.4,
+          "numerator": 2,
+          "denominator": 5,
+          "ci95": {
+            "low": 0,
+            "high": 0.8
+          }
+        },
+        "recall_no_effect_refutes": {
+          "value": 0.17647058823529413,
+          "numerator": 3,
+          "denominator": 17,
+          "ci95": {
+            "low": 0,
+            "high": 0.3529
+          }
+        },
+        "supports_when_gold_no_effect_flip_rate": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 1,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "polarity_accuracy": {
+          "value": 0.8571428571428571,
+          "numerator": 6,
+          "denominator": 7,
+          "ci95": {
+            "low": 0.5714,
+            "high": 1
+          }
+        },
+        "four_tuple_f1": 0.14457831325301204,
+        "four_tuple_f1_ci95": {
+          "low": 0.0506,
+          "high": 0.25
+        },
+        "missing_triples": [
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "metrafenone",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate1722"
+          ],
+          [
+            "prochloraz",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensisqst713",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensiskos",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "cyantraniliprole",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "spinosad",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "lambdacyhalothrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrinpb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "cyantraniliprolepb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "clodinafoppropargyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "fenoxaproppethyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pinoxaden",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pbo",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "prosulfocarb",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "chlorotolurondiflufenican",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "rblackgrasspopulation",
+            "damages",
+            "winterwheat"
+          ],
+          [
+            "indaziflam",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "glufosinate",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "fluridone",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "rimsulfuron",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "glyphosate",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "napropamide",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "dichlobenil",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "pyroxasulfone",
+            "controls",
+            "poaannua"
+          ]
+        ],
+        "bootstrap": {
+          "resamples": 2000,
+          "seed": 7,
+          "confidence": 0.95,
+          "unit": "individual outcome",
+          "limitation": "Within-paper dependence is not modeled."
+        },
+        "scope": "All current proposed/verified edges; use one trial stream per store."
+      },
+      {
+        "labels": [
+          "supports",
+          "refutes",
+          "no_effect",
+          "omitted"
+        ],
+        "confusion_matrix": {
+          "supports": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "refutes": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "no_effect": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "omitted": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          }
+        },
+        "counts": {
+          "gold_relations": 34,
+          "matched_relations": 0,
+          "missing_relations": 34,
+          "matched_predictions": 0,
+          "conflicting_matched_relations": 0,
+          "found_four_tuples": 45,
+          "spurious_four_tuples": 45
+        },
+        "recall_no_effect": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 12,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "recall_refutes": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 5,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "recall_no_effect_refutes": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 17,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "supports_when_gold_no_effect_flip_rate": {
+          "value": null,
+          "numerator": 0,
+          "denominator": 0,
+          "ci95": null
+        },
+        "polarity_accuracy": {
+          "value": null,
+          "numerator": 0,
+          "denominator": 0,
+          "ci95": null
+        },
+        "four_tuple_f1": 0,
+        "four_tuple_f1_ci95": {
+          "low": 0,
+          "high": 0
+        },
+        "missing_triples": [
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "metrafenone",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate1722"
+          ],
+          [
+            "prochloraz",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensisqst713",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensiskos",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "cyantraniliprole",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "spinosad",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "lambdacyhalothrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrinpb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "pb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "cyantraniliprolepb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "clodinafoppropargyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "fenoxaproppethyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pinoxaden",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pbo",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "prosulfocarb",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "chlorotolurondiflufenican",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "rblackgrasspopulation",
+            "damages",
+            "winterwheat"
+          ],
+          [
+            "indaziflam",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "glufosinate",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "fluridone",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "rimsulfuron",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "glyphosate",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "napropamide",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "dichlobenil",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "pyroxasulfone",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "fludioxonil"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "fenhexamid"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "iprodione"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "pyraclostrobin"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "boscalid"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "thiabendazole"
+          ]
+        ],
+        "bootstrap": {
+          "resamples": 2000,
+          "seed": 7,
+          "confidence": 0.95,
+          "unit": "individual outcome",
+          "limitation": "Within-paper dependence is not modeled."
+        },
+        "scope": "All current proposed/verified edges; use one trial stream per store."
+      },
+      {
+        "labels": [
+          "supports",
+          "refutes",
+          "no_effect",
+          "omitted"
+        ],
+        "confusion_matrix": {
+          "supports": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "refutes": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "no_effect": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "omitted": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          }
+        },
+        "counts": {
+          "gold_relations": 34,
+          "matched_relations": 0,
+          "missing_relations": 34,
+          "matched_predictions": 0,
+          "conflicting_matched_relations": 0,
+          "found_four_tuples": 52,
+          "spurious_four_tuples": 52
+        },
+        "recall_no_effect": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 12,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "recall_refutes": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 5,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "recall_no_effect_refutes": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 17,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "supports_when_gold_no_effect_flip_rate": {
+          "value": null,
+          "numerator": 0,
+          "denominator": 0,
+          "ci95": null
+        },
+        "polarity_accuracy": {
+          "value": null,
+          "numerator": 0,
+          "denominator": 0,
+          "ci95": null
+        },
+        "four_tuple_f1": 0,
+        "four_tuple_f1_ci95": {
+          "low": 0,
+          "high": 0
+        },
+        "missing_triples": [
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "metrafenone",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate1722"
+          ],
+          [
+            "prochloraz",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensisqst713",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensiskos",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "cyantraniliprole",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "spinosad",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "lambdacyhalothrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrinpb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "pb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "cyantraniliprolepb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "clodinafoppropargyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "fenoxaproppethyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pinoxaden",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pbo",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "prosulfocarb",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "chlorotolurondiflufenican",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "rblackgrasspopulation",
+            "damages",
+            "winterwheat"
+          ],
+          [
+            "indaziflam",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "glufosinate",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "fluridone",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "rimsulfuron",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "glyphosate",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "napropamide",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "dichlobenil",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "pyroxasulfone",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "fludioxonil"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "fenhexamid"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "iprodione"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "pyraclostrobin"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "boscalid"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "thiabendazole"
+          ]
+        ],
+        "bootstrap": {
+          "resamples": 2000,
+          "seed": 7,
+          "confidence": 0.95,
+          "unit": "individual outcome",
+          "limitation": "Within-paper dependence is not modeled."
+        },
+        "scope": "All current proposed/verified edges; use one trial stream per store."
+      }
+    ],
+    "pooled": {
+      "polarity_accuracy": {
+        "value": 0.8571428571428571,
+        "numerator": 6,
+        "denominator": 7,
+        "ci95": {
+          "low": 0.5714,
+          "high": 1
+        }
+      },
+      "recall_no_effect": {
+        "value": 0.027777777777777776,
+        "numerator": 1,
+        "denominator": 36,
+        "ci95": {
+          "low": 0,
+          "high": 0.0833
+        }
+      },
+      "recall_refutes": {
+        "value": 0.13333333333333333,
+        "numerator": 2,
+        "denominator": 15,
+        "ci95": {
+          "low": 0,
+          "high": 0.3333
+        }
+      },
+      "recall_no_effect_refutes": {
+        "value": 0.058823529411764705,
+        "numerator": 3,
+        "denominator": 51,
+        "ci95": {
+          "low": 0,
+          "high": 0.1176
+        }
+      },
+      "supports_when_gold_no_effect_flip_rate": {
+        "value": 0,
+        "numerator": 0,
+        "denominator": 1,
+        "ci95": {
+          "low": 0,
+          "high": 0
+        }
+      }
+    }
+  },
+  "diagnosis_counts": {
+    "entity_surface_mismatch": 69,
+    "relation_type_mismatch": 21,
+    "direction_mismatch": 0,
+    "truly_absent": 12
+  },
+  "diagnosis": [
+    {
+      "run": 1,
+      "gold": 1,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; isolate-only target also lacks the species prefix.",
+      "nearest": [
+        "71039d6979b14227ba3d14a4cfb98c25"
+      ],
+      "candidate": [
+        "Prochloraz",
+        "controls",
+        "isolate 620"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "3449770d3d834cd098d2d9119f1d8448"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "2d1524efc06d4dd58b1433967c114581",
+        "668e9f95ddd648eba49de7da4f759e07",
+        "71039d6979b14227ba3d14a4cfb98c25",
+        "dea6c52a93aa4b16859d026e243278ab"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 2,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; isolate-only target also lacks the species prefix.",
+      "nearest": [
+        "95a34602321f4339a4a828df7e2564c8"
+      ],
+      "candidate": [
+        "Metrafenone",
+        "controls",
+        "isolate 620"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "2b5d2bd5c39f426c9a6662f57ebd82d8"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "95a34602321f4339a4a828df7e2564c8"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 3,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; isolate-only target also lacks the species prefix.",
+      "nearest": [
+        "668e9f95ddd648eba49de7da4f759e07"
+      ],
+      "candidate": [
+        "Prochloraz",
+        "controls",
+        "isolate 1722"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "3449770d3d834cd098d2d9119f1d8448"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "2d1524efc06d4dd58b1433967c114581",
+        "668e9f95ddd648eba49de7da4f759e07",
+        "71039d6979b14227ba3d14a4cfb98c25",
+        "dea6c52a93aa4b16859d026e243278ab"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 4,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "2d1524efc06d4dd58b1433967c114581"
+      ],
+      "candidate": [
+        "Prochloraz",
+        "controls",
+        "bubble development"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [
+        "3449770d3d834cd098d2d9119f1d8448"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "2d1524efc06d4dd58b1433967c114581",
+        "668e9f95ddd648eba49de7da4f759e07",
+        "71039d6979b14227ba3d14a4cfb98c25"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 5,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "9c2e9bc2c6f84c50968ac6f9f3c273dc"
+      ],
+      "candidate": [
+        "B. velezensis QST 713",
+        "controls",
+        "bubble development"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": []
+    },
+    {
+      "run": 1,
+      "gold": 6,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "7033d2bbd70247048944505e92053287"
+      ],
+      "candidate": [
+        "Kos",
+        "controls",
+        "bubble development"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": []
+    },
+    {
+      "run": 1,
+      "gold": 7,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; oviposition target is also lost, not an alias of the organism.",
+      "nearest": [
+        "4b031c1ca0c543ffa2577a1b97f86114"
+      ],
+      "candidate": [
+        "cyantraniliprole",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [
+        "7ba28c59b454445f8ab4214a84fbc3b6"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "4b031c1ca0c543ffa2577a1b97f86114",
+        "f679be94f780406286e61ca1c8817262"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 8,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; oviposition target is also lost, not an alias of the organism.",
+      "nearest": [
+        "292b572215dd442581d499ef4b44a8e5"
+      ],
+      "candidate": [
+        "spinosad",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [
+        "5f9f7e4166714ec99f5b8208249bb5f3"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "292b572215dd442581d499ef4b44a8e5",
+        "4e830b94f1ea46cfb3799cc5bace57e2"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 9,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; oviposition target is also lost, not an alias of the organism.",
+      "nearest": [
+        "f3407e66129940cfb0022818cb870a29"
+      ],
+      "candidate": [
+        "lambda-cyhalothrin",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "d42102f5700d490ca2b4f6fd42af24fe"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "f3407e66129940cfb0022818cb870a29"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 10,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; oviposition target is also lost, not an alias of the organism.",
+      "nearest": [
+        "2be28b5c6e7948cfae912f665595e4ce"
+      ],
+      "candidate": [
+        "deltamethrin",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "31df30b3eb494cada516fb1bc7aa04db"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "2be28b5c6e7948cfae912f665595e4ce",
+        "cf1f86d741f3490e9638fd0b2d7627c8"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 11,
+      "classification": "truly absent",
+      "note": "Combination entity is absent; ingredient-only or synergizes_with rows cannot stand in for the combination.",
+      "nearest": [],
+      "candidate": null,
+      "polarity": [],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "63b12d3a0bf244a19b834164cfc4050b"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "292b572215dd442581d499ef4b44a8e5",
+        "2be28b5c6e7948cfae912f665595e4ce",
+        "4b031c1ca0c543ffa2577a1b97f86114",
+        "7fbda0da18294baf8a96b58ca68548bb",
+        "f3407e66129940cfb0022818cb870a29",
+        "fc741bf3ce654a1d84a44e00bdec652c"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 12,
+      "classification": "entity surface mismatch",
+      "note": "Recovered by recorded node_aliases; original scorer ignored it.",
+      "nearest": [
+        "7fbda0da18294baf8a96b58ca68548bb"
+      ],
+      "candidate": [
+        "PB",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [
+        "2f9ad129f84f4b0a8601c3245f2e502a"
+      ],
+      "resolved_dst_ids": [
+        "63b12d3a0bf244a19b834164cfc4050b"
+      ],
+      "exact_matches": [
+        "7fbda0da18294baf8a96b58ca68548bb"
+      ],
+      "identity_neighbors": [
+        "7fbda0da18294baf8a96b58ca68548bb"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 13,
+      "classification": "truly absent",
+      "note": "Combination entity is absent; ingredient-only or synergizes_with rows cannot stand in for the combination.",
+      "nearest": [],
+      "candidate": null,
+      "polarity": [],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "63b12d3a0bf244a19b834164cfc4050b"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "292b572215dd442581d499ef4b44a8e5",
+        "2be28b5c6e7948cfae912f665595e4ce",
+        "4b031c1ca0c543ffa2577a1b97f86114",
+        "7fbda0da18294baf8a96b58ca68548bb",
+        "f3407e66129940cfb0022818cb870a29",
+        "fc741bf3ce654a1d84a44e00bdec652c"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 14,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "55515ba053ef4dbc850d4f2d0bafaae2"
+      ],
+      "candidate": [
+        "clodinafop-propargyl",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "ffcabe14df414d079899455a77bd0e6f"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "55515ba053ef4dbc850d4f2d0bafaae2"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 15,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "6eb97c8dbbdb44a99539d5b0190caea8"
+      ],
+      "candidate": [
+        "fenoxaprop-P-ethyl",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "20a0e33c951541ad987c264c01030a8e"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "6eb97c8dbbdb44a99539d5b0190caea8"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 16,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "1f6768a0fea14757beeca14f8167ef35"
+      ],
+      "candidate": [
+        "pinoxaden",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "1c0594fb7c2f4a63a38380d63347529c"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "1f6768a0fea14757beeca14f8167ef35"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 17,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "f10a9d86cb44472a9b318f03d288cefd"
+      ],
+      "candidate": [
+        "PBO",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [
+        "eb0103d5539c4630aa81078047738864"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "f10a9d86cb44472a9b318f03d288cefd"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 18,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "e814096cf8484401ae75516c8e616f72"
+      ],
+      "candidate": [
+        "prosulfocarb",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "1474f8043a204a9c842d26005cbcc7ee"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "e814096cf8484401ae75516c8e616f72"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 19,
+      "classification": "truly absent",
+      "note": "Combination entity is absent; ingredient-only or synergizes_with rows cannot stand in for the combination.",
+      "nearest": [],
+      "candidate": null,
+      "polarity": [],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": []
+    },
+    {
+      "run": 1,
+      "gold": 20,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "128b95d9a2be442badad1a519ad78b7b"
+      ],
+      "candidate": [
+        "blackgrass",
+        "damages",
+        "winter wheat"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "8e8f84e9653f4f77985bbf9ab5293c4a"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "128b95d9a2be442badad1a519ad78b7b"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 21,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "c97f00705f7b49a89aea952729291f54"
+      ],
+      "candidate": [
+        "indaziflam",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "1ff330313dae466a9f22ffc51f3bcb79"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "c97f00705f7b49a89aea952729291f54"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 22,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "1ce2a77afb264eee9dfbb4570ca057fb"
+      ],
+      "candidate": [
+        "glufosinate",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [
+        "c00f82f7f026466fb8cdf090a8436ee8"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "1ce2a77afb264eee9dfbb4570ca057fb"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 23,
+      "classification": "truly absent",
+      "note": "No extracted edge for the diagnostic target; other relations/targets do not supply this assertion.",
+      "nearest": [],
+      "candidate": [
+        "fluridone",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [],
+      "resolved_src_ids": [
+        "a4cd22c350ce48f4a70ba799c85d7f2b"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": []
+    },
+    {
+      "run": 1,
+      "gold": 24,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "e0d6faad8f1e40969710cc2d5b266655"
+      ],
+      "candidate": [
+        "rimsulfuron",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "929dcd13fa6a46aa8e5eb6e0092e2693"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "e0d6faad8f1e40969710cc2d5b266655"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 25,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "e09dc063fc494ebd85fa80801c9cf64d"
+      ],
+      "candidate": [
+        "glyphosate",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "a52a86ad9c084cc19481795644356b44"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "e09dc063fc494ebd85fa80801c9cf64d"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 26,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "2579cedeca9a4ce4a2b960048e6ede8d"
+      ],
+      "candidate": [
+        "napropamide",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "345660173d2348ccb008c526d3e79bdb"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "2579cedeca9a4ce4a2b960048e6ede8d"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 27,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "3988c2c4cf80486f9e041b991f7982ae"
+      ],
+      "candidate": [
+        "dichlobenil",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "023d26fa98c24af296f83d0387066cea"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "3988c2c4cf80486f9e041b991f7982ae"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 28,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "8906faa78e8e459381b1ea1480313af5"
+      ],
+      "candidate": [
+        "pyroxasulfone",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "a89c9790743b46e2a0184cec9a517b31"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "8906faa78e8e459381b1ea1480313af5"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 29,
+      "classification": "entity surface mismatch",
+      "note": "Recovered by recorded node_aliases; original scorer ignored it.",
+      "nearest": [
+        "ce12d72b7a9149ce82647c39f3fbe68a"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "fludioxonil"
+      ],
+      "polarity": [
+        "refutes"
+      ],
+      "resolved_src_ids": [
+        "493734b67cea442ab68760b005441f62"
+      ],
+      "resolved_dst_ids": [
+        "e4ed93b8f763454fa7010b187e61e468"
+      ],
+      "exact_matches": [
+        "ce12d72b7a9149ce82647c39f3fbe68a"
+      ],
+      "identity_neighbors": [
+        "ce12d72b7a9149ce82647c39f3fbe68a"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 30,
+      "classification": "entity surface mismatch",
+      "note": "Recovered by recorded node_aliases; original scorer ignored it.",
+      "nearest": [
+        "c1f863715ae74caabe37cd53e1e01022"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "fenhexamid"
+      ],
+      "polarity": [
+        "refutes"
+      ],
+      "resolved_src_ids": [
+        "493734b67cea442ab68760b005441f62"
+      ],
+      "resolved_dst_ids": [
+        "3245eaff685a4bbfa13aa7a6618f13c5"
+      ],
+      "exact_matches": [
+        "c1f863715ae74caabe37cd53e1e01022"
+      ],
+      "identity_neighbors": [
+        "c1f863715ae74caabe37cd53e1e01022"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 31,
+      "classification": "entity surface mismatch",
+      "note": "Recovered by recorded node_aliases; original scorer ignored it.",
+      "nearest": [
+        "d230ffd855cc470faf9b325dd90492f1"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "iprodione"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "493734b67cea442ab68760b005441f62"
+      ],
+      "resolved_dst_ids": [
+        "fc3e6393cae74fb8b6762f13c9dc65b2"
+      ],
+      "exact_matches": [
+        "d230ffd855cc470faf9b325dd90492f1"
+      ],
+      "identity_neighbors": [
+        "d230ffd855cc470faf9b325dd90492f1"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 32,
+      "classification": "entity surface mismatch",
+      "note": "Recovered by recorded node_aliases; original scorer ignored it.",
+      "nearest": [
+        "fa3f6c68991a4b63b3ceb70d274e7555"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "pyraclostrobin"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "493734b67cea442ab68760b005441f62"
+      ],
+      "resolved_dst_ids": [
+        "c884b410808b4a028c16bf0090a0de20"
+      ],
+      "exact_matches": [
+        "fa3f6c68991a4b63b3ceb70d274e7555"
+      ],
+      "identity_neighbors": [
+        "fa3f6c68991a4b63b3ceb70d274e7555"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 33,
+      "classification": "entity surface mismatch",
+      "note": "Recovered by recorded node_aliases; original scorer ignored it.",
+      "nearest": [
+        "df2dccac729d4b52886a9560bef7b77a"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "boscalid"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "493734b67cea442ab68760b005441f62"
+      ],
+      "resolved_dst_ids": [
+        "8cba7fe9f588456da3d084b2a808e9ad"
+      ],
+      "exact_matches": [
+        "df2dccac729d4b52886a9560bef7b77a"
+      ],
+      "identity_neighbors": [
+        "df2dccac729d4b52886a9560bef7b77a"
+      ]
+    },
+    {
+      "run": 1,
+      "gold": 34,
+      "classification": "entity surface mismatch",
+      "note": "Recovered by recorded node_aliases; original scorer ignored it.",
+      "nearest": [
+        "04204072e199405ca9a5cc324ba10921"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "thiabendazole"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "493734b67cea442ab68760b005441f62"
+      ],
+      "resolved_dst_ids": [
+        "8295af9a056b4ff7a608cd711cf97ec6"
+      ],
+      "exact_matches": [
+        "04204072e199405ca9a5cc324ba10921"
+      ],
+      "identity_neighbors": [
+        "04204072e199405ca9a5cc324ba10921"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 1,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; isolate-only target also lacks the species prefix.",
+      "nearest": [
+        "c7c5d18017c044cbb834a0e9b3fea9c1"
+      ],
+      "candidate": [
+        "Prochloraz",
+        "controls",
+        "isolate 620"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "3e0193bee0b241e8bddf3313d526a9a9"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "408ce9dba8bc4e7996ba58e38b6f5953",
+        "6f543506f6b54915a8791344ae690a19",
+        "c7c5d18017c044cbb834a0e9b3fea9c1",
+        "e7f0cf1ec42f4eff8e72b2c23a7f1f2d"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 2,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; isolate-only target also lacks the species prefix.",
+      "nearest": [
+        "8d0c1b20fa934aee9f57f95a5cf4ab8c"
+      ],
+      "candidate": [
+        "Metrafenone",
+        "controls",
+        "isolate 620"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "bdb45b9277a04917bd35e3f3aefe1cae"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "8d0c1b20fa934aee9f57f95a5cf4ab8c"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 3,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; isolate-only target also lacks the species prefix.",
+      "nearest": [
+        "408ce9dba8bc4e7996ba58e38b6f5953"
+      ],
+      "candidate": [
+        "Prochloraz",
+        "controls",
+        "isolate 1722"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "3e0193bee0b241e8bddf3313d526a9a9"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "408ce9dba8bc4e7996ba58e38b6f5953",
+        "6f543506f6b54915a8791344ae690a19",
+        "c7c5d18017c044cbb834a0e9b3fea9c1",
+        "e7f0cf1ec42f4eff8e72b2c23a7f1f2d"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 4,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "e7f0cf1ec42f4eff8e72b2c23a7f1f2d"
+      ],
+      "candidate": [
+        "Prochloraz",
+        "controls",
+        "bubble development"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [
+        "3e0193bee0b241e8bddf3313d526a9a9"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "408ce9dba8bc4e7996ba58e38b6f5953",
+        "c7c5d18017c044cbb834a0e9b3fea9c1",
+        "e7f0cf1ec42f4eff8e72b2c23a7f1f2d"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 5,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "463aa02ff5804daf98d0c95250a14b81"
+      ],
+      "candidate": [
+        "B. velezensis QST 713",
+        "controls",
+        "bubble development"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": []
+    },
+    {
+      "run": 2,
+      "gold": 6,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "8cbd0c617633404c84af8bbb4c8790ec"
+      ],
+      "candidate": [
+        "Kos",
+        "controls",
+        "bubble development"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": []
+    },
+    {
+      "run": 2,
+      "gold": 7,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; oviposition target is also lost, not an alias of the organism.",
+      "nearest": [
+        "0d705b2fa3da4019bf88fcf5669ddc34",
+        "2110232c53c5453285943d4592456035"
+      ],
+      "candidate": [
+        "cyantraniliprole",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [
+        "supports",
+        "no_effect"
+      ],
+      "resolved_src_ids": [
+        "f2d54dfcc95d454a9e9f7c2ec5f64cc2"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "0d705b2fa3da4019bf88fcf5669ddc34",
+        "2110232c53c5453285943d4592456035",
+        "81bf8fffff414b6cb5578f69c68beeee"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 8,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; oviposition target is also lost, not an alias of the organism.",
+      "nearest": [
+        "c98d0022d69c4f4eb6146d4cfe307f36"
+      ],
+      "candidate": [
+        "spinosad",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "55cc325a072343f383af3b8b1bc2e0e6"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "c98d0022d69c4f4eb6146d4cfe307f36"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 9,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; oviposition target is also lost, not an alias of the organism.",
+      "nearest": [
+        "0e4bbe8b3e6249d5bc61d5de15efe02d"
+      ],
+      "candidate": [
+        "lambda-cyhalothrin",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "f39e251ea5124e4b846b0146638f6940"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "0e4bbe8b3e6249d5bc61d5de15efe02d"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 10,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; oviposition target is also lost, not an alias of the organism.",
+      "nearest": [
+        "85652999db4d41b9badecd0f04b4ccf4",
+        "d3f7e28e4acc4661910fa1a35e48055f"
+      ],
+      "candidate": [
+        "deltamethrin",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [
+        "supports",
+        "no_effect"
+      ],
+      "resolved_src_ids": [
+        "d5b31b0f0e8c40f8827aa0f0849cc7fd"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "85652999db4d41b9badecd0f04b4ccf4",
+        "d3f7e28e4acc4661910fa1a35e48055f"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 11,
+      "classification": "truly absent",
+      "note": "Combination entity is absent; ingredient-only or synergizes_with rows cannot stand in for the combination.",
+      "nearest": [],
+      "candidate": null,
+      "polarity": [],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": []
+    },
+    {
+      "run": 2,
+      "gold": 12,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "ebf41aac8e8f4fdc8886b6451c357919"
+      ],
+      "candidate": [
+        "PB",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [
+        "e9ae231546724ef7ae8442a1160e78d6"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "ebf41aac8e8f4fdc8886b6451c357919"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 13,
+      "classification": "truly absent",
+      "note": "Combination entity is absent; ingredient-only or synergizes_with rows cannot stand in for the combination.",
+      "nearest": [],
+      "candidate": null,
+      "polarity": [],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": []
+    },
+    {
+      "run": 2,
+      "gold": 14,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "a5f9773b504d412ba45dd034ada1b361"
+      ],
+      "candidate": [
+        "clodinafop-propargyl",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "2b8ecbdfb26945a49261493df0b62847"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "a5f9773b504d412ba45dd034ada1b361"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 15,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "918b56e1227f4934a8eda8d05bdb4809"
+      ],
+      "candidate": [
+        "fenoxaprop-P-ethyl",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "782e66ae0a8b4c9eb86f11557c977406"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "918b56e1227f4934a8eda8d05bdb4809"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 16,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "fa84cf9c932a40f39dbfb62540145dc2"
+      ],
+      "candidate": [
+        "pinoxaden",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "32bdeaa75ef04c04b1d14163b57b90fa"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "fa84cf9c932a40f39dbfb62540145dc2"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 17,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "6692f31e7cf14913b704c138737e4b35"
+      ],
+      "candidate": [
+        "PBO",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [
+        "a6fdebb848db4aafa9908ef93e63cfbd"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "6692f31e7cf14913b704c138737e4b35"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 18,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "f7f4d6f7f0654b59a320e6099f4be490"
+      ],
+      "candidate": [
+        "prosulfocarb",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "899e117005814faf82fc320e20e413ff"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "f7f4d6f7f0654b59a320e6099f4be490"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 19,
+      "classification": "truly absent",
+      "note": "Combination entity is absent; ingredient-only or synergizes_with rows cannot stand in for the combination.",
+      "nearest": [],
+      "candidate": null,
+      "polarity": [],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": []
+    },
+    {
+      "run": 2,
+      "gold": 20,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "da5139b382b2440ebdecb17438f94349"
+      ],
+      "candidate": [
+        "blackgrass",
+        "damages",
+        "winter wheat"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "fda295f8853a48dfb869f18b83212896"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "da5139b382b2440ebdecb17438f94349"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 21,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "25f5705bb73d4d43ac53348aab1f6b49"
+      ],
+      "candidate": [
+        "indaziflam",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "cfe2a2a111ac477586a3858e8ff4c325"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "25f5705bb73d4d43ac53348aab1f6b49"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 22,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "34af91d5d6014a7f945809a424da7576"
+      ],
+      "candidate": [
+        "glufosinate",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "refutes"
+      ],
+      "resolved_src_ids": [
+        "b1e842ccc92243f1a3cdacdeb2a079ec"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "34af91d5d6014a7f945809a424da7576"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 23,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "087a1774af7e409d980ecd383774dc42"
+      ],
+      "candidate": [
+        "fluridone",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "refutes"
+      ],
+      "resolved_src_ids": [
+        "6ad070a9f7994bc7ab296c00d0282bb7"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "087a1774af7e409d980ecd383774dc42"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 24,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "9451e98387db47c9a6d19851479ed18b"
+      ],
+      "candidate": [
+        "rimsulfuron",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "8f8c3461559249c79ffd778f35e6dafc"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "9451e98387db47c9a6d19851479ed18b"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 25,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "99221888c55d4138adec838653efc2f9"
+      ],
+      "candidate": [
+        "glyphosate",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "6d46579ac0ef471abb743fab32f5b5cd"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "99221888c55d4138adec838653efc2f9"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 26,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "45a8d02492e144dd8bde2a1fd5807bbe"
+      ],
+      "candidate": [
+        "napropamide",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "555a380744ef4870a685c7bab890537e"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "45a8d02492e144dd8bde2a1fd5807bbe"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 27,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "29b713bb78fc44dc92c0fdb95911291f"
+      ],
+      "candidate": [
+        "dichlobenil",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "85b9d349d2a0419ca973d8d9fc56f2fe"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "29b713bb78fc44dc92c0fdb95911291f"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 28,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "e657036e5fdc439cbc95c34ebb622685"
+      ],
+      "candidate": [
+        "pyroxasulfone",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "e7614153c7964bffa49884b5aefeea51"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "e657036e5fdc439cbc95c34ebb622685"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 29,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "33f8c570a59d433b97bd39b7e9ee6044"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "fludioxonil"
+      ],
+      "polarity": [
+        "refutes"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "20cd1f0dd5d1408488b9567ba4786deb"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "33f8c570a59d433b97bd39b7e9ee6044"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 30,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "afda32d164474e76b82291e3af7df4ae"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "fenhexamid"
+      ],
+      "polarity": [
+        "refutes"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "96cf47abfcee48a0ad771944bb5a80d0"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "afda32d164474e76b82291e3af7df4ae"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 31,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "9f1b70f24b804ebcb8a6f7c37466aa80"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "iprodione"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "1c03a4ce4cdb4ab587943825d8d71c27"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "9f1b70f24b804ebcb8a6f7c37466aa80"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 32,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "e62b9707515e4352ab8ffb3dcac878f0"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "pyraclostrobin"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "ae4040f6963d4cdd920ae82463195a83"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "e62b9707515e4352ab8ffb3dcac878f0"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 33,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "1b70f867ebd44554aefd05fb7593ebbe"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "boscalid"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "59ba9861781345b7b3e102d5cc92ea8b"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "1b70f867ebd44554aefd05fb7593ebbe"
+      ]
+    },
+    {
+      "run": 2,
+      "gold": 34,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "13709ede6fa34a2fa5d6dd8e6cdf4873"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "thiabendazole"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "8b5b6aa477824bb2b7359573c5be1a15"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "13709ede6fa34a2fa5d6dd8e6cdf4873"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 1,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; isolate-only target also lacks the species prefix.",
+      "nearest": [
+        "184b7aa5a9704873af3647aa8931d4fb"
+      ],
+      "candidate": [
+        "Prochloraz",
+        "controls",
+        "isolate 620"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "70558ce6905e475fa30ee9c58f436d9e"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "0dce97b4a0f8496da9ac5c5500882d65",
+        "184b7aa5a9704873af3647aa8931d4fb",
+        "a0b0fe95426043df8cd52b63ad33ac18",
+        "defdda65e4024e20815bc4ae3ecdd1d5"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 2,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; isolate-only target also lacks the species prefix.",
+      "nearest": [
+        "0452d4674969430197f2299744f80461"
+      ],
+      "candidate": [
+        "Metrafenone",
+        "controls",
+        "isolate 620"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "a754f7599eed4267b0ce52ffeaf156d8"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "0452d4674969430197f2299744f80461"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 3,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; isolate-only target also lacks the species prefix.",
+      "nearest": [
+        "a0b0fe95426043df8cd52b63ad33ac18"
+      ],
+      "candidate": [
+        "Prochloraz",
+        "controls",
+        "isolate 1722"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "70558ce6905e475fa30ee9c58f436d9e"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "0dce97b4a0f8496da9ac5c5500882d65",
+        "184b7aa5a9704873af3647aa8931d4fb",
+        "a0b0fe95426043df8cd52b63ad33ac18",
+        "defdda65e4024e20815bc4ae3ecdd1d5"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 4,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "defdda65e4024e20815bc4ae3ecdd1d5"
+      ],
+      "candidate": [
+        "Prochloraz",
+        "controls",
+        "bubble development"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [
+        "70558ce6905e475fa30ee9c58f436d9e"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "184b7aa5a9704873af3647aa8931d4fb",
+        "a0b0fe95426043df8cd52b63ad33ac18",
+        "defdda65e4024e20815bc4ae3ecdd1d5"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 5,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "a07a96e4069448fe89fbf48d52b4be40"
+      ],
+      "candidate": [
+        "B. velezensis QST 713",
+        "controls",
+        "bubble development"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": []
+    },
+    {
+      "run": 3,
+      "gold": 6,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "be0c136304f046b588cf5340f0140ad8"
+      ],
+      "candidate": [
+        "Kos",
+        "controls",
+        "bubble development"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": []
+    },
+    {
+      "run": 3,
+      "gold": 7,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; oviposition target is also lost, not an alias of the organism.",
+      "nearest": [
+        "8706045b7c8842e59561cd82e35c3075"
+      ],
+      "candidate": [
+        "cyantraniliprole",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [
+        "89053152ad0a4c488e757184300983c7"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "09ba63fe8f93484d8c2e3731db66aead",
+        "8706045b7c8842e59561cd82e35c3075"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 8,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; oviposition target is also lost, not an alias of the organism.",
+      "nearest": [
+        "5fe6e3872b3c42ccad57441ed605011d"
+      ],
+      "candidate": [
+        "spinosad",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [
+        "no_effect"
+      ],
+      "resolved_src_ids": [
+        "a2d9b0ea8a97482caa614d6c00e32876"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "5fe6e3872b3c42ccad57441ed605011d",
+        "c5e8e6c1d9c741da86396df2bd8a69cd"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 9,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; oviposition target is also lost, not an alias of the organism.",
+      "nearest": [
+        "a186cef965db402290555c798ebc148c"
+      ],
+      "candidate": [
+        "lambda-cyhalothrin",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "552d1000b42e4816bf8e39c420731920"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "a186cef965db402290555c798ebc148c"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 10,
+      "classification": "relation-type mismatch",
+      "note": "controls, not inhibits; oviposition target is also lost, not an alias of the organism.",
+      "nearest": [
+        "67677515774244bcb9bc0ed64e2cffd5"
+      ],
+      "candidate": [
+        "deltamethrin",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "bd62df06035d47ca9c3dfbdbe7f17128"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "67677515774244bcb9bc0ed64e2cffd5"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 11,
+      "classification": "truly absent",
+      "note": "Combination entity is absent; ingredient-only or synergizes_with rows cannot stand in for the combination.",
+      "nearest": [],
+      "candidate": null,
+      "polarity": [],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": []
+    },
+    {
+      "run": 3,
+      "gold": 12,
+      "classification": "truly absent",
+      "note": "No extracted edge for the diagnostic target; other relations/targets do not supply this assertion.",
+      "nearest": [],
+      "candidate": [
+        "PB",
+        "controls",
+        "D. suzukii"
+      ],
+      "polarity": [],
+      "resolved_src_ids": [
+        "c676df070acf4bf2803df93f070513cf"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "461eac2ec4a440a29db09760c156be2e"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 13,
+      "classification": "truly absent",
+      "note": "Combination entity is absent; ingredient-only or synergizes_with rows cannot stand in for the combination.",
+      "nearest": [],
+      "candidate": null,
+      "polarity": [],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": []
+    },
+    {
+      "run": 3,
+      "gold": 14,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "57728c0afcf44c779ddeedf75fcd514c"
+      ],
+      "candidate": [
+        "clodinafop-propargyl",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "648de496ccdc4f5cbbea2637c3b88840"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "57728c0afcf44c779ddeedf75fcd514c"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 15,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "81d65066378c4287bb4036e9e651661e"
+      ],
+      "candidate": [
+        "fenoxaprop-P-ethyl",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "75ba15cd9fa84cd392079f8b03e475b7"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "81d65066378c4287bb4036e9e651661e"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 16,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "ce93420f564747e9aa92bee549ee17bb"
+      ],
+      "candidate": [
+        "pinoxaden",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "4a469b63e17b446dabc8fc3beca6ac45"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "ce93420f564747e9aa92bee549ee17bb"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 17,
+      "classification": "truly absent",
+      "note": "No extracted edge for the diagnostic target; other relations/targets do not supply this assertion.",
+      "nearest": [],
+      "candidate": [
+        "PBO",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [],
+      "resolved_src_ids": [
+        "6e94cf9d66454f31893ff42462d0d122"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "6fc53e9f090b42ca848c54f0e680985c",
+        "fe92c17dff454120a80bd59d9f05cd8f"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 18,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "8cb07c8f7dad40b99c5a1cbcb39dccdf"
+      ],
+      "candidate": [
+        "prosulfocarb",
+        "controls",
+        "blackgrass"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "33b44b8051d1491e808255b8c3ce15a3"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "8cb07c8f7dad40b99c5a1cbcb39dccdf"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 19,
+      "classification": "truly absent",
+      "note": "Combination entity is absent; ingredient-only or synergizes_with rows cannot stand in for the combination.",
+      "nearest": [],
+      "candidate": null,
+      "polarity": [],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": []
+    },
+    {
+      "run": 3,
+      "gold": 20,
+      "classification": "entity surface mismatch",
+      "note": "Population scope dropped (R blackgrass population -> blackgrass); not identity-equivalent without a recorded alias.",
+      "nearest": [
+        "7025ae2010fe4e8ea6e9c378f15ae730"
+      ],
+      "candidate": [
+        "blackgrass",
+        "damages",
+        "winter wheat"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "a31b619bf83a4d2587eaee28e92bca30"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "7025ae2010fe4e8ea6e9c378f15ae730"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 21,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "e7b5d3c9fc094851ae4650027aa4ae35"
+      ],
+      "candidate": [
+        "indaziflam",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "ee702ac251fb41038de4d4f826a0858f"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "e7b5d3c9fc094851ae4650027aa4ae35"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 22,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "8f4fba9732e248f18aaea84bb637f177"
+      ],
+      "candidate": [
+        "glufosinate",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "refutes"
+      ],
+      "resolved_src_ids": [
+        "7372a0721990463fb74eab7a0f45f7f7"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "8f4fba9732e248f18aaea84bb637f177"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 23,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "bec8c2a0c9544eac8740bdc9205294a2"
+      ],
+      "candidate": [
+        "fluridone",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "refutes"
+      ],
+      "resolved_src_ids": [
+        "5ff16fe716264627a7b272a8654a4a53"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "bec8c2a0c9544eac8740bdc9205294a2"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 24,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "9dfadbb2faaf49c6a378c6aec5b04a3c"
+      ],
+      "candidate": [
+        "rimsulfuron",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "f67fc054198e46829e820e16a92e5900"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "9dfadbb2faaf49c6a378c6aec5b04a3c"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 25,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "33ab85f75635407fa7cefa716ee75489"
+      ],
+      "candidate": [
+        "glyphosate",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "92d5e2614810425eab5c73261a115754"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "33ab85f75635407fa7cefa716ee75489"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 26,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "aead9210eb6f45108bc36b5fac789d8a"
+      ],
+      "candidate": [
+        "napropamide",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "771c65abc3e84ed490f34a28dd727ce4"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "aead9210eb6f45108bc36b5fac789d8a"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 27,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "ef6299661c4645f698fa957fb5c5b966"
+      ],
+      "candidate": [
+        "dichlobenil",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "c090650c01c04c5b8168193bd1baefa9"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "ef6299661c4645f698fa957fb5c5b966"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 28,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "7ad97795493d45bc91ef15df2e106c45"
+      ],
+      "candidate": [
+        "pyroxasulfone",
+        "controls",
+        "P. annua"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [
+        "f1d1c85a19ed4905b0289b7ecadbbbfd"
+      ],
+      "resolved_dst_ids": [],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "7ad97795493d45bc91ef15df2e106c45"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 29,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "686c6611faf74615893ae391f3f47fba"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "fludioxonil"
+      ],
+      "polarity": [
+        "refutes"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "25d9e030344f411aaa5c8ae133a3ad6a"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "686c6611faf74615893ae391f3f47fba"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 30,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "240c602132f14839afee4857a11de819"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "fenhexamid"
+      ],
+      "polarity": [
+        "refutes"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "a97b3cc9f8ae4e7da2aafaf223427550"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "240c602132f14839afee4857a11de819"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 31,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "8c4f8b291f34427783a7e86e5c575bf3"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "iprodione"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "6d54b784a6c54b9288d3dbbdfff10d69"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "8c4f8b291f34427783a7e86e5c575bf3"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 32,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "79c35885ef58412690fbe116b987c0ad"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "pyraclostrobin"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "b40d2e2aa9aa402b9c88b55421db5536"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "79c35885ef58412690fbe116b987c0ad"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 33,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "8b8b92ea4d8346f2b06414efecd88630"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "boscalid"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "521834c5327b4e3d8417dd1256658daf"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "8b8b92ea4d8346f2b06414efecd88630"
+      ]
+    },
+    {
+      "run": 3,
+      "gold": 34,
+      "classification": "entity surface mismatch",
+      "note": "Unrecorded surface; not credited without exact store identity.",
+      "nearest": [
+        "34ac146be48149499e4e1ec33c19d48a"
+      ],
+      "candidate": [
+        "B. cinerea",
+        "resistant_to",
+        "thiabendazole"
+      ],
+      "polarity": [
+        "supports"
+      ],
+      "resolved_src_ids": [],
+      "resolved_dst_ids": [
+        "57095ea5f31d40168833e07a7ee723e2"
+      ],
+      "exact_matches": [],
+      "identity_neighbors": [
+        "34ac146be48149499e4e1ec33c19d48a"
+      ]
+    }
+  ],
+  "edges": [
+    [
+      {
+        "id": "04204072e199405ca9a5cc324ba10921",
+        "sid": "493734b67cea442ab68760b005441f62",
+        "did": "8295af9a056b4ff7a608cd711cf97ec6",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "thiabendazole",
+        "dn": "thiabendazole",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "0c54d898a2ee43e48db7d3df6cd4ead6",
+        "sid": "493734b67cea442ab68760b005441f62",
+        "did": "feeddf4a8d2e473c97ac583cb02a4a4e",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "cyprodinil",
+        "dn": "cyprodinil",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "128b95d9a2be442badad1a519ad78b7b",
+        "sid": "90edd234a42f4ea49ffae4acec24e787",
+        "did": "8e8f84e9653f4f77985bbf9ab5293c4a",
+        "src": "blackgrass",
+        "sn": "blackgrass",
+        "rel": "damages",
+        "dst": "winter wheat",
+        "dn": "winterwheat",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "1b80bf6d31ca43fca92860524a1125ea",
+        "sid": "1ff330313dae466a9f22ffc51f3bcb79",
+        "did": "d8ede0b632aa4df2b0dfbf564bb69d7e",
+        "src": "indaziflam",
+        "sn": "indaziflam",
+        "rel": "applied_at_rate",
+        "dst": "190 g ha−1",
+        "dn": "190gha1",
+        "q": "{}"
+      },
+      {
+        "id": "1ce2a77afb264eee9dfbb4570ca057fb",
+        "sid": "c00f82f7f026466fb8cdf090a8436ee8",
+        "did": "01c0dc9027a34116ac01ce3c0cad737c",
+        "src": "glufosinate",
+        "sn": "glufosinate",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "1f6768a0fea14757beeca14f8167ef35",
+        "sid": "1c0594fb7c2f4a63a38380d63347529c",
+        "did": "90edd234a42f4ea49ffae4acec24e787",
+        "src": "pinoxaden",
+        "sn": "pinoxaden",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "21f33d97274f4f8d9d3c3d48971c9efa",
+        "sid": "e6e0bec4e0b14b5d88159cca1caa8583",
+        "did": "90edd234a42f4ea49ffae4acec24e787",
+        "src": "chlorotoluron",
+        "sn": "chlorotoluron",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "2579cedeca9a4ce4a2b960048e6ede8d",
+        "sid": "345660173d2348ccb008c526d3e79bdb",
+        "did": "01c0dc9027a34116ac01ce3c0cad737c",
+        "src": "napropamide",
+        "sn": "napropamide",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "292b572215dd442581d499ef4b44a8e5",
+        "sid": "5f9f7e4166714ec99f5b8208249bb5f3",
+        "did": "63b12d3a0bf244a19b834164cfc4050b",
+        "src": "spinosad",
+        "sn": "spinosad",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "2be28b5c6e7948cfae912f665595e4ce",
+        "sid": "31df30b3eb494cada516fb1bc7aa04db",
+        "did": "63b12d3a0bf244a19b834164cfc4050b",
+        "src": "deltamethrin",
+        "sn": "deltamethrin",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "2d1524efc06d4dd58b1433967c114581",
+        "sid": "3449770d3d834cd098d2d9119f1d8448",
+        "did": "ec707ded20ee48ba90e10e652d6c42ff",
+        "src": "Prochloraz",
+        "sn": "prochloraz",
+        "rel": "controls",
+        "dst": "bubble development",
+        "dn": "bubbledevelopment",
+        "q": "{\"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "3341c4d0edd141f0b42b15fc9c0cd92d",
+        "sid": "493734b67cea442ab68760b005441f62",
+        "did": "29d604d1febb40d2a4f32010a96eb6c3",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "fluopyram",
+        "dn": "fluopyram",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "3988c2c4cf80486f9e041b991f7982ae",
+        "sid": "023d26fa98c24af296f83d0387066cea",
+        "did": "01c0dc9027a34116ac01ce3c0cad737c",
+        "src": "dichlobenil",
+        "sn": "dichlobenil",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "4b031c1ca0c543ffa2577a1b97f86114",
+        "sid": "7ba28c59b454445f8ab4214a84fbc3b6",
+        "did": "63b12d3a0bf244a19b834164cfc4050b",
+        "src": "cyantraniliprole",
+        "sn": "cyantraniliprole",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "4e830b94f1ea46cfb3799cc5bace57e2",
+        "sid": "5f9f7e4166714ec99f5b8208249bb5f3",
+        "did": "2f9ad129f84f4b0a8601c3245f2e502a",
+        "src": "spinosad",
+        "sn": "spinosad",
+        "rel": "synergizes_with",
+        "dst": "PB",
+        "dn": "pb",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "55515ba053ef4dbc850d4f2d0bafaae2",
+        "sid": "ffcabe14df414d079899455a77bd0e6f",
+        "did": "90edd234a42f4ea49ffae4acec24e787",
+        "src": "clodinafop-propargyl",
+        "sn": "clodinafoppropargyl",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "668e9f95ddd648eba49de7da4f759e07",
+        "sid": "3449770d3d834cd098d2d9119f1d8448",
+        "did": "bad677e50d1048789a80a037a00c837c",
+        "src": "Prochloraz",
+        "sn": "prochloraz",
+        "rel": "controls",
+        "dst": "isolate 1722",
+        "dn": "isolate1722",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "6eb97c8dbbdb44a99539d5b0190caea8",
+        "sid": "20a0e33c951541ad987c264c01030a8e",
+        "did": "90edd234a42f4ea49ffae4acec24e787",
+        "src": "fenoxaprop-P-ethyl",
+        "sn": "fenoxaproppethyl",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "7033d2bbd70247048944505e92053287",
+        "sid": "8a80bf01b4dc44b9a35b184ebc0a4179",
+        "did": "ec707ded20ee48ba90e10e652d6c42ff",
+        "src": "Kos",
+        "sn": "kos",
+        "rel": "controls",
+        "dst": "bubble development",
+        "dn": "bubbledevelopment",
+        "q": "{\"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "71039d6979b14227ba3d14a4cfb98c25",
+        "sid": "3449770d3d834cd098d2d9119f1d8448",
+        "did": "ca93f6e3f9c545208cac52c0f5901d59",
+        "src": "Prochloraz",
+        "sn": "prochloraz",
+        "rel": "controls",
+        "dst": "isolate 620",
+        "dn": "isolate620",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "7739683feddc4948af84b23e2febfbd4",
+        "sid": "01c0dc9027a34116ac01ce3c0cad737c",
+        "did": "1ff330313dae466a9f22ffc51f3bcb79",
+        "src": "P. annua",
+        "sn": "pannua",
+        "rel": "resistant_to",
+        "dst": "indaziflam",
+        "dn": "indaziflam",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "7fbda0da18294baf8a96b58ca68548bb",
+        "sid": "2f9ad129f84f4b0a8601c3245f2e502a",
+        "did": "63b12d3a0bf244a19b834164cfc4050b",
+        "src": "PB",
+        "sn": "pb",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "8906faa78e8e459381b1ea1480313af5",
+        "sid": "a89c9790743b46e2a0184cec9a517b31",
+        "did": "01c0dc9027a34116ac01ce3c0cad737c",
+        "src": "pyroxasulfone",
+        "sn": "pyroxasulfone",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "9566e05b926e4fe8ac57738dbad1fb8b",
+        "sid": "1ff330313dae466a9f22ffc51f3bcb79",
+        "did": "0d52806ca06743b990c0cd23a167c339",
+        "src": "indaziflam",
+        "sn": "indaziflam",
+        "rel": "evaluated_in",
+        "dst": "Field experiments",
+        "dn": "fieldexperiments",
+        "q": "{}"
+      },
+      {
+        "id": "95a34602321f4339a4a828df7e2564c8",
+        "sid": "2b5d2bd5c39f426c9a6662f57ebd82d8",
+        "did": "ca93f6e3f9c545208cac52c0f5901d59",
+        "src": "Metrafenone",
+        "sn": "metrafenone",
+        "rel": "controls",
+        "dst": "isolate 620",
+        "dn": "isolate620",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "966e290d841c475a8655ec49a72fd00d",
+        "sid": "8a80bf01b4dc44b9a35b184ebc0a4179",
+        "did": "d17a966691cd4e36935930d060c844d2",
+        "src": "Kos",
+        "sn": "kos",
+        "rel": "evaluated_in",
+        "dst": "crop trial 1",
+        "dn": "croptrial1",
+        "q": "{}"
+      },
+      {
+        "id": "9c2e9bc2c6f84c50968ac6f9f3c273dc",
+        "sid": "66a89ebce2b54a4aa9180f2722ceae73",
+        "did": "ec707ded20ee48ba90e10e652d6c42ff",
+        "src": "B. velezensis QST 713",
+        "sn": "bvelezensisqst713",
+        "rel": "controls",
+        "dst": "bubble development",
+        "dn": "bubbledevelopment",
+        "q": "{\"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "a84391794e4d4906a2298eafed33c410",
+        "sid": "1ff330313dae466a9f22ffc51f3bcb79",
+        "did": "84e704d246c746c78f63f1b4fa94687f",
+        "src": "indaziflam",
+        "sn": "indaziflam",
+        "rel": "applied_at_rate",
+        "dst": "95 g ha−1",
+        "dn": "95gha1",
+        "q": "{}"
+      },
+      {
+        "id": "b3bc9132874343cfa521e65351c409ed",
+        "sid": "1ff330313dae466a9f22ffc51f3bcb79",
+        "did": "c3146f17cbdc4293a8ef245955380a33",
+        "src": "indaziflam",
+        "sn": "indaziflam",
+        "rel": "applied_by",
+        "dst": "Preemergence",
+        "dn": "preemergence",
+        "q": "{}"
+      },
+      {
+        "id": "bb0d46263e704f2f8a1490eaf40bf58c",
+        "sid": "5f5ad26c99864373bdd21c609d303eb3",
+        "did": "90edd234a42f4ea49ffae4acec24e787",
+        "src": "diflufenican",
+        "sn": "diflufenican",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "bb3950b77ff34a37ae9e640a4382c915",
+        "sid": "c00f82f7f026466fb8cdf090a8436ee8",
+        "did": "2f80e9c2c647419991adccebd3bea495",
+        "src": "glufosinate",
+        "sn": "glufosinate",
+        "rel": "applied_at_rate",
+        "dst": "1680 g a.i. ha−1",
+        "dn": "1680gaiha1",
+        "q": "{}"
+      },
+      {
+        "id": "c1f863715ae74caabe37cd53e1e01022",
+        "sid": "493734b67cea442ab68760b005441f62",
+        "did": "3245eaff685a4bbfa13aa7a6618f13c5",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "fenhexamid",
+        "dn": "fenhexamid",
+        "q": "{\"polarity\": \"refutes\"}"
+      },
+      {
+        "id": "c97f00705f7b49a89aea952729291f54",
+        "sid": "1ff330313dae466a9f22ffc51f3bcb79",
+        "did": "01c0dc9027a34116ac01ce3c0cad737c",
+        "src": "indaziflam",
+        "sn": "indaziflam",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "ce12d72b7a9149ce82647c39f3fbe68a",
+        "sid": "493734b67cea442ab68760b005441f62",
+        "did": "e4ed93b8f763454fa7010b187e61e468",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "fludioxonil",
+        "dn": "fludioxonil",
+        "q": "{\"polarity\": \"refutes\"}"
+      },
+      {
+        "id": "cf1f86d741f3490e9638fd0b2d7627c8",
+        "sid": "31df30b3eb494cada516fb1bc7aa04db",
+        "did": "2f9ad129f84f4b0a8601c3245f2e502a",
+        "src": "deltamethrin",
+        "sn": "deltamethrin",
+        "rel": "synergizes_with",
+        "dst": "PB",
+        "dn": "pb",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"refutes\"}"
+      },
+      {
+        "id": "d230ffd855cc470faf9b325dd90492f1",
+        "sid": "493734b67cea442ab68760b005441f62",
+        "did": "fc3e6393cae74fb8b6762f13c9dc65b2",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "iprodione",
+        "dn": "iprodione",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "dc5dba9b10b9455387a41625508b6183",
+        "sid": "2f9ad129f84f4b0a8601c3245f2e502a",
+        "did": "98fc4c49575c4400ab483491a2af607f",
+        "src": "PB",
+        "sn": "pb",
+        "rel": "synergizes_with",
+        "dst": "M. anisopliae 35.79",
+        "dn": "manisopliae3579",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "dea6c52a93aa4b16859d026e243278ab",
+        "sid": "3449770d3d834cd098d2d9119f1d8448",
+        "did": "d17a966691cd4e36935930d060c844d2",
+        "src": "Prochloraz",
+        "sn": "prochloraz",
+        "rel": "evaluated_in",
+        "dst": "crop trial 1",
+        "dn": "croptrial1",
+        "q": "{}"
+      },
+      {
+        "id": "df2dccac729d4b52886a9560bef7b77a",
+        "sid": "493734b67cea442ab68760b005441f62",
+        "did": "8cba7fe9f588456da3d084b2a808e9ad",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "boscalid",
+        "dn": "boscalid",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "e09dc063fc494ebd85fa80801c9cf64d",
+        "sid": "a52a86ad9c084cc19481795644356b44",
+        "did": "01c0dc9027a34116ac01ce3c0cad737c",
+        "src": "glyphosate",
+        "sn": "glyphosate",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "e0d6faad8f1e40969710cc2d5b266655",
+        "sid": "929dcd13fa6a46aa8e5eb6e0092e2693",
+        "did": "01c0dc9027a34116ac01ce3c0cad737c",
+        "src": "rimsulfuron",
+        "sn": "rimsulfuron",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "e814096cf8484401ae75516c8e616f72",
+        "sid": "1474f8043a204a9c842d26005cbcc7ee",
+        "did": "90edd234a42f4ea49ffae4acec24e787",
+        "src": "prosulfocarb",
+        "sn": "prosulfocarb",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "f10a9d86cb44472a9b318f03d288cefd",
+        "sid": "eb0103d5539c4630aa81078047738864",
+        "did": "90edd234a42f4ea49ffae4acec24e787",
+        "src": "PBO",
+        "sn": "pbo",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "f3407e66129940cfb0022818cb870a29",
+        "sid": "d42102f5700d490ca2b4f6fd42af24fe",
+        "did": "63b12d3a0bf244a19b834164cfc4050b",
+        "src": "lambda-cyhalothrin",
+        "sn": "lambdacyhalothrin",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "f679be94f780406286e61ca1c8817262",
+        "sid": "7ba28c59b454445f8ab4214a84fbc3b6",
+        "did": "2f9ad129f84f4b0a8601c3245f2e502a",
+        "src": "cyantraniliprole",
+        "sn": "cyantraniliprole",
+        "rel": "synergizes_with",
+        "dst": "PB",
+        "dn": "pb",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "f7f15624775b4259bde9488898e74207",
+        "sid": "66a89ebce2b54a4aa9180f2722ceae73",
+        "did": "d17a966691cd4e36935930d060c844d2",
+        "src": "B. velezensis QST 713",
+        "sn": "bvelezensisqst713",
+        "rel": "evaluated_in",
+        "dst": "crop trial 1",
+        "dn": "croptrial1",
+        "q": "{}"
+      },
+      {
+        "id": "fa3f6c68991a4b63b3ceb70d274e7555",
+        "sid": "493734b67cea442ab68760b005441f62",
+        "did": "c884b410808b4a028c16bf0090a0de20",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "pyraclostrobin",
+        "dn": "pyraclostrobin",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "fc741bf3ce654a1d84a44e00bdec652c",
+        "sid": "98fc4c49575c4400ab483491a2af607f",
+        "did": "63b12d3a0bf244a19b834164cfc4050b",
+        "src": "M. anisopliae 35.79",
+        "sn": "manisopliae3579",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "feab4912de5544cb88a86fc0cf2d67a3",
+        "sid": "f27612cc3dee454d978ff30e78fa9902",
+        "did": "90edd234a42f4ea49ffae4acec24e787",
+        "src": "cycloxydim",
+        "sn": "cycloxydim",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      }
+    ],
+    [
+      {
+        "id": "02f18ac3641f49b9b6a30b2e9ef68293",
+        "sid": "b4c2702259044a18b13f045bd5e781da",
+        "did": "6c24a2dd8fe145b1a24914cd7cac21f6",
+        "src": "diflufenican",
+        "sn": "diflufenican",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "06a0ba0625c2498db3323d1ebdc80eca",
+        "sid": "95144d8486224886bbd18fe65b55646f",
+        "did": "776049e14a0a49bbad41da895c918306",
+        "src": "B. velezensis QST 713",
+        "sn": "bvelezensisqst713",
+        "rel": "evaluated_in",
+        "dst": "crop trial 1",
+        "dn": "croptrial1",
+        "q": "{}"
+      },
+      {
+        "id": "087a1774af7e409d980ecd383774dc42",
+        "sid": "6ad070a9f7994bc7ab296c00d0282bb7",
+        "did": "df94070d577f48608e5a1cc0321172f4",
+        "src": "Fluridone",
+        "sn": "fluridone",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"refutes\"}"
+      },
+      {
+        "id": "0d705b2fa3da4019bf88fcf5669ddc34",
+        "sid": "f2d54dfcc95d454a9e9f7c2ec5f64cc2",
+        "did": "1d122805ab124088b4df2b12db82f4f8",
+        "src": "cyantraniliprole",
+        "sn": "cyantraniliprole",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "0e4bbe8b3e6249d5bc61d5de15efe02d",
+        "sid": "f39e251ea5124e4b846b0146638f6940",
+        "did": "1d122805ab124088b4df2b12db82f4f8",
+        "src": "lambda-cyhalothrin",
+        "sn": "lambdacyhalothrin",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "13709ede6fa34a2fa5d6dd8e6cdf4873",
+        "sid": "edaf1315b7fc42cd800d300a305bf988",
+        "did": "8b5b6aa477824bb2b7359573c5be1a15",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "thiabendazole",
+        "dn": "thiabendazole",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "1b70f867ebd44554aefd05fb7593ebbe",
+        "sid": "edaf1315b7fc42cd800d300a305bf988",
+        "did": "59ba9861781345b7b3e102d5cc92ea8b",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "boscalid",
+        "dn": "boscalid",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "2110232c53c5453285943d4592456035",
+        "sid": "f2d54dfcc95d454a9e9f7c2ec5f64cc2",
+        "did": "1d122805ab124088b4df2b12db82f4f8",
+        "src": "cyantraniliprole",
+        "sn": "cyantraniliprole",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "25f5705bb73d4d43ac53348aab1f6b49",
+        "sid": "cfe2a2a111ac477586a3858e8ff4c325",
+        "did": "df94070d577f48608e5a1cc0321172f4",
+        "src": "indaziflam",
+        "sn": "indaziflam",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "29b713bb78fc44dc92c0fdb95911291f",
+        "sid": "85b9d349d2a0419ca973d8d9fc56f2fe",
+        "did": "df94070d577f48608e5a1cc0321172f4",
+        "src": "dichlobenil",
+        "sn": "dichlobenil",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "33f8c570a59d433b97bd39b7e9ee6044",
+        "sid": "edaf1315b7fc42cd800d300a305bf988",
+        "did": "20cd1f0dd5d1408488b9567ba4786deb",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "fludioxonil",
+        "dn": "fludioxonil",
+        "q": "{\"polarity\": \"refutes\"}"
+      },
+      {
+        "id": "34af91d5d6014a7f945809a424da7576",
+        "sid": "b1e842ccc92243f1a3cdacdeb2a079ec",
+        "did": "df94070d577f48608e5a1cc0321172f4",
+        "src": "glufosinate",
+        "sn": "glufosinate",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"refutes\"}"
+      },
+      {
+        "id": "408ce9dba8bc4e7996ba58e38b6f5953",
+        "sid": "3e0193bee0b241e8bddf3313d526a9a9",
+        "did": "d1a922db2fe14df89c824aaf166a33ea",
+        "src": "Prochloraz",
+        "sn": "prochloraz",
+        "rel": "controls",
+        "dst": "isolate 1722",
+        "dn": "isolate1722",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "45a8d02492e144dd8bde2a1fd5807bbe",
+        "sid": "555a380744ef4870a685c7bab890537e",
+        "did": "df94070d577f48608e5a1cc0321172f4",
+        "src": "napropamide",
+        "sn": "napropamide",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "463aa02ff5804daf98d0c95250a14b81",
+        "sid": "95144d8486224886bbd18fe65b55646f",
+        "did": "620e8ecb0251453fbcf17fc90e79eac0",
+        "src": "B. velezensis QST 713",
+        "sn": "bvelezensisqst713",
+        "rel": "controls",
+        "dst": "bubble development",
+        "dn": "bubbledevelopment",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "4b38724d38394cc480b36b977eac6794",
+        "sid": "43b2d3710efe494f87da61da32dcb918",
+        "did": "6c24a2dd8fe145b1a24914cd7cac21f6",
+        "src": "cycloxydim",
+        "sn": "cycloxydim",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "50cf534fc38743dab56f2c2d8560bcfc",
+        "sid": "edaf1315b7fc42cd800d300a305bf988",
+        "did": "6419623b714f4bd1a1b4df23fc0288b1",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "cyprodinil",
+        "dn": "cyprodinil",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "6692f31e7cf14913b704c138737e4b35",
+        "sid": "a6fdebb848db4aafa9908ef93e63cfbd",
+        "did": "6c24a2dd8fe145b1a24914cd7cac21f6",
+        "src": "PBO",
+        "sn": "pbo",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "6e0056351007437daaa4fa50a5ea8d3d",
+        "sid": "3b7c6bcd60654213842fc3563b003821",
+        "did": "776049e14a0a49bbad41da895c918306",
+        "src": "Kos",
+        "sn": "kos",
+        "rel": "evaluated_in",
+        "dst": "crop trial 1",
+        "dn": "croptrial1",
+        "q": "{}"
+      },
+      {
+        "id": "6f543506f6b54915a8791344ae690a19",
+        "sid": "3e0193bee0b241e8bddf3313d526a9a9",
+        "did": "776049e14a0a49bbad41da895c918306",
+        "src": "Prochloraz",
+        "sn": "prochloraz",
+        "rel": "evaluated_in",
+        "dst": "crop trial 1",
+        "dn": "croptrial1",
+        "q": "{}"
+      },
+      {
+        "id": "81bf8fffff414b6cb5578f69c68beeee",
+        "sid": "f2d54dfcc95d454a9e9f7c2ec5f64cc2",
+        "did": "d58cc42440364889a0e3ad6cc6b0a52d",
+        "src": "cyantraniliprole",
+        "sn": "cyantraniliprole",
+        "rel": "evaluated_in",
+        "dst": "Bioassay 1",
+        "dn": "bioassay1",
+        "q": "{}"
+      },
+      {
+        "id": "85652999db4d41b9badecd0f04b4ccf4",
+        "sid": "d5b31b0f0e8c40f8827aa0f0849cc7fd",
+        "did": "1d122805ab124088b4df2b12db82f4f8",
+        "src": "deltamethrin",
+        "sn": "deltamethrin",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "8cbd0c617633404c84af8bbb4c8790ec",
+        "sid": "3b7c6bcd60654213842fc3563b003821",
+        "did": "620e8ecb0251453fbcf17fc90e79eac0",
+        "src": "Kos",
+        "sn": "kos",
+        "rel": "controls",
+        "dst": "bubble development",
+        "dn": "bubbledevelopment",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "8d0c1b20fa934aee9f57f95a5cf4ab8c",
+        "sid": "bdb45b9277a04917bd35e3f3aefe1cae",
+        "did": "bf7e05927e22414abc02d1d221686f5d",
+        "src": "Metrafenone",
+        "sn": "metrafenone",
+        "rel": "controls",
+        "dst": "isolate 620",
+        "dn": "isolate620",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "918b56e1227f4934a8eda8d05bdb4809",
+        "sid": "782e66ae0a8b4c9eb86f11557c977406",
+        "did": "6c24a2dd8fe145b1a24914cd7cac21f6",
+        "src": "fenoxaprop-P-ethyl",
+        "sn": "fenoxaproppethyl",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "9451e98387db47c9a6d19851479ed18b",
+        "sid": "8f8c3461559249c79ffd778f35e6dafc",
+        "did": "df94070d577f48608e5a1cc0321172f4",
+        "src": "rimsulfuron",
+        "sn": "rimsulfuron",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "99221888c55d4138adec838653efc2f9",
+        "sid": "6d46579ac0ef471abb743fab32f5b5cd",
+        "did": "df94070d577f48608e5a1cc0321172f4",
+        "src": "glyphosate",
+        "sn": "glyphosate",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "9f1b70f24b804ebcb8a6f7c37466aa80",
+        "sid": "edaf1315b7fc42cd800d300a305bf988",
+        "did": "1c03a4ce4cdb4ab587943825d8d71c27",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "iprodione",
+        "dn": "iprodione",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "a5f9773b504d412ba45dd034ada1b361",
+        "sid": "2b8ecbdfb26945a49261493df0b62847",
+        "did": "6c24a2dd8fe145b1a24914cd7cac21f6",
+        "src": "clodinafop-propargyl",
+        "sn": "clodinafoppropargyl",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "acea3da9654f4b93a9b4ed340be49f3b",
+        "sid": "edaf1315b7fc42cd800d300a305bf988",
+        "did": "e215a30fc29f4a16abfa17f90bf0f4ea",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "fluopyram",
+        "dn": "fluopyram",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "afda32d164474e76b82291e3af7df4ae",
+        "sid": "edaf1315b7fc42cd800d300a305bf988",
+        "did": "96cf47abfcee48a0ad771944bb5a80d0",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "fenhexamid",
+        "dn": "fenhexamid",
+        "q": "{\"polarity\": \"refutes\"}"
+      },
+      {
+        "id": "c6ae19aff5b14b8b8858fcf79a1da835",
+        "sid": "adfa3155f4914a7fb49327aa20c07145",
+        "did": "1d122805ab124088b4df2b12db82f4f8",
+        "src": "M. anisopliae 35.79",
+        "sn": "manisopliae3579",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "c7c5d18017c044cbb834a0e9b3fea9c1",
+        "sid": "3e0193bee0b241e8bddf3313d526a9a9",
+        "did": "bf7e05927e22414abc02d1d221686f5d",
+        "src": "Prochloraz",
+        "sn": "prochloraz",
+        "rel": "controls",
+        "dst": "isolate 620",
+        "dn": "isolate620",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "c98d0022d69c4f4eb6146d4cfe307f36",
+        "sid": "55cc325a072343f383af3b8b1bc2e0e6",
+        "did": "1d122805ab124088b4df2b12db82f4f8",
+        "src": "spinosad",
+        "sn": "spinosad",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "cd20ef095d554c77a2baf667b15e98ea",
+        "sid": "e9ae231546724ef7ae8442a1160e78d6",
+        "did": "adfa3155f4914a7fb49327aa20c07145",
+        "src": "PB",
+        "sn": "pb",
+        "rel": "synergizes_with",
+        "dst": "M. anisopliae 35.79",
+        "dn": "manisopliae3579",
+        "q": "{\"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "d3f7e28e4acc4661910fa1a35e48055f",
+        "sid": "d5b31b0f0e8c40f8827aa0f0849cc7fd",
+        "did": "1d122805ab124088b4df2b12db82f4f8",
+        "src": "deltamethrin",
+        "sn": "deltamethrin",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "da5139b382b2440ebdecb17438f94349",
+        "sid": "6c24a2dd8fe145b1a24914cd7cac21f6",
+        "did": "fda295f8853a48dfb869f18b83212896",
+        "src": "blackgrass",
+        "sn": "blackgrass",
+        "rel": "damages",
+        "dst": "winter wheat",
+        "dn": "winterwheat",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "e62b9707515e4352ab8ffb3dcac878f0",
+        "sid": "edaf1315b7fc42cd800d300a305bf988",
+        "did": "ae4040f6963d4cdd920ae82463195a83",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "pyraclostrobin",
+        "dn": "pyraclostrobin",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "e657036e5fdc439cbc95c34ebb622685",
+        "sid": "e7614153c7964bffa49884b5aefeea51",
+        "did": "df94070d577f48608e5a1cc0321172f4",
+        "src": "pyroxasulfone",
+        "sn": "pyroxasulfone",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "e7f0cf1ec42f4eff8e72b2c23a7f1f2d",
+        "sid": "3e0193bee0b241e8bddf3313d526a9a9",
+        "did": "620e8ecb0251453fbcf17fc90e79eac0",
+        "src": "Prochloraz",
+        "sn": "prochloraz",
+        "rel": "controls",
+        "dst": "bubble development",
+        "dn": "bubbledevelopment",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "ebf41aac8e8f4fdc8886b6451c357919",
+        "sid": "e9ae231546724ef7ae8442a1160e78d6",
+        "did": "1d122805ab124088b4df2b12db82f4f8",
+        "src": "PB",
+        "sn": "pb",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "f04a0d63e33e488e87489001ecc8b218",
+        "sid": "df94070d577f48608e5a1cc0321172f4",
+        "did": "cfe2a2a111ac477586a3858e8ff4c325",
+        "src": "P. annua",
+        "sn": "pannua",
+        "rel": "resistant_to",
+        "dst": "indaziflam",
+        "dn": "indaziflam",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "f7f4d6f7f0654b59a320e6099f4be490",
+        "sid": "899e117005814faf82fc320e20e413ff",
+        "did": "6c24a2dd8fe145b1a24914cd7cac21f6",
+        "src": "prosulfocarb",
+        "sn": "prosulfocarb",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "f906bb37942e48278720fad039db045b",
+        "sid": "b58f6cc5b6ef43d0899f60257b51f585",
+        "did": "6c24a2dd8fe145b1a24914cd7cac21f6",
+        "src": "chlorotoluron",
+        "sn": "chlorotoluron",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "fa84cf9c932a40f39dbfb62540145dc2",
+        "sid": "32bdeaa75ef04c04b1d14163b57b90fa",
+        "did": "6c24a2dd8fe145b1a24914cd7cac21f6",
+        "src": "pinoxaden",
+        "sn": "pinoxaden",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      }
+    ],
+    [
+      {
+        "id": "034ec90d25ba4f90b11c93adf31fb641",
+        "sid": "7a9b6f38550442e78ba29078c865646b",
+        "did": "0c57b7ef278b469cb8b74b9dee1ad0bc",
+        "src": "B. velezensis QST 713",
+        "sn": "bvelezensisqst713",
+        "rel": "evaluated_in",
+        "dst": "crop trial 1",
+        "dn": "croptrial1",
+        "q": "{}"
+      },
+      {
+        "id": "0452d4674969430197f2299744f80461",
+        "sid": "a754f7599eed4267b0ce52ffeaf156d8",
+        "did": "58b800295d7743a5b0a3ad585c1b71d9",
+        "src": "Metrafenone",
+        "sn": "metrafenone",
+        "rel": "controls",
+        "dst": "isolate 620",
+        "dn": "isolate620",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "09ba63fe8f93484d8c2e3731db66aead",
+        "sid": "89053152ad0a4c488e757184300983c7",
+        "did": "312181a19649493d898d842a97c7fd5c",
+        "src": "cyantraniliprole",
+        "sn": "cyantraniliprole",
+        "rel": "evaluated_in",
+        "dst": "Bioassay 1",
+        "dn": "bioassay1",
+        "q": "{}"
+      },
+      {
+        "id": "0dce97b4a0f8496da9ac5c5500882d65",
+        "sid": "70558ce6905e475fa30ee9c58f436d9e",
+        "did": "0c57b7ef278b469cb8b74b9dee1ad0bc",
+        "src": "Prochloraz",
+        "sn": "prochloraz",
+        "rel": "evaluated_in",
+        "dst": "crop trial 1",
+        "dn": "croptrial1",
+        "q": "{}"
+      },
+      {
+        "id": "148fd6e2e7864381bd34cecc76ed5e79",
+        "sid": "7372a0721990463fb74eab7a0f45f7f7",
+        "did": "2f6c3c358a324666af052f38e47f3280",
+        "src": "glufosinate",
+        "sn": "glufosinate",
+        "rel": "applied_at_rate",
+        "dst": "1680 g a.i. ha−1",
+        "dn": "1680gaiha1",
+        "q": "{}"
+      },
+      {
+        "id": "184b7aa5a9704873af3647aa8931d4fb",
+        "sid": "70558ce6905e475fa30ee9c58f436d9e",
+        "did": "58b800295d7743a5b0a3ad585c1b71d9",
+        "src": "Prochloraz",
+        "sn": "prochloraz",
+        "rel": "controls",
+        "dst": "isolate 620",
+        "dn": "isolate620",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "2057b1ccfacc493e8537a8308663a383",
+        "sid": "ee702ac251fb41038de4d4f826a0858f",
+        "did": "a6174709e46d4f0d8ea9c29895c01a3f",
+        "src": "indaziflam",
+        "sn": "indaziflam",
+        "rel": "applied_by",
+        "dst": "preemergence",
+        "dn": "preemergence",
+        "q": "{}"
+      },
+      {
+        "id": "21ae6b6ed40a4ad98f2a7f92168ca756",
+        "sid": "ee702ac251fb41038de4d4f826a0858f",
+        "did": "910c37ecc6e445648439be5c024fb48c",
+        "src": "indaziflam",
+        "sn": "indaziflam",
+        "rel": "applied_at_rate",
+        "dst": "95 g ha−1",
+        "dn": "95gha1",
+        "q": "{}"
+      },
+      {
+        "id": "240c602132f14839afee4857a11de819",
+        "sid": "2eb6053c19d74c70b243ff9a6ee3d4c1",
+        "did": "a97b3cc9f8ae4e7da2aafaf223427550",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "fenhexamid",
+        "dn": "fenhexamid",
+        "q": "{\"polarity\": \"refutes\"}"
+      },
+      {
+        "id": "33ab85f75635407fa7cefa716ee75489",
+        "sid": "92d5e2614810425eab5c73261a115754",
+        "did": "3d0bbaab27724205b8a3086f2bb68365",
+        "src": "glyphosate",
+        "sn": "glyphosate",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "34ac146be48149499e4e1ec33c19d48a",
+        "sid": "2eb6053c19d74c70b243ff9a6ee3d4c1",
+        "did": "57095ea5f31d40168833e07a7ee723e2",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "thiabendazole",
+        "dn": "thiabendazole",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "39ffbade197b403c9f304ab08ab77f1e",
+        "sid": "2e282bcadcec43629a467638909fbf44",
+        "did": "0c57b7ef278b469cb8b74b9dee1ad0bc",
+        "src": "Kos",
+        "sn": "kos",
+        "rel": "evaluated_in",
+        "dst": "crop trial 1",
+        "dn": "croptrial1",
+        "q": "{}"
+      },
+      {
+        "id": "461eac2ec4a440a29db09760c156be2e",
+        "sid": "c676df070acf4bf2803df93f070513cf",
+        "did": "0cd76f744f0942cda01972105b18753d",
+        "src": "PB",
+        "sn": "pb",
+        "rel": "synergizes_with",
+        "dst": "M. anisopliae 35.79",
+        "dn": "manisopliae3579",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "49a3a42c468246aba946493ce968fcae",
+        "sid": "ee702ac251fb41038de4d4f826a0858f",
+        "did": "e96bc765bb4e4fbf933ac7cb50a50c1f",
+        "src": "indaziflam",
+        "sn": "indaziflam",
+        "rel": "applied_at_rate",
+        "dst": "190 g ha−1",
+        "dn": "190gha1",
+        "q": "{}"
+      },
+      {
+        "id": "57728c0afcf44c779ddeedf75fcd514c",
+        "sid": "648de496ccdc4f5cbbea2637c3b88840",
+        "did": "66021db9795b4d02bd819f02c8493ef8",
+        "src": "clodinafop-propargyl",
+        "sn": "clodinafoppropargyl",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "5fe6e3872b3c42ccad57441ed605011d",
+        "sid": "a2d9b0ea8a97482caa614d6c00e32876",
+        "did": "1e9c08dce3f94e33a20aef20a8b74aa3",
+        "src": "spinosad",
+        "sn": "spinosad",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "64998618f00442759bc0470dffc115c3",
+        "sid": "69dde51b5932439b864ab4a12a504668",
+        "did": "66021db9795b4d02bd819f02c8493ef8",
+        "src": "chlorotoluron",
+        "sn": "chlorotoluron",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "67677515774244bcb9bc0ed64e2cffd5",
+        "sid": "bd62df06035d47ca9c3dfbdbe7f17128",
+        "did": "1e9c08dce3f94e33a20aef20a8b74aa3",
+        "src": "deltamethrin",
+        "sn": "deltamethrin",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "686c6611faf74615893ae391f3f47fba",
+        "sid": "2eb6053c19d74c70b243ff9a6ee3d4c1",
+        "did": "25d9e030344f411aaa5c8ae133a3ad6a",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "fludioxonil",
+        "dn": "fludioxonil",
+        "q": "{\"polarity\": \"refutes\"}"
+      },
+      {
+        "id": "6c927f1eced44ed2a2cd5d88382610e4",
+        "sid": "3d0bbaab27724205b8a3086f2bb68365",
+        "did": "ee702ac251fb41038de4d4f826a0858f",
+        "src": "P. annua",
+        "sn": "pannua",
+        "rel": "resistant_to",
+        "dst": "indaziflam",
+        "dn": "indaziflam",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "6fc53e9f090b42ca848c54f0e680985c",
+        "sid": "6e94cf9d66454f31893ff42462d0d122",
+        "did": "bf42b8baa60a4b969f1fd21fa32ccdb5",
+        "src": "PBO",
+        "sn": "pbo",
+        "rel": "synergizes_with",
+        "dst": "ACCase-inhibitors",
+        "dn": "accaseinhibitors",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "7025ae2010fe4e8ea6e9c378f15ae730",
+        "sid": "66021db9795b4d02bd819f02c8493ef8",
+        "did": "a31b619bf83a4d2587eaee28e92bca30",
+        "src": "blackgrass",
+        "sn": "blackgrass",
+        "rel": "damages",
+        "dst": "winter wheat",
+        "dn": "winterwheat",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "79c35885ef58412690fbe116b987c0ad",
+        "sid": "2eb6053c19d74c70b243ff9a6ee3d4c1",
+        "did": "b40d2e2aa9aa402b9c88b55421db5536",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "pyraclostrobin",
+        "dn": "pyraclostrobin",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "7ad97795493d45bc91ef15df2e106c45",
+        "sid": "f1d1c85a19ed4905b0289b7ecadbbbfd",
+        "did": "3d0bbaab27724205b8a3086f2bb68365",
+        "src": "pyroxasulfone",
+        "sn": "pyroxasulfone",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "81d65066378c4287bb4036e9e651661e",
+        "sid": "75ba15cd9fa84cd392079f8b03e475b7",
+        "did": "66021db9795b4d02bd819f02c8493ef8",
+        "src": "fenoxaprop-P-ethyl",
+        "sn": "fenoxaproppethyl",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "8706045b7c8842e59561cd82e35c3075",
+        "sid": "89053152ad0a4c488e757184300983c7",
+        "did": "1e9c08dce3f94e33a20aef20a8b74aa3",
+        "src": "cyantraniliprole",
+        "sn": "cyantraniliprole",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "8b8b92ea4d8346f2b06414efecd88630",
+        "sid": "2eb6053c19d74c70b243ff9a6ee3d4c1",
+        "did": "521834c5327b4e3d8417dd1256658daf",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "boscalid",
+        "dn": "boscalid",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "8c4f8b291f34427783a7e86e5c575bf3",
+        "sid": "2eb6053c19d74c70b243ff9a6ee3d4c1",
+        "did": "6d54b784a6c54b9288d3dbbdfff10d69",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "iprodione",
+        "dn": "iprodione",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "8cb07c8f7dad40b99c5a1cbcb39dccdf",
+        "sid": "33b44b8051d1491e808255b8c3ce15a3",
+        "did": "66021db9795b4d02bd819f02c8493ef8",
+        "src": "prosulfocarb",
+        "sn": "prosulfocarb",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "8f4fba9732e248f18aaea84bb637f177",
+        "sid": "7372a0721990463fb74eab7a0f45f7f7",
+        "did": "3d0bbaab27724205b8a3086f2bb68365",
+        "src": "glufosinate",
+        "sn": "glufosinate",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"polarity\": \"refutes\"}"
+      },
+      {
+        "id": "99ad0295ccee4bd0b8db09f4fb5757ce",
+        "sid": "0cd76f744f0942cda01972105b18753d",
+        "did": "1e9c08dce3f94e33a20aef20a8b74aa3",
+        "src": "M. anisopliae 35.79",
+        "sn": "manisopliae3579",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "9dfadbb2faaf49c6a378c6aec5b04a3c",
+        "sid": "f67fc054198e46829e820e16a92e5900",
+        "did": "3d0bbaab27724205b8a3086f2bb68365",
+        "src": "rimsulfuron",
+        "sn": "rimsulfuron",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "a07a96e4069448fe89fbf48d52b4be40",
+        "sid": "7a9b6f38550442e78ba29078c865646b",
+        "did": "67b4804856f74af7ad4b9cd92591a32e",
+        "src": "B. velezensis QST 713",
+        "sn": "bvelezensisqst713",
+        "rel": "controls",
+        "dst": "bubble development",
+        "dn": "bubbledevelopment",
+        "q": "{\"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "a0b0fe95426043df8cd52b63ad33ac18",
+        "sid": "70558ce6905e475fa30ee9c58f436d9e",
+        "did": "2934111ee3474e1784f4ed92e288a26f",
+        "src": "Prochloraz",
+        "sn": "prochloraz",
+        "rel": "controls",
+        "dst": "isolate 1722",
+        "dn": "isolate1722",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "a186cef965db402290555c798ebc148c",
+        "sid": "552d1000b42e4816bf8e39c420731920",
+        "did": "1e9c08dce3f94e33a20aef20a8b74aa3",
+        "src": "lambda-cyhalothrin",
+        "sn": "lambdacyhalothrin",
+        "rel": "controls",
+        "dst": "D. suzukii",
+        "dn": "dsuzukii",
+        "q": "{\"evidence_strength\": \"strong\", \"polarity\": \"supports\"}"
+      },
+      {
+        "id": "aaa244d6d1ac48e6b213657bf4bd0f7a",
+        "sid": "3d0bbaab27724205b8a3086f2bb68365",
+        "did": "09b1d2f091c2431591ac00d560dbebde",
+        "src": "P. annua",
+        "sn": "pannua",
+        "rel": "resistant_to",
+        "dst": "flumioxazin",
+        "dn": "flumioxazin",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "aead9210eb6f45108bc36b5fac789d8a",
+        "sid": "771c65abc3e84ed490f34a28dd727ce4",
+        "did": "3d0bbaab27724205b8a3086f2bb68365",
+        "src": "napropamide",
+        "sn": "napropamide",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "aef824949115460095baf08dafa2d165",
+        "sid": "4ea6be9196f44ac7bf99e79721d6e2f1",
+        "did": "66021db9795b4d02bd819f02c8493ef8",
+        "src": "diflufenican",
+        "sn": "diflufenican",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "af10ac8d7e6e4649b33cce8d5788a5bc",
+        "sid": "2eb6053c19d74c70b243ff9a6ee3d4c1",
+        "did": "febe7dbbb5724ca9b29f4a432f212cfd",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "occurs_in",
+        "dst": "West Michigan",
+        "dn": "westmichigan",
+        "q": "{}"
+      },
+      {
+        "id": "b0609f58a21d42a2950c97b608504553",
+        "sid": "2eb6053c19d74c70b243ff9a6ee3d4c1",
+        "did": "6b19ae071cf14138874d7dd9d63321c0",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "occurs_in",
+        "dst": "Southwest",
+        "dn": "southwest",
+        "q": "{}"
+      },
+      {
+        "id": "be0c136304f046b588cf5340f0140ad8",
+        "sid": "2e282bcadcec43629a467638909fbf44",
+        "did": "67b4804856f74af7ad4b9cd92591a32e",
+        "src": "Kos",
+        "sn": "kos",
+        "rel": "controls",
+        "dst": "bubble development",
+        "dn": "bubbledevelopment",
+        "q": "{\"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "bec8c2a0c9544eac8740bdc9205294a2",
+        "sid": "5ff16fe716264627a7b272a8654a4a53",
+        "did": "3d0bbaab27724205b8a3086f2bb68365",
+        "src": "fluridone",
+        "sn": "fluridone",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"polarity\": \"refutes\"}"
+      },
+      {
+        "id": "c5e8e6c1d9c741da86396df2bd8a69cd",
+        "sid": "a2d9b0ea8a97482caa614d6c00e32876",
+        "did": "f4fafad4c79b44b4b7339e0c8a39ab87",
+        "src": "spinosad",
+        "sn": "spinosad",
+        "rel": "evaluated_in",
+        "dst": "Bioassay 2",
+        "dn": "bioassay2",
+        "q": "{}"
+      },
+      {
+        "id": "ce93420f564747e9aa92bee549ee17bb",
+        "sid": "4a469b63e17b446dabc8fc3beca6ac45",
+        "did": "66021db9795b4d02bd819f02c8493ef8",
+        "src": "pinoxaden",
+        "sn": "pinoxaden",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "defdda65e4024e20815bc4ae3ecdd1d5",
+        "sid": "70558ce6905e475fa30ee9c58f436d9e",
+        "did": "67b4804856f74af7ad4b9cd92591a32e",
+        "src": "Prochloraz",
+        "sn": "prochloraz",
+        "rel": "controls",
+        "dst": "bubble development",
+        "dn": "bubbledevelopment",
+        "q": "{\"polarity\": \"no_effect\"}"
+      },
+      {
+        "id": "df65b354216f45db83d827d65198dcb2",
+        "sid": "14bbbdde706644e29fd0e75e8671f6ec",
+        "did": "66021db9795b4d02bd819f02c8493ef8",
+        "src": "cycloxydim",
+        "sn": "cycloxydim",
+        "rel": "controls",
+        "dst": "blackgrass",
+        "dn": "blackgrass",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "e51481796d4b47a4a538002eb2e1d3d8",
+        "sid": "3d0bbaab27724205b8a3086f2bb68365",
+        "did": "59c9d4b661fe47f384deaf84a772719e",
+        "src": "P. annua",
+        "sn": "pannua",
+        "rel": "resistant_to",
+        "dst": "pronamide",
+        "dn": "pronamide",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "e7b5d3c9fc094851ae4650027aa4ae35",
+        "sid": "ee702ac251fb41038de4d4f826a0858f",
+        "did": "3d0bbaab27724205b8a3086f2bb68365",
+        "src": "indaziflam",
+        "sn": "indaziflam",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "eaa02662533340cd900f06332fad0477",
+        "sid": "2eb6053c19d74c70b243ff9a6ee3d4c1",
+        "did": "21055bdfe8f64d509bb2a3480393a677",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "cyprodinil",
+        "dn": "cyprodinil",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "ef6299661c4645f698fa957fb5c5b966",
+        "sid": "c090650c01c04c5b8168193bd1baefa9",
+        "did": "3d0bbaab27724205b8a3086f2bb68365",
+        "src": "dichlobenil",
+        "sn": "dichlobenil",
+        "rel": "controls",
+        "dst": "P. annua",
+        "dn": "pannua",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "fe1e1210976e4a17a31e6291c3128ccb",
+        "sid": "2eb6053c19d74c70b243ff9a6ee3d4c1",
+        "did": "8eb073fe5e614441b2d87221c9fbcfc7",
+        "src": "B. cinerea",
+        "sn": "bcinerea",
+        "rel": "resistant_to",
+        "dst": "fluopyram",
+        "dn": "fluopyram",
+        "q": "{\"polarity\": \"supports\"}"
+      },
+      {
+        "id": "fe92c17dff454120a80bd59d9f05cd8f",
+        "sid": "6e94cf9d66454f31893ff42462d0d122",
+        "did": "2307418865224bcfa4402b91c88199e9",
+        "src": "PBO",
+        "sn": "pbo",
+        "rel": "synergizes_with",
+        "dst": "ALS-inhibitors",
+        "dn": "alsinhibitors",
+        "q": "{\"polarity\": \"supports\"}"
+      }
+    ]
+  ],
+  "independent_identity_sql": "SELECT n.id FROM nodes n WHERE n.status IN ('proposed','verified') AND (n.normalized_name=?1 OR (EXISTS (SELECT 1 FROM node_aliases a WHERE a.node_id=n.id AND a.normalized_alias=?1) AND NOT EXISTS (SELECT 1 FROM nodes direct WHERE direct.schema_version_id=n.schema_version_id AND direct.entity_type=n.entity_type AND direct.status IN ('proposed','verified') AND direct.normalized_name=?1) AND 1=(SELECT count(*) FROM node_aliases a JOIN nodes h ON h.id=a.node_id WHERE a.normalized_alias=?1 AND h.schema_version_id=n.schema_version_id AND h.entity_type=n.entity_type AND h.status IN ('proposed','verified'))))",
+  "outcome": "FAILED",
+  "failing_gate": "G3 combined no_effect/refutes recall 3/51 < 0.70"
+}

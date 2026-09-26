@@ -188,6 +188,94 @@ def test_matches_the_existing_triple_evaluator(trial):
     assert normalize_name("Treatment 0") == normalize_name("TREATMENT-0")
 
 
+@pytest.mark.parametrize("surface,aliases,matched", [
+    ("TREATMENT-5", [], True),
+    ("Other treatment", ["Treatment 5"], True),
+    ("Other treatment", ["Treatment 50"], False),
+    ("Treatment 50", [], False),
+])
+def test_exact_entity_identity_controls_matching(trial, surface, aliases, matched):
+    # Given: only exact normalization or a recorded alias may identify treatment 5.
+    store, doc, gold_path = trial
+    raw = json.loads(gold_path.read_text())
+    raw["relations"][5]["dst"] = "Target Alias"
+    gold_path.write_text(json.dumps(raw))
+    src = make_entity(surface, "ActiveIngredient", aliases=aliases)
+    dst = make_entity("T. pest", "Pest", aliases=["Target Alias"])
+    insert(store, doc, [src, dst], [
+        make_relation(src, dst, "controls", qualifiers={"polarity": "no_effect"}),
+    ])
+    # When: score actual persisted rows, not a mocked prediction list.
+    report = score_polarity(store.conn, gold_path)
+    # Then: alias spellings do not multiply predictions or false positives.
+    assert report["counts"]["matched_relations"] == 7 + matched
+    assert report["counts"]["found_four_tuples"] == 8
+    assert report["recall_no_effect"]["numerator"] == 1 + matched
+    assert report["four_tuple_f1"] == 2 * (3 + matched) / 17
+
+
+@pytest.mark.parametrize("collision", ["canonical", "alias", "rejected", "other_type"])
+def test_alias_resolution_preserves_store_precedence_and_scope(trial, collision):
+    # Given: a new edge whose source claims treatment 5 as an alias.
+    store, doc, gold_path = trial
+    holder = make_entity(
+        "Treatment 5" if collision == "canonical" else "Other alias holder",
+        "Pest" if collision == "other_type" else "ActiveIngredient",
+        aliases=[] if collision == "canonical" else ["Treatment 5"],
+    )
+    insert(store, doc, [holder], [])
+    src = make_entity("Alternative treatment", "ActiveIngredient", aliases=["Treatment 5"])
+    dst = make_entity("Target Pest", "Pest")
+    insert(store, doc, [src, dst], [
+        make_relation(src, dst, "controls", qualifiers={"polarity": "no_effect"}),
+    ])
+    if collision == "rejected":
+        store.reject(holder.id, by="test-reviewer")
+    before = store.conn.total_changes
+    # When: resolve aliases without invoking the store's merge-queue writer.
+    report = score_polarity(store.conn, gold_path)
+    # Then: direct names win; ambiguous active same-type aliases never choose a holder.
+    matched = collision in ("rejected", "other_type")
+    assert report["counts"]["matched_relations"] == 7 + matched
+    assert report["recall_no_effect"]["numerator"] == 1 + matched
+    assert store.conn.total_changes == before
+
+
+def test_aliases_do_not_hide_conflicting_polarities(trial):
+    # Given: two polarities on an aliased identity.
+    store, doc, gold_path = trial
+    src = make_entity("Alternative treatment", "ActiveIngredient", aliases=["Treatment 5"])
+    dst = make_entity("Target Pest", "Pest")
+    insert(store, doc, [src, dst], [
+        make_relation(src, dst, "controls", qualifiers={"polarity": polarity})
+        for polarity in ("no_effect", "supports")
+    ])
+    # When
+    report = score_polarity(store.conn, gold_path)
+    # Then: both predictions count, including the wrong supports label.
+    assert report["counts"]["matched_relations"] == 8
+    assert report["counts"]["matched_predictions"] == 9
+    assert report["counts"]["conflicting_matched_relations"] == 1
+    assert report["polarity_accuracy"]["value"] == 4 / 9
+    assert report["supports_when_gold_no_effect_flip_rate"]["value"] == 2 / 3
+
+
+def test_gold_alias_duplicates_refuse_instead_of_multiplying_credit(trial):
+    # Given: distinct gold spellings that resolve to one extracted identity.
+    store, doc, gold_path = trial
+    src = make_entity("Alternative treatment", "ActiveIngredient", aliases=["Treatment 5"])
+    dst = make_entity("Target Pest", "Pest")
+    insert(store, doc, [src, dst], [
+        make_relation(src, dst, "controls", qualifiers={"polarity": "no_effect"}),
+    ])
+    raw = json.loads(gold_path.read_text())
+    raw["relations"].append(dict(raw["relations"][5], src="Alternative treatment"))
+    gold_path.write_text(json.dumps(raw))
+    # When / Then: one prediction cannot be credited as two gold relations.
+    with pytest.raises(GoldError, match="same extracted identity"):
+        score_polarity(store.conn, gold_path)
+
+
 def test_existing_gold_loader_still_reads_triples(tmp_path):
     path = tmp_path / "legacy.json"
     path.write_text(json.dumps({"triples": [{
