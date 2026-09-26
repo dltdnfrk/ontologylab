@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import json
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -67,16 +68,29 @@ def _build_paths(root: Path) -> tuple[str, ...]:
     raise AssertionError("BUILD_PATHS literal is unavailable")
 
 
-def _source_files(root: Path, rel: str) -> set[str]:
+def _source_files(
+    root: Path, rel: str, declared: frozenset[str] = frozenset()
+) -> set[str]:
     path = root / rel
     if path.is_file():
         return {rel}
+    tracked = subprocess.run(
+        ("git", "-C", str(root), "ls-files", "-z", "--full-name", "--", rel),
+        check=True,
+        capture_output=True,
+    ).stdout.decode("utf-8").split("\0")
+    explicit = {
+        item
+        for item in declared
+        if item.startswith(f"{rel}/") and (root / item).is_file()
+    }
     return {
-        item.relative_to(root).as_posix()
-        for item in path.rglob("*")
-        if item.is_file()
-        and not any(part in _SKIP_PARTS for part in item.parts)
-        and item.suffix not in {".pyc", ".pyo"}
+        item
+        for item in set(tracked) | explicit
+        if item
+        and (root / item).is_file()
+        and not any(part in _SKIP_PARTS for part in Path(item).parts)
+        and Path(item).suffix not in {".pyc", ".pyo"}
     }
 
 
@@ -215,12 +229,12 @@ def task11_policy_coverage(root: Path = ROOT) -> PolicyCoverage:
     )
     build_files: set[str] = set()
     for rel in _build_paths(root):
-        build_files.update(_source_files(root, rel))
+        build_files.update(_source_files(root, rel, declared))
     shell_files = {
         path.relative_to(root).as_posix()
         for path in (root / "scripts").glob("build-macos-*.sh")
     }
-    fixture_files = _source_files(root, "tests/fixtures/macos_supervisor")
+    fixture_files = _source_files(root, "tests/fixtures/macos_supervisor", declared)
     closure = (
         set(roots) | build_files | shell_files | fixture_files | product_contract_tests
     )

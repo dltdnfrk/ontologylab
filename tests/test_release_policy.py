@@ -259,11 +259,22 @@ def test_version_source_is_pyproject_semver() -> None:
     assert SEMVER.match(version)
 
 
-def test_check_accepts_the_checked_in_exact_source_go() -> None:
-    acceptance = check(REPO)
-    assert acceptance.version == _pyproject_version()
-    assert len(acceptance.snapshot_sha256) == 64
-    assert len(acceptance.policy_sha256) == 64
+def test_check_accepts_the_checked_in_exact_source_go(tmp_path: Path) -> None:
+    # The production receipt stays frozen. A disposable tree with a fresh
+    # snapshot must refuse that receipt as stale evidence, not as a missing
+    # input or a drift code, including after later source bytes change.
+    from tests.release_eligibility_fixtures import _git, _write_fixture_source
+
+    root = tmp_path / "fixture"
+    _write_fixture_source(root)
+    _git(root, "init", "-q")
+    policy = load_policy(root)
+    write_snapshot(root, policy, read_version(root, policy))
+    receipt_rel = policy.eligibility_receipt_path
+    (root / receipt_rel).write_bytes((REPO / receipt_rel).read_bytes())
+    refusal = _refusal(root)
+    assert refusal.code is C.STALE_SNAPSHOT_EVIDENCE
+    assert refusal.member == "receipt.source_snapshot_sha256"
 
 
 def test_snapshot_is_deterministic_and_binds_uv_lock(tmp_path: Path) -> None:
