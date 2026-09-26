@@ -20,6 +20,7 @@ from release.candidate_source_closure import (
 from release.candidate_types import CandidateRefused
 from tests.macos_candidate_source_policy_support import (
     ROOT,
+    _source_files,
     covered,
     matching_authoritative_tests,
     matching_candidate_modules,
@@ -27,6 +28,26 @@ from tests.macos_candidate_source_policy_support import (
     task11_policy_coverage,
 )
 from tests.macos_candidate_test_support import source_fixture
+
+
+def test_source_inventory_ignores_untracked_files_under_declared_directory(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "repo"
+    source = root / "ontologylab"
+    source.mkdir(parents=True)
+    (source / "tracked.py").write_text("TRACKED = True\n", encoding="utf-8")
+    (source / "declared.txt").write_text("declared input\n", encoding="utf-8")
+    (source / "AGENTS.md").write_text("local guidance\n", encoding="utf-8")
+    subprocess.run(("git", "-C", str(root), "init", "-q"), check=True)
+    subprocess.run(
+        ("git", "-C", str(root), "add", "ontologylab/tracked.py"), check=True
+    )
+
+    assert _source_files(root, "ontologylab") == {"ontologylab/tracked.py"}
+    assert _source_files(
+        root, "ontologylab", frozenset({"ontologylab", "ontologylab/declared.txt"})
+    ) == {"ontologylab/tracked.py", "ontologylab/declared.txt"}
 
 
 def test_task11_policy_covers_every_authoritative_path_class() -> None:

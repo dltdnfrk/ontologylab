@@ -1706,9 +1706,9 @@
       "sha256": "c58730158a0c31acc47dc0c07eb880c51dca399e47b31e88773028c99dbd5b73"
     },
     {
-      "bytes": 8160,
+      "bytes": 8590,
       "path": "tests/macos_candidate_source_policy_support.py",
-      "sha256": "cd1c6b263f0607baa91bbde0fc5081b78980b58be04de0caadabb08e3f21b129"
+      "sha256": "0317a751f9aaf8b8deb3ecc2093c4faaff5a13ca571f07dad76ac4e17657152b"
     },
     {
       "bytes": 1807,
@@ -1796,9 +1796,9 @@
       "sha256": "03e79faf3989c94c4c5f8742a34b966b785ecea11ff344e563def309618d16f3"
     },
     {
-      "bytes": 10442,
+      "bytes": 11322,
       "path": "tests/test_macos_candidate_source_closure.py",
-      "sha256": "a84d0dacef24401bf9ea74d72a710c39979738133dd611c2735bb5c52487a0cd"
+      "sha256": "c5ce9b7ff6ca0a5f738bf6331739da8cbaea4af425738c365e3fad2c7c57a32c"
     },
     {
       "bytes": 10788,
@@ -1887,12 +1887,12 @@
     }
   ],
   "git_staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "git_status_sha256": "cba4f0e1e79d1fb315fda3d5b455b97ef718b8b3a4cd5cd2fb796d2c75208bbd",
-  "git_unstaged_diff_sha256": "72b366dcdd417288fe08a16774e13654b471019f16d418f1e71ed33c27cdc909",
-  "inventory_sha256": "ab79bfe4c51e3a513f424825e251c2dcceb9a51203b2e31c68f984c8e31f3292",
+  "git_status_sha256": "654af4f99bbfb5fb1221daafe7291fb6ee5ae73e14e59928fb3b3ccc8814c322",
+  "git_unstaged_diff_sha256": "17b5b1722a671f5529d7109eaccc2490cbdd5869ef87ad78d8a6de19b8ccd00b",
+  "inventory_sha256": "9058009939bb381766fba7fd723beec758a7c5462b4ed68e2205b2f488395bec",
   "policy_sha256": "1d676d2fdbcc0b23a2898ac827750b53b72dab75adabd1cc0b0f60fcd256a450",
   "schema": "ontologylab.release.source-snapshot.v1",
-  "snapshot_sha256": "46980fa49456c490ccb96a60d6ce35c3ce0137f18528921f4f9a6935f8b3bfcd",
+  "snapshot_sha256": "3cec687f95d77543af8b732eee40ab11acb1f69568b756496775bcf289277c38",
   "uv_lock": {
     "bytes": 461552,
     "path": "uv.lock",
