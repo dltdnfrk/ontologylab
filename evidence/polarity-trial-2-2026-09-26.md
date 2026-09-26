@@ -233,3 +233,38 @@ was author-of-fixture checked, not independently expert-adjudicated; this
 same-corpus regression trial is not an independent holdout. Bootstrap intervals
 do not account for correlated claims or repeated papers. Frozen evidence does
 not authorize fixing these defects or running extra model calls here.
+
+## Requested retained-WAL audit
+
+The orchestrator requested a foreground audit after the original evidence
+commit. Each run's http-receipt.json, server.log, and complete extraction
+provenance were reread: terminal states remain partial/failed/partial and
+engine-call counts remain **11/10/12**. All three logs contain application
+shutdown completion and the finished-server event. All six driver/server PIDs
+21822/21828/21835/21833/21859/21860 are absent (`ps` exit 1).
+
+R2's retained files were checked before and after two read-only SQLite reads:
+
+| File | Bytes | SHA-256, unchanged by audit |
+| --- | ---: | --- |
+| kg.sqlite | 925696 | 90cbe4393364396c92c0637eb640990c6d8a6f66ac72d4d6d12c839adef56da6 |
+| kg.sqlite-wal | 0 | e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 |
+| kg.sqlite-shm | 32768 | fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb |
+
+Both `mode=ro` and `mode=ro&immutable=1` connections returned integrity `ok`,
+no foreign-key errors, 85 edges, and identical full `score_polarity` results
+against gold-fulltext.json. The WAL is empty and no WAL frames are required
+to recover the scored state from the main database. No checkpoint command,
+file deletion, or database write was issued.
+
+`lsof` initially exposed this session's own retained read-only Bun inspection
+handle (PID 84912), not a surviving server. Its owned Database.close() was
+called; a repeated lsof over the three exact paths returned no rows (exit 1).
+The files remain in place.
+
+A foreground rescore of all three stores exited 0 and reproduced every
+per-run and pooled G1-G4 number and CI in the numerical receipt. No provider
+request was made. Fresh socket checks returned ECONNREFUSED (61) on all three
+ports. The exact-environment-value grep scan again checked 283 files with
+0 matches. The original numerical receipt, corpus, gold, and product code
+remain unchanged; this addendum records the extra read-only verification.
