@@ -32,7 +32,7 @@ from scripts.check_product_status import (
     check_status,
 )
 
-AUDITED_SOURCE_REVISION = "4edc61cea6e1cc966a507d49bb41c3f9dab64b2e"
+AUDITED_SOURCE_REVISION = "3d0a9f268d5ad813453928ac56c061105e1dc420"
 
 
 ROWS = """\
