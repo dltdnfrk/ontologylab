@@ -93,6 +93,13 @@ from ontologylab.paths import (
     NetworkBlocked,
     kg_db_path,
 )
+from ontologylab.extraction_eligibility import (
+    UNKNOWN_DOCUMENT,
+    best_content_kinds,
+    extraction_eligibilities,
+    refusal_message,
+    refused_extractions,
+)
 from ontologylab.proposals import (
     OntologyProposalError,
     build_ontology_proposals,
@@ -2145,10 +2152,42 @@ def get_work(deps: AppDependency, work_id: str) -> dict[str, Any]:
         store.close()
 
 
+def _document_extraction_statuses(
+    conn: sqlite3.Connection, schema_version_id: int
+) -> dict[str, str]:
+    """Status of the most recently updated extraction run per document.
+
+    Only runs under ``schema_version_id`` count. The badge answers "has this
+    document been extracted under the ontology the review queue uses now";
+    after an ontology switch a document the new ontology has never seen must
+    read `none`, not the old ontology's `complete`.
+    """
+    statuses: dict[str, str] = {}
+    for row in conn.execute(
+        "SELECT document_id, status FROM extraction_runs "
+        "WHERE schema_version_id = ? "
+        "ORDER BY updated_ts DESC, created_ts DESC, rowid DESC",
+        (schema_version_id,),
+    ):
+        statuses.setdefault(str(row["document_id"]), str(row["status"]))
+    return statuses
+
+
 @router.get("/documents")
 def get_documents(deps: AppDependency) -> dict[str, Any]:
     store = _open_store(deps)
     try:
+        rows = store.list_documents()
+        content_kinds = best_content_kinds(store.conn)
+        extraction_statuses = _document_extraction_statuses(
+            store.conn, int(store.active_schema_version()["id"])
+        )
+        eligibility = {
+            verdict.document_id: verdict
+            for verdict in extraction_eligibilities(
+                store.conn, [doc.id for doc in rows]
+            )
+        }
         documents = [
             {
                 "id": doc.id,
@@ -2159,9 +2198,19 @@ def get_documents(deps: AppDependency) -> dict[str, Any]:
                 "content_hash": doc.content_hash,
                 "doi": doc.doi,
                 "source": doc.source,
+                # Publication type (peer_reviewed/preprint/...): what kind of
+                # record this is, never what text of it the store holds.
                 "evidence_grade": doc.evidence_grade,
+                # What text the store holds (fulltext/abstract/excerpt/
+                # metadata_only); an upload without an Observation reads
+                # metadata_only here yet is extractable below.
+                "content_kind": content_kinds.get(doc.id, "metadata_only"),
+                "extraction_status": extraction_statuses.get(doc.id, "none"),
+                # The same verdict /api/extract and the CLI enforce.
+                "extractable": eligibility[doc.id].eligible,
+                "extract_blocked_reason": eligibility[doc.id].reason or None,
             }
-            for doc in store.list_documents()
+            for doc in rows
         ]
     finally:
         store.close()
@@ -2405,6 +2454,40 @@ def collect_sample(deps: AppDependency) -> dict[str, Any]:
 
 @router.post("/extract", status_code=202)
 def start_extract(deps: AppDependency, body: ExtractRequest) -> dict[str, Any]:
+    """Start an extraction job over explicit documents, or over all of them.
+
+    Named documents are judged here, before a job exists: an abstract-only
+    paper is refused with a typed 422 naming each refused id and its held
+    kind, and an id the store does not have is a 404. The gate reviewer for
+    todo 5 reached `complete` through this route with an abstract-only
+    document; a 202 must never again mean "accepted, will refuse later".
+    The unnamed "every document" path is filtered at the shared
+    `run_extract_job` seam instead, where skipping is reported per run.
+    """
+    if body.doc_ids:
+        store = _open_store(deps)
+        try:
+            refused = refused_extractions(store.conn, body.doc_ids)
+        finally:
+            store.close()
+        if refused:
+            unknown = any(v.code == UNKNOWN_DOCUMENT for v in refused)
+            raise HTTPException(
+                status_code=404 if unknown else 422,
+                detail={
+                    "ok": False,
+                    "error_kind": "unknown_document" if unknown else "not_extractable",
+                    "detail": refusal_message(refused),
+                    "refused": [
+                        {
+                            "doc_id": v.document_id,
+                            "content_kind": v.content_kind,
+                            "reason": v.reason,
+                        }
+                        for v in refused
+                    ],
+                },
+            )
     job = deps.jobs.create(
         engine=body.engine,
         model=body.model,

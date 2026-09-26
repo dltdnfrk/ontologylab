@@ -11,6 +11,7 @@ import time
 import uuid
 from typing import Mapping
 
+from ontologylab.extraction_eligibility import refusal_message, refused_extractions
 from ontologylab.extraction_state import effective_extractor_model
 from ontologylab.extractor import Chunk, chunk_document, extraction_decode_params
 from ontologylab.kgstore import KGStore
@@ -129,6 +130,12 @@ async def extract_occurrences(
 ) -> str:
     """Extract and persist exact occurrences with resumable chunk checkpoints."""
     document = store.get_document(document_id)
+    # Same rule as graph extraction, judged before any run row, chunk claim
+    # or engine call, on the fresh and the resume path alike: an abstract-only
+    # paper is not a source of statements either.
+    refused = refused_extractions(store.conn, [document_id])
+    if refused:
+        raise MethodStateError(refusal_message(refused))
     text = store.document_raw_text(document_id)
     if _digest(text.encode()) != document.content_hash:
         raise MethodStateError("document bytes do not match content hash")
