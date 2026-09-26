@@ -423,3 +423,58 @@ The task artifact `.omo/evidence/task-18-ontologylab-completion.txt`
 records commands, adversarial checks, and the retained-temp inventory.
 No deletion, model call, source enrichment, gold/threshold/scorer change,
 population-qualifier change, or live-store/server access was performed.
+
+### Orchestrator-approved final verification and 36-miss accounting
+
+The orchestrator explicitly approved the store allowlist extension:
+`abbreviation_unresolved` is platform-owned normalization metadata, like
+`normalization` and `*_unattested_match_refused`. It belongs in the existing
+`_NORMALIZATION_PROPERTIES` allowlist, not in each installed ontology.
+
+After that approval, the exact seven-module verification command was run
+again with fresh basetemp `/private/tmp/t18-32687-19110`: **EXIT=0,
+131 passed in 1.90s**, including both absence/ambiguity persistence
+regressions. The exit code was captured from pytest, not from a pipe.
+The unchanged copied source stores were replayed again into fresh
+`replayed-approved.sqlite` projections under the same three copy roots;
+the replay command returned **EXIT=0**.
+
+**Recovery from the stored document text is 0/36 diagnosed abbreviation
+misses**, not an implementation failure. The subset is selected from
+todo 16's surface-mismatch rows with no exact match whose candidate edge
+has an abbreviated organism endpoint. Its normalized gold triples were
+checked against the fresh persisted replay's `missing_triples`.
+
+| Repeat | Gold indices in the 36-miss subset | Recovered |
+| --- | --- | ---: |
+| R1 | 21, 22, 24-28 | 0/7 |
+| R2 | 12, 21-34 | 0/15 |
+| R3 | 21-34 | 0/14 |
+
+These comprise 23 `P. annua`, 12 `B. cinerea`, and one `D. suzukii`
+relation miss. Concrete R2 stored-source examples are `P. annua` at
+characters [700,708), `B. cinerea` at [717,727), and `D. suzukii` at
+[214,224). Their respective documents contain zero occurrences of
+`Poa annua`, `Botrytis cinerea`, and `Drosophila suzukii`. The resolver
+therefore leaves those names unchanged and records `absent`. Where a full
+form does exist, the unique-form tests and cross-chunk `run_extraction`
+test prove expansion, alias recording, and store identity resolution.
+
+Fresh G3 is unchanged: matched gold **7/102**, accuracy **6/7=0.857143**
+(95% CI [0.5714,1]), combined negative recall **3/51=0.058824**
+([0,0.1176]), and flip rate **0/1=0** ([0,0]). All per-run metrics and CIs
+equal the preceding table. Combined recall still fails 0.70, so the outcome
+remains **FAILED** under the unchanged rule. All 188 original files again
+match their before hashes; no source text, gold, threshold, or model changed.
+
+Fresh receipts under `/private/tmp/t18-replay-1/`:
+
+| File | SHA-256 |
+| --- | --- |
+| replay-approved.py | 505790befeeac5e0e9d14194ee51e1648d190a824ed0ae593aa80a069d40dc60 |
+| replay-approved-receipt.json | ee856238f200898425e3e7c986b2fe2f6aac38db335212f97b8f291704ddd6c0 |
+| recovery-36-approved.json | c05256b08cb27deafb062fc138f705a3d5d61d4cf12b1751c5b2517b0edea3ff |
+
+The original implementation commit is
+`75ba2aceedf862a9fd13b9d928ce19027cee2978`. This final evidence update is a
+follow-up commit; the verified implementation history is not amended.
