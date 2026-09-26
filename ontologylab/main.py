@@ -1225,6 +1225,11 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
         summary_method = f"llm:{args.summarize_engine}"
     store = _open_store(args)
     try:
+        schema_version_ids = (
+            tuple(row["id"] for row in store.list_schemas())
+            if args.all_schema_versions
+            else tuple(args.schema_version) if args.schema_version is not None else None
+        )
         manifest = build_pack_release(
             paths.kg_db_path(data_dir),
             args.packs_dir,
@@ -1236,6 +1241,7 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
             incomplete_extraction_intent=args.override_intent,
             method_release_ids=method_release_ids,
             store=store,
+            schema_version_ids=schema_version_ids,
         )
     except (PackBuildError, OSError) as exc:
         print(f"[ontologylab] ERROR: {exc}", file=sys.stderr)
@@ -1243,6 +1249,7 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
     finally:
         store.close()
     print(f"[ontologylab] built pack {manifest.pack_id}")
+    print(f"[ontologylab] included schema versions: {manifest.included_schema_version_ids}")
     print(json.dumps(manifest.counts, indent=2))
     from ontologylab.mcp_server import serve_args
 
@@ -2111,8 +2118,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
     _add_data_dir(p_merge_dismiss)
     p_merge_dismiss.set_defaults(func=cmd_merge_dismiss)
 
-    p_build = sub.add_parser("build-pack", help="Export verified subgraph as a pack.")
+    p_build = sub.add_parser(
+        "build-pack", aliases=["pack"],
+        help="Export the active schema's verified subgraph as a pack.",
+    )
     p_build.add_argument("--name", required=True)
+    schema_scope = p_build.add_mutually_exclusive_group()
+    schema_scope.add_argument(
+        "--schema-version", type=int, action="append", default=None, metavar="ID",
+        help="Publish exactly these schema version IDs (repeatable; default: active only).",
+    )
+    schema_scope.add_argument(
+        "--all-schema-versions", action="store_true",
+        help="Publish every installed schema version, including historical identities.",
+    )
     p_build.add_argument(
         "--method-release-id",
         action="append",
