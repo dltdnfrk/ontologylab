@@ -83,6 +83,7 @@ from ontologylab.offline_policy import configured_source_ids, passive_source_vie
 from ontologylab.packbuilder import (
     PackBuildError,
     build_pack_release,
+    safe_pack_component,
     scan_packs,
 )
 from ontologylab.paths import (
@@ -3232,6 +3233,53 @@ def packs_download_mcpb(deps: AppDependency, pack_id: str) -> Any:
         media_type="application/zip",
         filename=f"{pack_id}.mcpb",
     )
+
+
+@router.post("/packs/{pack_id:path}/verify")
+def packs_verify(deps: AppDependency, pack_id: str) -> dict[str, Any]:
+    """Re-verify one built pack's bytes against its integrity receipt.
+
+    The same verifier MCP runs at load time (`verified_pack_reader`): verify
+    the source bytes, copy them into a temporary serving directory, reverify
+    the copy, open its store read-only, then discard the copy. The pack
+    directory itself is never written — packs are immutable.
+
+    A pack that fails is a 200 with `ok: false` and the typed reason in
+    `problems`: the operator asked "is this pack still intact?", and "no,
+    and here is why" answers that. An unknown id is 404. An id that is not
+    a safe single path segment is 422 before the filesystem is consulted —
+    `{pack_id:path}` lets a `../x` reach this check and be refused here
+    with a typed answer, instead of falling through the router as a generic
+    404 that says nothing about why.
+    """
+    from ontologylab.verified_pack_reader import (
+        PackIntegrityError,
+        opened_verified_pack,
+    )
+
+    try:
+        safe_pack_component(pack_id, kind="pack id")
+    except PackBuildError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    pack_dir = Path(deps.packs_dir) / pack_id
+    if not pack_dir.is_symlink() and not pack_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"unknown pack {pack_id!r}")
+    try:
+        with opened_verified_pack(pack_dir) as (snapshot, _store):
+            integrity_level = snapshot.integrity_level
+    except PackIntegrityError as exc:
+        return {
+            "ok": False,
+            "pack_id": pack_id,
+            "integrity_level": None,
+            "problems": [str(exc)],
+        }
+    return {
+        "ok": True,
+        "pack_id": pack_id,
+        "integrity_level": integrity_level,
+        "problems": [],
+    }
 
 
 # ---------------------------------------------------------------------------
