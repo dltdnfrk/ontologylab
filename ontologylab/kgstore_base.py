@@ -255,7 +255,9 @@ CREATE TABLE IF NOT EXISTS nodes (
 
     embedding         BLOB,
     embedding_model   TEXT,
-    decode_params     TEXT
+    decode_params     TEXT,
+    origin            TEXT NOT NULL DEFAULT 'extracted'
+                          CHECK (origin IN ('extracted','inferred','curated'))
 );
 -- (decode_params on nodes/edges: the sampling parameters the producing run
 -- selected, as canonical JSON with sorted keys; NULL when the engine has no
@@ -305,7 +307,9 @@ CREATE TABLE IF NOT EXISTS edges (
     invalidated_ts        REAL,
     invalidated_by        TEXT,
     invalidation_reason   TEXT,
-    decode_params         TEXT
+    decode_params         TEXT,
+    origin                TEXT NOT NULL DEFAULT 'extracted'
+                              CHECK (origin IN ('extracted','inferred','curated'))
 );
 -- (The last four edge columns are W13 bitemporal: event-time vs ingestion-
 -- time, and invalidation INSTEAD of deletion — a contradicted fact stays
@@ -520,7 +524,7 @@ _NODE_COLUMNS = (
     "properties_json, status, confidence, source_doc_id, source_span, "
     "extractor_engine, extractor_model, prompt_version, created_ts, "
     "verified_ts, verified_by, review_note, embedding, embedding_model, "
-    "decode_params"
+    "decode_params, origin"
 )
 
 

@@ -311,6 +311,16 @@ class LifecycleMixin:
         }
         if "decode_params" not in node_columns:
             conn.execute("ALTER TABLE nodes ADD COLUMN decode_params TEXT")
+        # Claim layer O-4: every row records how it came to exist. Every row
+        # written before this column existed came from insert_proposed, so
+        # 'extracted' is the factual backfill, not a guess.
+        for table, columns in (("nodes", node_columns), ("edges", edge_columns)):
+            if "origin" not in columns:
+                conn.execute(
+                    f"ALTER TABLE {table} ADD COLUMN origin TEXT NOT NULL "
+                    "DEFAULT 'extracted' "
+                    "CHECK (origin IN ('extracted','inferred','curated'))"
+                )
         citation_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(citations)")
         }

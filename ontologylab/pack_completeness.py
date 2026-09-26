@@ -16,7 +16,7 @@ WITH shipped_citation_streams AS (
            COALESCE(c.decode_params, 'null') AS decode_params
     FROM citations c
     JOIN nodes n ON c.kind = 'node' AND n.id = c.item_id
-    WHERE n.status = 'verified'
+    WHERE n.status = 'verified' AND n.origin = 'extracted'
       AND (c.extractor_engine IS NOT NULL
            OR n.source_doc_id <> c.source_doc_id)
     UNION ALL
@@ -30,6 +30,7 @@ WITH shipped_citation_streams AS (
     JOIN nodes src ON src.id = e.src_node_id
     JOIN nodes dst ON dst.id = e.dst_node_id
     WHERE e.status = 'verified' AND e.invalidated_ts IS NULL
+      AND e.origin = 'extracted'
       AND src.status = 'verified' AND dst.status = 'verified'
       AND (c.extractor_engine IS NOT NULL
            OR e.source_doc_id <> c.source_doc_id)
@@ -66,12 +67,13 @@ SELECT DISTINCT
 FROM (
     SELECT source_doc_id, schema_version_id, extractor_engine,
            extractor_model, prompt_version, decode_params
-    FROM nodes WHERE status = 'verified'
+    FROM nodes WHERE status = 'verified' AND origin = 'extracted'
     UNION ALL
     SELECT source_doc_id, schema_version_id, extractor_engine,
            extractor_model, prompt_version, decode_params
     FROM edges
     WHERE status = 'verified' AND invalidated_ts IS NULL
+      AND origin = 'extracted'
     UNION ALL
     SELECT source_doc_id, schema_version_id, extractor_engine,
            extractor_model, prompt_version, decode_params

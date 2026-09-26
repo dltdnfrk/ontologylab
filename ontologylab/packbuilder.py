@@ -110,6 +110,7 @@ _PACK_COPY_COLUMNS: dict[str, tuple[str, ...]] = {
         "source_doc_id", "source_span", "extractor_engine", "extractor_model",
         "prompt_version", "created_ts", "verified_ts", "verified_by",
         "review_note", "embedding", "embedding_model", "decode_params",
+        "origin",
     ),
     "edges": (
         "id", "schema_version_id", "relation_type", "src_node_id",
@@ -117,7 +118,7 @@ _PACK_COPY_COLUMNS: dict[str, tuple[str, ...]] = {
         "confidence", "source_doc_id", "source_span", "extractor_engine",
         "extractor_model", "prompt_version", "created_ts", "verified_ts",
         "verified_by", "review_note", "valid_from", "invalidated_ts",
-        "invalidated_by", "invalidation_reason", "decode_params",
+        "invalidated_by", "invalidation_reason", "decode_params", "origin",
     ),
     "node_aliases": ("node_id", "normalized_alias", "surface"),
     "citations": (
