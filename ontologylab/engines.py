@@ -506,6 +506,7 @@ class MockEngine:
 
     def __init__(self, seed: int = 7) -> None:
         self._seed = seed
+        self._model = "mock"
         self._calls = 0
 
     def name(self) -> str:
