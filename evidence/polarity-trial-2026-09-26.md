@@ -294,3 +294,187 @@ returned **EXIT=0, 38 passed**. Before repair, the new regressions exposed
 6 failures. A deliberate prefix-matching mutation credited the wrong alias
 Treatment 50 as Treatment 5: **2 failures**, including the wrong-alias case;
 exact matching was restored before the final passing run.
+
+## Todo 18 addendum: document-local abbreviation replay
+
+**Outcome remains FAILED (G3); IS-1 remains NOT MET.** The resolver is
+implemented, but the retained extraction inputs do not contain the full
+binomials needed to expand their abbreviated organism proposals. The
+36 unrecorded-abbreviation misses in todo 16 are not 36 resolvable cases
+under the document-local rule: these inputs are selected body excerpts,
+not the full papers. No missing introduction, title, gold name, model
+alias, or external document was supplied to the resolver.
+
+The replay found four eligible abbreviated organism nodes per run:
+`B. cinerea`, `D. suzukii`, `M. anisopliae 35.79`, and `P. annua`.
+All **12** keep their names and gain `abbreviation_unresolved="absent"`.
+There are **zero expansions and zero new aliases**. `B. velezensis QST 713`
+is typed ActiveIngredient or Product in these stores, so it is untouched.
+R1's pre-existing full-name aliases still supply its seven scorer matches;
+they are not document-text evidence for an expansion.
+
+### Implementation and replay method
+
+`species_abbreviation.py` is separate from `normalization.py` because the
+latter owns authoritative registry normalization. The new resolver reads
+only the supplied raw document, uses case-sensitive whole-word matching,
+counts distinct genera rather than mentions, preserves the proposal suffix
+and source span, and appends the original surface as an alias on resolution.
+It runs before registry/measurement normalization in `run_extraction`.
+The organism scope is Crop, Pathogen, Pest, Weed, and NonTargetOrganism.
+Method extraction has no equivalent seam: `method_extract.py` validates
+StatementOccurrence records and imports them through MethodStore, not
+ProposedEntity/insert_proposed.
+
+The first replay exposed an integration gap missed by the happy-path test:
+the store rejected the new unresolved property. Two added `run_extraction`
+regressions reproduced it for absence and ambiguity. The necessary one-line
+addition to `kgstore_validation.py`'s existing normalization-property
+allowlist admits the string without altering installed schemas. After the
+continuation instruction, that dependency fix was included. No bypass or
+runtime monkeypatch was used.
+
+1. Hash all 188 regular files in the three retained trial roots. Copy each
+   entire directory to `/private/tmp/t18-replay-1`, `-2`, and `-3`; verify
+   that the copies initially match every original file hash.
+2. Open each copied `kg.sqlite` read-only with immutable semantics. All
+   source WALs are empty. Reconstruct proposals from persisted node/edge
+   snapshots, ordered by `created_ts, rowid` within document order
+   `fetched_ts, rowid`. Preserve IDs, names, aliases, properties, qualifiers,
+   confidence, spans, schema, and extractor stream fields.
+3. Assert that all rows are proposed/extracted/current in the active
+   schema, every edge's endpoints belong to its document, no node citation
+   spans multiple documents, and each document has one extractor stream.
+   Obtain text through the copied store's `document_raw_text` and verify
+   its content hash. Apply only the new resolver; no model or registry
+   normalization is rerun.
+4. In each copy, create a fresh graph projection `replayed-v2.sqlite`,
+   install the same schema, and copy document metadata. Insert each
+   document's proposals with the real `KGStore.insert_proposed`. This uses
+   `_resolve_node`, `normalize_name`, `_merge_mention`, `_add_alias`, and
+   the returned ID map for relation endpoints; it does not hand-edit keys
+   or feed expected matches to the scorer. The original copied `kg.sqlite`
+   stays unchanged. The failed R1 `replayed.sqlite` is retained separately.
+5. Commit, close, and reopen each projection read-only, then call
+   `score_polarity` on those persisted rows. Compare all identity/stream
+   fields and edge properties/qualifiers with the copied input; the only
+   changed semantic fields are the 12 unresolved annotations. Integrity
+   and foreign-key checks pass. Scores equal the corrected baseline.
+
+This is a replay of **persisted proposal snapshots**, not unavailable raw
+provider replies: earlier duplicate mentions cannot be reconstructed.
+Insertion regenerates timestamps and citations; historical extraction
+receipts are retained in the copied source store, not fabricated in the
+new graph projection. Those differences do not enter G3.
+
+### G3 from the reopened replay projections
+
+| Metric | R1 | R2 | R3 | Pooled | Pooled bootstrap 95% CI |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Matched gold relations | 7/34 | 0/34 | 0/34 | 7/102 | Not a rate gate |
+| Polarity accuracy | 6/7 | 0/0 | 0/0 | 0.857143 | [0.5714, 1.0000] |
+| no_effect recall | 1/12 | 0/12 | 0/12 | 1/36 = 0.027778 | [0.0000, 0.0833] |
+| refutes recall | 2/5 | 0/5 | 0/5 | 2/15 = 0.133333 | [0.0000, 0.3333] |
+| Combined no_effect+refutes recall | 3/17 | 0/17 | 0/17 | 3/51 = 0.058824 | [0.0000, 0.1176] |
+| Supports-when-gold-no_effect flip rate | 0/1 | 0/0 | 0/0 | 0.000000 | [0.0000, 0.0000] |
+
+R1's per-run CIs are accuracy [0.5714, 1], no_effect recall [0, 0.25],
+refutes recall [0, 0.8], combined recall [0, 0.3529], and flip [0, 0].
+R2/R3 recall CIs are [0, 0]; their accuracy and flip estimates/CIs remain
+undefined. Pooling sums counts and uses the unchanged `_rate` bootstrap:
+2,000 resamples, seed 7, individual outcomes. It does not model dependence
+within papers or repeats. Fixture labels still lack independent expert
+adjudication; this post-diagnosis replay is not a new holdout experiment.
+
+G3 still requires accuracy >=0.80 AND combined recall >=0.70 AND flip
+<=0.15. **3/51 recall fails**, so the unchanged outcome rule gives FAILED.
+G1/G2/G4 retain the original trial verdicts; no new model trial or raw-output
+merge audit is claimed. Replay documents/nodes/aliases/edges are
+5/63/7/49, 5/55/1/45, and 5/65/2/52. Every relation/polarity count is
+unchanged, including R2's distinct contradictory rows.
+
+### Verification and immutable originals
+
+The final requested seven-module pytest command returned **EXIT=0,
+131 passed**. The store-validation module adds **10 passed**. The unchanged
+baseline had 41 passing tests. Disabling the ambiguity check made its test
+fail; restoration was byte-identical and the test passed again. Both
+unresolved-persistence regressions failed before the allowlist fix and pass
+in the final suite. Worktree-local type checking is clean for the resolver,
+extractor, and tests. The validator retains three inherited `conn` mixin
+diagnostics, reproduced against the exact pre-change file.
+
+All **188 original files** remain SHA-identical, including WAL/SHM; no file
+was added or removed in the retained trial roots:
+
+| Original database | SHA-256 before = after |
+| --- | --- |
+| R1/kg.sqlite | 148a719dd2362756b4370097a5cae59c7e83bb387946d6535024e21a2c191696 |
+| R2/kg.sqlite | 21bad5769320f792b05f6cd5b72f6f6b5817d1328394b34f530c47f86e4a8ab8 |
+| R3/kg.sqlite | 1a5ce7a60458bfce7b7886ef194229ed4d3ebdc27c6fa27118d5c403bcc1137e |
+
+Gold SHA-256 remains
+`c899bc553773f2ee4986d0d808165c7791ad7e5cd9c8ba8ff7a9187458a55203`.
+Replay driver: `/private/tmp/t18-replay-1/replay.py`, SHA-256
+`5d29767d6784ef80c44d190c482607c3e3c1563671fa574897e252170031c83d`.
+Full numerical receipt: `/private/tmp/t18-replay-1/replay-v2-receipt.json`,
+SHA-256 `d74ceef5d32ef70131f7d8be89abba0fcf23162c543549c0f64d1917e7b6ca21`.
+The task artifact `.omo/evidence/task-18-ontologylab-completion.txt`
+records commands, adversarial checks, and the retained-temp inventory.
+No deletion, model call, source enrichment, gold/threshold/scorer change,
+population-qualifier change, or live-store/server access was performed.
+
+### Orchestrator-approved final verification and 36-miss accounting
+
+The orchestrator explicitly approved the store allowlist extension:
+`abbreviation_unresolved` is platform-owned normalization metadata, like
+`normalization` and `*_unattested_match_refused`. It belongs in the existing
+`_NORMALIZATION_PROPERTIES` allowlist, not in each installed ontology.
+
+After that approval, the exact seven-module verification command was run
+again with fresh basetemp `/private/tmp/t18-32687-19110`: **EXIT=0,
+131 passed in 1.90s**, including both absence/ambiguity persistence
+regressions. The exit code was captured from pytest, not from a pipe.
+The unchanged copied source stores were replayed again into fresh
+`replayed-approved.sqlite` projections under the same three copy roots;
+the replay command returned **EXIT=0**.
+
+**Recovery from the stored document text is 0/36 diagnosed abbreviation
+misses**, not an implementation failure. The subset is selected from
+todo 16's surface-mismatch rows with no exact match whose candidate edge
+has an abbreviated organism endpoint. Its normalized gold triples were
+checked against the fresh persisted replay's `missing_triples`.
+
+| Repeat | Gold indices in the 36-miss subset | Recovered |
+| --- | --- | ---: |
+| R1 | 21, 22, 24-28 | 0/7 |
+| R2 | 12, 21-34 | 0/15 |
+| R3 | 21-34 | 0/14 |
+
+These comprise 23 `P. annua`, 12 `B. cinerea`, and one `D. suzukii`
+relation miss. Concrete R2 stored-source examples are `P. annua` at
+characters [700,708), `B. cinerea` at [717,727), and `D. suzukii` at
+[214,224). Their respective documents contain zero occurrences of
+`Poa annua`, `Botrytis cinerea`, and `Drosophila suzukii`. The resolver
+therefore leaves those names unchanged and records `absent`. Where a full
+form does exist, the unique-form tests and cross-chunk `run_extraction`
+test prove expansion, alias recording, and store identity resolution.
+
+Fresh G3 is unchanged: matched gold **7/102**, accuracy **6/7=0.857143**
+(95% CI [0.5714,1]), combined negative recall **3/51=0.058824**
+([0,0.1176]), and flip rate **0/1=0** ([0,0]). All per-run metrics and CIs
+equal the preceding table. Combined recall still fails 0.70, so the outcome
+remains **FAILED** under the unchanged rule. All 188 original files again
+match their before hashes; no source text, gold, threshold, or model changed.
+
+Fresh receipts under `/private/tmp/t18-replay-1/`:
+
+| File | SHA-256 |
+| --- | --- |
+| replay-approved.py | 505790befeeac5e0e9d14194ee51e1648d190a824ed0ae593aa80a069d40dc60 |
+| replay-approved-receipt.json | ee856238f200898425e3e7c986b2fe2f6aac38db335212f97b8f291704ddd6c0 |
+| recovery-36-approved.json | c05256b08cb27deafb062fc138f705a3d5d61d4cf12b1751c5b2517b0edea3ff |
+
+The original implementation commit is
+`75ba2aceedf862a9fd13b9d928ce19027cee2978`. This final evidence update is a
+follow-up commit; the verified implementation history is not amended.

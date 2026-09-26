@@ -60,6 +60,7 @@ class ValidationMixin:
             "moa_scheme",
             "moa_code",
             "normalization",
+            "abbreviation_unresolved",
             "eppo_unattested_match_refused",
             "cas_unattested_match_refused",
             # Marks a parser-minted relation endpoint (never observed in the
