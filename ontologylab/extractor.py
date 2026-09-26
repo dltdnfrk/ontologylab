@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -32,6 +33,7 @@ from typing import Any
 from ontologylab.citation import persist_chunk_citations
 from ontologylab.citation_types import ChunkCitationBatch
 from ontologylab.engines import (
+    ApiEngine,
     CHUNK_MARKER_CLOSE,
     CHUNK_MARKER_OPEN,
     EngineError,
@@ -50,7 +52,7 @@ from ontologylab.unit_normalization import normalize_measurement
 from ontologylab.registry import CASRegistryCache, MoARegistryCache, RegistryCache
 from ontologylab.safety import Caps
 
-PROMPT_VERSION = "extract-v2"
+PROMPT_VERSION = "extract-v3"
 ENGINE_FAILURE_SUMMARY = "extraction engine failed"
 
 # Heuristic tokenizer: ~4 chars/token (no model-specific tokenizer dep).
@@ -160,6 +162,36 @@ Example (for a chunk describing a rate limiting component):
       "confidence": 0.8, "source_span": {"start": 128, "end": 260} }
   ]
 }
+```
+
+Example for agrochem-v2 (invented text illustrating polarity, not study evidence):
+Fluopyram had no significant effect on Botrytis. Boscalid suppressed Botrytis.
+```json
+{
+  "entities": [
+    { "name": "Fluopyram", "entity_type": "ActiveIngredient",
+      "aliases": [], "properties": {}, "confidence": 0.9,
+      "source_span": {"start": 0, "end": 9} },
+    { "name": "Botrytis", "entity_type": "Pathogen",
+      "aliases": [], "properties": {}, "confidence": 0.9,
+      "source_span": {"start": 39, "end": 47} },
+    { "name": "Boscalid", "entity_type": "ActiveIngredient",
+      "aliases": [], "properties": {}, "confidence": 0.9,
+      "source_span": {"start": 49, "end": 57} }
+  ],
+  "relations": [
+    { "relation_type": "controls",
+      "source": {"name": "Fluopyram", "entity_type": "ActiveIngredient"},
+      "target": {"name": "Botrytis", "entity_type": "Pathogen"},
+      "qualifiers": {"polarity": "no_effect"}, "confidence": 0.9,
+      "source_span": {"start": 0, "end": 48} },
+    { "relation_type": "controls",
+      "source": {"name": "Boscalid", "entity_type": "ActiveIngredient"},
+      "target": {"name": "Botrytis", "entity_type": "Pathogen"},
+      "qualifiers": {"polarity": "supports"}, "confidence": 0.9,
+      "source_span": {"start": 49, "end": 78} }
+  ]
+}
 ```"""
 
 
@@ -241,7 +273,7 @@ from the document chunk below, strictly following the ontology schema.
 {_schema_block(schema)}
 
 {_rejected_feedback_block(rejected)}Rules:
-1. Return EXACTLY ONE fenced ```json block and nothing else.
+1. Return EXACTLY ONE JSON object and nothing else; a single ```json fence is also accepted.
 2. The JSON shape is {{"entities": [...], "relations": [...]}}.
 3. Each entity: name, entity_type (one of the schema types), aliases (list),
    properties (only attribute keys declared for its type), confidence (0..1),
@@ -877,8 +909,8 @@ async def run_extraction(
       are thread-bound and the worker must open its own inside the thread.
 
     Budget checks run *before* each engine call, so a spent budget costs
-    nothing. An engine or parse failure on one chunk is logged and skipped:
-    one malformed response must not discard the document's other chunks.
+    nothing. A parse failure gets one counted retry; an engine failure or
+    a second parse failure is logged and skipped without discarding other chunks.
     """
     schema = store.get_schema()
     # Review→extract feedback: human rejections become negative examples in
@@ -935,68 +967,84 @@ async def run_extraction(
                 for chunk in chunks:
                     if chunk.index not in plan.retryable:
                         continue
-                    stop, reason = caps.should_stop(
-                        {
-                            "elapsed": provenance.elapsed_s,
-                            "engine_calls": provenance.engine_calls,
-                        }
-                    )
-                    if stop:
-                        stopped_reason = reason
-                        break
-                    if should_abort is not None:
-                        aborted = should_abort()
-                        if aborted:
-                            stopped_reason = aborted
-                            abort_triggered = True
-                            break
-                    if not lifecycle.claim(plan.run_id, chunk.index):
-                        continue
                     prompt = build_extraction_prompt(
                         schema, chunk.text, rejected=rejected_feedback
                     )
-                    try:
-                        raw_response, usage = await engine.generate(
-                            prompt, model=extractor_model
-                        )
-                    except EngineError as exc:
-                        provenance.log(
-                            "extract.engine_error",
+                    result = None
+                    error_kind = ""
+                    for attempt in range(2):
+                        stop, reason = caps.should_stop(
                             {
-                                "doc_id": doc_id,
-                                "chunk": chunk.index,
-                                "error": str(exc),
-                            },
+                                "elapsed": provenance.elapsed_s,
+                                "engine_calls": provenance.engine_calls,
+                            }
                         )
-                        on_progress(
-                            f"[ontologylab] engine error on "
-                            f"{doc_id}#{chunk.index}: {ENGINE_FAILURE_SUMMARY}"
-                        )
-                        lifecycle.failed(plan.run_id, chunk.index, "engine_error")
+                        if stop:
+                            stopped_reason = reason
+                            break
+                        if should_abort is not None:
+                            aborted = should_abort()
+                            if aborted:
+                                stopped_reason = aborted
+                                abort_triggered = True
+                                break
+                        if attempt == 0 and not lifecycle.claim(
+                            plan.run_id, chunk.index
+                        ):
+                            break
+                        usage = {"error": "engine_error"}
+                        started = time.monotonic()
+                        try:
+                            try:
+                                if isinstance(engine, ApiEngine):
+                                    raw_response, usage = await engine.generate(
+                                        prompt, model=extractor_model, expects_json=True
+                                    )
+                                else:
+                                    raw_response, usage = await engine.generate(
+                                        prompt, model=extractor_model
+                                    )
+                            finally:
+                                provenance.track_engine_call(
+                                    "extract", time.monotonic() - started, usage
+                                )
+                        except EngineError as exc:
+                            error_kind = "engine_error"
+                            provenance.log(
+                                "extract.engine_error",
+                                {
+                                    "doc_id": doc_id,
+                                    "chunk": chunk.index,
+                                    "error": str(exc),
+                                },
+                            )
+                            on_progress(
+                                f"[ontologylab] engine error on "
+                                f"{doc_id}#{chunk.index}: {ENGINE_FAILURE_SUMMARY}"
+                            )
+                            break
+                        try:
+                            result = parse_and_validate_extraction(
+                                raw_response, schema, chunk
+                            )
+                        except EngineError as exc:
+                            error_kind = "parse_rejected"
+                            provenance.log(
+                                "extract.parse_rejected",
+                                {
+                                    "doc_id": doc_id,
+                                    "chunk": chunk.index,
+                                    "error": str(exc),
+                                },
+                            )
+                            continue
+                        break
+                    if result is None and error_kind:
+                        lifecycle.failed(plan.run_id, chunk.index, error_kind)
                         chunk_failed = True
-                        continue
-                    provenance.track_engine_call(
-                        "extract", float(usage.get("elapsed") or 0.0), usage
-                    )
-                    try:
-                        result = parse_and_validate_extraction(
-                            raw_response, schema, chunk
-                        )
-                    except EngineError as exc:
-                        # malformed/off-schema response: rejected + logged, never
-                        # inserted, never a crash (M4 acceptance criterion)
-                        provenance.log(
-                            "extract.parse_rejected",
-                            {
-                                "doc_id": doc_id,
-                                "chunk": chunk.index,
-                                "error": str(exc),
-                            },
-                        )
-                        lifecycle.failed(
-                            plan.run_id, chunk.index, "parse_rejected"
-                        )
-                        chunk_failed = True
+                    if stopped_reason:
+                        break
+                    if result is None:
                         continue
                     for warning in result.warnings:
                         provenance.log(
