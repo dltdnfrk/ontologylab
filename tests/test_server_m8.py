@@ -130,10 +130,12 @@ def test_collect_file_then_documents_lists_it(tmp_path: Path) -> None:
     assert set(doc) == {
         "id", "source_kind", "source_uri", "title", "fetched_ts", "content_hash",
         "doi", "source", "evidence_grade", "content_kind", "extraction_status",
+        "extractable", "extract_blocked_reason",
     }
     # File ingest records a fulltext Observation; nothing has extracted it.
     assert doc["content_kind"] == "fulltext"
     assert doc["extraction_status"] == "none"
+    assert (doc["extractable"], doc["extract_blocked_reason"]) == (True, None)
 
 
 def test_collect_duplicate_file_counts_duplicates(tmp_path: Path) -> None:

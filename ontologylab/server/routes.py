@@ -91,8 +91,13 @@ from ontologylab.paths import (
     NetworkBlocked,
     kg_db_path,
 )
-from ontologylab.selection_policy import usable_full_text_rank
-from ontologylab.selection_types import ContentKind
+from ontologylab.extraction_eligibility import (
+    UNKNOWN_DOCUMENT,
+    best_content_kinds,
+    extraction_eligibilities,
+    refusal_message,
+    refused_extractions,
+)
 from ontologylab.proposals import (
     OntologyProposalError,
     build_ontology_proposals,
@@ -2145,41 +2150,6 @@ def get_work(deps: AppDependency, work_id: str) -> dict[str, Any]:
         store.close()
 
 
-# A content kind the selection policy does not know sorts after every kind
-# it does, and its raw value is kept. Collapsing it to `metadata_only` (what
-# `selection_policy.parse_kind` does for ranking) would make an Observation
-# the store really holds look like a document nobody fetched.
-_UNKNOWN_CONTENT_KIND_RANK = len(ContentKind)
-
-
-def _content_kind_rank(raw: str) -> int:
-    try:
-        return usable_full_text_rank(ContentKind(raw))
-    except ValueError:
-        return _UNKNOWN_CONTENT_KIND_RANK
-
-
-def _document_content_kinds(conn: sqlite3.Connection) -> dict[str, str]:
-    """Best `document_observations.content_kind` per document.
-
-    Best is the lowest `usable_full_text_rank`; among equal ranks the newest
-    Observation wins, so two reads of the same store give the same answer.
-    A document with no Observation is absent here and reads `metadata_only`.
-    """
-    best: dict[str, tuple[int, str]] = {}
-    for row in conn.execute(
-        "SELECT representation_id, content_kind FROM document_observations "
-        "WHERE representation_id IS NOT NULL "
-        "ORDER BY created_ts DESC, id DESC"
-    ):
-        kind = str(row["content_kind"])
-        rank = _content_kind_rank(kind)
-        current = best.get(row["representation_id"])
-        if current is None or rank < current[0]:
-            best[row["representation_id"]] = (rank, kind)
-    return {doc_id: kind for doc_id, (_rank, kind) in best.items()}
-
-
 def _document_extraction_statuses(
     conn: sqlite3.Connection, schema_version_id: int
 ) -> dict[str, str]:
@@ -2205,10 +2175,17 @@ def _document_extraction_statuses(
 def get_documents(deps: AppDependency) -> dict[str, Any]:
     store = _open_store(deps)
     try:
-        content_kinds = _document_content_kinds(store.conn)
+        rows = store.list_documents()
+        content_kinds = best_content_kinds(store.conn)
         extraction_statuses = _document_extraction_statuses(
             store.conn, int(store.active_schema_version()["id"])
         )
+        eligibility = {
+            verdict.document_id: verdict
+            for verdict in extraction_eligibilities(
+                store.conn, [doc.id for doc in rows]
+            )
+        }
         documents = [
             {
                 "id": doc.id,
@@ -2223,11 +2200,15 @@ def get_documents(deps: AppDependency) -> dict[str, Any]:
                 # record this is, never what text of it the store holds.
                 "evidence_grade": doc.evidence_grade,
                 # What text the store holds (fulltext/abstract/excerpt/
-                # metadata_only). Extraction eligibility keys on this alone.
+                # metadata_only); an upload without an Observation reads
+                # metadata_only here yet is extractable below.
                 "content_kind": content_kinds.get(doc.id, "metadata_only"),
                 "extraction_status": extraction_statuses.get(doc.id, "none"),
+                # The same verdict /api/extract and the CLI enforce.
+                "extractable": eligibility[doc.id].eligible,
+                "extract_blocked_reason": eligibility[doc.id].reason or None,
             }
-            for doc in store.list_documents()
+            for doc in rows
         ]
     finally:
         store.close()
@@ -2471,6 +2452,40 @@ def collect_sample(deps: AppDependency) -> dict[str, Any]:
 
 @router.post("/extract", status_code=202)
 def start_extract(deps: AppDependency, body: ExtractRequest) -> dict[str, Any]:
+    """Start an extraction job over explicit documents, or over all of them.
+
+    Named documents are judged here, before a job exists: an abstract-only
+    paper is refused with a typed 422 naming each refused id and its held
+    kind, and an id the store does not have is a 404. The gate reviewer for
+    todo 5 reached `complete` through this route with an abstract-only
+    document; a 202 must never again mean "accepted, will refuse later".
+    The unnamed "every document" path is filtered at the shared
+    `run_extract_job` seam instead, where skipping is reported per run.
+    """
+    if body.doc_ids:
+        store = _open_store(deps)
+        try:
+            refused = refused_extractions(store.conn, body.doc_ids)
+        finally:
+            store.close()
+        if refused:
+            unknown = any(v.code == UNKNOWN_DOCUMENT for v in refused)
+            raise HTTPException(
+                status_code=404 if unknown else 422,
+                detail={
+                    "ok": False,
+                    "error_kind": "unknown_document" if unknown else "not_extractable",
+                    "detail": refusal_message(refused),
+                    "refused": [
+                        {
+                            "doc_id": v.document_id,
+                            "content_kind": v.content_kind,
+                            "reason": v.reason,
+                        }
+                        for v in refused
+                    ],
+                },
+            )
     job = deps.jobs.create(
         engine=body.engine,
         model=body.model,

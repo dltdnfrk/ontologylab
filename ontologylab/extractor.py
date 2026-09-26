@@ -37,6 +37,11 @@ from ontologylab.engines import (
     EngineError,
     extract_fenced_block,
 )
+from ontologylab.extraction_eligibility import (
+    NOT_FULL_TEXT,
+    extraction_eligibilities,
+    refusal_message,
+)
 from ontologylab.extraction_state import ExtractionState, effective_extractor_model
 from ontologylab.kgstore import normalize_name
 from ontologylab.models import ProposedEntity, ProposedRelation, SourceSpan
@@ -798,6 +803,27 @@ async def run_extract_job(
     )
     effective_model = effective_extractor_model(engine, model)
     ids = list(doc_ids or ()) or extraction_doc_ids(store)
+    # The direct entries refuse named abstract-only documents before a job
+    # exists; this is the seam both of them and the unnamed "every document"
+    # expansion pass through, so nothing without full text reaches the
+    # engine from here either. Unknown ids stay in the list and fail loudly
+    # in run_extraction as they always did.
+    skipped = [
+        verdict
+        for verdict in extraction_eligibilities(store.conn, ids)
+        if verdict.code == NOT_FULL_TEXT
+    ]
+    if skipped:
+        blocked = {verdict.document_id for verdict in skipped}
+        ids = [doc_id for doc_id in ids if doc_id not in blocked]
+        on_progress(f"[ontologylab] skipped: {refusal_message(skipped)}")
+        provenance.log(
+            "extract.skipped",
+            {
+                "doc_ids": sorted(blocked),
+                "reason": NOT_FULL_TEXT,
+            },
+        )
     if not ids:
         return ExtractionOutcome("")
     provenance.log(

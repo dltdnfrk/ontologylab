@@ -66,10 +66,15 @@ type DocumentRow = {
       what kind of record this is. It says nothing about what text we hold. */
   evidence_grade: string | null;
   /** What text the store holds: fulltext/abstract/excerpt/metadata_only.
-      The only field extraction eligibility may read. */
+      Display only — an upload without an Observation reads metadata_only
+      here and is still extractable. */
   content_kind: string | null;
   /** Latest extraction run under the active ontology, or `none`. */
   extraction_status: string | null;
+  /** The server's verdict, the same one /api/extract enforces with a 422.
+      This is the only field the 추출 action keys on. */
+  extractable: boolean | null;
+  extract_blocked_reason: string | null;
 };
 
 type DocumentsResponse = { documents: DocumentRow[]; count: number };
@@ -230,13 +235,19 @@ const EXTRACT_BLOCKED_NOT_FULLTEXT =
 const EXTRACT_BLOCKED_NO_SETTINGS =
   "설정(기본 엔진·모델)을 불러오지 못해 추출을 시작할 수 없습니다.";
 
-/** Eligibility keys on `content_kind` alone. `evidence_grade` is publication
-    type, not held text, so it must never decide this. */
+/** The server decides (`extractable`); the row only repeats its reason. A
+    missing verdict fails closed. Neither `content_kind` nor `evidence_grade`
+    is consulted here: an upload without an Observation is extractable
+    though its kind reads metadata_only, and a peer-reviewed abstract is not. */
 function extractBlockedReason(
   row: DocumentRow,
   defaults: ExtractDefaults | null,
 ): string | null {
-  if (row.content_kind !== "fulltext") return EXTRACT_BLOCKED_NOT_FULLTEXT;
+  if (row.extractable !== true) {
+    return row.extract_blocked_reason
+      ? `${EXTRACT_BLOCKED_NOT_FULLTEXT} (${row.extract_blocked_reason})`
+      : EXTRACT_BLOCKED_NOT_FULLTEXT;
+  }
   if (!defaults?.default_engine) return EXTRACT_BLOCKED_NO_SETTINGS;
   return null;
 }

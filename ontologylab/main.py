@@ -37,6 +37,7 @@ from ontologylab.connectors.paper_api import (
 )
 from ontologylab.engines import EngineError, engine_name_arg, resolve_engine
 from ontologylab.expansion import expand_query
+from ontologylab.extraction_eligibility import refusal_message, refused_extractions
 from ontologylab.extraction_state import recover_running_once
 from ontologylab.extractor import (
     TOTALS_KEYS,
@@ -552,6 +553,13 @@ def cmd_collect(args: argparse.Namespace) -> int:
 
 async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
     data_dir = Path(args.data_dir)
+    # Named documents are judged before a job directory or run row exists:
+    # the same verdict /api/extract returns as 4xx, printed once, exit 1.
+    if args.doc_ids:
+        refused = refused_extractions(store.conn, args.doc_ids)
+        if refused:
+            print(f"[ontologylab] {refusal_message(refused)}", file=sys.stderr)
+            return 1
     job_dir = paths.new_job_dir(data_dir, "extract")
     kill_switch = KillSwitch(str(job_dir))
     kill_switch.install()
