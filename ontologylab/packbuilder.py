@@ -456,6 +456,7 @@ def _build_pack_unlocked(
                 snapshot_conn,
                 evidence_mode=v2_mode,
                 source_root=kg_db_path.parent,
+                schema_version_ids=selected,
             )
         elif completeness["status"] == "incomplete" and not override_used:
             raise IncompleteExtractionError(completeness)
@@ -644,7 +645,7 @@ def _build_pack_unlocked(
         if v2_closure is not None:
             from ontologylab.pack_v2_closure import copy_v2_tables
 
-            copy_v2_tables(conn, v2_closure)
+            copy_v2_tables(conn, v2_closure, schema_version_ids=selected)
         conn.commit()
         conn.execute("DETACH DATABASE live")
 
