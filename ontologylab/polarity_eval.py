@@ -12,6 +12,11 @@ polarities on one triple each enter the matrix once: never pick whichever
 label agrees with gold. Accuracy uses all those predictions; recall counts
 each gold relation once. Flip rate uses matched gold no_effect relations.
 
+Entity keys use normalize_name and recorded node_aliases, with the store's
+canonical-name precedence and same-schema/type alias ambiguity rule. Alias
+spellings do not create extra predictions. No unrecorded abbreviation or
+semantic equivalence is inferred; relation type and direction stay exact.
+
 Rate CIs are seeded case-bootstrap percentiles conditional on each metric's
 denominator. Like evaluation.bootstrap_f1_interval, they assume independent
 outcomes, not papers; correlated claims can make intervals too narrow.
@@ -203,14 +208,45 @@ def _rate(outcomes: list[bool]) -> dict[str, Any]:
     }
 
 
+def _node_match_keys(store_conn: sqlite3.Connection) -> dict[str, set[str]]:
+    """Read the exact keys accepted by _resolve_node, without merge-queue writes."""
+    keys = {
+        node_id: {name}
+        for node_id, name in store_conn.execute(
+            "SELECT id, normalized_name FROM nodes WHERE status IN ('proposed','verified')"
+        )
+    }
+    for node_id, alias in store_conn.execute(
+        """SELECT a.node_id, a.normalized_alias
+           FROM node_aliases a JOIN nodes n ON n.id = a.node_id
+           WHERE n.status IN ('proposed','verified')
+             AND NOT EXISTS (
+               SELECT 1 FROM nodes direct
+               WHERE direct.schema_version_id = n.schema_version_id
+                 AND direct.entity_type = n.entity_type
+                 AND direct.status IN ('proposed','verified')
+                 AND direct.normalized_name = a.normalized_alias)
+             AND NOT EXISTS (
+               SELECT 1 FROM node_aliases other JOIN nodes holder ON holder.id = other.node_id
+               WHERE other.normalized_alias = a.normalized_alias
+                 AND holder.id != n.id
+                 AND holder.schema_version_id = n.schema_version_id
+                 AND holder.entity_type = n.entity_type
+                 AND holder.status IN ('proposed','verified'))"""
+    ):
+        keys[node_id].add(alias)
+    return keys
+
+
 def score_polarity(store_conn: sqlite3.Connection, gold_path: str | Path) -> dict[str, Any]:
     """Score a v2 trial store without writes or changes to connection state."""
     gold = load_polarity_gold(gold_path)
+    node_keys = _node_match_keys(store_conn)
     predictions: dict[Triple, set[str]] = defaultdict(set)
     # Positional access supports both sqlite3.Row and a default connection.
-    for src, relation, dst, qualifiers in store_conn.execute(
+    for src, relation, dst, qualifiers, src_id, dst_id in store_conn.execute(
         """SELECT s.normalized_name, e.relation_type, d.normalized_name,
-                  e.qualifiers_json
+                  e.qualifiers_json, s.id, d.id
            FROM edges e
            JOIN nodes s ON s.id = e.src_node_id
            JOIN nodes d ON d.id = e.dst_node_id
@@ -225,7 +261,17 @@ def score_polarity(store_conn: sqlite3.Connection, gold_path: str | Path) -> dic
                      and polarity in (*POLARITIES, ""), "invalid predicted polarity")
         except (TypeError, ValueError) as exc:
             raise GoldError(f"malformed edge qualifiers: {exc}") from exc
-        predictions[(src, relation, dst)].add(polarity or "omitted")
+        matches = [
+            triple for triple, _ in gold.relations
+            if triple[1] == relation
+            and triple[0] in node_keys.get(src_id, set())
+            and triple[2] in node_keys.get(dst_id, set())
+        ]
+        _require(len(matches) <= 1,
+                 "multiple gold triples resolve to the same extracted identity")
+        # Re-key, rather than expand aliases into extra observed four-tuples.
+        triple = matches[0] if matches else (src, relation, dst)
+        predictions[triple].add(polarity or "omitted")
     matrix = {p: dict.fromkeys(LABELS, 0) for p in LABELS}
     recall: dict[str, list[bool]] = {p: [] for p in POLARITIES}
     accuracy: list[bool] = []

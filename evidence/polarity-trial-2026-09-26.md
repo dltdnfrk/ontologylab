@@ -163,3 +163,134 @@ Sent SIGTERM only to the ownership-checked server PIDs **55809, 55818, 55824**. 
 No cleanup deletion was issued. Retained temp roots: R1, R2, R3 as listed above; the test scratch subtree `/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer`, its XML receipt, the two drivers, stores, raw source copies, and job receipts remain. A worktree-local ignored `.venv` was provisioned and retained. Before saving the final numerical receipt, all **132 existing files** under the three trial roots were scanned for the exact environment credential: **0 matches**. Captured provider/server/scorer text was scrubbed before delivery or saving; evidence and numerical receipt were separately checked before writing. Only the environment variable name appears in artifacts.
 
 Residual limitations: G3 is unmet; whole-paper coverage is not established by body excerpts; fixture labels lack independent expert adjudication; exact-name/relation scoring confounds polarity with identity alignment; outcome-level bootstrap does not model clustered claims. G4's observation is limited to persisted contradictory rows and the tested polarity-aware insertion contract. None of these limitations was hidden by lowering a threshold or rerunning the trial.
+
+## Todo 16 addendum: exact store-identity re-score
+
+**Outcome remains FAILED (G3); IS-1 remains NOT MET.** The original zero
+was partly a scorer defect: both evaluators already use `normalize_name`,
+but `polarity_eval` ignored `node_aliases`. The store resolves a canonical
+name first, then a unique recorded alias within the same schema and entity
+type. The corrected polarity scorer follows that rule without calling the
+store resolver's merge-queue write path. Ambiguous aliases do not match;
+alias spellings do not create extra predictions or hide conflicting polarity.
+Two gold triples resolving to one extracted identity are refused rather than
+awarded duplicate credit.
+
+Only recorded aliases were added to matching. The gold file, its labels,
+source bytes, thresholds, and bootstrap implementation are unchanged. No
+gold-declared aliases were added: an unrecorded abbreviation or a loss of
+population, combination, or oviposition scope is not silently made equivalent.
+No model, provider, ingestion, extraction, or server was run for this addendum.
+
+### All 102 original misses
+
+The [per-instance table](polarity-trial-2026-09-26-misses.md) contains all
+34 gold relations in each of R1/R2/R3. It records exact-identity neighbors,
+source-linked diagnostic candidates, and whether the corrected scorer
+actually credits a match. The [machine receipt](polarity-trial-2026-09-26-rescore.json)
+contains full edge IDs, SQL results, per-run scores/CIs, and file hashes.
+Diagnostic examples are not semantic matching rules.
+
+| Original primary miss | R1 | R2 | R3 | Total |
+| --- | ---: | ---: | ---: | ---: |
+| Entity surface mismatch | 23 | 24 | 22 | 69 |
+| Relation-type mismatch | 7 | 7 | 7 | 21 |
+| Direction mismatch | 0 | 0 | 0 | 0 |
+| Truly absent | 4 | 3 | 5 | 12 |
+| Total | 34 | 34 | 34 | 102 |
+
+The categories use the table's explicit precedence and retain secondary
+causes. All 21 relation-type cases also lose endpoint detail. Of 69 surface
+cases, 17 drop the R-population scope; surface difference alone is not proof
+of equivalence. Case/punctuation normalization was already correct.
+
+Seven original misses are recovered, all in R1: PB / controls / Drosophila
+suzukii, and the six Botrytis cinerea / resistant_to gold relations.
+R1 recorded the two full species names as aliases; R2/R3 did not.
+The remaining **95 misses** comprise **62 surface, 21 relation-type,
+0 direction, and 12 absent**. Six of the seven matched predictions have the
+gold polarity; iprodione is predicted supports against gold refutes and
+remains an error. No label was chosen to make that prediction correct.
+
+### Corrected G3 under the unchanged thresholds
+
+| Metric | R1 | R2 | R3 | Pooled | Pooled bootstrap 95% CI |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Matched gold relations | 7/34 | 0/34 | 0/34 | 7/102 | Not a gate |
+| Polarity accuracy | 6/7 | 0/0 | 0/0 | 0.857143 | [0.5714, 1.0000] |
+| no_effect recall | 1/12 | 0/12 | 0/12 | 1/36 = 0.027778 | [0.0000, 0.0833] |
+| refutes recall | 2/5 | 0/5 | 0/5 | 2/15 = 0.133333 | [0.0000, 0.3333] |
+| Combined no_effect+refutes recall | 3/17 | 0/17 | 0/17 | 3/51 = 0.058824 | [0.0000, 0.1176] |
+| Supports-when-gold-no_effect flip rate | 0/1 | 0/0 | 0/0 | 0.000000 | [0.0000, 0.0000] |
+
+Zero-denominator per-run accuracy and flip rates remain undefined, not zero
+or perfect. Pooling concatenates binary outcomes from the three persisted
+stores; the unchanged 2,000-resample, seed-7 case bootstrap produces the CIs.
+Claims within a paper and repeat are correlated; these are not clustered
+or population-level intervals. In particular, a zero flip estimate from one
+matched no_effect relation is weak evidence, not proof of future safety.
+
+| Gold class | Gold instances | Matched | Correct polarity | Missing |
+| --- | ---: | ---: | ---: | ---: |
+| supports | 51 | 3 | 3 | 48 |
+| no_effect | 36 | 1 | 1 | 35 |
+| refutes | 15 | 3 | 2 | 12 |
+
+The pooled confusion matrix has supports->supports=3,
+no_effect->no_effect=1, refutes->refutes=2, refutes->supports=1;
+all other cells are zero. Found four-tuples stay 49/45/52; spurious tuples
+become 43/45/52. Four-tuple F1 is 0.144578/0/0 (per-run CIs in the receipt).
+
+G3 requires accuracy >=0.80 **AND** combined recall >=0.70 **AND** flip
+rate <=0.15. Accuracy and flip clear their point-estimate thresholds, but
+**3/51 recall fails 0.70**. G1=15/15, G2=123/123, and G4=0 observed
+cross-polarity collapses retain todo 12's PASS findings; this re-score does
+not claim a new trial or a new G4 raw-output audit. Because G1 ran and G3
+fails, the binding outcome is **FAILED**, never VERIFIED or BLOCKED.
+
+### Read-only and misleading-output checks
+
+Connections used SQLite URI `mode=ro&immutable=1`, after confirming all
+three WALs were empty. This also avoids shared-memory lock writes.
+All three `PRAGMA integrity_check` results were `ok`.
+
+```sql
+SELECT count(*) FROM documents;
+SELECT count(*) FROM nodes;
+SELECT count(*) FROM node_aliases;
+SELECT relation_type, json_extract(qualifiers_json, '$.polarity'), count(*)
+FROM edges
+WHERE status IN ('proposed', 'verified') AND invalidated_ts IS NULL
+GROUP BY relation_type, json_extract(qualifiers_json, '$.polarity');
+```
+
+| Persisted SQL count | R1 | R2 | R3 |
+| --- | ---: | ---: | ---: |
+| Documents | 5 | 5 | 5 |
+| Nodes | 63 | 55 | 65 |
+| Recorded aliases | 7 | 1 | 2 |
+| Current edges | 49 | 45 | 52 |
+| Polarity-bearing claim edges | 41 | 41 | 41 |
+| Extraction runs / chunks | 5/5 | 5/5 | 5/5 |
+
+Independent parameterized SQL entity resolution reproduced corrected matches
+7/0/0; canonical-only SQL reproduced the original 0/0/0. These observations
+come from stored rows, not console success messages. Persisted run IDs and
+document hashes in the receipt agree with todo 12's stores and frozen corpus.
+
+| Database | SHA-256 before = after |
+| --- | --- |
+| R1/kg.sqlite | 148a719dd2362756b4370097a5cae59c7e83bb387946d6535024e21a2c191696 |
+| R2/kg.sqlite | 21bad5769320f792b05f6cd5b72f6f6b5817d1328394b34f530c47f86e4a8ab8 |
+| R3/kg.sqlite | 1a5ce7a60458bfce7b7886ef194229ed4d3ebdc27c6fa27118d5c403bcc1137e |
+
+These equal todo 12's post-shutdown hashes. WAL and SHM hashes also match
+before/after. All 188 enumerated retained regular-file paths were unchanged;
+no file was added or removed in the trial roots. Gold SHA-256 remains
+`c899bc553773f2ee4986d0d808165c7791ad7e5cd9c8ba8ff7a9187458a55203`.
+
+The requested `uv run --all-extras pytest --basetemp=/private/tmp/t16-$RANDOM-$RANDOM tests/test_polarity_eval.py > /private/tmp/t16.log 2>&1; echo EXIT=$?`
+returned **EXIT=0, 38 passed**. Before repair, the new regressions exposed
+6 failures. A deliberate prefix-matching mutation credited the wrong alias
+Treatment 50 as Treatment 5: **2 failures**, including the wrong-alias case;
+exact matching was restored before the final passing run.
