@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from ontologylab import packbuilder
+from ontologylab.engines import MockEngine
+from ontologylab.extraction_state import effective_extractor_model
+from ontologylab.extractor import run_extraction
 from ontologylab.kgstore import KGStore
 from ontologylab.models import ProposedEntity
 from ontologylab.packbuilder import (
@@ -16,6 +21,8 @@ from ontologylab.packbuilder import (
     PackBuildError,
     build_pack,
 )
+from ontologylab.provenance import Provenance
+from ontologylab.safety import Caps
 
 
 def _verified_fact(
@@ -79,6 +86,54 @@ def _run(
     store.conn.commit()
 
 
+def test_mock_extraction_builds_pack_without_override(tmp_path: Path) -> None:
+    store = KGStore.open(tmp_path / "kg.sqlite")
+    doc, _ = store.insert_document(
+        source_kind="upload",
+        source_uri="file:///mock-extraction.txt",
+        title="mock-extraction",
+        raw_text="The PaymentGateway uses the DatabaseService.",
+        content_hash="sha256:mock-extraction",
+    )
+    engine = MockEngine()
+    model = effective_extractor_model(engine, None)
+    assert model == "mock"
+    try:
+        outcome = asyncio.run(run_extraction(
+            store, engine, Provenance(str(tmp_path / "job"), seed=0),
+            Caps(SimpleNamespace(iterations=0, time_budget_s=0.0, max_engine_calls=0)),
+            [doc.id], extractor_engine=engine.name(), extractor_model=model,
+            on_progress=lambda _message: None, on_stats=lambda _stats: None,
+        ))
+        assert outcome == ""
+        node_row = store.conn.execute(
+            "SELECT id FROM nodes WHERE source_doc_id = ? AND status = 'proposed' "
+            "ORDER BY id LIMIT 1", (doc.id,),
+        ).fetchone()
+        assert node_row is not None
+        store.approve(node_row[0])
+        recorded = store.conn.execute(
+            "SELECT DISTINCT extractor_model FROM extraction_runs WHERE document_id = ?",
+            (doc.id,),
+        ).fetchall()
+        assert [row[0] for row in recorded] == ["mock"]
+        node_model = store.conn.execute(
+            "SELECT extractor_model FROM nodes WHERE id = ?", (node_row[0],),
+        ).fetchone()
+        assert node_model is not None
+        assert node_model[0] == "mock"
+    finally:
+        store.close()
+
+    manifest = build_pack(tmp_path / "kg.sqlite", tmp_path / "packs", "mock-complete")
+
+    summary = manifest.extraction_completeness
+    assert summary is not None
+    assert summary["status"] == "complete"
+    assert summary["unknown_streams"] == []
+    assert summary["incomplete_streams"] == []
+
+
 @pytest.mark.parametrize(
     ("run_status", "chunk_status"),
     [
@@ -118,6 +173,51 @@ def test_pack_refuses_unknown_completeness_for_a_relevant_stream(tmp_path: Path)
 
     assert exc_info.value.summary["unknown_streams"][0]["document_id"] == doc_id
     assert "unknown=1" in str(exc_info.value)
+    assert doc_id in str(exc_info.value)
+    assert "no extraction run on record" in str(exc_info.value)
+    assert "re-extract these documents" in str(exc_info.value).lower()
+
+
+def test_failed_run_refusal_names_its_document(tmp_path: Path) -> None:
+    store = KGStore.open(tmp_path / "kg.sqlite")
+    doc_id = _verified_fact(store, suffix="failed-model", model="mock")
+    _run(store, doc_id, "failed", "failed", model="mock")
+    store.close()
+
+    with pytest.raises(IncompleteExtractionError) as exc_info:
+        build_pack(tmp_path / "kg.sqlite", tmp_path / "packs", "failed")
+
+    assert exc_info.value.summary["unknown_streams"] == []
+    assert exc_info.value.summary["incomplete_streams"][0]["document_id"] == doc_id
+    assert doc_id in str(exc_info.value)
+    assert "run failed or interrupted" in str(exc_info.value)
+    assert "operator intent" in str(exc_info.value)
+
+
+def test_refusal_deduplicates_and_caps_document_ids() -> None:
+    summary = {
+        "unknown_streams": [
+            {"document_id": "doc-00"}, {"document_id": "doc-00"},
+            *({"document_id": f"doc-{i:02}"} for i in range(1, 11)),
+        ],
+        "incomplete_streams": [
+            {"document_id": "doc-00"}, {"document_id": "doc-11"},
+        ],
+        "run_status_counts": {"failed": 2},
+        "chunk_status_counts": {"failed": 2},
+    }
+
+    error = IncompleteExtractionError(summary)
+    message = str(error)
+
+    assert error.summary is summary
+    assert error.code == "incomplete_extraction"
+    assert message.count("doc-00") == 1
+    assert "doc-00 (no extraction run on record; run failed or interrupted" in message
+    assert "doc-09" in message
+    assert "doc-10" not in message
+    assert "doc-11" not in message
+    assert "+2 more" in message
 
 
 def test_complete_unrelated_stream_cannot_launder_shipped_stream(tmp_path: Path) -> None:

@@ -64,6 +64,22 @@ class IncompleteExtractionError(PackBuildError):
 
     def __init__(self, summary: dict[str, Any]) -> None:
         self.summary = summary
+        unknown_ids = {row["document_id"] for row in summary["unknown_streams"]}
+        incomplete_ids = {
+            row["document_id"] for row in summary["incomplete_streams"]
+        }
+        blocking_ids = sorted(unknown_ids | incomplete_ids)
+        labeled_documents = []
+        for doc_id in blocking_ids[:10]:
+            reasons = []
+            if doc_id in unknown_ids:
+                reasons.append("no extraction run on record")
+            if doc_id in incomplete_ids:
+                reasons.append("run failed or interrupted, or not complete")
+            labeled_documents.append(f"{doc_id} ({'; '.join(reasons)})")
+        documents = ", ".join(labeled_documents)
+        if len(blocking_ids) > 10:
+            documents += f", +{len(blocking_ids) - 10} more"
         runs = ", ".join(
             f"{status}={count}"
             for status, count in summary["run_status_counts"].items()
@@ -75,8 +91,9 @@ class IncompleteExtractionError(PackBuildError):
         super().__init__(
             "pack build refused: extraction incomplete for shipped fact streams "
             f"(unknown={len(summary['unknown_streams'])}; runs: {runs}; "
-            f"chunks: {chunks}). Use an explicit incomplete-extraction override "
-            "with operator intent to proceed."
+            f"chunks: {chunks}). Blocking documents: {documents}. "
+            "Re-extract these documents, or build with the "
+            "incomplete-extraction override and operator intent."
         )
 
 
