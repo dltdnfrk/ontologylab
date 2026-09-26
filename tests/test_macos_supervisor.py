@@ -283,7 +283,7 @@ def test_real_supervisor_backend_handshake_serves_validated_port(
         # Then exact readiness was validated before the actual bound port serves root.
         assert opened[:2] == ["-b", "at.studio.AsideBrowser"]
         assert response.status == 200
-        assert b"ontologylab" in body
+        assert b"OntologyLab" in body
         stop(process)
     assert process.returncode == 0
 
