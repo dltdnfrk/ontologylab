@@ -34,7 +34,7 @@
       },
       "relation": "controls",
       "retrieved_at": "<ts>",
-      "schema_version_id": 2,
+      "schema_version_id": "<schema_version_id>",
       "source_span": {
         "end": 18,
         "start": 0
@@ -85,7 +85,7 @@
       },
       "relation": "controls",
       "retrieved_at": "<ts>",
-      "schema_version_id": 2,
+      "schema_version_id": "<schema_version_id>",
       "source_span": {
         "end": 44,
         "start": 20
@@ -132,7 +132,7 @@
       },
       "relation": "controls",
       "retrieved_at": "<ts>",
-      "schema_version_id": 2,
+      "schema_version_id": "<schema_version_id>",
       "source_span": {
         "end": 12,
         "start": 4
@@ -152,11 +152,11 @@
   ],
   "count": 3,
   "pack": {
-    "content_hash": "<hash>",
-    "evidence_mode": null,
-    "integrity_level": "legacy-graph-only",
+    "content_hash": "<content_hash>",
+    "evidence_mode": "<evidence_mode>",
+    "integrity_level": "<integrity_level>",
     "pack_id": "<pack_id>",
-    "pack_schema_version": 1
+    "pack_schema_version": "<pack_schema_version>"
   },
   "polarity_counts": {
     "no_effect": 1,

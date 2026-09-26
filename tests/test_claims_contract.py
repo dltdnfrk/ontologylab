@@ -57,6 +57,7 @@ _TS = "<ts>"
 _DOC_ID = "<source_doc_id>"
 _NODE_ID = "<node_id>"
 _EDGE_ID = "<edge_id>"
+_SCHEMA_ID = "<schema_version_id>"
 
 
 def _entity(
@@ -94,17 +95,18 @@ def _paper(store: KGStore, tag: str):
     return doc
 
 
-def contract_response(tmp_path: Path) -> dict[str, Any]:
+def contract_response(tmp_path: Path, *, prior_installs: int = 0) -> dict[str, Any]:
     kg = tmp_path / "kg.sqlite"
     store = KGStore.open(kg)
     try:
         schema = preset("agrochem-v2")
-        store.install_schema(
-            label=schema["label"],
-            description=schema["description"],
-            entity_types=schema["entity_types"],
-            relation_types=schema["relation_types"],
-        )
+        for _ in range(prior_installs + 1):
+            store.install_schema(
+                label=schema["label"],
+                description=schema["description"],
+                entity_types=schema["entity_types"],
+                relation_types=schema["relation_types"],
+            )
         papers = {tag: _paper(store, tag) for tag in ("a", "b", "c")}
         fluo = ("fluo", "ActiveIngredient", "Fluopyram")
         botrytis = ("botr", "Pathogen", "Botrytis cinerea")
@@ -166,7 +168,11 @@ def contract_response(tmp_path: Path) -> dict[str, Any]:
 
 
 def normalize_contract(payload: dict[str, Any]) -> dict[str, Any]:
-    return _normalize(json.loads(json.dumps(payload)))
+    normalized = _normalize(payload)
+    pack = normalized.get("pack")
+    if isinstance(pack, dict):
+        normalized["pack"] = {key: f"<{key}>" for key in pack}
+    return normalized
 
 
 def _normalize(value: Any) -> Any:
@@ -189,6 +195,8 @@ def _normalize(value: Any) -> Any:
                 normalized[key] = _NODE_ID
             elif key == "source_doc_id" and isinstance(item, str):
                 normalized[key] = _DOC_ID
+            elif key == "schema_version_id":
+                normalized[key] = _SCHEMA_ID
             else:
                 normalized[key] = _normalize(item)
         return normalized
@@ -197,11 +205,37 @@ def _normalize(value: Any) -> Any:
     return value
 
 
-def test_claims_for_matches_the_section6_contract(tmp_path: Path) -> None:
-    result = contract_response(tmp_path)
+def _assert_claim_keys(result: dict[str, Any]) -> None:
     assert result["claims"], "claims_for returned no claims to pin"
     expected_keys = SECTION_6_KEYS | CURRENT_KEYS
+    schema_ids = {claim["schema_version_id"] for claim in result["claims"]}
+    assert len(schema_ids) == 1
+    schema_id = next(iter(schema_ids))
+    assert isinstance(schema_id, int) and not isinstance(schema_id, bool)
     for claim in result["claims"]:
         assert set(claim) == expected_keys, sorted(set(claim) ^ expected_keys)
+
+
+def test_claims_for_matches_the_section6_contract(tmp_path: Path) -> None:
+    result = contract_response(tmp_path)
+    _assert_claim_keys(result)
     golden = json.loads(_GOLDEN.read_text(encoding="utf-8"))
     assert normalize_contract(result) == golden
+
+
+def test_contract_ignores_schema_allocation_and_pack_envelope(tmp_path: Path) -> None:
+    baseline = contract_response(tmp_path / "baseline")
+    shifted = contract_response(tmp_path / "shifted", prior_installs=1)
+    _assert_claim_keys(baseline)
+    _assert_claim_keys(shifted)
+    baseline_ids = {claim["schema_version_id"] for claim in baseline["claims"]}
+    shifted_ids = {claim["schema_version_id"] for claim in shifted["claims"]}
+    assert baseline_ids.isdisjoint(shifted_ids)
+    before = shifted["pack"]["integrity_level"]
+    shifted["pack"]["integrity_level"] = "mutated-envelope"
+    shifted["pack"]["pack_schema_version"] = 99
+    shifted["pack"]["evidence_mode"] = "mutated-envelope"
+    assert before != "mutated-envelope"
+    golden = json.loads(_GOLDEN.read_text(encoding="utf-8"))
+    assert normalize_contract(baseline) == golden
+    assert normalize_contract(shifted) == golden
