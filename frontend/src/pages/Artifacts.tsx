@@ -1168,12 +1168,12 @@ export default function ArtifactsPage() {
                 {!documentsLoading &&
                   filtered.map((row) => (
                     <TableRow key={row.id}>
-                      {/* sm 아래는 max-w-0: 제목이 nowrap(truncate)이라 셀의 최소
-                          폭이 제목 전체 폭이 되고, max-w-48은 그 하한을 192px에
-                          잠가 표가 래퍼 밖으로 밀렸다(390px에서 표 277 > 래퍼 228).
-                          max-w-0은 하한을 없애 열이 남은 폭으로 줄어들게 하고,
-                          말줄임은 그대로 동작한다. sm 이상은 종전과 같다. */}
-                      <TableCell className="max-w-0 sm:max-w-96">
+                      {/* 제목은 nowrap(truncate)이라 고정 max-w가 셀의 최소 폭으로
+                          작용한다. 390px의 max-w-48뿐 아니라 sm:max-w-96도 긴
+                          제목에서 640/1024px의 표를 래퍼 밖으로 민다. max-w-0은
+                          제목 열만 남는 폭으로 줄이고 말줄임과 짧은 제목의 열 배치는
+                          그대로 둔다. */}
+                      <TableCell className="max-w-0">
                         <div className="truncate font-medium" title={documentTitle(row.title, row.id)}>
                           {documentTitle(row.title, row.id)}
                         </div>
