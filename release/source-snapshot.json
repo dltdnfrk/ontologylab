@@ -116,6 +116,11 @@
       "sha256": "b165d4f8ee4ea60ff93d1bfaf7c32cb99bbb6db2f7c7f1858f7f792864a7f98c"
     },
     {
+      "bytes": 11197,
+      "path": "ontologylab/carry_forward.py",
+      "sha256": "c381e98670f64ec19053433a55bd32565207b5d01d86d46a05ab7e06699f5c33"
+    },
+    {
       "bytes": 8991,
       "path": "ontologylab/chatstore.py",
       "sha256": "ac45b85d0d6dbc0512208df5a286c136a18982a6219cdcb5945987f1e90a3621"
@@ -156,9 +161,9 @@
       "sha256": "c30d0fdec2417b66c3bc208a02f0359ba9bfec715a785743968ef914ac6428db"
     },
     {
-      "bytes": 9634,
+      "bytes": 11151,
       "path": "ontologylab/claims.py",
-      "sha256": "252148fb4b6c90a6fb6af59152a749d0c1165b9153cfa35b33a123c597cfc048"
+      "sha256": "57f5c06ce37bbe06cdae9a638133b6d94d594142867a9ffe9315443912305e44"
     },
     {
       "bytes": 8565,
@@ -321,9 +326,9 @@
       "sha256": "8da98b69e9ca7ac713d9522b42e7dd3dbd6e07befa8813233644588ce1adce4e"
     },
     {
-      "bytes": 43685,
+      "bytes": 44294,
       "path": "ontologylab/engines.py",
-      "sha256": "e1e34d6a91d638263c5c2307bbef44a1ad9e4799ac9d3367da5152a025d58de4"
+      "sha256": "3c2f4b293c251ff3936e7773253373f4092e3649237fef08d192955d977eda8b"
     },
     {
       "bytes": 8244,
@@ -344,6 +349,11 @@
       "bytes": 3971,
       "path": "ontologylab/expansion.py",
       "sha256": "25f703236455b8f46b31b9ae9066489964985c2a55b75094d8eb1afd71882491"
+    },
+    {
+      "bytes": 5550,
+      "path": "ontologylab/extraction_eligibility.py",
+      "sha256": "e8d085586d0407d5a6d82642c6d2db4e4669603027bdf927ea8a76d3b90c93af"
     },
     {
       "bytes": 2658,
@@ -376,9 +386,9 @@
       "sha256": "7fba7e0f397cd81837412d4857b4c68e0886c275a2dff646774fc0da15bc993e"
     },
     {
-      "bytes": 44549,
+      "bytes": 47972,
       "path": "ontologylab/extractor.py",
-      "sha256": "ff6014f7564d7157a7d478a81e57a5a90826597b8ef401a0203a7c972fb1d2f6"
+      "sha256": "5a6db1d5ae93e41f3bfcd6db0b9f20a913d648889d4d33dd570469931f0fb79e"
     },
     {
       "bytes": 18828,
@@ -586,9 +596,9 @@
       "sha256": "49f4fd18db6584245a044fa2b0080baf160253c1bd849a21e784dbb614ec023a"
     },
     {
-      "bytes": 26222,
+      "bytes": 26357,
       "path": "ontologylab/kgstore_lifecycle.py",
-      "sha256": "90305b160d8b2ef65b4273cb2657915bb55c1e80300e1c562e4f18fbbba1aa56"
+      "sha256": "73680b3d5e1d70b792b09326fb9724155692788401b857253f6f6499ac0376e3"
     },
     {
       "bytes": 16714,
@@ -621,9 +631,9 @@
       "sha256": "54c86da20289fb117897c6f3db5048cc9e7268e777a33872d23d172364251870"
     },
     {
-      "bytes": 15790,
+      "bytes": 15829,
       "path": "ontologylab/kgstore_validation.py",
-      "sha256": "9c4900592c44c89ba965dba7375089ab54353792df85f018db2ff32d354aefd5"
+      "sha256": "9fb52f79fb7ced17ef9e80a57bb0b30ed136ebb32d6fb89211724c42cc0e13e1"
     },
     {
       "bytes": 5630,
@@ -646,9 +656,9 @@
       "sha256": "9f466bff1f1bf75917310519bdaa25ea45b5a73dd7e1320c599f40bc15acb59c"
     },
     {
-      "bytes": 93529,
+      "bytes": 97327,
       "path": "ontologylab/main.py",
-      "sha256": "e015b1d4264645dd925e33a32eb4e92b32c2f6b7ed84b097b04bf7dd7f722425"
+      "sha256": "fccb9788309776653cc12aba325d2abae3d2330956f353c6877fc239142cd8a6"
     },
     {
       "bytes": 1490,
@@ -661,9 +671,9 @@
       "sha256": "dd1ca4dcfdf71a1d6518ea6464dd7785b9307b6318df6092e0e05508df17fe4f"
     },
     {
-      "bytes": 58027,
+      "bytes": 58878,
       "path": "ontologylab/mcp_server.py",
-      "sha256": "99ed9e83edc9e3913f5f8171957398caa6b2a3a0d8964fa74a174e991149f4f6"
+      "sha256": "70c5803ba0dc623c4fb89cd64e4b9055ce34ffc6f98f32fbd1c75c0d171d6240"
     },
     {
       "bytes": 5202,
@@ -706,9 +716,9 @@
       "sha256": "e5fd3b9bea96fecb79fd5772f2c5cf2a12329e71c35f0a36d31a0f2b53abbf4b"
     },
     {
-      "bytes": 11297,
+      "bytes": 11720,
       "path": "ontologylab/method_extract.py",
-      "sha256": "1ae1b28a36e80e4cb22131c17c2d78f0b46a60d7a3a952695c2d5d09b5487b8d"
+      "sha256": "26f60e94d2c3dc61662d0fee5e31a35ad34023badbc5a0b57fd44b622b864f76"
     },
     {
       "bytes": 12229,
@@ -901,9 +911,9 @@
       "sha256": "a17d5adbab1df582c27c42fc4e2e6dca99da73b4cffc19c000a157cd064789f7"
     },
     {
-      "bytes": 28113,
+      "bytes": 30256,
       "path": "ontologylab/pack_v2_closure.py",
-      "sha256": "ce802c8c12b44fb8d05e8b36e731b003c9ba6944e0c34b34f8525ebe59b62b80"
+      "sha256": "a4e7b1392c8836c88d96623867caa1647258f573db0baa8af454755666137416"
     },
     {
       "bytes": 9544,
@@ -926,9 +936,9 @@
       "sha256": "524b883f6653f0d1371fad2dfbaf64876a23e9acdeec1b3a85d8d2ab1b2fe79f"
     },
     {
-      "bytes": 45324,
+      "bytes": 49172,
       "path": "ontologylab/packbuilder.py",
-      "sha256": "cf349d42f3b8af66de5aa3e396fba30526f8bdcf29003264a3eb2f6559fe456a"
+      "sha256": "cd684e86a653c86090c14121465030aaf5ac8c507b6b3f91f58a284109a18a28"
     },
     {
       "bytes": 5607,
@@ -939,6 +949,11 @@
       "bytes": 12124,
       "path": "ontologylab/paths.py",
       "sha256": "da07e77dc6e8aa3c93fa9e82f5ea84da6bea6bd9e44860be2c6a4676f700a692"
+    },
+    {
+      "bytes": 15770,
+      "path": "ontologylab/polarity_eval.py",
+      "sha256": "f9ddf2c12304d5838f6d2078723543f4ff14f7ad722d92cba4c52eb22315b8d5"
     },
     {
       "bytes": 11661,
@@ -1271,9 +1286,9 @@
       "sha256": "0c749e338e948f3e2d3bf25258591755320990e1de2a9eb129af70117dcabade"
     },
     {
-      "bytes": 121224,
+      "bytes": 127554,
       "path": "ontologylab/server/routes.py",
-      "sha256": "e1b9c702713b602d29947aaf297620683af00abaea3fb32e3ca27189b67977fd"
+      "sha256": "9a651143e073b56a82777f7203478c4ae0b3d6bd31fcca3e5cb52c72e8553ab9"
     },
     {
       "bytes": 21323,
@@ -1309,6 +1324,11 @@
       "bytes": 10877,
       "path": "ontologylab/sources.py",
       "sha256": "4245b6c3df08d841372da7f8352c5c1d736caf9ae79cbe74bc762018598050aa"
+    },
+    {
+      "bytes": 1639,
+      "path": "ontologylab/species_abbreviation.py",
+      "sha256": "79e63cd362183265a6ef1bb6e55d4c5ab39b2e3c0079a1749e538bf3829c5c27"
     },
     {
       "bytes": 552,
@@ -1386,24 +1406,24 @@
       "sha256": "2fa13f633ea08515effa586db1c5c1bd954bf835297bb0682d268ae61e3471b4"
     },
     {
-      "bytes": 41148,
-      "path": "ontologylab/web/assets/index-Cd6RqYJP.css",
-      "sha256": "ee33e19f3744ee771163a882f403967210f717b86c5f2417df22efb3bd707276"
+      "bytes": 847173,
+      "path": "ontologylab/web/assets/index-Cn4u6FJs.js",
+      "sha256": "cb24ea985f53a7bc10936bf99f89f10475cda137179722365b738c28a84dcb6b"
     },
     {
-      "bytes": 842806,
-      "path": "ontologylab/web/assets/index-m6XcWTUT.js",
-      "sha256": "b0a76cd4783606dea1ef18aa8e13c35b07522228c379bd98531bc03f3b66f402"
+      "bytes": 41402,
+      "path": "ontologylab/web/assets/index-K9oNKvgj.css",
+      "sha256": "fdac5e77f6b388713b5be3fa7319a5401d72a5de468c06ab33694567c7b41c48"
     },
     {
       "bytes": 619,
       "path": "ontologylab/web/index.html",
-      "sha256": "ed24518ac18c145c4baee2c04331425e8a87aac300a50082926bdc495e61f06d"
+      "sha256": "0f24091a529b9b597561339e84eae09bfef7e3915d12608f761a0a50a71b304f"
     },
     {
       "bytes": 500,
       "path": "ontologylab/web/manifest.json",
-      "sha256": "3c73365cf20cd785d91793f39906a375197d1d47afd96d908436b1b836acf9f6"
+      "sha256": "3fe2c5324f39005547e3fba70e5c7f38a760933267bfbebffea394a2603d6c01"
     },
     {
       "bytes": 10864,
@@ -1796,9 +1816,9 @@
       "sha256": "03e79faf3989c94c4c5f8742a34b966b785ecea11ff344e563def309618d16f3"
     },
     {
-      "bytes": 11322,
+      "bytes": 11536,
       "path": "tests/test_macos_candidate_source_closure.py",
-      "sha256": "c5ce9b7ff6ca0a5f738bf6331739da8cbaea4af425738c365e3fad2c7c57a32c"
+      "sha256": "e82fe649d6e9fc249c7eb874dd80042bf7f2ee0e5ec5f69925807d6152c927b3"
     },
     {
       "bytes": 10788,
@@ -1886,13 +1906,13 @@
       "sha256": "a74795770ca10298a73d7db95bdd92c2ea079dec350d81c0a439dae93f056276"
     }
   ],
-  "git_staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "git_status_sha256": "654af4f99bbfb5fb1221daafe7291fb6ee5ae73e14e59928fb3b3ccc8814c322",
-  "git_unstaged_diff_sha256": "17b5b1722a671f5529d7109eaccc2490cbdd5869ef87ad78d8a6de19b8ccd00b",
-  "inventory_sha256": "9058009939bb381766fba7fd723beec758a7c5462b4ed68e2205b2f488395bec",
+  "git_staged_diff_sha256": "7c554a81423376401a1a7b4dd1202e9909ee4f4e763fea6fe8e827f94305b3da",
+  "git_status_sha256": "4c382537b741b65b0cfc757c850d0c8493f9405c5b9ce78108bb5c1a9a939701",
+  "git_unstaged_diff_sha256": "263834767341a76159dc1dc5487e21bad66180f398f866a9a5253665ba63296a",
+  "inventory_sha256": "c66578069bf52d994ffb5291022545ba38ef2dd7ee30b521bdbd3c03d66bb31d",
   "policy_sha256": "1d676d2fdbcc0b23a2898ac827750b53b72dab75adabd1cc0b0f60fcd256a450",
   "schema": "ontologylab.release.source-snapshot.v1",
-  "snapshot_sha256": "3cec687f95d77543af8b732eee40ab11acb1f69568b756496775bcf289277c38",
+  "snapshot_sha256": "ee016db779246a8165376dd652c15cdd090fd7e86ac01b2ac4a5c7936dc7ef5e",
   "uv_lock": {
     "bytes": 461552,
     "path": "uv.lock",

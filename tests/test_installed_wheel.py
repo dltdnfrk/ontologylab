@@ -34,8 +34,8 @@ SOURCE_ASSET_DIR = ROOT / "ontologylab" / "web"
 # The machine-consumed set the wheel must ship (mirrors the prep map).
 REQUIRED_ASSETS: tuple[str, ...] = (
     "index.html",
-    "assets/index-Cd6RqYJP.css",
-    "assets/index-m6XcWTUT.js",
+    "assets/index-K9oNKvgj.css",
+    "assets/index-Cn4u6FJs.js",
     "manifest.json",
 )
 _READY_DEADLINE_S = 30.0

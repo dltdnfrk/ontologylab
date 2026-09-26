@@ -56,13 +56,16 @@ def test_task11_policy_covers_every_authoritative_path_class() -> None:
 
     # When policy coverage is evaluated, then every exact file is safely declared.
     assert not audit.missing, sorted(audit.missing)
+    # The completion wave added carry_forward, extraction_eligibility,
+    # polarity_eval, and species_abbreviation; the rebuilt web assets replace
+    # the two old hashed files rather than changing their count.
     assert (
         len(audit.declared),
         len(audit.authoritative),
         len(audit.task10_authoritative),
         len(audit.missing),
         len(audit.generated_violations),
-    ) == (100, 359, 27, 0, 0)
+    ) == (100, 363, 27, 0, 0)
     assert not audit.generated_violations
     assert covered("ontologylab/storage-compatibility.json", audit.declared)
     assert not any(
