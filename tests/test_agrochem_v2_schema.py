@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from ontologylab.extractor import build_extraction_prompt
+import json
+
+from ontologylab.extractor import build_extraction_prompt, chunk_document, parse_and_validate_extraction
 from ontologylab.schemas import PRESETS, preset
 from tests.conftest import insert
 from tests.factories import make_entity, make_relation
@@ -61,3 +63,33 @@ def test_v2_edges_keep_supports_and_no_effect_apart(store, doc) -> None:
         "SELECT COUNT(*) FROM edges WHERE relation_type='controls'"
     ).fetchone()[0]
     assert count == 2
+
+
+def test_prompt_tells_the_model_to_keep_null_results(store) -> None:
+    _install(store)
+    prompt = build_extraction_prompt(store.get_schema(), "text")
+    assert '"no_effect" when it reports testing it and finding' in prompt
+
+
+def test_parsed_null_result_carries_no_effect_polarity(store) -> None:
+    _install(store)
+    text = "Fluopyram had no significant effect on Botrytis."
+    raw = "```json\n" + json.dumps({
+        "entities": [
+            {"name": "Fluopyram", "entity_type": "ActiveIngredient",
+             "source_span": {"start": 0, "end": 9}},
+            {"name": "Botrytis", "entity_type": "Pathogen",
+             "source_span": {"start": 39, "end": 47}},
+        ],
+        "relations": [{
+            "relation_type": "controls",
+            "source": {"name": "Fluopyram", "entity_type": "ActiveIngredient"},
+            "target": {"name": "Botrytis", "entity_type": "Pathogen"},
+            "qualifiers": {"polarity": "no_effect"},
+            "source_span": {"start": 0, "end": 48},
+        }],
+    }) + "\n```"
+    result = parse_and_validate_extraction(
+        raw, store.get_schema(), chunk_document(text)[0]
+    )
+    assert [r.qualifiers for r in result.relations] == [{"polarity": "no_effect"}]

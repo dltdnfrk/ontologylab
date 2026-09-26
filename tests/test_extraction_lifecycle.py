@@ -24,7 +24,7 @@ from types import SimpleNamespace
 from ontologylab import paths
 from ontologylab.engines import MockEngine
 from ontologylab.extraction_state import ExtractionState, recover_running_once
-from ontologylab.extractor import chunk_document, run_extraction
+from ontologylab.extractor import PROMPT_VERSION, chunk_document, run_extraction
 from ontologylab.kgstore import KGStore
 from ontologylab.server import jobs as jobs_module
 from ontologylab.server.jobs import Job, JobRegistry
@@ -552,7 +552,7 @@ def test_app_restart_marks_a_claim_interrupted_and_resumes_it(tmp_path) -> None:
     state = ExtractionState(store.conn)
     plan = state.plan(
         doc.id, chunks, schema_version_id=1, engine="mock", model=None,
-        prompt_version="extract-v1", decode_params=None,
+        prompt_version=PROMPT_VERSION, decode_params=None,
     )
     assert state.claim(plan.run_id, 0)
     # Releasing the process-lifetime owner lock models kernel cleanup after

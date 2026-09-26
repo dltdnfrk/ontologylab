@@ -50,7 +50,7 @@ from ontologylab.unit_normalization import normalize_measurement
 from ontologylab.registry import CASRegistryCache, MoARegistryCache, RegistryCache
 from ontologylab.safety import Caps
 
-PROMPT_VERSION = "extract-v1"
+PROMPT_VERSION = "extract-v2"
 ENGINE_FAILURE_SUMMARY = "extraction engine failed"
 
 # Heuristic tokenizer: ~4 chars/token (no model-specific tokenizer dep).
@@ -250,6 +250,11 @@ from the document chunk below, strictly following the ontology schema.
 4. Each relation references its endpoints by {{"name": ..., "entity_type": ...}}
    of entities you emitted — never by array index, never by an invented id;
    qualifiers is an object containing only qualifiers declared for its type.
+   If the relation type declares a "polarity" qualifier, always set it:
+   "supports" when the chunk asserts the relation, "refutes" when it
+   explicitly denies it, "no_effect" when it reports testing it and finding
+   no significant effect. A null result is still a finding: extract it with
+   "no_effect" instead of dropping it or recording it as "supports".
 5. Only extract facts stated in the chunk. Do not use outside knowledge.
 6. If nothing is extractable, return {{"entities": [], "relations": []}}.
 
