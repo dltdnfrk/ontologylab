@@ -1839,6 +1839,40 @@ def cmd_provider_test(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def cmd_carry_forward(args: argparse.Namespace) -> int:
+    """Carry facts without granting approval, or preview without opening a writer."""
+    from contextlib import closing
+    from dataclasses import asdict
+    from ontologylab.carry_forward import carry_forward
+    from ontologylab.storage_compatibility import require_writer_compatible
+    from ontologylab.storage_types import StorageCompatibilityRefused
+
+    try:
+        db_path = paths.kg_db_path(Path(args.data_dir)).resolve()
+        if not args.dry_run:
+            require_writer_compatible(db_path)
+        # General writable open migrates/rekeys old source rows and projects
+        # outbox events. Carry-forward must preserve them even on refusal.
+        # Open only an existing DB; its one additive ledger DDL is atomic
+        # with the proposals, after validation.
+        mode = "ro" if args.dry_run else "rw"
+        with closing(sqlite3.connect(
+            f"{db_path.as_uri()}?mode={mode}", uri=True, timeout=30.0,
+        )) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys=ON")
+            store = KGStore(conn, db_path, read_only=args.dry_run)
+            result = carry_forward(
+                store, args.from_schema, args.to_schema,
+                operator=args.operator, dry_run=args.dry_run,
+            )
+    except (KGStoreError, StorageCompatibilityRefused, sqlite3.Error, OSError, ValueError) as exc:
+        print(f"[ontologylab] carry-forward refused: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(asdict(result), sort_keys=True))
+    return 0
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ontologylab",
@@ -1849,6 +1883,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
     _add_method_parser(sub)
+
+    p_carry = sub.add_parser("carry-forward", help="Carry verified facts as proposals.")
+    p_carry.add_argument("--from-schema", type=int, required=True)
+    p_carry.add_argument("--to-schema", type=int, required=True)
+    p_carry.add_argument("--data-dir", required=True)
+    p_carry.add_argument("--operator", default=paths.DEFAULT_ACTOR)
+    p_carry.add_argument("--dry-run", action="store_true")
+    p_carry.set_defaults(func=cmd_carry_forward)
 
     p_collect = sub.add_parser("collect", help="Fetch documents into the working KG.")
     p_collect.add_argument("--url", action="append", default=[],

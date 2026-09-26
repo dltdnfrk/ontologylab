@@ -237,6 +237,9 @@ class LifecycleMixin:
         never migrated: query paths degrade instead (see _edge_current_sql
         / _table_exists).
         """
+        from ontologylab.carry_forward import _SCHEMA as carry_forward_schema
+
+        _execute_sql_script(conn, carry_forward_schema)
         # Documents predate `doi` / `source` / `evidence_grade`; an existing store
         # has rows without them. They read back as "" and normalize to
         # `unknown`, which is the honest answer for a document collected
