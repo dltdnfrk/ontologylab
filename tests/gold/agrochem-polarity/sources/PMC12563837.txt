@@ -1,0 +1,7 @@
+In contrast, the application of the 1×, 2×, 4×, and 8× rates of clodinafop-propargyl or fenoxaprop-P-ethyl resulted in 0%, 4%, 15% and 62% or 0%, 0%, 14%, and 27% control of the R population, respectively, (a,b). In addition, the application of pinoxaden at field label rates of 1×, 2×, 4×, and 8× resulted in 0%, 48%, 83%, and 89% fresh weight reduction, respectively, (c). Furthermore, cycloxydim applied at 1×, 2×, 4×, and 8× rates provided 46%, 83%, 96%, and 100% control, respectively, (d).
+
+The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations.
+
+The ANOVA performed indicated significant (p < 0.001) main effects for herbicide, rate, and PBO, as well as a significant herbicide × rate × PBO interaction. Thus, these interaction means are presented in . The fresh weight of the R blackgrass plants treated only with PBO did not differ from that of the untreated (control) plants, while the application of PBO two hours before the herbicide treatments considerably increased the herbicidal effect of ACCase- and ALS-inhibitors against the R blackgrass population.
+
+More specifically, the fresh weight (a) and tiller number (b) produced by winter wheat plants significantly decreased with increasing density of the R and S blackgrass populations, whereas significant differences between populations were observed only in fresh weight.
