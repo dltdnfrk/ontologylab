@@ -56,6 +56,7 @@ from ontologylab.provenance import Provenance
 from ontologylab.unit_normalization import normalize_measurement
 from ontologylab.registry import CASRegistryCache, MoARegistryCache, RegistryCache
 from ontologylab.safety import Caps
+from ontologylab.species_abbreviation import resolve_species_abbreviation
 
 PROMPT_VERSION = "extract-v3"
 ENGINE_FAILURE_SUMMARY = "extraction engine failed"
@@ -1083,6 +1084,7 @@ async def run_extraction(
                         )
                     try:
                         for entity in result.entities:
+                            resolve_species_abbreviation(entity, raw_text)
                             if registry is not None:
                                 normalize_proposal(entity, registry)
                             if cas_registry is not None:
