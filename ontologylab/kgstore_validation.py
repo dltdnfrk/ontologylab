@@ -28,7 +28,7 @@ class ValidationMixin:
     # and are part of every schema's store contract; arbitrary resource names
     # remain off-schema and fail closed.
     _ANNOTATION_PROPERTY_BLOCKS = frozenset(
-        {"uniprot", "mygene", "alias_authority"}
+        {"uniprot", "mygene", "alias_authority", "measurement"}
     )
     # ``tier`` was accepted by the original default Component store contract
     # and is exercised by the merge API. Keep that historical write valid

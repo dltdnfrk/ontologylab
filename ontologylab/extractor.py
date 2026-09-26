@@ -46,6 +46,7 @@ from ontologylab.normalization import (
     normalize_proposal,
 )
 from ontologylab.provenance import Provenance
+from ontologylab.unit_normalization import normalize_measurement
 from ontologylab.registry import CASRegistryCache, MoARegistryCache, RegistryCache
 from ontologylab.safety import Caps
 
@@ -994,6 +995,7 @@ async def run_extraction(
                                 normalize_proposal(
                                     entity, cas_registry, moa_registry
                                 )
+                            normalize_measurement(entity)
                         # 4C: alias_authority is parse-time metadata for the
                         # normalization boundary - strip it before storage so
                         # persisted properties keep their pre-4C shape (the
