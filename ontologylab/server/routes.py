@@ -91,6 +91,8 @@ from ontologylab.paths import (
     NetworkBlocked,
     kg_db_path,
 )
+from ontologylab.selection_policy import usable_full_text_rank
+from ontologylab.selection_types import ContentKind
 from ontologylab.proposals import (
     OntologyProposalError,
     build_ontology_proposals,
@@ -2143,10 +2145,70 @@ def get_work(deps: AppDependency, work_id: str) -> dict[str, Any]:
         store.close()
 
 
+# A content kind the selection policy does not know sorts after every kind
+# it does, and its raw value is kept. Collapsing it to `metadata_only` (what
+# `selection_policy.parse_kind` does for ranking) would make an Observation
+# the store really holds look like a document nobody fetched.
+_UNKNOWN_CONTENT_KIND_RANK = len(ContentKind)
+
+
+def _content_kind_rank(raw: str) -> int:
+    try:
+        return usable_full_text_rank(ContentKind(raw))
+    except ValueError:
+        return _UNKNOWN_CONTENT_KIND_RANK
+
+
+def _document_content_kinds(conn: sqlite3.Connection) -> dict[str, str]:
+    """Best `document_observations.content_kind` per document.
+
+    Best is the lowest `usable_full_text_rank`; among equal ranks the newest
+    Observation wins, so two reads of the same store give the same answer.
+    A document with no Observation is absent here and reads `metadata_only`.
+    """
+    best: dict[str, tuple[int, str]] = {}
+    for row in conn.execute(
+        "SELECT representation_id, content_kind FROM document_observations "
+        "WHERE representation_id IS NOT NULL "
+        "ORDER BY created_ts DESC, id DESC"
+    ):
+        kind = str(row["content_kind"])
+        rank = _content_kind_rank(kind)
+        current = best.get(row["representation_id"])
+        if current is None or rank < current[0]:
+            best[row["representation_id"]] = (rank, kind)
+    return {doc_id: kind for doc_id, (_rank, kind) in best.items()}
+
+
+def _document_extraction_statuses(
+    conn: sqlite3.Connection, schema_version_id: int
+) -> dict[str, str]:
+    """Status of the most recently updated extraction run per document.
+
+    Only runs under ``schema_version_id`` count. The badge answers "has this
+    document been extracted under the ontology the review queue uses now";
+    after an ontology switch a document the new ontology has never seen must
+    read `none`, not the old ontology's `complete`.
+    """
+    statuses: dict[str, str] = {}
+    for row in conn.execute(
+        "SELECT document_id, status FROM extraction_runs "
+        "WHERE schema_version_id = ? "
+        "ORDER BY updated_ts DESC, created_ts DESC, rowid DESC",
+        (schema_version_id,),
+    ):
+        statuses.setdefault(str(row["document_id"]), str(row["status"]))
+    return statuses
+
+
 @router.get("/documents")
 def get_documents(deps: AppDependency) -> dict[str, Any]:
     store = _open_store(deps)
     try:
+        content_kinds = _document_content_kinds(store.conn)
+        extraction_statuses = _document_extraction_statuses(
+            store.conn, int(store.active_schema_version()["id"])
+        )
         documents = [
             {
                 "id": doc.id,
@@ -2157,7 +2219,13 @@ def get_documents(deps: AppDependency) -> dict[str, Any]:
                 "content_hash": doc.content_hash,
                 "doi": doc.doi,
                 "source": doc.source,
+                # Publication type (peer_reviewed/preprint/...): what kind of
+                # record this is, never what text of it the store holds.
                 "evidence_grade": doc.evidence_grade,
+                # What text the store holds (fulltext/abstract/excerpt/
+                # metadata_only). Extraction eligibility keys on this alone.
+                "content_kind": content_kinds.get(doc.id, "metadata_only"),
+                "extraction_status": extraction_statuses.get(doc.id, "none"),
             }
             for doc in store.list_documents()
         ]
