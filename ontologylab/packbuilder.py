@@ -57,6 +57,19 @@ class PackBuildError(Exception):
     """Raised when a pack cannot be built."""
 
 
+class SchemaVersionSelectionError(PackBuildError):
+    """The requested publication scope is empty or contains unknown versions."""
+
+    code = "invalid_schema_version_ids"
+
+    def __init__(self, version_ids: tuple[int, ...]) -> None:
+        self.schema_version_ids = version_ids
+        super().__init__(
+            f"{self.code}: select at least one known schema version; "
+            f"invalid selection {version_ids!r}"
+        )
+
+
 class IncompleteExtractionError(PackBuildError):
     """Typed default refusal for incomplete or unknown shipped streams."""
 
@@ -218,6 +231,7 @@ def _prepare_publishable_ontology(conn: sqlite3.Connection) -> None:
         "SELECT id FROM live.ontology_term "
         "WHERE typeof(reviewer) = 'text' AND length(trim(reviewer)) > 0 "
         "AND typeof(provenance) = 'text' AND length(trim(provenance)) > 0 "
+        "AND schema_version_id IN (SELECT id FROM main.schema_version) "
         "ORDER BY id"
     )
     dangling_term = conn.execute(
@@ -362,6 +376,7 @@ def _build_pack_unlocked(
     incomplete_extraction_intent: str | None = None,
     method_release_ids: Sequence[str] = (),
     evidence_mode: str | None = None,
+    schema_version_ids: tuple[int, ...] | None = None,
     owned_stages: list[Path],
 ) -> PackManifest:
     """Snapshot the verified subgraph into a new immutable pack directory.
@@ -406,16 +421,44 @@ def _build_pack_unlocked(
         source_store.conn.backup(snapshot_conn)
     finally:
         source_store.close()
-    completeness = extraction_completeness(snapshot_conn)
-    override_used = completeness["status"] == "incomplete" and allow_incomplete_extraction
-    completeness = with_override(
-        completeness,
-        used=override_used,
-        operator_intent=intent if override_used else None,
-    )
     v2_closure = None
     snapshot_ready = False
     try:
+        versions = snapshot_conn.execute(
+            "SELECT id, is_active FROM schema_version ORDER BY id"
+        ).fetchall()
+        selected = (
+            tuple(row["id"] for row in versions if row["is_active"])[-1:]
+            if schema_version_ids is None else tuple(sorted(set(schema_version_ids)))
+        )
+        unknown = tuple(sorted(set(selected) - {row["id"] for row in versions}))
+        if not selected or unknown:
+            raise SchemaVersionSelectionError(unknown or selected)
+        # Persist only selection views in the disposable snapshot. The gate's
+        # unqualified graph reads and the ATTACH copy below resolve to the same
+        # rows, without deleting facts or changing completeness stream policy.
+        snapshot_conn.execute("CREATE TABLE _pack_schema_scope (id INTEGER PRIMARY KEY)")
+        snapshot_conn.executemany(
+            "INSERT INTO _pack_schema_scope (id) VALUES (?)",
+            [(version_id,) for version_id in selected],
+        )
+        for table in ("nodes", "edges"):
+            snapshot_conn.execute(
+                f"CREATE VIEW _pack_{table} AS SELECT * FROM {table} "
+                "WHERE schema_version_id IN (SELECT id FROM _pack_schema_scope)"
+            )
+            snapshot_conn.execute(
+                f"CREATE TEMP VIEW {table} AS SELECT * FROM main._pack_{table}"
+            )
+        snapshot_conn.commit()
+        completeness = extraction_completeness(snapshot_conn)
+        override_used = (
+            completeness["status"] == "incomplete" and allow_incomplete_extraction
+        )
+        completeness = with_override(
+            completeness, used=override_used,
+            operator_intent=intent if override_used else None,
+        )
         if evidence_mode is not None:
             from ontologylab.pack_v2_closure import (
                 PackV2ClosureCode,
@@ -432,6 +475,7 @@ def _build_pack_unlocked(
                 snapshot_conn,
                 evidence_mode=v2_mode,
                 source_root=kg_db_path.parent,
+                schema_version_ids=selected,
             )
         elif completeness["status"] == "incomplete" and not override_used:
             raise IncompleteExtractionError(completeness)
@@ -521,10 +565,20 @@ def _build_pack_unlocked(
         # different physical order from the current fresh-create schema.
         for table in ("schema_version", "entity_type", "relation_type"):
             columns = _copy_columns(table)
+            version_column = "id" if table == "schema_version" else "schema_version_id"
             conn.execute(
                 f"INSERT INTO main.{table} ({columns}) "
-                f"SELECT {columns} FROM live.{table}"
+                f"SELECT {columns} FROM live.{table} "
+                f"WHERE {version_column} IN (SELECT id FROM live._pack_schema_scope)"
             )
+        # An explicit historical-only selection still needs a local active
+        # alias for existing readers. Keep the source active version if present;
+        # otherwise choose the newest selected version, only in the new pack.
+        conn.execute(
+            "UPDATE main.schema_version SET is_active = 1 "
+            "WHERE id = (SELECT MAX(id) FROM main.schema_version) "
+            "AND NOT EXISTS (SELECT 1 FROM main.schema_version WHERE is_active = 1)"
+        )
 
         # Reviewed ontology publication follows its FK dependency order.
         # Exact named projections preserve every local term audit field and
@@ -562,15 +616,15 @@ def _build_pack_unlocked(
         conn.execute(
             f"INSERT INTO main.documents ({document_columns}) "
             f"SELECT {document_columns} FROM live.documents WHERE id IN ("
-            "  SELECT source_doc_id FROM live.nodes WHERE status='verified'"
-            "  UNION SELECT source_doc_id FROM live.edges WHERE status='verified'"
+            "  SELECT source_doc_id FROM live._pack_nodes WHERE status='verified'"
+            "  UNION SELECT source_doc_id FROM live._pack_edges WHERE status='verified'"
             "  UNION SELECT c.source_doc_id FROM live.citations c"
             ")"
         )
         node_columns = _copy_columns("nodes")
         conn.execute(
             f"INSERT INTO main.nodes ({node_columns}) "
-            f"SELECT {node_columns} FROM live.nodes WHERE status='verified'"
+            f"SELECT {node_columns} FROM live._pack_nodes WHERE status='verified'"
         )
         # W13: invalidated edges are history, not current truth — a pack
         # ships only what is currently valid.
@@ -578,9 +632,9 @@ def _build_pack_unlocked(
         edge_projection = _copy_columns("edges", alias="e")
         conn.execute(
             f"INSERT INTO main.edges ({edge_columns}) SELECT {edge_projection} "
-            "FROM live.edges e "
-            "JOIN live.nodes s ON s.id = e.src_node_id AND s.status='verified' "
-            "JOIN live.nodes d ON d.id = e.dst_node_id AND d.status='verified' "
+            "FROM live._pack_edges e "
+            "JOIN main.nodes s ON s.id = e.src_node_id "
+            "JOIN main.nodes d ON d.id = e.dst_node_id "
             "WHERE e.status='verified' AND e.invalidated_ts IS NULL"
         )
         alias_columns = _copy_columns("node_aliases")
@@ -610,7 +664,7 @@ def _build_pack_unlocked(
         if v2_closure is not None:
             from ontologylab.pack_v2_closure import copy_v2_tables
 
-            copy_v2_tables(conn, v2_closure)
+            copy_v2_tables(conn, v2_closure, schema_version_ids=selected)
         conn.commit()
         conn.execute("DETACH DATABASE live")
 
@@ -704,17 +758,12 @@ def _build_pack_unlocked(
     pack_store = KGStore.open(pack_sqlite, read_only=True)
     try:
         schema = pack_store.get_schema()
-        # Every schema version whose verified facts the pack ships. The pack
-        # preserves facts judged under historical ontologies, so a consumer
-        # must be able to resolve each fact's schema_version_id from pack
-        # contents — never a silent fallback to the active schema.
+        # Every selected definition ships, even if it has no reviewed facts.
+        # Historical opt-ins retain exact per-version lookup from pack bytes.
         included_schema_version_ids = [
             row[0]
             for row in pack_store.conn.execute(
-                "SELECT schema_version_id FROM nodes "
-                "UNION SELECT schema_version_id FROM edges "
-                "UNION SELECT schema_version_id FROM ontology_term "
-                "ORDER BY schema_version_id"
+                "SELECT id FROM schema_version ORDER BY id"
             )
         ]
         # Version-keyed full definitions, keyed by schema_version_id. The
@@ -868,8 +917,14 @@ def build_pack(
     incomplete_extraction_intent: str | None = None,
     method_release_ids: Sequence[str] = (),
     evidence_mode: str | None = None,
+    schema_version_ids: tuple[int, ...] | None = None,
 ) -> PackManifest:
-    """Build one pack while serializing release IDs in its packs directory."""
+    """Build an active-only pack, or explicitly select historical versions.
+
+    ``None`` selects the snapshot's active schema. A nonempty tuple selects
+    exactly those versions; callers wanting all versions enumerate their IDs.
+    Release IDs remain serialized in the packs directory.
+    """
     safe_pack_component(name, kind="pack name")
     try:
         method_release_ids = reject_duplicate_release_ids(
@@ -897,6 +952,7 @@ def build_pack(
             incomplete_extraction_intent=incomplete_extraction_intent,
             method_release_ids=method_release_ids,
             evidence_mode=evidence_mode,
+            schema_version_ids=schema_version_ids,
             owned_stages=owned_stages,
         )
     finally:
@@ -918,6 +974,7 @@ def build_pack_release(
     incomplete_extraction_intent: str | None = None,
     method_release_ids: Sequence[str] = (),
     store: KGStore | None = None,
+    schema_version_ids: tuple[int, ...] | None = None,
 ) -> PackManifest:
     provenance.log(
         "build_pack.start",
@@ -925,6 +982,7 @@ def build_pack_release(
             "name": name,
             "allow_incomplete_extraction": allow_incomplete_extraction,
             "operator_intent": incomplete_extraction_intent,
+            "schema_version_ids": schema_version_ids,
         },
     )
     try:
@@ -939,6 +997,7 @@ def build_pack_release(
             allow_incomplete_extraction=allow_incomplete_extraction,
             incomplete_extraction_intent=incomplete_extraction_intent,
             method_release_ids=method_release_ids,
+            schema_version_ids=schema_version_ids,
         )
     except (PackBuildError, OSError) as exc:
         payload: dict[str, Any] = {"error": str(exc)}
