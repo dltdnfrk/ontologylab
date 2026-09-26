@@ -274,7 +274,7 @@ def test_fastmcp_exposes_two_tier_surface(pack_session):
     tools = {t.name: t for t in asyncio.run(app.list_tools())}
     assert "get_entity" in tools
     assert "get_communities" in tools
-    assert len(tools) == 15
+    assert len(tools) == 18
     assert {
         "list_methods",
         "get_method",

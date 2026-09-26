@@ -55,7 +55,7 @@ statement_occurrence""".split())
 CURRENT_MCP_TOOLS = set("""entity_lookup find_path get_communities get_entity
 get_schema get_staleness graph_query list_packs load_pack semantic_search
 traverse_relations list_methods get_method trace_method
-list_method_gaps""".split())
+list_method_gaps claims_for find_contradictions compare_claims""".split())
 
 CURRENT_MCP_RESOURCE_TEMPLATES = {
     "pack://{pack_id}/" + suffix
@@ -198,7 +198,7 @@ def test_mcp_surface_pins_fifteen_tools_and_seven_resource_templates(
         session.close()
 
     assert tools == CURRENT_MCP_TOOLS
-    assert len(tools) == 15
+    assert len(tools) == 18
     assert templates == CURRENT_MCP_RESOURCE_TEMPLATES
     assert len(templates) == 7
 

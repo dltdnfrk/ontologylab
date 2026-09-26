@@ -1,6 +1,6 @@
 """Local MCP stdio server for ontologylab knowledge packs.
 
-Exposes fifteen read-only/session tools against one active immutable pack
+Exposes eighteen read-only/session tools against one active immutable pack
 (``pack.sqlite`` opened ``file:...?mode=ro&immutable=1``). The only tool
 that mutates anything is ``load_pack``, and it only updates in-memory
 session state (which file is open) — never KG rows.
@@ -25,6 +25,7 @@ try:  # pydantic (FastMCP schema generation) needs this variant on py<3.12
 except ImportError:  # pragma: no cover
     from typing import TypedDict
 
+from ontologylab import claims
 from ontologylab.kgstore import KGStore, KGStoreError
 from ontologylab.method_mcp import (
     MethodDetailResult,
@@ -973,6 +974,51 @@ class PackSession:
         result["pack"] = self._provenance()
         return result
 
+    def claims_for(
+        self,
+        subject_id: str | None = None,
+        object_id: str | None = None,
+        relation_type: str | None = None,
+        polarity: str | None = None,
+        origin: str | None = None,
+        valid_at: float | None = None,
+        include_proposed: bool = False,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        result = claims.claims_for(
+            self._require_store().conn,
+            subject_id=subject_id, object_id=object_id,
+            relation_type=relation_type, polarity=polarity, origin=origin,
+            valid_at=valid_at, include_proposed=include_proposed, limit=limit,
+        )
+        result["pack"] = self._provenance()
+        return result
+
+    def find_contradictions(
+        self,
+        subject_id: str | None = None,
+        relation_type: str | None = None,
+        include_proposed: bool = False,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        result = claims.find_contradictions(
+            self._require_store().conn,
+            subject_id=subject_id, relation_type=relation_type,
+            include_proposed=include_proposed, limit=limit,
+        )
+        result["pack"] = self._provenance()
+        return result
+
+    def compare_claims(
+        self, entity_a: str, entity_b: str, include_proposed: bool = False,
+    ) -> dict[str, Any]:
+        result = claims.compare_claims(
+            self._require_store().conn, entity_a, entity_b,
+            include_proposed=include_proposed,
+        )
+        result["pack"] = self._provenance()
+        return result
+
     def document_raw_text(self, representation_id: str) -> dict[str, Any]:
         """Return FULL evidence bytes from the process-owned pack snapshot."""
         if self._snapshot is None:
@@ -1077,6 +1123,30 @@ class PathResult(TypedDict):
     hop_count: int | None
     path: list[dict[str, Any]]
     path_edges: list[dict[str, Any]]
+    pack: PackProvenance
+
+
+class ClaimsResult(TypedDict):
+    claims: list[dict[str, Any]]
+    count: int
+    polarity_counts: dict[str, int]
+    pack: PackProvenance
+
+
+class ContradictionsResult(TypedDict):
+    contradictions: list[dict[str, Any]]
+    count: int
+    total: int
+    pack: PackProvenance
+
+
+class ClaimComparisonResult(TypedDict):
+    entity_a: str
+    entity_b: str
+    shared: list[dict[str, Any]]
+    only_a: list[dict[str, Any]]
+    only_b: list[dict[str, Any]]
+    disagreements: int
     pack: PackProvenance
 
 
@@ -1268,6 +1338,52 @@ def build_mcp_app(session: PackSession, *, backend: str = "auto") -> Any:
             max_hops=max_hops,
             relation_types=relation_types,
             include_proposed=include_proposed,
+        )
+
+    @mcp.tool()
+    def claims_for(
+        subject_id: str | None = None,
+        object_id: str | None = None,
+        relation_type: str | None = None,
+        polarity: str | None = None,
+        origin: str | None = None,
+        valid_at: float | None = None,
+        include_proposed: bool = False,
+        limit: int = 100,
+    ) -> ClaimsResult:
+        """Claims about an entity with their evidence: each edge's polarity
+        (supports / refutes / no_effect; null = asserted before polarity
+        existed), origin, source document, span, validity window, and the
+        object's normalized measurement. Needs subject_id or object_id.
+        valid_at (epoch seconds) returns what held at that time."""
+        return session.claims_for(
+            subject_id=subject_id, object_id=object_id,
+            relation_type=relation_type, polarity=polarity, origin=origin,
+            valid_at=valid_at, include_proposed=include_proposed, limit=limit,
+        )
+
+    @mcp.tool()
+    def find_contradictions(
+        subject_id: str | None = None,
+        relation_type: str | None = None,
+        include_proposed: bool = False,
+        limit: int = 50,
+    ) -> ContradictionsResult:
+        """Same subject-relation-object claimed as holding by some sources and
+        refuted or found to have no effect by others."""
+        return session.find_contradictions(
+            subject_id=subject_id, relation_type=relation_type,
+            include_proposed=include_proposed, limit=limit,
+        )
+
+    @mcp.tool()
+    def compare_claims(
+        entity_a: str, entity_b: str, include_proposed: bool = False,
+    ) -> ClaimComparisonResult:
+        """Align what two entities are claimed to do by relation and object;
+        shared claims carry agree=false where their polarities differ."""
+        return session.compare_claims(
+            entity_a, entity_b, include_proposed=include_proposed,
         )
 
     @mcp.tool()
