@@ -81,7 +81,9 @@ def load_polarity_gold(path: str | Path) -> PolarityGold:
         raw = json.loads(path.read_text(encoding="utf-8"))
         _require(isinstance(raw, dict), "gold must be an object")
         _require(raw["schema"] == "agrochem-v2", "expected agrochem-v2")
-        _require(raw["format_version"] == 1, "unsupported gold format")
+        _require(type(raw["format_version"]) is int and raw["format_version"] in (1, 2),
+                 "unsupported gold format")
+        full_body = raw["format_version"] == 2
         _require(isinstance(raw["papers"], list) and bool(raw["papers"]),
                  "gold needs papers")
         _require(isinstance(raw["relations"], list) and bool(raw["relations"]),
@@ -96,8 +98,11 @@ def load_polarity_gold(path: str | Path) -> PolarityGold:
                 _require(isinstance(paper[key], str) and bool(paper[key].strip()),
                          f"{pmcid}: missing {key}")
             date.fromisoformat(paper["retrieved_at"])
-            _require(paper["content_kind"] == "body_excerpt", f"{pmcid}: not body text")
-            _require(paper["source"] == f"sources/{pmcid}.txt", f"{pmcid}: unsafe source path")
+            kind = "full_body" if full_body else "body_excerpt"
+            source_dir = "sources/full" if full_body else "sources"
+            _require(paper["content_kind"] == kind, f"{pmcid}: not body text")
+            _require(paper["source"] == f"{source_dir}/{pmcid}.txt",
+                     f"{pmcid}: unsafe source path")
             source = path.parent / paper["source"]
             _require(source.resolve().is_relative_to(path.parent.resolve()),
                      f"{pmcid}: source escapes gold directory")
@@ -135,6 +140,13 @@ def load_polarity_gold(path: str | Path) -> PolarityGold:
                          f"{pmcid}: invalid segment separator")
             _require(bool(ranges) and ranges[-1][1] + 1 == len(data),
                      f"{pmcid}: incomplete source ranges")
+            if full_body:
+                _require(ranges == [(0, paper["body_bytes"])]
+                         and paper["segments"][0]["body_start"] == 0
+                         and paper["segments"][0]["body_end"] == paper["body_bytes"],
+                         f"{pmcid}: incomplete full body")
+                _require(hashlib.sha256(data[:-1]).hexdigest() == paper["body_sha256"],
+                         f"{pmcid}: full body hash mismatch")
             sources[pmcid] = data, ranges
 
         claim_relations = {
