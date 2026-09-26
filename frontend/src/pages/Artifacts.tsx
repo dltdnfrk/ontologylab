@@ -1147,8 +1147,8 @@ export default function ArtifactsPage() {
                 {documentsLoading &&
                   Array.from({ length: 5 }, (_unused, index) => (
                     <TableRow key={`doc-skeleton-${index}`}>
-                      <TableCell>
-                        <Skeleton className="h-4 w-64" />
+                      <TableCell className="max-w-0 sm:max-w-none">
+                        <Skeleton className="h-4 w-64 max-w-full" />
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         <Skeleton className="h-4 w-32" />
@@ -1168,7 +1168,12 @@ export default function ArtifactsPage() {
                 {!documentsLoading &&
                   filtered.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell className="max-w-48 sm:max-w-96">
+                      {/* sm 아래는 max-w-0: 제목이 nowrap(truncate)이라 셀의 최소
+                          폭이 제목 전체 폭이 되고, max-w-48은 그 하한을 192px에
+                          잠가 표가 래퍼 밖으로 밀렸다(390px에서 표 277 > 래퍼 228).
+                          max-w-0은 하한을 없애 열이 남은 폭으로 줄어들게 하고,
+                          말줄임은 그대로 동작한다. sm 이상은 종전과 같다. */}
+                      <TableCell className="max-w-0 sm:max-w-96">
                         <div className="truncate font-medium" title={documentTitle(row.title, row.id)}>
                           {documentTitle(row.title, row.id)}
                         </div>
