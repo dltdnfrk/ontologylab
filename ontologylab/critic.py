@@ -36,8 +36,9 @@ from ontologylab.kgstore import (
     span_excerpt,
 )
 from ontologylab.paths import CRITIC_MODEL
+from ontologylab.kgstore_base import edge_polarity
 
-CRITIC_PROMPT_VERSION = "critic-v1"
+CRITIC_PROMPT_VERSION = "critic-v2"
 
 # Decision engines (e.g. Jev) score evidence support without the text prompt,
 # so their stream is keyed under a distinct version: a jev row and a
@@ -222,13 +223,24 @@ def _pending_items(
         ).fetchall()
         for row in edge_rows:
             span = json.loads(row["source_span"]) if row["source_span"] else None
+            # A no_effect/refutes claim scored against the bare triple reads as
+            # "evidence contradicts it" when the evidence in fact confirms it.
+            polarity = edge_polarity(
+                json.loads(row["qualifiers_json"])
+                if "qualifiers_json" in row.keys() and row["qualifiers_json"]
+                else {}
+            )
+            relation = (
+                f"{row['relation_type']}({polarity})" if polarity
+                else row["relation_type"]
+            )
             items.append(
                 {
                     "id": row["id"],
                     "kind": "edge",
                     "type": row["relation_type"],
                     "label": (
-                        f"{row['src_name']} -[{row['relation_type']}]-> "
+                        f"{row['src_name']} -[{relation}]-> "
                         f"{row['dst_name']}"
                     ),
                     "confidence": row["confidence"],

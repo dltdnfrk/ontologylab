@@ -93,6 +93,9 @@ type Proposal = {
   doc_source: string;
   evidence_grade: string;
   excerpt: string;
+  /** Edge qualifiers as stored; `polarity` says whether the claim supports,
+   *  refutes, or reports no effect. Absent on nodes. */
+  qualifiers?: Record<string, unknown>;
   /** Present only on rows from /proposals/decided. */
   status?: "verified" | "rejected";
   verified_ts?: number | null;
@@ -817,6 +820,7 @@ function ProposalListItem({
               <Badge variant="outline" className="px-1 py-0 font-mono text-[10px]">
                 {item.type_name}
               </Badge>
+              <PolarityBadge item={item} compact />
               <span className="font-mono tabular-nums">{percent(item.confidence)}</span>
               {item.critic_disagreement || belowLine ? (
                 <AlertTriangle className="h-3 w-3 text-warn-text" aria-label="비평 경고" />
@@ -830,6 +834,51 @@ function ProposalListItem({
         </button>
       </div>
     </li>
+  );
+}
+
+// A claim's polarity decides what approving it means, so the reviewer sees it
+// next to the relation type rather than buried in a qualifier dump.
+const POLARITY_LABEL: Record<string, { text: string; variant: "success" | "error" | "warning" }> = {
+  supports: { text: "지지", variant: "success" },
+  refutes: { text: "반박", variant: "error" },
+  no_effect: { text: "효과 없음", variant: "warning" },
+};
+
+function qualifierText(value: unknown): string {
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+function PolarityBadge({ item, compact }: { item: Proposal; compact?: boolean }) {
+  const raw = item.qualifiers?.polarity;
+  if (typeof raw !== "string" || raw === "") return null;
+  const known = POLARITY_LABEL[raw];
+  return (
+    <Badge
+      variant={known?.variant ?? "outline"}
+      className={cn(compact ? "px-1 py-0 text-[10px]" : "text-xs")}
+      aria-label={`극성: ${known?.text ?? raw}`}
+    >
+      {known?.text ?? raw}
+    </Badge>
+  );
+}
+
+function QualifierList({ item }: { item: Proposal }) {
+  const entries = Object.entries(item.qualifiers ?? {});
+  if (entries.length === 0) return null;
+  return (
+    <section className="space-y-1.5">
+      <FieldCaption>수식어</FieldCaption>
+      <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-xs">
+        {entries.map(([key, value]) => (
+          <div key={key} className="contents">
+            <dt className="font-mono text-muted-foreground">{key}</dt>
+            <dd className="break-words">{qualifierText(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
@@ -871,6 +920,7 @@ function ProposalDetail({
               <Badge variant="outline" className="font-mono">
                 {item.type_name}
               </Badge>
+              <PolarityBadge item={item} />
               <CopyableId value={item.id} label="항목 ID" />
               <RelativeTime ts={item.created_ts} className="text-xs text-muted-foreground" />
             </div>
@@ -894,6 +944,8 @@ function ProposalDetail({
           </p>
         </section>
       ) : null}
+
+      <QualifierList item={item} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <section className="space-y-1.5">

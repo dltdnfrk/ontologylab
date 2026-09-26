@@ -320,10 +320,10 @@ CREATE INDEX IF NOT EXISTS idx_edges_dst_status ON edges (dst_node_id, status);
 CREATE INDEX IF NOT EXISTS idx_edges_type       ON edges (relation_type, status);
 -- Dedup covers CURRENT rows only: an invalidated edge frees its triple key,
 -- so a later re-assertion becomes a fresh proposed row coexisting with the
--- invalidated one (bitemporal history, no unique-key collision).
-CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_dedup
-    ON edges (schema_version_id, relation_type, src_node_id, dst_node_id)
-    WHERE status IN ('proposed','verified') AND invalidated_ts IS NULL;
+-- invalidated one (bitemporal history, no unique-key collision). The index
+-- (idx_edges_dedup) is created by KGStore._migrate, not here: it keys on
+-- qualifiers_json polarity, and a pre-qualifier store gains that column
+-- only during migration.
 
 -- Multi-source citations: every mention of a fact (including the first, and
 -- every resolution-merge afterwards) appends one row here. The inline
@@ -518,6 +518,16 @@ CREATE TABLE IF NOT EXISTS entity_enrichments (
     PRIMARY KEY (node_id, registry)
 );
 """
+
+# Claim identity beyond the triple: a 'no_effect' finding is a different claim
+# from a 'supports' one on the same (relation, src, dst), never a citation of
+# it. Absent polarity maps to '' so every pre-polarity row keeps its identity.
+EDGE_POLARITY_SQL = "COALESCE(json_extract(qualifiers_json, '$.polarity'), '')"
+
+
+def edge_polarity(qualifiers: dict[str, Any] | None) -> str:
+    value = (qualifiers or {}).get("polarity")
+    return value if isinstance(value, str) else ""
 
 _NODE_COLUMNS = (
     "id, schema_version_id, entity_type, name, normalized_name, aliases_json, "

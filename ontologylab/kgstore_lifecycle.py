@@ -337,17 +337,20 @@ class LifecycleMixin:
             conn.execute(
                 "UPDATE edges SET valid_from = created_ts WHERE valid_from IS NULL"
             )
-        # The dedup index predicate gained "invalidated_ts IS NULL" in W13;
-        # IF NOT EXISTS keeps an old-predicate index alive, so rebuild it.
+        # The dedup index predicate gained "invalidated_ts IS NULL" in W13 and
+        # the polarity key in the claim layer; IF NOT EXISTS keeps an old
+        # index alive, so rebuild it when either is missing.
         index_sql_row = conn.execute(
             "SELECT sql FROM sqlite_master WHERE name = 'idx_edges_dedup'"
         ).fetchone()
-        if index_sql_row and "invalidated_ts" not in (index_sql_row["sql"] or ""):
-            conn.execute("DROP INDEX idx_edges_dedup")
+        index_sql = (index_sql_row["sql"] or "") if index_sql_row else ""
+        if not ("invalidated_ts" in index_sql and "polarity" in index_sql):
+            conn.execute("DROP INDEX IF EXISTS idx_edges_dedup")
             conn.execute(
                 "CREATE UNIQUE INDEX idx_edges_dedup "
                 "ON edges (schema_version_id, relation_type, src_node_id, "
-                "dst_node_id) "
+                "dst_node_id, "
+                "COALESCE(json_extract(qualifiers_json, '$.polarity'), '')) "
                 "WHERE status IN ('proposed','verified') "
                 "AND invalidated_ts IS NULL"
             )

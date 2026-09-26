@@ -14,8 +14,10 @@ from typing import Any, Iterable, Optional
 from ontologylab.models import ProposedEntity, ProposedRelation
 
 from ontologylab.kgstore_base import (
+    EDGE_POLARITY_SQL,
     KGStoreError,
     SchemaValidationError,
+    edge_polarity,
     normalize_name,
 )
 
@@ -181,9 +183,10 @@ class ProposedMixin:
             cur = self.conn.execute(
                 "SELECT id FROM edges WHERE schema_version_id = ? AND "
                 "relation_type = ? AND src_node_id = ? AND dst_node_id = ? AND "
+                f"{EDGE_POLARITY_SQL} = ? AND "
                 "status IN ('proposed','verified') AND "
                 f"{self._edge_current_sql()}",
-                (sv_id, rel.relation_type, src, dst),
+                (sv_id, rel.relation_type, src, dst, edge_polarity(rel.qualifiers)),
             )
             dup = cur.fetchone()
             if dup is not None:

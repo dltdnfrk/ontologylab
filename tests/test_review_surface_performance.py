@@ -34,6 +34,7 @@ _PROPOSAL_COUNT = 600
 # One live stream plus retired ones. A single stream cannot expose the bug:
 # the restriction only costs anything when there is history to scan past.
 _RETIRED_STREAMS = ("critic-v0", "critic-v1")
+assert CRITIC_PROMPT_VERSION not in _RETIRED_STREAMS
 
 
 def _seed_review_history(store, doc) -> list[str]:

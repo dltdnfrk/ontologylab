@@ -17,6 +17,7 @@ from ontologylab.citation_types import (
 )
 from ontologylab.citation_verify import ready_document
 from ontologylab.file_lifecycle import content_hash_for
+from ontologylab.kgstore_base import EDGE_POLARITY_SQL, edge_polarity
 from ontologylab.models import ProposedRelation, SourceSpan
 
 
@@ -239,8 +240,9 @@ def _edge_id(
         )
     row = conn.execute(
         "SELECT id FROM edges WHERE relation_type = ? AND src_node_id = ? "
-        "AND dst_node_id = ? AND status IN ('proposed','verified')",
-        (relation.relation_type, src, dst),
+        f"AND dst_node_id = ? AND {EDGE_POLARITY_SQL} = ? "
+        "AND status IN ('proposed','verified')",
+        (relation.relation_type, src, dst, edge_polarity(relation.qualifiers)),
     ).fetchone()
     if row is None:
         refuse(

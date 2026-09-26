@@ -227,6 +227,8 @@ def test_old_writable_database_migrates_qualifier_columns(tmp_path: Path) -> Non
     old = KGStore.open(db_path)
     old.close()
     with sqlite3.connect(db_path) as conn:
+        # Pre-qualifier stores never had the polarity-keyed dedup index.
+        conn.execute("DROP INDEX idx_edges_dedup")
         conn.execute("ALTER TABLE edges DROP COLUMN qualifiers_json")
         conn.execute("ALTER TABLE relation_type DROP COLUMN qualifiers_json")
 
@@ -286,6 +288,8 @@ def test_pack_builds_from_pre_qualifier_migrated_store(tmp_path: Path) -> None:
     # Recreate the exact pre-claim table shape. Reopening writable then appends
     # qualifiers_json at the end, as ALTER TABLE does for every existing user DB.
     with sqlite3.connect(db_path) as conn:
+        # Pre-qualifier stores never had the polarity-keyed dedup index.
+        conn.execute("DROP INDEX idx_edges_dedup")
         conn.execute("ALTER TABLE edges DROP COLUMN qualifiers_json")
         conn.execute("ALTER TABLE relation_type DROP COLUMN qualifiers_json")
     migrated = KGStore.open(db_path)
@@ -338,6 +342,8 @@ def test_old_read_only_pack_degrades_to_empty_qualifiers(tmp_path: Path) -> None
     store.close()
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA journal_mode=DELETE")
+        # Pre-qualifier stores never had the polarity-keyed dedup index.
+        conn.execute("DROP INDEX idx_edges_dedup")
         conn.execute("ALTER TABLE edges DROP COLUMN qualifiers_json")
 
     legacy_pack = KGStore.open(db_path, read_only=True)

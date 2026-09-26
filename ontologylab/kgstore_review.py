@@ -15,6 +15,7 @@ from typing import Any
 from ontologylab.paths import DEFAULT_ACTOR
 
 from ontologylab.kgstore_base import (
+    EDGE_POLARITY_SQL,
     EndpointNotVerified,
     GroundingPreflightError,
     InvalidTransition,
@@ -952,9 +953,14 @@ class ReviewMixin:
             dup = self.conn.execute(
                 "SELECT id FROM edges WHERE schema_version_id = ? AND "
                 "relation_type = ? AND src_node_id = ? AND dst_node_id = ? AND "
+                f"{EDGE_POLARITY_SQL} = "
+                f"(SELECT {EDGE_POLARITY_SQL} FROM edges WHERE id = ?) AND "
                 "status IN ('proposed','verified') AND id != ? AND "
                 f"{self._edge_current_sql()}",
-                (sv_id, edge["relation_type"], new_src, new_dst, edge["id"]),
+                (
+                    sv_id, edge["relation_type"], new_src, new_dst,
+                    edge["id"], edge["id"],
+                ),
             ).fetchone()
             if dup is not None:
                 self.conn.execute(
