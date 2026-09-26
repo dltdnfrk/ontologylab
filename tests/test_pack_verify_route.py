@@ -157,12 +157,40 @@ def test_an_unknown_pack_id_is_404(client, tmp_path) -> None:
         # falling through the router.
         ("..%2Fx", "../x"),
         ("%2e%2e%2fx", "../x"),
+        ("..%2F..%2Fetc", "../../etc"),
+        ("%2e%2e", ".."),
         ("bad%20id", "bad id"),
+        ("%20", " "),
+        ("bad%09id", "bad\tid"),
+        # Gate review B1: Starlette's `path` convertor (`.*`) cannot match a
+        # newline, so these two used to fall through the router as 404.
+        ("bad%0Aid", "bad\nid"),
+        # The trailing form additionally passed `safe_pack_component` while
+        # its pattern ended in `$`, which matches before a final newline.
+        ("bad%0A", "bad\n"),
+        ("%00", "\x00"),
+        ("", ""),
     ],
 )
 def test_an_unsafe_pack_id_is_422_before_the_filesystem_is_read(
-    client, tmp_path, raw_segment: str, decoded_id: str,
+    client, tmp_path, monkeypatch, raw_segment: str, decoded_id: str,
 ) -> None:
+    from ontologylab.server import routes
+
+    validated: list[str] = []
+    real_validator = routes.safe_pack_component
+
+    def _counting_validator(value: str, **kwargs):
+        validated.append(value)
+        return real_validator(value, **kwargs)
+
+    def _no_filesystem(*args, **kwargs):
+        raise AssertionError(
+            f"the filesystem was consulted for unsafe pack id {decoded_id!r}"
+        )
+
+    monkeypatch.setattr(routes, "safe_pack_component", _counting_validator)
+    monkeypatch.setattr(routes, "Path", _no_filesystem)
     packs_dir = tmp_path / "packs"
     before = _inventory(packs_dir) if packs_dir.exists() else None
 
@@ -170,5 +198,6 @@ def test_an_unsafe_pack_id_is_422_before_the_filesystem_is_read(
 
     assert res.status_code == 422, res.text
     assert repr(decoded_id) in res.json()["detail"]
+    assert validated == [decoded_id]
     assert (_inventory(packs_dir) if packs_dir.exists() else None) == before
     assert not (tmp_path / "x").exists()

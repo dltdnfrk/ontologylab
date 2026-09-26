@@ -116,7 +116,9 @@ def unevidenced_curated_nodes(conn: sqlite3.Connection) -> list[str]:
 # safe charset so a caller-supplied value (HTTP build request, MCP tool arg)
 # cannot contain "/" or ".." and escape packs_dir — either to drop files into
 # an arbitrary write location or to read a pack.sqlite from outside the store.
-_SAFE_PACK_COMPONENT = re.compile(r"^[A-Za-z0-9._-]+$")
+# `\Z`, not `$`: `$` also matches before a trailing newline, so `"pack\n"`
+# used to pass as a safe path component.
+_SAFE_PACK_COMPONENT = re.compile(r"^[A-Za-z0-9._-]+\Z")
 
 # ATTACH copies must bind by column name, never by physical table order.
 # Additive SQLite migrations append columns while fresh CREATE TABLE schemas
