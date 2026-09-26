@@ -91,12 +91,20 @@ def extract_fenced_block(text: str, lang: str = "json") -> str:
     """Extract the first fenced ``lang`` code block from ``text``.
 
     Falls back to a bare ``` fence if no language-tagged fence is present.
-    Raises EngineError if no non-empty fenced block can be found.
+    For JSON only, accepts a bare object or array when no fence exists.
+    Raises EngineError on empty output or an invalid bare JSON value.
     """
     match = _fence_re(lang).search(text)
     if match is None:
         match = re.compile(r"```\s*\n(.*?)```", re.DOTALL).search(text)
     if match is None:
+        if lang == "json":
+            try:
+                payload = json.loads(text)
+            except json.JSONDecodeError as exc:
+                raise EngineError("engine output was not valid JSON") from exc
+            if isinstance(payload, (dict, list)):
+                return text.strip()
         raise EngineError(f"no fenced {lang} block found in engine output")
     block = match.group(1).strip("\n")
     if not block.strip():
@@ -760,7 +768,7 @@ class ApiEngine:
         return f"api:{self._provider.id}"
 
     def _build_request(
-        self, prompt: str, key: str, model: str
+        self, prompt: str, key: str, model: str, *, expects_json: bool = False
     ) -> tuple[str, dict[str, str], dict]:
         """Return (url, headers, body) for the provider's kind."""
         base = self._provider.base_url.rstrip("/")
@@ -787,6 +795,8 @@ class ApiEngine:
             "messages": [{"role": "user", "content": prompt}],
             **self._decode_params,
         }
+        if expects_json:
+            body["response_format"] = {"type": "json_object"}
         return f"{base}/chat/completions", headers, body
 
     def _parse_response(self, response: dict) -> tuple[str, dict]:
@@ -817,7 +827,8 @@ class ApiEngine:
         return text, {k: v for k, v in tokens.items() if v is not None}
 
     async def generate(
-        self, prompt: str, *, model: Optional[str] = None
+        self, prompt: str, *, model: Optional[str] = None,
+        expects_json: bool = False,
     ) -> tuple[str, dict]:
         provider_id = self._provider.id
         key = resolve_api_key(self._provider)
@@ -832,7 +843,9 @@ class ApiEngine:
                 f"provider {provider_id!r}: no model given and the provider "
                 "has no default model — pass --model or add one"
             )
-        url, headers, body = self._build_request(prompt, key, effective_model)
+        url, headers, body = self._build_request(
+            prompt, key, effective_model, expects_json=expects_json
+        )
 
         # Offline mode blocks egress that leaves the machine. A provider that
         # points at loopback (local Ollama / LM Studio) keeps data on-device,
