@@ -80,6 +80,38 @@ class IncompleteExtractionError(PackBuildError):
         )
 
 
+class UnevidencedInterpretationError(PackBuildError):
+    """A verified curated interpretation with no verified evidence link.
+
+    An interpretation (Question, Scenario, ...) is a person's reading of the
+    graph. Shipping one that points at nothing verified would present an
+    opinion as if it were grounded, so the build refuses instead.
+    """
+
+    code = "unevidenced_interpretation"
+
+    def __init__(self, node_ids: list[str]) -> None:
+        self.node_ids = node_ids
+        super().__init__(
+            "pack build refused: verified curated interpretation(s) without a "
+            f"verified evidenced_by edge to an extracted fact: {', '.join(node_ids)}"
+        )
+
+
+def unevidenced_curated_nodes(conn: sqlite3.Connection) -> list[str]:
+    rows = conn.execute(
+        "SELECT n.id FROM nodes n "
+        "WHERE n.status = 'verified' AND n.origin = 'curated' "
+        "AND NOT EXISTS ("
+        "  SELECT 1 FROM edges e JOIN nodes t ON t.id = e.dst_node_id "
+        "  WHERE e.src_node_id = n.id AND e.relation_type = 'evidenced_by' "
+        "  AND e.status = 'verified' AND e.invalidated_ts IS NULL "
+        "  AND t.status = 'verified' AND t.origin = 'extracted') "
+        "ORDER BY n.id"
+    ).fetchall()
+    return [row[0] for row in rows]
+
+
 # A pack id/name becomes a directory segment under packs_dir. Restrict it to a
 # safe charset so a caller-supplied value (HTTP build request, MCP tool arg)
 # cannot contain "/" or ".." and escape packs_dir — either to drop files into
@@ -94,7 +126,7 @@ _PACK_COPY_COLUMNS: dict[str, tuple[str, ...]] = {
     "schema_version": ("id", "label", "description", "created_ts", "is_active"),
     "entity_type": (
         "id", "schema_version_id", "name", "description", "attributes_json",
-        "parent_name",
+        "parent_name", "extractable",
     ),
     "relation_type": (
         "id", "schema_version_id", "name", "description", "domain_type",
@@ -384,6 +416,9 @@ def _build_pack_unlocked(
             )
         elif completeness["status"] == "incomplete" and not override_used:
             raise IncompleteExtractionError(completeness)
+        unevidenced = unevidenced_curated_nodes(snapshot_conn)
+        if unevidenced:
+            raise UnevidencedInterpretationError(unevidenced)
         snapshot_ready = True
     finally:
         if not snapshot_ready:

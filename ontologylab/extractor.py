@@ -163,16 +163,29 @@ Example (for a chunk describing a rate limiting component):
 ```"""
 
 
+def _extractable(schema: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The part of a schema the model may produce: interpretation-overlay
+    entity types are curated by people, and so is any relation touching one."""
+    entity_types = [et for et in schema["entity_types"] if et.get("extractable", True)]
+    curated = {et["name"] for et in schema["entity_types"]} - {et["name"] for et in entity_types}
+    relation_types = [
+        rt for rt in schema["relation_types"]
+        if rt["domain_type"] not in curated and rt["range_type"] not in curated
+    ]
+    return entity_types, relation_types
+
+
 def _schema_block(schema: dict[str, Any]) -> str:
+    entity_types, relation_types = _extractable(schema)
     lines = ["Entity types:"]
-    for et in schema["entity_types"]:
+    for et in entity_types:
         attrs = ""
         if et["attributes"]:
             attrs = f" Attributes: {json.dumps(et['attributes'])}"
         parent = f" (is-a {et['parent']})" if et.get("parent") else ""
         lines.append(f"- {et['name']}: {et['description']}{parent}{attrs}")
     lines.append("Relation types:")
-    for rt in schema["relation_types"]:
+    for rt in relation_types:
         domain = rt["domain_type"]
         range_ = rt["range_type"]
         qualifiers = rt.get("qualifiers", {})
@@ -450,8 +463,9 @@ def parse_and_validate_extraction(
     if not isinstance(payload, dict):
         raise EngineError("extraction JSON must be an object")
 
-    entity_types = {et["name"]: et for et in schema["entity_types"]}
-    relation_types = {rt["name"]: rt for rt in schema["relation_types"]}
+    extractable_entities, extractable_relations = _extractable(schema)
+    entity_types = {et["name"]: et for et in extractable_entities}
+    relation_types = {rt["name"]: rt for rt in extractable_relations}
     chunk_len = len(chunk.text)
 
     entities: list[ProposedEntity] = []

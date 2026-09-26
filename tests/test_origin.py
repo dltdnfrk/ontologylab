@@ -77,7 +77,9 @@ def test_pack_copies_origin(tmp_path: Path) -> None:
     a, b = _seed(store, doc)
     for item in (a.id, b.id):
         store.approve(item)
-    store.conn.execute("UPDATE nodes SET origin = 'curated' WHERE id = ?", (a.id,))
+    edge_id = store.conn.execute("SELECT id FROM edges").fetchone()[0]
+    store.approve(edge_id)
+    store.conn.execute("UPDATE edges SET origin = 'curated'")
     store.conn.commit()
     store.close()
 
@@ -88,5 +90,7 @@ def test_pack_copies_origin(tmp_path: Path) -> None:
     )
     pack = tmp_path / "packs" / manifest.pack_id / "pack.sqlite"
     with sqlite3.connect(pack) as conn:
-        rows = dict(conn.execute("SELECT id, origin FROM nodes").fetchall())
-    assert rows == {a.id: "curated", b.id: "extracted"}
+        nodes = {row[0] for row in conn.execute("SELECT origin FROM nodes")}
+        edges = dict(conn.execute("SELECT id, origin FROM edges").fetchall())
+    assert nodes == {"extracted"}
+    assert edges == {edge_id: "curated"}

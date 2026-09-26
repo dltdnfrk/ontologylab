@@ -631,6 +631,31 @@ class TermXrefReview(BaseModel):
     reviewer: str
 
 
+class CuratedEntity(BaseModel):
+    name: str = Field(min_length=1, max_length=500)
+    entity_type: str = Field(min_length=1, max_length=200)
+    aliases: list[str] = Field(default_factory=list, max_length=50)
+    properties: dict[str, Any] = Field(default_factory=dict)
+
+
+class CuratedRelation(BaseModel):
+    relation_type: str = Field(min_length=1, max_length=200)
+    # Indexes into ``entities``: a relation may only join entities named in
+    # the same interpretation, which resolve to existing facts by name.
+    src: int = Field(ge=0)
+    dst: int = Field(ge=0)
+    qualifiers: dict[str, Any] = Field(default_factory=dict)
+
+
+class InterpretationCreate(BaseModel):
+    """A person's interpretation layered over extracted facts."""
+
+    curator: str = Field(min_length=1, max_length=200)
+    note: str = Field(default="", max_length=2000)
+    entities: list[CuratedEntity] = Field(min_length=1, max_length=200)
+    relations: list[CuratedRelation] = Field(default_factory=list, max_length=500)
+
+
 class SchemaInstall(BaseModel):
     """Install an ontology: either a bundled preset, or one written out.
 

@@ -199,6 +199,10 @@ CREATE TABLE IF NOT EXISTS entity_type (
     -- NULL = top-level. Names, not ids, so a schema document stays
     -- self-contained and order-independent at install time.
     parent_name       TEXT,
+    -- 0 = interpretation-overlay type (Question, Scenario, ...): written by
+    -- people through insert_curated, never offered to or accepted from the
+    -- extractor.
+    extractable       INTEGER NOT NULL DEFAULT 1,
     UNIQUE (schema_version_id, name)
 );
 

@@ -297,6 +297,11 @@ class LifecycleMixin:
             conn.execute(
                 "ALTER TABLE entity_type ADD COLUMN parent_name TEXT"
             )
+        if "extractable" not in entity_type_columns:
+            conn.execute(
+                "ALTER TABLE entity_type ADD COLUMN extractable INTEGER "
+                "NOT NULL DEFAULT 1"
+            )
         relation_type_columns = {
             row["name"]
             for row in conn.execute("PRAGMA table_info(relation_type)")

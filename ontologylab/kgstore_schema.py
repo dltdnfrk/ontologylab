@@ -315,11 +315,12 @@ class SchemaMixin:
             for entity in entity_types:
                 type_cur = self.conn.execute(
                     "INSERT INTO entity_type (schema_version_id, name, "
-                    "description, attributes_json, parent_name) "
-                    "VALUES (?,?,?,?,?)",
+                    "description, attributes_json, parent_name, extractable) "
+                    "VALUES (?,?,?,?,?,?)",
                     (sv_id, entity["name"], entity.get("description", ""),
                      json.dumps(entity.get("attributes", {})),
-                     entity.get("parent")),
+                     entity.get("parent"),
+                     0 if entity.get("extractable", True) is False else 1),
                 )
                 self._insert_schema_term(
                     self.conn,
@@ -628,18 +629,22 @@ class SchemaMixin:
                 raise UnknownItem(
                     f"unknown schema version id {schema_version_id!r}"
                 )
-        entity_types = [
-            {
+        entity_types = []
+        for r in self.conn.execute(
+            "SELECT * FROM entity_type WHERE schema_version_id = ? ORDER BY name",
+            (sv["id"],),
+        ):
+            entity = {
                 "name": r["name"],
                 "description": r["description"],
                 "attributes": json.loads(r["attributes_json"]),
                 "parent": r["parent_name"],
             }
-            for r in self.conn.execute(
-                "SELECT * FROM entity_type WHERE schema_version_id = ? ORDER BY name",
-                (sv["id"],),
-            )
-        ]
+            # Stated only when false, so every pre-overlay schema document
+            # (and every pack schema hash derived from it) is unchanged.
+            if "extractable" in r.keys() and not r["extractable"]:
+                entity["extractable"] = False
+            entity_types.append(entity)
         relation_types = [
             {
                 "name": r["name"],

@@ -6,6 +6,7 @@ via ontologylab.kgstore. No behavior change intended.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import time
@@ -38,6 +39,7 @@ class ProposedMixin:
         prompt_version: str | None = None,
         decode_params: dict[str, Any] | None = None,
         commit: bool = True,
+        origin: str = "extracted",
     ) -> dict[str, Any]:
         """Insert extraction output as ``proposed`` rows, resolving entities.
 
@@ -49,6 +51,8 @@ class ProposedMixin:
         instead of a second edge. Returns per-batch stats.
         """
         self._assert_writable()
+        if origin not in ("extracted", "inferred", "curated"):
+            raise KGStoreError(f"unknown origin {origin!r}")
         sv_id = self.active_schema_version()["id"]
         entity_rows = list(entities)
         relation_rows = list(relations)
@@ -115,8 +119,8 @@ class ProposedMixin:
                     "(id, schema_version_id, entity_type, name, normalized_name, "
                     " aliases_json, properties_json, status, confidence, "
                     " source_doc_id, source_span, extractor_engine, extractor_model, "
-                    " prompt_version, created_ts, decode_params) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " prompt_version, created_ts, decode_params, origin) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         node_id,
                         sv_id,
@@ -133,6 +137,7 @@ class ProposedMixin:
                         prompt_version,
                         now,
                         decode_json,
+                        origin,
                     ),
                 )
                 for alias in ent.aliases:
@@ -199,8 +204,8 @@ class ProposedMixin:
                     "(id, schema_version_id, relation_type, src_node_id, dst_node_id, "
                     " properties_json, qualifiers_json, status, confidence, "
                     " source_doc_id, source_span, extractor_engine, extractor_model, "
-                    " prompt_version, created_ts, valid_from, decode_params) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " prompt_version, created_ts, valid_from, decode_params, origin) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         edge_id,
                         sv_id,
@@ -218,6 +223,7 @@ class ProposedMixin:
                         now,
                         now,  # valid_from: assertion time defaults to ingestion
                         decode_json,
+                        origin,
                     ),
                 )
                 stats["edges_new"] += 1
@@ -237,6 +243,63 @@ class ProposedMixin:
             self.conn.commit()
         stats["id_map"] = id_map
         return stats
+
+    def insert_curated(
+        self,
+        entities: Iterable[ProposedEntity],
+        relations: Iterable[ProposedRelation],
+        *,
+        curator: str,
+        note: str = "",
+    ) -> dict[str, Any]:
+        """Record a person's interpretation (Question, Scenario, ...) as
+        ``proposed`` rows with ``origin='curated'``.
+
+        Same validators, resolution and dedup as extraction: a curator names
+        existing facts by name and they resolve to the extracted nodes, so an
+        overlay links to evidence instead of duplicating it. The submitted
+        payload itself is stored as a ``curation`` document, which is what
+        every curated row cites: it is the actual source of the claim.
+        Nothing here is verified; approval stays a separate human step.
+        """
+        entity_rows = list(entities)
+        relation_rows = list(relations)
+        if not curator.strip():
+            raise KGStoreError("a curated interpretation needs a curator")
+        if not entity_rows:
+            raise KGStoreError("a curated interpretation needs at least one entity")
+        payload = json.dumps(
+            {
+                "curator": curator,
+                "note": note,
+                "entities": [
+                    {"name": e.name, "entity_type": e.entity_type,
+                     "aliases": e.aliases, "properties": e.properties}
+                    for e in entity_rows
+                ],
+                "relations": [
+                    {"relation_type": r.relation_type, "src": r.src_entity_id,
+                     "dst": r.dst_entity_id, "qualifiers": r.qualifiers}
+                    for r in relation_rows
+                ],
+            },
+            ensure_ascii=False, sort_keys=True,
+        )
+        document, _created = self.insert_document(
+            source_kind="curation",
+            source_uri=f"curation:{curator}",
+            title=note or "curated interpretation",
+            raw_text=payload,
+            content_hash="sha256:" + hashlib.sha256(payload.encode()).hexdigest(),
+        )
+        return self.insert_proposed(
+            entity_rows,
+            relation_rows,
+            source_doc_id=document.id,
+            extractor_engine="curation",
+            extractor_model=curator,
+            origin="curated",
+        ) | {"document_id": document.id}
 
     def _resolve_node(
         self, sv_id: int, entity_type: str, name: str

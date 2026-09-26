@@ -163,6 +163,7 @@ from ontologylab.server.schemas import (
     ResearchRequest,
     ResearchStartInput,
     ResearchSummary,
+    InterpretationCreate,
     SchemaInstall,
     Settings,
     SourceCreate,
@@ -911,6 +912,61 @@ def get_schema(deps: AppDependency) -> dict[str, Any]:
         }
     finally:
         store.close()
+
+
+@router.post("/interpretations")
+def create_interpretation(
+    deps: AppDependency, body: InterpretationCreate
+) -> dict[str, Any]:
+    """Record a curated interpretation as proposed, origin='curated' rows.
+
+    Entities resolve by name against existing facts, so naming an extracted
+    Pathogen links to it rather than duplicating it. Nothing becomes
+    verified here; the rows enter the same human review queue.
+    """
+    import uuid
+
+    from ontologylab.models import ProposedEntity, ProposedRelation
+
+    entities = [
+        ProposedEntity(
+            id=uuid.uuid4().hex, entity_type=e.entity_type, name=e.name,
+            aliases=list(e.aliases), properties=dict(e.properties),
+        )
+        for e in body.entities
+    ]
+    relations = []
+    for index, r in enumerate(body.relations):
+        if r.src >= len(entities) or r.dst >= len(entities):
+            raise HTTPException(
+                status_code=422,
+                detail=f"relations[{index}] references an entity index "
+                f"outside 0..{len(entities) - 1}",
+            )
+        relations.append(
+            ProposedRelation(
+                id=uuid.uuid4().hex, relation_type=r.relation_type,
+                src_entity_id=entities[r.src].id, dst_entity_id=entities[r.dst].id,
+                qualifiers=dict(r.qualifiers),
+            )
+        )
+    store = _open_store(deps)
+    try:
+        stats = store.insert_curated(
+            entities, relations, curator=body.curator, note=body.note,
+        )
+    except KGStoreError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        store.close()
+    return {
+        "ok": True,
+        "document_id": stats["document_id"],
+        "node_ids": [stats["id_map"][e.id] for e in entities],
+        "nodes_new": stats["nodes_new"],
+        "nodes_merged": stats["nodes_merged"],
+        "edges_new": stats["edges_new"],
+    }
 
 
 @router.post("/schema")
