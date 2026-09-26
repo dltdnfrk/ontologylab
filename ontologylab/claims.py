@@ -33,8 +33,29 @@ def _status_sql(include_proposed: bool) -> str:
     )
 
 
-def _time_sql(valid_at: float | None) -> tuple[str, list[Any]]:
-    """Current truth by default; with ``valid_at``, what held at that time."""
+def _time_sql(
+    valid_at: float | None,
+    period_start: float | None = None,
+    period_end: float | None = None,
+) -> tuple[str, list[Any]]:
+    """Current truth, a point in time, or overlap with a half-open period."""
+    if period_start is not None or period_end is not None:
+        if valid_at is not None:
+            raise ValueError("period and valid_at may not both be given")
+        if period_start is not None and period_end is not None:
+            if period_end < period_start:
+                raise ValueError("period_end must not precede period_start")
+            if period_start == period_end:
+                return "0", []
+        where = []
+        params = []
+        if period_start is not None:
+            where.append("(e.invalidated_ts IS NULL OR e.invalidated_ts > ?)")
+            params.append(period_start)
+        if period_end is not None:
+            where.append("(e.valid_from IS NULL OR e.valid_from < ?)")
+            params.append(period_end)
+        return " AND ".join(where), params
     if valid_at is None:
         return "e.invalidated_ts IS NULL", []
     return (
@@ -79,6 +100,12 @@ def _claim_rows(
     claims = []
     for row in rows:
         dst_properties = json.loads(row["dst_properties"] or "{}")
+        measurement = dst_properties.get("measurement")
+        normalized = (
+            measurement if measurement is not None and measurement.get("status") == "normalized"
+            else {}
+        )
+        source_span = json.loads(row["source_span"]) if row["source_span"] else None
         claims.append({
             "edge_id": row["id"],
             "subject": {"id": row["src_node_id"], "name": row["src_name"],
@@ -91,18 +118,25 @@ def _claim_rows(
             "qualifiers": json.loads(row["qualifiers_json"] or "{}"),
             "status": row["status"],
             "origin": row["origin"],
+            "provenance": row["origin"],
             "confidence": row["confidence"],
-            "measurement": dst_properties.get("measurement"),
+            "measurement": measurement,
+            "value": normalized.get("value"),
+            "unit": normalized.get("unit"),
+            "source_uri": row["source_uri"],
+            "source_span": source_span,
+            "retrieved_at": row["fetched_ts"],
             "evidence": {
                 "source_doc_id": row["source_doc_id"],
                 "source_uri": row["source_uri"],
                 "title": row["title"],
                 "doi": row["doi"],
-                "source_span": json.loads(row["source_span"]) if row["source_span"] else None,
+                "source_span": source_span,
                 "retrieved_at": row["fetched_ts"],
             },
             "valid_from": row["valid_from"],
             "invalidated_ts": row["invalidated_ts"],
+            "valid_to": row["invalidated_ts"],
             "schema_version_id": row["schema_version_id"],
         })
     return claims
@@ -127,12 +161,14 @@ def claims_for(
     valid_at: float | None = None,
     include_proposed: bool = False,
     limit: int = 100,
+    period_start: float | None = None,
+    period_end: float | None = None,
 ) -> dict[str, Any]:
     if subject_id is None and object_id is None:
         raise ValueError("claims_for needs subject_id or object_id")
     if polarity is not None and polarity not in POLARITIES:
         raise ValueError(f"polarity must be one of {', '.join(POLARITIES)}")
-    time_sql, params = _time_sql(valid_at)
+    time_sql, params = _time_sql(valid_at, period_start, period_end)
     where = [_status_sql(include_proposed), time_sql]
     if not include_proposed:
         where.append("s.status = 'verified' AND d.status = 'verified'")

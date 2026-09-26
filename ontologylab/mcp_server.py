@@ -39,8 +39,12 @@ from ontologylab.mcp_runtime import McpApp
 
 try:  # official MCP SDK — the standard registry when installed
     from mcp.server.fastmcp import FastMCP
+    from pydantic import StrictFloat as _strict_float
 except ImportError:  # pragma: no cover — stdlib-only fallback path
     FastMCP = None  # type: ignore[assignment]
+    # McpApp already rejects numeric strings. Keep "float" in the alias name
+    # for its annotation-based JSON schema, without requiring pydantic.
+    _strict_float = float
 from ontologylab.engines import EngineError, engine_name_arg, resolve_engine
 from ontologylab.expansion import expand_query
 from ontologylab.packbuilder import (
@@ -984,14 +988,19 @@ class PackSession:
         valid_at: float | None = None,
         include_proposed: bool = False,
         limit: int = 100,
+        period_start: float | None = None,
+        period_end: float | None = None,
     ) -> dict[str, Any]:
         result = claims.claims_for(
             self._require_store().conn,
             subject_id=subject_id, object_id=object_id,
             relation_type=relation_type, polarity=polarity, origin=origin,
             valid_at=valid_at, include_proposed=include_proposed, limit=limit,
+            period_start=period_start, period_end=period_end,
         )
         result["pack"] = self._provenance()
+        for claim in result["claims"]:
+            claim["pack_id"] = result["pack"]["pack_id"]
         return result
 
     def find_contradictions(
@@ -1350,16 +1359,22 @@ def build_mcp_app(session: PackSession, *, backend: str = "auto") -> Any:
         valid_at: float | None = None,
         include_proposed: bool = False,
         limit: int = 100,
+        period_start: _strict_float | None = None,
+        period_end: _strict_float | None = None,
     ) -> ClaimsResult:
         """Claims about an entity with their evidence: each edge's polarity
         (supports / refutes / no_effect; null = asserted before polarity
         existed), origin, source document, span, validity window, and the
         object's normalized measurement. Needs subject_id or object_id.
-        valid_at (epoch seconds) returns what held at that time."""
+        valid_at (epoch seconds) returns what held at that time. Alternatively,
+        period_start/period_end select overlap with [start, end) in epoch
+        seconds; an omitted endpoint is unbounded, equal endpoints are empty.
+        A period cannot be combined with valid_at."""
         return session.claims_for(
             subject_id=subject_id, object_id=object_id,
             relation_type=relation_type, polarity=polarity, origin=origin,
             valid_at=valid_at, include_proposed=include_proposed, limit=limit,
+            period_start=period_start, period_end=period_end,
         )
 
     @mcp.tool()
