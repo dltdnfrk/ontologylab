@@ -170,7 +170,8 @@ def _extractable(schema: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dic
     curated = {et["name"] for et in schema["entity_types"]} - {et["name"] for et in entity_types}
     relation_types = [
         rt for rt in schema["relation_types"]
-        if rt["domain_type"] not in curated and rt["range_type"] not in curated
+        if rt.get("extractable", True)
+        and rt["domain_type"] not in curated and rt["range_type"] not in curated
     ]
     return entity_types, relation_types
 

@@ -311,6 +311,11 @@ class LifecycleMixin:
                 "ALTER TABLE relation_type ADD COLUMN qualifiers_json "
                 "TEXT NOT NULL DEFAULT '{}'"
             )
+        if "extractable" not in relation_type_columns:
+            conn.execute(
+                "ALTER TABLE relation_type ADD COLUMN extractable INTEGER "
+                "NOT NULL DEFAULT 1"
+            )
         node_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(nodes)")
         }

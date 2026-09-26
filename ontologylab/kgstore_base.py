@@ -215,6 +215,7 @@ CREATE TABLE IF NOT EXISTS relation_type (
     range_type        TEXT NOT NULL,
     directed          INTEGER NOT NULL DEFAULT 1,
     qualifiers_json   TEXT NOT NULL DEFAULT '{}',
+    extractable       INTEGER NOT NULL DEFAULT 1,
     UNIQUE (schema_version_id, name)
 );
 

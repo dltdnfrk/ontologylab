@@ -336,7 +336,7 @@ class SchemaMixin:
                 type_cur = self.conn.execute(
                     "INSERT INTO relation_type (schema_version_id, name, "
                     "description, domain_type, range_type, directed, "
-                    "qualifiers_json) VALUES (?,?,?,?,?,?,?)",
+                    "qualifiers_json, extractable) VALUES (?,?,?,?,?,?,?,?)",
                     (
                         sv_id,
                         relation["name"],
@@ -345,6 +345,7 @@ class SchemaMixin:
                         relation.get("range_type", "*"),
                         1 if relation.get("directed", True) else 0,
                         json.dumps(relation.get("qualifiers", {})),
+                        0 if relation.get("extractable", True) is False else 1,
                     ),
                 )
                 self._insert_schema_term(
@@ -645,8 +646,12 @@ class SchemaMixin:
             if "extractable" in r.keys() and not r["extractable"]:
                 entity["extractable"] = False
             entity_types.append(entity)
-        relation_types = [
-            {
+        relation_types = []
+        for r in self.conn.execute(
+            "SELECT * FROM relation_type WHERE schema_version_id = ? ORDER BY name",
+            (sv["id"],),
+        ):
+            relation = {
                 "name": r["name"],
                 "description": r["description"],
                 "domain_type": r["domain_type"],
@@ -658,11 +663,9 @@ class SchemaMixin:
                     else {}
                 ),
             }
-            for r in self.conn.execute(
-                "SELECT * FROM relation_type WHERE schema_version_id = ? ORDER BY name",
-                (sv["id"],),
-            )
-        ]
+            if "extractable" in r.keys() and not r["extractable"]:
+                relation["extractable"] = False
+            relation_types.append(relation)
         return {
             "schema_version_id": sv["id"],
             "schema_label": sv["label"],

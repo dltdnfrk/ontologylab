@@ -130,7 +130,7 @@ _PACK_COPY_COLUMNS: dict[str, tuple[str, ...]] = {
     ),
     "relation_type": (
         "id", "schema_version_id", "name", "description", "domain_type",
-        "range_type", "directed", "qualifiers_json",
+        "range_type", "directed", "qualifiers_json", "extractable",
     ),
     "documents": (
         "id", "source_kind", "source_uri", "title", "fetched_ts",

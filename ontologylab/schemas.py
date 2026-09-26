@@ -33,6 +33,8 @@ def _schema(
     entities: Mapping[str, tuple[str, dict] | tuple[str, dict, str]],
     relations: dict[str, tuple[str, str, str, bool]],
     relation_qualifiers: dict[str, dict[str, dict[str, Any]]] | None = None,
+    curated_entities: Mapping[str, tuple[str, dict]] | None = None,
+    curated_relations: dict[str, tuple[str, str, str, bool]] | None = None,
 ) -> dict[str, Any]:
     return {
         "term_reviewer": _default.BUNDLED_TERM_REVIEWER,
@@ -48,6 +50,11 @@ def _schema(
                 **({"parent": spec[2]} if len(spec) > 2 else {}),
             }
             for name, spec in entities.items()
+        ]
+        + [
+            {"name": name, "description": spec[0], "attributes": spec[1],
+             "extractable": False}
+            for name, spec in (curated_entities or {}).items()
         ],
         "relation_types": [
             {
@@ -59,6 +66,12 @@ def _schema(
                 "qualifiers": (relation_qualifiers or {}).get(name, {}),
             }
             for name, (desc, domain, range_, directed) in relations.items()
+        ]
+        + [
+            {"name": name, "description": desc, "domain_type": domain,
+             "range_type": range_, "directed": directed, "qualifiers": {},
+             "extractable": False}
+            for name, (desc, domain, range_, directed) in (curated_relations or {}).items()
         ],
     }
 
@@ -383,6 +396,137 @@ _AGROCHEM_RELATIONS: dict[str, tuple[str, str, str, bool]] = {
 }
 
 
+# -- agrochem-v2: the claim layer --------------------------------------------
+# One install carries every type-level change, because a schema switch starts
+# a new graph partition and nothing carries verified v1 facts across. Split
+# installs would partition twice.
+
+# Polarity is what a finding says about its relation, and it is part of edge
+# identity: "X controls Y" and "X had no effect on Y" are two claims, never
+# one claim with two citations. Absent means the pre-v2 meaning (asserted).
+POLARITY_QUALIFIER: dict[str, Any] = {
+    "type": "string",
+    "enum": ["supports", "refutes", "no_effect"],
+    "required": False,
+    "description": (
+        "supports = the text asserts the relation; refutes = the text "
+        "explicitly negates it; no_effect = a measured null result "
+        "(tested, no significant difference)."
+    ),
+}
+# evidence_strength is the model's self-report. It stays out of identity
+# because the critic already supersedes it.
+_EVIDENCE_STRENGTH_QUALIFIER: dict[str, Any] = {
+    "type": "string",
+    "enum": ["strong", "moderate", "weak"],
+    "required": False,
+}
+
+# Relations that report a finding can be refuted or found null. Structural
+# ones (contains, encodes, formulated_as, has_mode_of_action, ...) record
+# what something is, and a paper does not "fail to find" them.
+_AGROCHEM_CLAIM_RELATIONS = (
+    "controls", "infects", "damages", "causes", "targets",
+    "confers_resistance_to", "resistant_to", "cross_resistant_with",
+    "inhibits", "toxic_to", "phytotoxic_to", "synergizes_with",
+    "associated_with",
+)
+
+_DIAGNOSTIC_ENTITIES: dict[str, tuple[str, dict]] = {
+    "Probe": (
+        "A molecular probe or assay reagent (antibody, primer set, "
+        "aptamer).",
+        {"probe_type": {"type": "string", "required": False}},
+    ),
+    "Fluorophore": (
+        "A fluorescent label or dye (FAM, Cy5).",
+        {"excitation_nm": {"type": "string", "required": False},
+         "emission_nm": {"type": "string", "required": False}},
+    ),
+    "DetectionTarget": (
+        "What an assay detects (a pathogen, a gene, a residue).",
+        {},
+    ),
+    "SampleMatrix": (
+        "The sample material an assay runs on (leaf tissue, soil, water).",
+        {},
+    ),
+    "AssayCondition": (
+        "A stated assay condition (temperature, incubation time, buffer).",
+        {"value": {"type": "string", "required": False},
+         "unit": {"type": "string", "required": False}},
+    ),
+    "PerformanceMetric": (
+        "A reported assay performance value (LOD 10 copies/uL, 95% "
+        "sensitivity).",
+        {"metric": {"type": "string", "required": False},
+         "value": {"type": "string", "required": False},
+         "unit": {"type": "string", "required": False}},
+    ),
+}
+
+_DIAGNOSTIC_RELATIONS: dict[str, tuple[str, str, str, bool]] = {
+    "detects": ("Probe or assay detects the target.", "*", "DetectionTarget", True),
+    "cross_reacts_with": (
+        "Probe also binds or reports a non-target.", "Probe", "*", True,
+    ),
+    "interferes_with": (
+        "Matrix or condition distorts the assay signal.", "*", "*", True,
+    ),
+    "labeled_with": ("Probe carries this label.", "Probe", "Fluorophore", True),
+    "measured_in": (
+        "Performance or detection was measured in this matrix.",
+        "*", "SampleMatrix", True,
+    ),
+    "has_performance": (
+        "Probe or assay has this performance value.",
+        "*", "PerformanceMetric", True,
+    ),
+    "run_under": ("Measurement was run under this condition.", "*", "AssayCondition", True),
+}
+_DIAGNOSTIC_CLAIM_RELATIONS = ("detects", "cross_reacts_with", "interferes_with")
+
+# Interpretation overlay: written by people via POST /api/interpretations,
+# never offered to or accepted from the extractor.
+_OVERLAY_ENTITIES: dict[str, tuple[str, dict]] = {
+    "Question": (
+        "A watch question someone wants the evidence to answer.",
+        {"status": {"type": "string", "enum": ["open", "answered", "dropped"],
+                    "required": False}},
+    ),
+    "Event": (
+        "An observed or reported occurrence the interpretation hinges on.",
+        {"date": {"type": "string", "required": False}},
+    ),
+    "Scenario": (
+        "A hypothesized course of events and what it would imply.",
+        {"likelihood": {"type": "string", "required": False}},
+    ),
+    "Checklist": (
+        "The checks that would confirm or rule out a scenario.",
+        {"items": {"type": "array", "required": False}},
+    ),
+}
+
+_OVERLAY_RELATIONS: dict[str, tuple[str, str, str, bool]] = {
+    "asks_about": ("Question concerns this fact or entity.", "Question", "*", True),
+    "evidenced_by": (
+        "Interpretation rests on this extracted fact.", "*", "*", True,
+    ),
+    "follows": ("Event or scenario comes after this one.", "*", "*", True),
+    "predicts": ("Scenario implies this event or outcome.", "Scenario", "*", True),
+    "checked_by": ("Scenario is tested by this checklist.", "Scenario", "Checklist", True),
+}
+
+
+def _claim_qualifiers(names: tuple[str, ...]) -> dict[str, dict[str, dict[str, Any]]]:
+    return {
+        name: {"polarity": POLARITY_QUALIFIER,
+               "evidence_strength": _EVIDENCE_STRENGTH_QUALIFIER}
+        for name in names
+    }
+
+
 PRESETS: dict[str, dict[str, Any]] = {
     "software-docs": _schema(
         _default.DEFAULT_SCHEMA_LABEL,
@@ -405,6 +549,17 @@ PRESETS: dict[str, dict[str, Any]] = {
         "toxicity it leaves, and what a trial measured.",
         _AGROCHEM_ENTITIES,
         _AGROCHEM_RELATIONS,
+    ),
+    "agrochem-v2": _schema(
+        "agrochem-v2",
+        "agrochem-v1 plus the claim layer: polarity on findings, a "
+        "diagnostic-assay vocabulary, and a curated interpretation overlay "
+        "(Question, Event, Scenario, Checklist).",
+        {**_AGROCHEM_ENTITIES, **_DIAGNOSTIC_ENTITIES},
+        {**_AGROCHEM_RELATIONS, **_DIAGNOSTIC_RELATIONS},
+        _claim_qualifiers(_AGROCHEM_CLAIM_RELATIONS + _DIAGNOSTIC_CLAIM_RELATIONS),
+        _OVERLAY_ENTITIES,
+        _OVERLAY_RELATIONS,
     ),
 }
 
