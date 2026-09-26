@@ -58,7 +58,7 @@ from ontologylab.registry import CASRegistryCache, MoARegistryCache, RegistryCac
 from ontologylab.safety import Caps
 from ontologylab.species_abbreviation import resolve_species_abbreviation
 
-PROMPT_VERSION = "extract-v3"
+PROMPT_VERSION = "extract-v4"
 ENGINE_FAILURE_SUMMARY = "extraction engine failed"
 
 # Heuristic tokenizer: ~4 chars/token (no model-specific tokenizer dep).
@@ -201,6 +201,61 @@ Fluopyram had no significant effect on Botrytis. Boscalid suppressed Botrytis.
 ```"""
 
 
+_AGROCHEM_GUIDANCE = """\
+Agrochem relation selection and endpoint scope:
+- Use the relation definitions above, not a verb-to-label substitution.
+  "inhibits" describes inhibition of growth in an assay or suppression of a
+  biological process (for example oviposition). "controls" describes treatment
+  efficacy against a pest, weed, pathogen or its named disease, including
+  mortality or weed biomass reduction in a control trial. An in-vitro growth
+  result is not by itself evidence of disease control in a crop.
+  "reduces" is not an agrochem-v2 relation: determine WHAT was reduced and in
+  which experiment before choosing inhibits or controls.
+- Keep the tested endpoint, not just its organism: a process, a life stage,
+  a named population, an isolate, a strain and a disease are not interchangeable.
+  Copy the full qualified mention verbatim from its source span into name and
+  into every relation endpoint reference. Keep species prefixes, population
+  labels, isolate/strain identifiers, life-stage words and process words.
+  Do not turn these narrower entities into aliases of the bare species.
+  Use Pathway for a biological process and Disease for a named disease.
+  If the chunk only says "isolate Z" or a symptom, keep that source wording;
+  do not invent an absent species prefix or equate a symptom to a disease.
+- A tested mixture is ONE treatment entity with the complete combination name,
+  not an ingredient's alias. Use Product for a combined formulation, preserving
+  every named component and connector from the source. Use the combination as
+  the efficacy edge's source; ingredient-only findings remain separate.
+  Co-mention of two independently tested treatments is NOT a mixture.
+  A synergizes_with edge is only for an explicitly tested more-than-additive
+  interaction; it does not replace the mixture's controls/inhibits finding.
+- Keep each tested population, endpoint and treatment arm separate. Extract
+  explicit ineffective findings and measured nulls as well as positive results.
+  Choose polarity for that exact finding, not from a different dose or trial.
+  A comparison between two effective treatments does not mean no_effect versus
+  an untreated control. Resistance uses resistant_to, not controls.
+
+Invented mini-examples (not study evidence; only extract the real chunk):
+Input: Agent A reduced growth of Fungus alpha isolate Z in vitro.
+Output: Agent A --inhibits [supports]--> Fungus alpha isolate Z (Pathogen).
+Input: Agent A did not significantly reduce Moth beta oviposition.
+Output: Agent A --inhibits [no_effect]--> Moth beta oviposition (Pathway).
+Input: Agent A controlled R ryegrass population; it had no significant effect
+on S ryegrass population.
+Output: Agent A --controls [supports]--> R ryegrass population (Weed);
+Agent A --controls [no_effect]--> S ryegrass population (Weed). Keep two nodes.
+Input: Agent A controlled Moth beta larvae but not Moth beta adults.
+Output: Agent A --controls [supports]--> Moth beta larvae (Pest);
+Agent A --controls [refutes]--> Moth beta adults (Pest). Keep the life stages.
+Input: Bacterium gamma strain K did not significantly control leaf spot disease.
+Output: Bacterium gamma strain K --controls [no_effect]--> leaf spot disease
+(Disease). Keep the strain and disease names; do not substitute an organism.
+Input: Agent A + Adjuvant B controlled R ryegrass population; Agent A alone
+was ineffective against R ryegrass population.
+Output: Agent A + Adjuvant B (Product) --controls [supports]--> R ryegrass
+population; Agent A (ActiveIngredient) --controls [refutes]--> R ryegrass
+population. Do not infer synergy or transfer mixture efficacy to Agent A.
+"""
+
+
 def _extractable(schema: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """The part of a schema the model may produce: interpretation-overlay
     entity types are curated by people, and so is any relation touching one."""
@@ -273,6 +328,11 @@ def build_extraction_prompt(
     rendered as negative examples so the same artifact class is not
     re-proposed on the next document.
     """
+    agrochem_guidance = (
+        _AGROCHEM_GUIDANCE
+        if schema.get("schema_label", schema.get("label")) == "agrochem-v2"
+        else ""
+    )
     return f"""You are an information-extraction engine. Extract entities and relations \
 from the document chunk below, strictly following the ontology schema.
 
@@ -295,6 +355,8 @@ from the document chunk below, strictly following the ontology schema.
    "no_effect" instead of dropping it or recording it as "supports".
 5. Only extract facts stated in the chunk. Do not use outside knowledge.
 6. If nothing is extractable, return {{"entities": [], "relations": []}}.
+
+{agrochem_guidance}
 
 {_FEW_SHOT}
 

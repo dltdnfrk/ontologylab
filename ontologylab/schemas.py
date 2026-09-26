@@ -555,7 +555,16 @@ PRESETS: dict[str, dict[str, Any]] = {
         "agrochem-v1 plus the claim layer: polarity on findings, a "
         "diagnostic-assay vocabulary, and a curated interpretation overlay "
         "(Question, Event, Scenario, Checklist).",
-        {**_AGROCHEM_ENTITIES, **_DIAGNOSTIC_ENTITIES},
+        {
+            **_AGROCHEM_ENTITIES,
+            **_DIAGNOSTIC_ENTITIES,
+            "Product": (
+                "A commercial product or a source-tested combined formulation "
+                "containing one or more actives. Keep the complete mixture "
+                "name; registration is not implied.",
+                _AGROCHEM_ENTITIES["Product"][1],
+            ),
+        },
         {**_AGROCHEM_RELATIONS, **_DIAGNOSTIC_RELATIONS},
         _claim_qualifiers(_AGROCHEM_CLAIM_RELATIONS + _DIAGNOSTIC_CLAIM_RELATIONS),
         _OVERLAY_ENTITIES,
