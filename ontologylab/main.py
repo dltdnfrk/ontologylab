@@ -114,6 +114,13 @@ def cmd_method(args: argparse.Namespace) -> int:
         if command == "extract":
             from ontologylab.method_extract import extract_occurrences
 
+            # The same verdict the graph `extract` command applies, before an
+            # engine is even resolved; extract_occurrences repeats it for
+            # programmatic callers and for --resume.
+            refused = refused_extractions(store.conn, [args.document_id])
+            if refused:
+                print(f"[ontologylab] {refusal_message(refused)}", file=sys.stderr)
+                return 1
             engine = resolve_engine(
                 args.engine, model=args.model,
                 data_dir=Path(args.data_dir),
