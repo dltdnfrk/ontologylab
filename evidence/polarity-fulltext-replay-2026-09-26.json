@@ -1,0 +1,3182 @@
+{
+  "task": 19,
+  "gold_sha256": "cf7ea33f227540f201f2142eb7fa640bf08a1edf3cb039528c3b4828796f4f23",
+  "runs": [
+    {
+      "run": 1,
+      "copy": "/private/tmp/t19-replay-1",
+      "scored_database": "/private/tmp/t19-replay-1/replayed-fulltext.sqlite",
+      "counts": {
+        "documents": 5,
+        "nodes": 63,
+        "node_aliases": 11,
+        "edges": 49
+      },
+      "changes": [
+        {
+          "id": "493734b67cea442ab68760b005441f62",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true
+        },
+        {
+          "id": "63b12d3a0bf244a19b834164cfc4050b",
+          "before": "D. suzukii",
+          "after": "Drosophila suzukii",
+          "pmcid": "PMC12546283",
+          "entity_type": "Pest",
+          "reason": null,
+          "resolved": true
+        },
+        {
+          "id": "98fc4c49575c4400ab483491a2af607f",
+          "before": "M. anisopliae 35.79",
+          "after": "Metarhizium anisopliae 35.79",
+          "pmcid": "PMC12546283",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true
+        },
+        {
+          "id": "01c0dc9027a34116ac01ce3c0cad737c",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true
+        }
+      ],
+      "batches": [
+        {
+          "document": "rep-2ae1bfcc4183",
+          "stats": {
+            "nodes_new": 9,
+            "nodes_merged": 0,
+            "edges_new": 8,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "493734b67cea442ab68760b005441f62": "493734b67cea442ab68760b005441f62",
+              "8cba7fe9f588456da3d084b2a808e9ad": "8cba7fe9f588456da3d084b2a808e9ad",
+              "8295af9a056b4ff7a608cd711cf97ec6": "8295af9a056b4ff7a608cd711cf97ec6",
+              "e4ed93b8f763454fa7010b187e61e468": "e4ed93b8f763454fa7010b187e61e468",
+              "3245eaff685a4bbfa13aa7a6618f13c5": "3245eaff685a4bbfa13aa7a6618f13c5",
+              "fc3e6393cae74fb8b6762f13c9dc65b2": "fc3e6393cae74fb8b6762f13c9dc65b2",
+              "c884b410808b4a028c16bf0090a0de20": "c884b410808b4a028c16bf0090a0de20",
+              "feeddf4a8d2e473c97ac583cb02a4a4e": "feeddf4a8d2e473c97ac583cb02a4a4e",
+              "29d604d1febb40d2a4f32010a96eb6c3": "29d604d1febb40d2a4f32010a96eb6c3"
+            }
+          }
+        },
+        {
+          "document": "rep-dce0d78dadec",
+          "stats": {
+            "nodes_new": 11,
+            "nodes_merged": 0,
+            "edges_new": 10,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "d2f32246e26c400cabe312dcbb2b90bd": "d2f32246e26c400cabe312dcbb2b90bd",
+              "63b12d3a0bf244a19b834164cfc4050b": "63b12d3a0bf244a19b834164cfc4050b",
+              "7ba28c59b454445f8ab4214a84fbc3b6": "7ba28c59b454445f8ab4214a84fbc3b6",
+              "2f9ad129f84f4b0a8601c3245f2e502a": "2f9ad129f84f4b0a8601c3245f2e502a",
+              "98fc4c49575c4400ab483491a2af607f": "98fc4c49575c4400ab483491a2af607f",
+              "ec3b1783465549abb7968f62b105d6d5": "ec3b1783465549abb7968f62b105d6d5",
+              "dedd1a9992f04f68923ca92fd5726ddb": "dedd1a9992f04f68923ca92fd5726ddb",
+              "5f9f7e4166714ec99f5b8208249bb5f3": "5f9f7e4166714ec99f5b8208249bb5f3",
+              "d42102f5700d490ca2b4f6fd42af24fe": "d42102f5700d490ca2b4f6fd42af24fe",
+              "31df30b3eb494cada516fb1bc7aa04db": "31df30b3eb494cada516fb1bc7aa04db",
+              "784d777a47dd43168e20486514330587": "784d777a47dd43168e20486514330587"
+            }
+          }
+        },
+        {
+          "document": "rep-1131dec589e0",
+          "stats": {
+            "nodes_new": 10,
+            "nodes_merged": 0,
+            "edges_new": 9,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "ffcabe14df414d079899455a77bd0e6f": "ffcabe14df414d079899455a77bd0e6f",
+              "20a0e33c951541ad987c264c01030a8e": "20a0e33c951541ad987c264c01030a8e",
+              "1c0594fb7c2f4a63a38380d63347529c": "1c0594fb7c2f4a63a38380d63347529c",
+              "f27612cc3dee454d978ff30e78fa9902": "f27612cc3dee454d978ff30e78fa9902",
+              "1474f8043a204a9c842d26005cbcc7ee": "1474f8043a204a9c842d26005cbcc7ee",
+              "e6e0bec4e0b14b5d88159cca1caa8583": "e6e0bec4e0b14b5d88159cca1caa8583",
+              "5f5ad26c99864373bdd21c609d303eb3": "5f5ad26c99864373bdd21c609d303eb3",
+              "90edd234a42f4ea49ffae4acec24e787": "90edd234a42f4ea49ffae4acec24e787",
+              "eb0103d5539c4630aa81078047738864": "eb0103d5539c4630aa81078047738864",
+              "8e8f84e9653f4f77985bbf9ab5293c4a": "8e8f84e9653f4f77985bbf9ab5293c4a"
+            }
+          }
+        },
+        {
+          "document": "rep-5ba0e09575ec",
+          "stats": {
+            "nodes_new": 8,
+            "nodes_merged": 0,
+            "edges_new": 9,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "3449770d3d834cd098d2d9119f1d8448": "3449770d3d834cd098d2d9119f1d8448",
+              "ca93f6e3f9c545208cac52c0f5901d59": "ca93f6e3f9c545208cac52c0f5901d59",
+              "2b5d2bd5c39f426c9a6662f57ebd82d8": "2b5d2bd5c39f426c9a6662f57ebd82d8",
+              "bad677e50d1048789a80a037a00c837c": "bad677e50d1048789a80a037a00c837c",
+              "d17a966691cd4e36935930d060c844d2": "d17a966691cd4e36935930d060c844d2",
+              "ec707ded20ee48ba90e10e652d6c42ff": "ec707ded20ee48ba90e10e652d6c42ff",
+              "66a89ebce2b54a4aa9180f2722ceae73": "66a89ebce2b54a4aa9180f2722ceae73",
+              "8a80bf01b4dc44b9a35b184ebc0a4179": "8a80bf01b4dc44b9a35b184ebc0a4179"
+            }
+          }
+        },
+        {
+          "document": "rep-e479d944c9e1",
+          "stats": {
+            "nodes_new": 25,
+            "nodes_merged": 0,
+            "edges_new": 13,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "2e1ff30500144a5581a7e95b16239e9f": "2e1ff30500144a5581a7e95b16239e9f",
+              "030061d281dd42d599d47c7d65e318ff": "030061d281dd42d599d47c7d65e318ff",
+              "d5f11f1987804eaead46ed069610452c": "d5f11f1987804eaead46ed069610452c",
+              "9359cdbfabc746a1a6794ddd2ed93e64": "9359cdbfabc746a1a6794ddd2ed93e64",
+              "c4d86ff39d2a40b2a92adf008bb12e1f": "c4d86ff39d2a40b2a92adf008bb12e1f",
+              "c6a4a0c8b2644dd0933b169e4337a2c4": "c6a4a0c8b2644dd0933b169e4337a2c4",
+              "929dcd13fa6a46aa8e5eb6e0092e2693": "929dcd13fa6a46aa8e5eb6e0092e2693",
+              "a52a86ad9c084cc19481795644356b44": "a52a86ad9c084cc19481795644356b44",
+              "c3146f17cbdc4293a8ef245955380a33": "c3146f17cbdc4293a8ef245955380a33",
+              "01c0dc9027a34116ac01ce3c0cad737c": "01c0dc9027a34116ac01ce3c0cad737c",
+              "a4cd22c350ce48f4a70ba799c85d7f2b": "a4cd22c350ce48f4a70ba799c85d7f2b",
+              "56a575597869424585d180293f832556": "56a575597869424585d180293f832556",
+              "6572aeeec4a84eb49ee968015ecf1b02": "6572aeeec4a84eb49ee968015ecf1b02",
+              "345660173d2348ccb008c526d3e79bdb": "345660173d2348ccb008c526d3e79bdb",
+              "023d26fa98c24af296f83d0387066cea": "023d26fa98c24af296f83d0387066cea",
+              "a89c9790743b46e2a0184cec9a517b31": "a89c9790743b46e2a0184cec9a517b31",
+              "1ff330313dae466a9f22ffc51f3bcb79": "1ff330313dae466a9f22ffc51f3bcb79",
+              "0d52806ca06743b990c0cd23a167c339": "0d52806ca06743b990c0cd23a167c339",
+              "55a2e6037f9f4291808da774d860e66e": "55a2e6037f9f4291808da774d860e66e",
+              "d8ede0b632aa4df2b0dfbf564bb69d7e": "d8ede0b632aa4df2b0dfbf564bb69d7e",
+              "1f4fcd2505d2404b93e745052b02567a": "1f4fcd2505d2404b93e745052b02567a",
+              "c00f82f7f026466fb8cdf090a8436ee8": "c00f82f7f026466fb8cdf090a8436ee8",
+              "2f80e9c2c647419991adccebd3bea495": "2f80e9c2c647419991adccebd3bea495",
+              "d107d254785a444ab5aba082a191157e": "d107d254785a444ab5aba082a191157e",
+              "84e704d246c746c78f63f1b4fa94687f": "84e704d246c746c78f63f1b4fa94687f"
+            }
+          }
+        }
+      ],
+      "cases": [
+        {
+          "run": 1,
+          "gold": 21,
+          "edge_id": "c97f00705f7b49a89aea952729291f54",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "no_effect"
+        },
+        {
+          "run": 1,
+          "gold": 22,
+          "edge_id": "1ce2a77afb264eee9dfbb4570ca057fb",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "no_effect",
+          "gold_polarity": "no_effect"
+        },
+        {
+          "run": 1,
+          "gold": 24,
+          "edge_id": "e0d6faad8f1e40969710cc2d5b266655",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 1,
+          "gold": 25,
+          "edge_id": "e09dc063fc494ebd85fa80801c9cf64d",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 1,
+          "gold": 26,
+          "edge_id": "2579cedeca9a4ce4a2b960048e6ede8d",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 1,
+          "gold": 27,
+          "edge_id": "3988c2c4cf80486f9e041b991f7982ae",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 1,
+          "gold": 28,
+          "edge_id": "8906faa78e8e459381b1ea1480313af5",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        }
+      ],
+      "resolver_contexts": [
+        {
+          "document_id": "rep-2ae1bfcc4183",
+          "pmcid": "PMC11298438",
+          "source": "sources/full/PMC11298438.txt",
+          "sha256": "4fe0e19bc80d2cb3f388deebc38f02f20e5e1d1392db60fd50d1fbfd4ab385d9"
+        },
+        {
+          "document_id": "rep-dce0d78dadec",
+          "pmcid": "PMC12546283",
+          "source": "sources/full/PMC12546283.txt",
+          "sha256": "be7923ca6e58a248ff2cb1476cfd719dd513a3c3df152e7ab821fe02ea90c099"
+        },
+        {
+          "document_id": "rep-1131dec589e0",
+          "pmcid": "PMC12563837",
+          "source": "sources/full/PMC12563837.txt",
+          "sha256": "8d45778ceeb648ff318a7a0e6d1112f836e4da13cca76739e89acf300e96ed80"
+        },
+        {
+          "document_id": "rep-5ba0e09575ec",
+          "pmcid": "PMC12632097",
+          "source": "sources/full/PMC12632097.txt",
+          "sha256": "427633460b64db0d1a455098ea4f6eb21b91b0bab2f8ea5a36ec29ace7321490"
+        },
+        {
+          "document_id": "rep-e479d944c9e1",
+          "pmcid": "PMC12713700",
+          "source": "sources/full/PMC12713700.txt",
+          "sha256": "9a876e8c7db10ed125a803962ba53e5371d9793f7371cdf35d2cf0ae3b1e99d9"
+        }
+      ],
+      "baseline_score": {
+        "labels": [
+          "supports",
+          "refutes",
+          "no_effect",
+          "omitted"
+        ],
+        "confusion_matrix": {
+          "supports": {
+            "supports": 3,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "refutes": {
+            "supports": 1,
+            "refutes": 2,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "no_effect": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 1,
+            "omitted": 0
+          },
+          "omitted": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          }
+        },
+        "counts": {
+          "gold_relations": 34,
+          "matched_relations": 7,
+          "missing_relations": 27,
+          "matched_predictions": 7,
+          "conflicting_matched_relations": 0,
+          "found_four_tuples": 49,
+          "spurious_four_tuples": 43
+        },
+        "recall_no_effect": {
+          "value": 0.08333333333333333,
+          "numerator": 1,
+          "denominator": 12,
+          "ci95": {
+            "low": 0,
+            "high": 0.25
+          }
+        },
+        "recall_refutes": {
+          "value": 0.4,
+          "numerator": 2,
+          "denominator": 5,
+          "ci95": {
+            "low": 0,
+            "high": 0.8
+          }
+        },
+        "recall_no_effect_refutes": {
+          "value": 0.17647058823529413,
+          "numerator": 3,
+          "denominator": 17,
+          "ci95": {
+            "low": 0,
+            "high": 0.3529
+          }
+        },
+        "supports_when_gold_no_effect_flip_rate": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 1,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "polarity_accuracy": {
+          "value": 0.8571428571428571,
+          "numerator": 6,
+          "denominator": 7,
+          "ci95": {
+            "low": 0.5714,
+            "high": 1
+          }
+        },
+        "four_tuple_f1": 0.14457831325301204,
+        "four_tuple_f1_ci95": {
+          "low": 0.0506,
+          "high": 0.25
+        },
+        "missing_triples": [
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "metrafenone",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate1722"
+          ],
+          [
+            "prochloraz",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensisqst713",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensiskos",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "cyantraniliprole",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "spinosad",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "lambdacyhalothrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrinpb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "cyantraniliprolepb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "clodinafoppropargyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "fenoxaproppethyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pinoxaden",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pbo",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "prosulfocarb",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "chlorotolurondiflufenican",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "rblackgrasspopulation",
+            "damages",
+            "winterwheat"
+          ],
+          [
+            "indaziflam",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "glufosinate",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "fluridone",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "rimsulfuron",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "glyphosate",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "napropamide",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "dichlobenil",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "pyroxasulfone",
+            "controls",
+            "poaannua"
+          ]
+        ],
+        "bootstrap": {
+          "resamples": 2000,
+          "seed": 7,
+          "confidence": 0.95,
+          "unit": "individual outcome",
+          "limitation": "Within-paper dependence is not modeled."
+        },
+        "scope": "All current proposed/verified edges; use one trial stream per store."
+      },
+      "score": {
+        "labels": [
+          "supports",
+          "refutes",
+          "no_effect",
+          "omitted"
+        ],
+        "confusion_matrix": {
+          "supports": {
+            "supports": 8,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "refutes": {
+            "supports": 1,
+            "refutes": 2,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "no_effect": {
+            "supports": 1,
+            "refutes": 0,
+            "no_effect": 2,
+            "omitted": 0
+          },
+          "omitted": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          }
+        },
+        "counts": {
+          "gold_relations": 34,
+          "matched_relations": 14,
+          "missing_relations": 20,
+          "matched_predictions": 14,
+          "conflicting_matched_relations": 0,
+          "found_four_tuples": 49,
+          "spurious_four_tuples": 37
+        },
+        "recall_no_effect": {
+          "value": 0.16666666666666666,
+          "numerator": 2,
+          "denominator": 12,
+          "ci95": {
+            "low": 0,
+            "high": 0.4167
+          }
+        },
+        "recall_refutes": {
+          "value": 0.4,
+          "numerator": 2,
+          "denominator": 5,
+          "ci95": {
+            "low": 0,
+            "high": 0.8
+          }
+        },
+        "recall_no_effect_refutes": {
+          "value": 0.23529411764705882,
+          "numerator": 4,
+          "denominator": 17,
+          "ci95": {
+            "low": 0.0588,
+            "high": 0.4706
+          }
+        },
+        "supports_when_gold_no_effect_flip_rate": {
+          "value": 0.3333333333333333,
+          "numerator": 1,
+          "denominator": 3,
+          "ci95": {
+            "low": 0,
+            "high": 1
+          }
+        },
+        "polarity_accuracy": {
+          "value": 0.8571428571428571,
+          "numerator": 12,
+          "denominator": 14,
+          "ci95": {
+            "low": 0.6429,
+            "high": 1
+          }
+        },
+        "four_tuple_f1": 0.2891566265060241,
+        "four_tuple_f1_ci95": {
+          "low": 0.1558,
+          "high": 0.4045
+        },
+        "missing_triples": [
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "metrafenone",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate1722"
+          ],
+          [
+            "prochloraz",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensisqst713",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensiskos",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "cyantraniliprole",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "spinosad",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "lambdacyhalothrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrinpb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "cyantraniliprolepb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "clodinafoppropargyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "fenoxaproppethyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pinoxaden",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pbo",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "prosulfocarb",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "chlorotolurondiflufenican",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "rblackgrasspopulation",
+            "damages",
+            "winterwheat"
+          ],
+          [
+            "fluridone",
+            "controls",
+            "poaannua"
+          ]
+        ],
+        "bootstrap": {
+          "resamples": 2000,
+          "seed": 7,
+          "confidence": 0.95,
+          "unit": "individual outcome",
+          "limitation": "Within-paper dependence is not modeled."
+        },
+        "scope": "All current proposed/verified edges; use one trial stream per store."
+      },
+      "database_sha256": "fdb91c408116195dcd58a11bd684cf7f5f50c78959a0f06ffb017a46b1b62380",
+      "integrity": "ok",
+      "foreign_keys": "ok"
+    },
+    {
+      "run": 2,
+      "copy": "/private/tmp/t19-replay-2",
+      "scored_database": "/private/tmp/t19-replay-2/replayed-fulltext.sqlite",
+      "counts": {
+        "documents": 5,
+        "nodes": 55,
+        "node_aliases": 5,
+        "edges": 45
+      },
+      "changes": [
+        {
+          "id": "edaf1315b7fc42cd800d300a305bf988",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true
+        },
+        {
+          "id": "1d122805ab124088b4df2b12db82f4f8",
+          "before": "D. suzukii",
+          "after": "Drosophila suzukii",
+          "pmcid": "PMC12546283",
+          "entity_type": "Pest",
+          "reason": null,
+          "resolved": true
+        },
+        {
+          "id": "adfa3155f4914a7fb49327aa20c07145",
+          "before": "M. anisopliae 35.79",
+          "after": "Metarhizium anisopliae 35.79",
+          "pmcid": "PMC12546283",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true
+        },
+        {
+          "id": "df94070d577f48608e5a1cc0321172f4",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true
+        }
+      ],
+      "batches": [
+        {
+          "document": "rep-9756d3025ad0",
+          "stats": {
+            "nodes_new": 9,
+            "nodes_merged": 0,
+            "edges_new": 8,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "59ba9861781345b7b3e102d5cc92ea8b": "59ba9861781345b7b3e102d5cc92ea8b",
+              "8b5b6aa477824bb2b7359573c5be1a15": "8b5b6aa477824bb2b7359573c5be1a15",
+              "20cd1f0dd5d1408488b9567ba4786deb": "20cd1f0dd5d1408488b9567ba4786deb",
+              "96cf47abfcee48a0ad771944bb5a80d0": "96cf47abfcee48a0ad771944bb5a80d0",
+              "1c03a4ce4cdb4ab587943825d8d71c27": "1c03a4ce4cdb4ab587943825d8d71c27",
+              "ae4040f6963d4cdd920ae82463195a83": "ae4040f6963d4cdd920ae82463195a83",
+              "edaf1315b7fc42cd800d300a305bf988": "edaf1315b7fc42cd800d300a305bf988",
+              "6419623b714f4bd1a1b4df23fc0288b1": "6419623b714f4bd1a1b4df23fc0288b1",
+              "e215a30fc29f4a16abfa17f90bf0f4ea": "e215a30fc29f4a16abfa17f90bf0f4ea"
+            }
+          }
+        },
+        {
+          "document": "rep-bfcb1f3838c9",
+          "stats": {
+            "nodes_new": 11,
+            "nodes_merged": 0,
+            "edges_new": 10,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "d58cc42440364889a0e3ad6cc6b0a52d": "d58cc42440364889a0e3ad6cc6b0a52d",
+              "1d122805ab124088b4df2b12db82f4f8": "1d122805ab124088b4df2b12db82f4f8",
+              "f2d54dfcc95d454a9e9f7c2ec5f64cc2": "f2d54dfcc95d454a9e9f7c2ec5f64cc2",
+              "e9ae231546724ef7ae8442a1160e78d6": "e9ae231546724ef7ae8442a1160e78d6",
+              "adfa3155f4914a7fb49327aa20c07145": "adfa3155f4914a7fb49327aa20c07145",
+              "3b965278f0b34f3cb3fbe214e405aabc": "3b965278f0b34f3cb3fbe214e405aabc",
+              "79e9d73017cd42169b190fd41a527c21": "79e9d73017cd42169b190fd41a527c21",
+              "55cc325a072343f383af3b8b1bc2e0e6": "55cc325a072343f383af3b8b1bc2e0e6",
+              "f39e251ea5124e4b846b0146638f6940": "f39e251ea5124e4b846b0146638f6940",
+              "d5b31b0f0e8c40f8827aa0f0849cc7fd": "d5b31b0f0e8c40f8827aa0f0849cc7fd",
+              "62d9b7edd2a24a37bc8e09e4a51fc5bc": "62d9b7edd2a24a37bc8e09e4a51fc5bc"
+            }
+          }
+        },
+        {
+          "document": "rep-d05dab6ce997",
+          "stats": {
+            "nodes_new": 10,
+            "nodes_merged": 0,
+            "edges_new": 9,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "2b8ecbdfb26945a49261493df0b62847": "2b8ecbdfb26945a49261493df0b62847",
+              "782e66ae0a8b4c9eb86f11557c977406": "782e66ae0a8b4c9eb86f11557c977406",
+              "32bdeaa75ef04c04b1d14163b57b90fa": "32bdeaa75ef04c04b1d14163b57b90fa",
+              "43b2d3710efe494f87da61da32dcb918": "43b2d3710efe494f87da61da32dcb918",
+              "899e117005814faf82fc320e20e413ff": "899e117005814faf82fc320e20e413ff",
+              "b58f6cc5b6ef43d0899f60257b51f585": "b58f6cc5b6ef43d0899f60257b51f585",
+              "b4c2702259044a18b13f045bd5e781da": "b4c2702259044a18b13f045bd5e781da",
+              "6c24a2dd8fe145b1a24914cd7cac21f6": "6c24a2dd8fe145b1a24914cd7cac21f6",
+              "a6fdebb848db4aafa9908ef93e63cfbd": "a6fdebb848db4aafa9908ef93e63cfbd",
+              "fda295f8853a48dfb869f18b83212896": "fda295f8853a48dfb869f18b83212896"
+            }
+          }
+        },
+        {
+          "document": "rep-3dc38eb076c1",
+          "stats": {
+            "nodes_new": 8,
+            "nodes_merged": 0,
+            "edges_new": 9,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "3e0193bee0b241e8bddf3313d526a9a9": "3e0193bee0b241e8bddf3313d526a9a9",
+              "bf7e05927e22414abc02d1d221686f5d": "bf7e05927e22414abc02d1d221686f5d",
+              "bdb45b9277a04917bd35e3f3aefe1cae": "bdb45b9277a04917bd35e3f3aefe1cae",
+              "d1a922db2fe14df89c824aaf166a33ea": "d1a922db2fe14df89c824aaf166a33ea",
+              "776049e14a0a49bbad41da895c918306": "776049e14a0a49bbad41da895c918306",
+              "620e8ecb0251453fbcf17fc90e79eac0": "620e8ecb0251453fbcf17fc90e79eac0",
+              "95144d8486224886bbd18fe65b55646f": "95144d8486224886bbd18fe65b55646f",
+              "3b7c6bcd60654213842fc3563b003821": "3b7c6bcd60654213842fc3563b003821"
+            }
+          }
+        },
+        {
+          "document": "rep-b98b275bd0e4",
+          "stats": {
+            "nodes_new": 17,
+            "nodes_merged": 0,
+            "edges_new": 9,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "85151a6f0f974687a1bedfbaa1efc9ea": "85151a6f0f974687a1bedfbaa1efc9ea",
+              "d1ad75f1a94a44059d57eb802db05298": "d1ad75f1a94a44059d57eb802db05298",
+              "1f54110f8b104180baf0e1f4530b9d5d": "1f54110f8b104180baf0e1f4530b9d5d",
+              "2a20ed6d56a74484a1aa1ff657b5f85a": "2a20ed6d56a74484a1aa1ff657b5f85a",
+              "8f8c3461559249c79ffd778f35e6dafc": "8f8c3461559249c79ffd778f35e6dafc",
+              "6d46579ac0ef471abb743fab32f5b5cd": "6d46579ac0ef471abb743fab32f5b5cd",
+              "df94070d577f48608e5a1cc0321172f4": "df94070d577f48608e5a1cc0321172f4",
+              "6ad070a9f7994bc7ab296c00d0282bb7": "6ad070a9f7994bc7ab296c00d0282bb7",
+              "b3a80ca685744ec0b28d1e459de974e4": "b3a80ca685744ec0b28d1e459de974e4",
+              "d5522a9161f5450f80a4f3f788b02f04": "d5522a9161f5450f80a4f3f788b02f04",
+              "555a380744ef4870a685c7bab890537e": "555a380744ef4870a685c7bab890537e",
+              "85b9d349d2a0419ca973d8d9fc56f2fe": "85b9d349d2a0419ca973d8d9fc56f2fe",
+              "e7614153c7964bffa49884b5aefeea51": "e7614153c7964bffa49884b5aefeea51",
+              "cfe2a2a111ac477586a3858e8ff4c325": "cfe2a2a111ac477586a3858e8ff4c325",
+              "e112f5f0b7a94271b311d5f3435ce959": "e112f5f0b7a94271b311d5f3435ce959",
+              "b1e842ccc92243f1a3cdacdeb2a079ec": "b1e842ccc92243f1a3cdacdeb2a079ec",
+              "19e03837748e4c6a861ae44660a3ba7d": "19e03837748e4c6a861ae44660a3ba7d"
+            }
+          }
+        }
+      ],
+      "cases": [
+        {
+          "run": 2,
+          "gold": 12,
+          "edge_id": "ebf41aac8e8f4fdc8886b6451c357919",
+          "before": "D. suzukii",
+          "after": "Drosophila suzukii",
+          "pmcid": "PMC12546283",
+          "entity_type": "Pest",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "no_effect",
+          "gold_polarity": "no_effect"
+        },
+        {
+          "run": 2,
+          "gold": 21,
+          "edge_id": "25f5705bb73d4d43ac53348aab1f6b49",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "no_effect"
+        },
+        {
+          "run": 2,
+          "gold": 22,
+          "edge_id": "34af91d5d6014a7f945809a424da7576",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "refutes",
+          "gold_polarity": "no_effect"
+        },
+        {
+          "run": 2,
+          "gold": 23,
+          "edge_id": "087a1774af7e409d980ecd383774dc42",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "refutes",
+          "gold_polarity": "refutes"
+        },
+        {
+          "run": 2,
+          "gold": 24,
+          "edge_id": "9451e98387db47c9a6d19851479ed18b",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 2,
+          "gold": 25,
+          "edge_id": "99221888c55d4138adec838653efc2f9",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 2,
+          "gold": 26,
+          "edge_id": "45a8d02492e144dd8bde2a1fd5807bbe",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 2,
+          "gold": 27,
+          "edge_id": "29b713bb78fc44dc92c0fdb95911291f",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 2,
+          "gold": 28,
+          "edge_id": "e657036e5fdc439cbc95c34ebb622685",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 2,
+          "gold": 29,
+          "edge_id": "33f8c570a59d433b97bd39b7e9ee6044",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "refutes",
+          "gold_polarity": "refutes"
+        },
+        {
+          "run": 2,
+          "gold": 30,
+          "edge_id": "afda32d164474e76b82291e3af7df4ae",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "refutes",
+          "gold_polarity": "refutes"
+        },
+        {
+          "run": 2,
+          "gold": 31,
+          "edge_id": "9f1b70f24b804ebcb8a6f7c37466aa80",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "refutes"
+        },
+        {
+          "run": 2,
+          "gold": 32,
+          "edge_id": "e62b9707515e4352ab8ffb3dcac878f0",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 2,
+          "gold": 33,
+          "edge_id": "1b70f867ebd44554aefd05fb7593ebbe",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 2,
+          "gold": 34,
+          "edge_id": "13709ede6fa34a2fa5d6dd8e6cdf4873",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        }
+      ],
+      "resolver_contexts": [
+        {
+          "document_id": "rep-9756d3025ad0",
+          "pmcid": "PMC11298438",
+          "source": "sources/full/PMC11298438.txt",
+          "sha256": "4fe0e19bc80d2cb3f388deebc38f02f20e5e1d1392db60fd50d1fbfd4ab385d9"
+        },
+        {
+          "document_id": "rep-bfcb1f3838c9",
+          "pmcid": "PMC12546283",
+          "source": "sources/full/PMC12546283.txt",
+          "sha256": "be7923ca6e58a248ff2cb1476cfd719dd513a3c3df152e7ab821fe02ea90c099"
+        },
+        {
+          "document_id": "rep-d05dab6ce997",
+          "pmcid": "PMC12563837",
+          "source": "sources/full/PMC12563837.txt",
+          "sha256": "8d45778ceeb648ff318a7a0e6d1112f836e4da13cca76739e89acf300e96ed80"
+        },
+        {
+          "document_id": "rep-3dc38eb076c1",
+          "pmcid": "PMC12632097",
+          "source": "sources/full/PMC12632097.txt",
+          "sha256": "427633460b64db0d1a455098ea4f6eb21b91b0bab2f8ea5a36ec29ace7321490"
+        },
+        {
+          "document_id": "rep-b98b275bd0e4",
+          "pmcid": "PMC12713700",
+          "source": "sources/full/PMC12713700.txt",
+          "sha256": "9a876e8c7db10ed125a803962ba53e5371d9793f7371cdf35d2cf0ae3b1e99d9"
+        }
+      ],
+      "baseline_score": {
+        "labels": [
+          "supports",
+          "refutes",
+          "no_effect",
+          "omitted"
+        ],
+        "confusion_matrix": {
+          "supports": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "refutes": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "no_effect": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "omitted": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          }
+        },
+        "counts": {
+          "gold_relations": 34,
+          "matched_relations": 0,
+          "missing_relations": 34,
+          "matched_predictions": 0,
+          "conflicting_matched_relations": 0,
+          "found_four_tuples": 45,
+          "spurious_four_tuples": 45
+        },
+        "recall_no_effect": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 12,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "recall_refutes": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 5,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "recall_no_effect_refutes": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 17,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "supports_when_gold_no_effect_flip_rate": {
+          "value": null,
+          "numerator": 0,
+          "denominator": 0,
+          "ci95": null
+        },
+        "polarity_accuracy": {
+          "value": null,
+          "numerator": 0,
+          "denominator": 0,
+          "ci95": null
+        },
+        "four_tuple_f1": 0,
+        "four_tuple_f1_ci95": {
+          "low": 0,
+          "high": 0
+        },
+        "missing_triples": [
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "metrafenone",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate1722"
+          ],
+          [
+            "prochloraz",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensisqst713",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensiskos",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "cyantraniliprole",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "spinosad",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "lambdacyhalothrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrinpb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "pb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "cyantraniliprolepb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "clodinafoppropargyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "fenoxaproppethyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pinoxaden",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pbo",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "prosulfocarb",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "chlorotolurondiflufenican",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "rblackgrasspopulation",
+            "damages",
+            "winterwheat"
+          ],
+          [
+            "indaziflam",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "glufosinate",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "fluridone",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "rimsulfuron",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "glyphosate",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "napropamide",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "dichlobenil",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "pyroxasulfone",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "fludioxonil"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "fenhexamid"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "iprodione"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "pyraclostrobin"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "boscalid"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "thiabendazole"
+          ]
+        ],
+        "bootstrap": {
+          "resamples": 2000,
+          "seed": 7,
+          "confidence": 0.95,
+          "unit": "individual outcome",
+          "limitation": "Within-paper dependence is not modeled."
+        },
+        "scope": "All current proposed/verified edges; use one trial stream per store."
+      },
+      "score": {
+        "labels": [
+          "supports",
+          "refutes",
+          "no_effect",
+          "omitted"
+        ],
+        "confusion_matrix": {
+          "supports": {
+            "supports": 8,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "refutes": {
+            "supports": 1,
+            "refutes": 3,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "no_effect": {
+            "supports": 1,
+            "refutes": 1,
+            "no_effect": 1,
+            "omitted": 0
+          },
+          "omitted": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          }
+        },
+        "counts": {
+          "gold_relations": 34,
+          "matched_relations": 15,
+          "missing_relations": 19,
+          "matched_predictions": 15,
+          "conflicting_matched_relations": 0,
+          "found_four_tuples": 45,
+          "spurious_four_tuples": 33
+        },
+        "recall_no_effect": {
+          "value": 0.08333333333333333,
+          "numerator": 1,
+          "denominator": 12,
+          "ci95": {
+            "low": 0,
+            "high": 0.25
+          }
+        },
+        "recall_refutes": {
+          "value": 0.6,
+          "numerator": 3,
+          "denominator": 5,
+          "ci95": {
+            "low": 0.2,
+            "high": 1
+          }
+        },
+        "recall_no_effect_refutes": {
+          "value": 0.23529411764705882,
+          "numerator": 4,
+          "denominator": 17,
+          "ci95": {
+            "low": 0.0588,
+            "high": 0.4706
+          }
+        },
+        "supports_when_gold_no_effect_flip_rate": {
+          "value": 0.3333333333333333,
+          "numerator": 1,
+          "denominator": 3,
+          "ci95": {
+            "low": 0,
+            "high": 1
+          }
+        },
+        "polarity_accuracy": {
+          "value": 0.8,
+          "numerator": 12,
+          "denominator": 15,
+          "ci95": {
+            "low": 0.6,
+            "high": 1
+          }
+        },
+        "four_tuple_f1": 0.3037974683544304,
+        "four_tuple_f1_ci95": {
+          "low": 0.1892,
+          "high": 0.4235
+        },
+        "missing_triples": [
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "metrafenone",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate1722"
+          ],
+          [
+            "prochloraz",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensisqst713",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensiskos",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "cyantraniliprole",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "spinosad",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "lambdacyhalothrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrinpb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "cyantraniliprolepb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "clodinafoppropargyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "fenoxaproppethyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pinoxaden",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pbo",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "prosulfocarb",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "chlorotolurondiflufenican",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "rblackgrasspopulation",
+            "damages",
+            "winterwheat"
+          ]
+        ],
+        "bootstrap": {
+          "resamples": 2000,
+          "seed": 7,
+          "confidence": 0.95,
+          "unit": "individual outcome",
+          "limitation": "Within-paper dependence is not modeled."
+        },
+        "scope": "All current proposed/verified edges; use one trial stream per store."
+      },
+      "database_sha256": "ffe46096f9978db07e145b4c4572129d6767559b4074b61d703e52f16ad53139",
+      "integrity": "ok",
+      "foreign_keys": "ok"
+    },
+    {
+      "run": 3,
+      "copy": "/private/tmp/t19-replay-3",
+      "scored_database": "/private/tmp/t19-replay-3/replayed-fulltext.sqlite",
+      "counts": {
+        "documents": 5,
+        "nodes": 65,
+        "node_aliases": 6,
+        "edges": 52
+      },
+      "changes": [
+        {
+          "id": "2eb6053c19d74c70b243ff9a6ee3d4c1",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true
+        },
+        {
+          "id": "1e9c08dce3f94e33a20aef20a8b74aa3",
+          "before": "D. suzukii",
+          "after": "Drosophila suzukii",
+          "pmcid": "PMC12546283",
+          "entity_type": "Pest",
+          "reason": null,
+          "resolved": true
+        },
+        {
+          "id": "0cd76f744f0942cda01972105b18753d",
+          "before": "M. anisopliae 35.79",
+          "after": "Metarhizium anisopliae 35.79",
+          "pmcid": "PMC12546283",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true
+        },
+        {
+          "id": "3d0bbaab27724205b8a3086f2bb68365",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true
+        }
+      ],
+      "batches": [
+        {
+          "document": "rep-0e2fb3bb5441",
+          "stats": {
+            "nodes_new": 11,
+            "nodes_merged": 0,
+            "edges_new": 10,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "6b19ae071cf14138874d7dd9d63321c0": "6b19ae071cf14138874d7dd9d63321c0",
+              "febe7dbbb5724ca9b29f4a432f212cfd": "febe7dbbb5724ca9b29f4a432f212cfd",
+              "521834c5327b4e3d8417dd1256658daf": "521834c5327b4e3d8417dd1256658daf",
+              "57095ea5f31d40168833e07a7ee723e2": "57095ea5f31d40168833e07a7ee723e2",
+              "25d9e030344f411aaa5c8ae133a3ad6a": "25d9e030344f411aaa5c8ae133a3ad6a",
+              "a97b3cc9f8ae4e7da2aafaf223427550": "a97b3cc9f8ae4e7da2aafaf223427550",
+              "6d54b784a6c54b9288d3dbbdfff10d69": "6d54b784a6c54b9288d3dbbdfff10d69",
+              "b40d2e2aa9aa402b9c88b55421db5536": "b40d2e2aa9aa402b9c88b55421db5536",
+              "2eb6053c19d74c70b243ff9a6ee3d4c1": "2eb6053c19d74c70b243ff9a6ee3d4c1",
+              "21055bdfe8f64d509bb2a3480393a677": "21055bdfe8f64d509bb2a3480393a677",
+              "8eb073fe5e614441b2d87221c9fbcfc7": "8eb073fe5e614441b2d87221c9fbcfc7"
+            }
+          }
+        },
+        {
+          "document": "rep-f2596289f936",
+          "stats": {
+            "nodes_new": 10,
+            "nodes_merged": 0,
+            "edges_new": 8,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "312181a19649493d898d842a97c7fd5c": "312181a19649493d898d842a97c7fd5c",
+              "1e9c08dce3f94e33a20aef20a8b74aa3": "1e9c08dce3f94e33a20aef20a8b74aa3",
+              "89053152ad0a4c488e757184300983c7": "89053152ad0a4c488e757184300983c7",
+              "c676df070acf4bf2803df93f070513cf": "c676df070acf4bf2803df93f070513cf",
+              "0cd76f744f0942cda01972105b18753d": "0cd76f744f0942cda01972105b18753d",
+              "f4fafad4c79b44b4b7339e0c8a39ab87": "f4fafad4c79b44b4b7339e0c8a39ab87",
+              "a2d9b0ea8a97482caa614d6c00e32876": "a2d9b0ea8a97482caa614d6c00e32876",
+              "552d1000b42e4816bf8e39c420731920": "552d1000b42e4816bf8e39c420731920",
+              "bd62df06035d47ca9c3dfbdbe7f17128": "bd62df06035d47ca9c3dfbdbe7f17128",
+              "fb11bafacd2d405aa653a159462678ea": "fb11bafacd2d405aa653a159462678ea"
+            }
+          }
+        },
+        {
+          "document": "rep-5fbe94b08f52",
+          "stats": {
+            "nodes_new": 12,
+            "nodes_merged": 0,
+            "edges_new": 10,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "648de496ccdc4f5cbbea2637c3b88840": "648de496ccdc4f5cbbea2637c3b88840",
+              "75ba15cd9fa84cd392079f8b03e475b7": "75ba15cd9fa84cd392079f8b03e475b7",
+              "4a469b63e17b446dabc8fc3beca6ac45": "4a469b63e17b446dabc8fc3beca6ac45",
+              "14bbbdde706644e29fd0e75e8671f6ec": "14bbbdde706644e29fd0e75e8671f6ec",
+              "33b44b8051d1491e808255b8c3ce15a3": "33b44b8051d1491e808255b8c3ce15a3",
+              "69dde51b5932439b864ab4a12a504668": "69dde51b5932439b864ab4a12a504668",
+              "4ea6be9196f44ac7bf99e79721d6e2f1": "4ea6be9196f44ac7bf99e79721d6e2f1",
+              "66021db9795b4d02bd819f02c8493ef8": "66021db9795b4d02bd819f02c8493ef8",
+              "6e94cf9d66454f31893ff42462d0d122": "6e94cf9d66454f31893ff42462d0d122",
+              "2307418865224bcfa4402b91c88199e9": "2307418865224bcfa4402b91c88199e9",
+              "a31b619bf83a4d2587eaee28e92bca30": "a31b619bf83a4d2587eaee28e92bca30",
+              "bf42b8baa60a4b969f1fd21fa32ccdb5": "bf42b8baa60a4b969f1fd21fa32ccdb5"
+            }
+          }
+        },
+        {
+          "document": "rep-305a38bcef4a",
+          "stats": {
+            "nodes_new": 8,
+            "nodes_merged": 0,
+            "edges_new": 9,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "70558ce6905e475fa30ee9c58f436d9e": "70558ce6905e475fa30ee9c58f436d9e",
+              "58b800295d7743a5b0a3ad585c1b71d9": "58b800295d7743a5b0a3ad585c1b71d9",
+              "a754f7599eed4267b0ce52ffeaf156d8": "a754f7599eed4267b0ce52ffeaf156d8",
+              "2934111ee3474e1784f4ed92e288a26f": "2934111ee3474e1784f4ed92e288a26f",
+              "0c57b7ef278b469cb8b74b9dee1ad0bc": "0c57b7ef278b469cb8b74b9dee1ad0bc",
+              "67b4804856f74af7ad4b9cd92591a32e": "67b4804856f74af7ad4b9cd92591a32e",
+              "7a9b6f38550442e78ba29078c865646b": "7a9b6f38550442e78ba29078c865646b",
+              "2e282bcadcec43629a467638909fbf44": "2e282bcadcec43629a467638909fbf44"
+            }
+          }
+        },
+        {
+          "document": "rep-b01f7cf4e3d1",
+          "stats": {
+            "nodes_new": 24,
+            "nodes_merged": 0,
+            "edges_new": 15,
+            "edges_merged": 0,
+            "synthesized_endpoints": 0,
+            "id_map": {
+              "da69e4a86f6e4f3ba2d2bab008af3caf": "da69e4a86f6e4f3ba2d2bab008af3caf",
+              "8c06fcd29f974b79943c56e33def7802": "8c06fcd29f974b79943c56e33def7802",
+              "09b1d2f091c2431591ac00d560dbebde": "09b1d2f091c2431591ac00d560dbebde",
+              "59c9d4b661fe47f384deaf84a772719e": "59c9d4b661fe47f384deaf84a772719e",
+              "c1981c3d9e5e4a208b5beece47afc289": "c1981c3d9e5e4a208b5beece47afc289",
+              "1ccfed47eade426cb36dcfce1aaf4f9b": "1ccfed47eade426cb36dcfce1aaf4f9b",
+              "f67fc054198e46829e820e16a92e5900": "f67fc054198e46829e820e16a92e5900",
+              "92d5e2614810425eab5c73261a115754": "92d5e2614810425eab5c73261a115754",
+              "a6174709e46d4f0d8ea9c29895c01a3f": "a6174709e46d4f0d8ea9c29895c01a3f",
+              "3d0bbaab27724205b8a3086f2bb68365": "3d0bbaab27724205b8a3086f2bb68365",
+              "5ff16fe716264627a7b272a8654a4a53": "5ff16fe716264627a7b272a8654a4a53",
+              "b80849a5ab1641c3b7ceaa6de10b64b0": "b80849a5ab1641c3b7ceaa6de10b64b0",
+              "6a8dfe1ab4bb4cb483a892ffc7624e05": "6a8dfe1ab4bb4cb483a892ffc7624e05",
+              "771c65abc3e84ed490f34a28dd727ce4": "771c65abc3e84ed490f34a28dd727ce4",
+              "c090650c01c04c5b8168193bd1baefa9": "c090650c01c04c5b8168193bd1baefa9",
+              "f1d1c85a19ed4905b0289b7ecadbbbfd": "f1d1c85a19ed4905b0289b7ecadbbbfd",
+              "ee702ac251fb41038de4d4f826a0858f": "ee702ac251fb41038de4d4f826a0858f",
+              "c3ee5b6ba5ef47f69689bbcb9134af15": "c3ee5b6ba5ef47f69689bbcb9134af15",
+              "e3920707add64014a869f00433cb235d": "e3920707add64014a869f00433cb235d",
+              "e96bc765bb4e4fbf933ac7cb50a50c1f": "e96bc765bb4e4fbf933ac7cb50a50c1f",
+              "7372a0721990463fb74eab7a0f45f7f7": "7372a0721990463fb74eab7a0f45f7f7",
+              "2f6c3c358a324666af052f38e47f3280": "2f6c3c358a324666af052f38e47f3280",
+              "a78c790c0b194c63a5099c9b5db05a7a": "a78c790c0b194c63a5099c9b5db05a7a",
+              "910c37ecc6e445648439be5c024fb48c": "910c37ecc6e445648439be5c024fb48c"
+            }
+          }
+        }
+      ],
+      "cases": [
+        {
+          "run": 3,
+          "gold": 21,
+          "edge_id": "e7b5d3c9fc094851ae4650027aa4ae35",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "no_effect"
+        },
+        {
+          "run": 3,
+          "gold": 22,
+          "edge_id": "8f4fba9732e248f18aaea84bb637f177",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "refutes",
+          "gold_polarity": "no_effect"
+        },
+        {
+          "run": 3,
+          "gold": 23,
+          "edge_id": "bec8c2a0c9544eac8740bdc9205294a2",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "refutes",
+          "gold_polarity": "refutes"
+        },
+        {
+          "run": 3,
+          "gold": 24,
+          "edge_id": "9dfadbb2faaf49c6a378c6aec5b04a3c",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 3,
+          "gold": 25,
+          "edge_id": "33ab85f75635407fa7cefa716ee75489",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 3,
+          "gold": 26,
+          "edge_id": "aead9210eb6f45108bc36b5fac789d8a",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 3,
+          "gold": 27,
+          "edge_id": "ef6299661c4645f698fa957fb5c5b966",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 3,
+          "gold": 28,
+          "edge_id": "7ad97795493d45bc91ef15df2e106c45",
+          "before": "P. annua",
+          "after": "Poa annua",
+          "pmcid": "PMC12713700",
+          "entity_type": "Weed",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 3,
+          "gold": 29,
+          "edge_id": "686c6611faf74615893ae391f3f47fba",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "refutes",
+          "gold_polarity": "refutes"
+        },
+        {
+          "run": 3,
+          "gold": 30,
+          "edge_id": "240c602132f14839afee4857a11de819",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "refutes",
+          "gold_polarity": "refutes"
+        },
+        {
+          "run": 3,
+          "gold": 31,
+          "edge_id": "8c4f8b291f34427783a7e86e5c575bf3",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "refutes"
+        },
+        {
+          "run": 3,
+          "gold": 32,
+          "edge_id": "79c35885ef58412690fbe116b987c0ad",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 3,
+          "gold": 33,
+          "edge_id": "8b8b92ea4d8346f2b06414efecd88630",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        },
+        {
+          "run": 3,
+          "gold": 34,
+          "edge_id": "34ac146be48149499e4e1ec33c19d48a",
+          "before": "B. cinerea",
+          "after": "Botrytis cinerea",
+          "pmcid": "PMC11298438",
+          "entity_type": "Pathogen",
+          "reason": null,
+          "resolved": true,
+          "matched_after": true,
+          "predicted_polarity": "supports",
+          "gold_polarity": "supports"
+        }
+      ],
+      "resolver_contexts": [
+        {
+          "document_id": "rep-0e2fb3bb5441",
+          "pmcid": "PMC11298438",
+          "source": "sources/full/PMC11298438.txt",
+          "sha256": "4fe0e19bc80d2cb3f388deebc38f02f20e5e1d1392db60fd50d1fbfd4ab385d9"
+        },
+        {
+          "document_id": "rep-f2596289f936",
+          "pmcid": "PMC12546283",
+          "source": "sources/full/PMC12546283.txt",
+          "sha256": "be7923ca6e58a248ff2cb1476cfd719dd513a3c3df152e7ab821fe02ea90c099"
+        },
+        {
+          "document_id": "rep-5fbe94b08f52",
+          "pmcid": "PMC12563837",
+          "source": "sources/full/PMC12563837.txt",
+          "sha256": "8d45778ceeb648ff318a7a0e6d1112f836e4da13cca76739e89acf300e96ed80"
+        },
+        {
+          "document_id": "rep-305a38bcef4a",
+          "pmcid": "PMC12632097",
+          "source": "sources/full/PMC12632097.txt",
+          "sha256": "427633460b64db0d1a455098ea4f6eb21b91b0bab2f8ea5a36ec29ace7321490"
+        },
+        {
+          "document_id": "rep-b01f7cf4e3d1",
+          "pmcid": "PMC12713700",
+          "source": "sources/full/PMC12713700.txt",
+          "sha256": "9a876e8c7db10ed125a803962ba53e5371d9793f7371cdf35d2cf0ae3b1e99d9"
+        }
+      ],
+      "baseline_score": {
+        "labels": [
+          "supports",
+          "refutes",
+          "no_effect",
+          "omitted"
+        ],
+        "confusion_matrix": {
+          "supports": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "refutes": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "no_effect": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "omitted": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          }
+        },
+        "counts": {
+          "gold_relations": 34,
+          "matched_relations": 0,
+          "missing_relations": 34,
+          "matched_predictions": 0,
+          "conflicting_matched_relations": 0,
+          "found_four_tuples": 52,
+          "spurious_four_tuples": 52
+        },
+        "recall_no_effect": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 12,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "recall_refutes": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 5,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "recall_no_effect_refutes": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 17,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "supports_when_gold_no_effect_flip_rate": {
+          "value": null,
+          "numerator": 0,
+          "denominator": 0,
+          "ci95": null
+        },
+        "polarity_accuracy": {
+          "value": null,
+          "numerator": 0,
+          "denominator": 0,
+          "ci95": null
+        },
+        "four_tuple_f1": 0,
+        "four_tuple_f1_ci95": {
+          "low": 0,
+          "high": 0
+        },
+        "missing_triples": [
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "metrafenone",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate1722"
+          ],
+          [
+            "prochloraz",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensisqst713",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensiskos",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "cyantraniliprole",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "spinosad",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "lambdacyhalothrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrinpb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "pb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "cyantraniliprolepb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "clodinafoppropargyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "fenoxaproppethyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pinoxaden",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pbo",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "prosulfocarb",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "chlorotolurondiflufenican",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "rblackgrasspopulation",
+            "damages",
+            "winterwheat"
+          ],
+          [
+            "indaziflam",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "glufosinate",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "fluridone",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "rimsulfuron",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "glyphosate",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "napropamide",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "dichlobenil",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "pyroxasulfone",
+            "controls",
+            "poaannua"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "fludioxonil"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "fenhexamid"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "iprodione"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "pyraclostrobin"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "boscalid"
+          ],
+          [
+            "botrytiscinerea",
+            "resistant_to",
+            "thiabendazole"
+          ]
+        ],
+        "bootstrap": {
+          "resamples": 2000,
+          "seed": 7,
+          "confidence": 0.95,
+          "unit": "individual outcome",
+          "limitation": "Within-paper dependence is not modeled."
+        },
+        "scope": "All current proposed/verified edges; use one trial stream per store."
+      },
+      "score": {
+        "labels": [
+          "supports",
+          "refutes",
+          "no_effect",
+          "omitted"
+        ],
+        "confusion_matrix": {
+          "supports": {
+            "supports": 8,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "refutes": {
+            "supports": 1,
+            "refutes": 3,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "no_effect": {
+            "supports": 1,
+            "refutes": 1,
+            "no_effect": 0,
+            "omitted": 0
+          },
+          "omitted": {
+            "supports": 0,
+            "refutes": 0,
+            "no_effect": 0,
+            "omitted": 0
+          }
+        },
+        "counts": {
+          "gold_relations": 34,
+          "matched_relations": 14,
+          "missing_relations": 20,
+          "matched_predictions": 14,
+          "conflicting_matched_relations": 0,
+          "found_four_tuples": 52,
+          "spurious_four_tuples": 41
+        },
+        "recall_no_effect": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 12,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "recall_refutes": {
+          "value": 0.6,
+          "numerator": 3,
+          "denominator": 5,
+          "ci95": {
+            "low": 0.2,
+            "high": 1
+          }
+        },
+        "recall_no_effect_refutes": {
+          "value": 0.17647058823529413,
+          "numerator": 3,
+          "denominator": 17,
+          "ci95": {
+            "low": 0,
+            "high": 0.3529
+          }
+        },
+        "supports_when_gold_no_effect_flip_rate": {
+          "value": 0.5,
+          "numerator": 1,
+          "denominator": 2,
+          "ci95": {
+            "low": 0,
+            "high": 1
+          }
+        },
+        "polarity_accuracy": {
+          "value": 0.7857142857142857,
+          "numerator": 11,
+          "denominator": 14,
+          "ci95": {
+            "low": 0.5714,
+            "high": 1
+          }
+        },
+        "four_tuple_f1": 0.2558139534883721,
+        "four_tuple_f1_ci95": {
+          "low": 0.125,
+          "high": 0.3696
+        },
+        "missing_triples": [
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "metrafenone",
+            "inhibits",
+            "lecanicilliumfungicolaisolate620"
+          ],
+          [
+            "prochloraz",
+            "inhibits",
+            "lecanicilliumfungicolaisolate1722"
+          ],
+          [
+            "prochloraz",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensisqst713",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "bacillusvelezensiskos",
+            "controls",
+            "drybubbledisease"
+          ],
+          [
+            "cyantraniliprole",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "spinosad",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "lambdacyhalothrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrin",
+            "inhibits",
+            "drosophilasuzukiioviposition"
+          ],
+          [
+            "deltamethrinpb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "pb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "cyantraniliprolepb",
+            "controls",
+            "drosophilasuzukii"
+          ],
+          [
+            "clodinafoppropargyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "fenoxaproppethyl",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pinoxaden",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "pbo",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "prosulfocarb",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "chlorotolurondiflufenican",
+            "controls",
+            "rblackgrasspopulation"
+          ],
+          [
+            "rblackgrasspopulation",
+            "damages",
+            "winterwheat"
+          ]
+        ],
+        "bootstrap": {
+          "resamples": 2000,
+          "seed": 7,
+          "confidence": 0.95,
+          "unit": "individual outcome",
+          "limitation": "Within-paper dependence is not modeled."
+        },
+        "scope": "All current proposed/verified edges; use one trial stream per store."
+      },
+      "database_sha256": "07f55e8b7d7ec4eb44c576591aa3e37f0e7921c2b8c8664d6c2cc28f90cc611d",
+      "integrity": "ok",
+      "foreign_keys": "ok"
+    }
+  ],
+  "pooled": {
+    "polarity_accuracy": {
+      "value": 0.813953488372093,
+      "numerator": 35,
+      "denominator": 43,
+      "ci95": {
+        "low": 0.6977,
+        "high": 0.9302
+      }
+    },
+    "recall_no_effect": {
+      "value": 0.08333333333333333,
+      "numerator": 3,
+      "denominator": 36,
+      "ci95": {
+        "low": 0,
+        "high": 0.1944
+      }
+    },
+    "recall_refutes": {
+      "value": 0.5333333333333333,
+      "numerator": 8,
+      "denominator": 15,
+      "ci95": {
+        "low": 0.2667,
+        "high": 0.8
+      }
+    },
+    "recall_no_effect_refutes": {
+      "value": 0.21568627450980393,
+      "numerator": 11,
+      "denominator": 51,
+      "ci95": {
+        "low": 0.098,
+        "high": 0.3333
+      }
+    },
+    "supports_when_gold_no_effect_flip_rate": {
+      "value": 0.375,
+      "numerator": 3,
+      "denominator": 8,
+      "ci95": {
+        "low": 0.125,
+        "high": 0.75
+      }
+    }
+  },
+  "g3_pass": false,
+  "outcome": "FAILED",
+  "outcome_scope": "G1/G2/G4 retain the trial verdicts; no new model run",
+  "method": "Persisted-proposal replay with complete body context. Citations retain original excerpt coordinates.",
+  "abbreviation_replay": {
+    "resolved": 36,
+    "unresolved": 0
+  },
+  "base_commit": "a51c1269a9ae2251cb355d8197842ec28a7f3ec7",
+  "licenses": {
+    "PMC12632097": "CC-BY-4.0",
+    "PMC12546283": "CC-BY-4.0",
+    "PMC12563837": "CC-BY-4.0",
+    "PMC12713700": "CC-BY-4.0",
+    "PMC11298438": "CC-BY-4.0"
+  },
+  "remap": {
+    "rows_valid": 34,
+    "rows_failed": 0,
+    "rows": [
+      {
+        "row": 1,
+        "pmcid": "PMC12632097",
+        "status": "valid",
+        "start": 21912,
+        "end": 21980
+      },
+      {
+        "row": 2,
+        "pmcid": "PMC12632097",
+        "status": "valid",
+        "start": 22269,
+        "end": 22410
+      },
+      {
+        "row": 3,
+        "pmcid": "PMC12632097",
+        "status": "valid",
+        "start": 23205,
+        "end": 23307
+      },
+      {
+        "row": 4,
+        "pmcid": "PMC12632097",
+        "status": "valid",
+        "start": 37696,
+        "end": 37921
+      },
+      {
+        "row": 5,
+        "pmcid": "PMC12632097",
+        "status": "valid",
+        "start": 37696,
+        "end": 37921
+      },
+      {
+        "row": 6,
+        "pmcid": "PMC12632097",
+        "status": "valid",
+        "start": 37696,
+        "end": 37921
+      },
+      {
+        "row": 7,
+        "pmcid": "PMC12546283",
+        "status": "valid",
+        "start": 24161,
+        "end": 24362
+      },
+      {
+        "row": 8,
+        "pmcid": "PMC12546283",
+        "status": "valid",
+        "start": 24161,
+        "end": 24362
+      },
+      {
+        "row": 9,
+        "pmcid": "PMC12546283",
+        "status": "valid",
+        "start": 24161,
+        "end": 24362
+      },
+      {
+        "row": 10,
+        "pmcid": "PMC12546283",
+        "status": "valid",
+        "start": 24161,
+        "end": 24362
+      },
+      {
+        "row": 11,
+        "pmcid": "PMC12546283",
+        "status": "valid",
+        "start": 33159,
+        "end": 33246
+      },
+      {
+        "row": 12,
+        "pmcid": "PMC12546283",
+        "status": "valid",
+        "start": 21918,
+        "end": 21986
+      },
+      {
+        "row": 13,
+        "pmcid": "PMC12546283",
+        "status": "valid",
+        "start": 21742,
+        "end": 21917
+      },
+      {
+        "row": 14,
+        "pmcid": "PMC12563837",
+        "status": "valid",
+        "start": 24273,
+        "end": 24489
+      },
+      {
+        "row": 15,
+        "pmcid": "PMC12563837",
+        "status": "valid",
+        "start": 24273,
+        "end": 24489
+      },
+      {
+        "row": 16,
+        "pmcid": "PMC12563837",
+        "status": "valid",
+        "start": 24490,
+        "end": 24655
+      },
+      {
+        "row": 17,
+        "pmcid": "PMC12563837",
+        "status": "valid",
+        "start": 29239,
+        "end": 29547
+      },
+      {
+        "row": 18,
+        "pmcid": "PMC12563837",
+        "status": "valid",
+        "start": 27082,
+        "end": 27316
+      },
+      {
+        "row": 19,
+        "pmcid": "PMC12563837",
+        "status": "valid",
+        "start": 27082,
+        "end": 27316
+      },
+      {
+        "row": 20,
+        "pmcid": "PMC12563837",
+        "status": "valid",
+        "start": 31412,
+        "end": 31680
+      },
+      {
+        "row": 21,
+        "pmcid": "PMC12713700",
+        "status": "valid",
+        "start": 33716,
+        "end": 33974
+      },
+      {
+        "row": 22,
+        "pmcid": "PMC12713700",
+        "status": "valid",
+        "start": 33975,
+        "end": 34130
+      },
+      {
+        "row": 23,
+        "pmcid": "PMC12713700",
+        "status": "valid",
+        "start": 32170,
+        "end": 32313
+      },
+      {
+        "row": 24,
+        "pmcid": "PMC12713700",
+        "status": "valid",
+        "start": 31965,
+        "end": 32080
+      },
+      {
+        "row": 25,
+        "pmcid": "PMC12713700",
+        "status": "valid",
+        "start": 31965,
+        "end": 32080
+      },
+      {
+        "row": 26,
+        "pmcid": "PMC12713700",
+        "status": "valid",
+        "start": 32440,
+        "end": 32553
+      },
+      {
+        "row": 27,
+        "pmcid": "PMC12713700",
+        "status": "valid",
+        "start": 32440,
+        "end": 32553
+      },
+      {
+        "row": 28,
+        "pmcid": "PMC12713700",
+        "status": "valid",
+        "start": 32440,
+        "end": 32553
+      },
+      {
+        "row": 29,
+        "pmcid": "PMC11298438",
+        "status": "valid",
+        "start": 16877,
+        "end": 16981
+      },
+      {
+        "row": 30,
+        "pmcid": "PMC11298438",
+        "status": "valid",
+        "start": 16877,
+        "end": 16981
+      },
+      {
+        "row": 31,
+        "pmcid": "PMC11298438",
+        "status": "valid",
+        "start": 16877,
+        "end": 16981
+      },
+      {
+        "row": 32,
+        "pmcid": "PMC11298438",
+        "status": "valid",
+        "start": 17552,
+        "end": 17757
+      },
+      {
+        "row": 33,
+        "pmcid": "PMC11298438",
+        "status": "valid",
+        "start": 17552,
+        "end": 17757
+      },
+      {
+        "row": 34,
+        "pmcid": "PMC11298438",
+        "status": "valid",
+        "start": 17552,
+        "end": 17757
+      }
+    ]
+  },
+  "unchanged_thresholds": {
+    "polarity_accuracy_min": 0.8,
+    "recall_no_effect_refutes_min": 0.7,
+    "supports_when_gold_no_effect_flip_rate_max": 0.15
+  },
+  "integrity": {
+    "original_files_checked": 133,
+    "original_hashes_before": {
+      "/private/tmp/ol-polarity-20260926T144836389Z/kg.sqlite-wal": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "/private/tmp/ol-polarity-20260926T144836389Z/kg.sqlite-shm": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+      "/private/tmp/ol-polarity-20260926T144836389Z/score_trial.py": "14e289b5b55c5ecabd4c8ab40ad7fc49fe919cd4cf6fb46c2ffc739f00842583",
+      "/private/tmp/ol-polarity-20260926T144836389Z/providers.json": "8c3eea8959591c92b1b84373b06635e993da995451ab532f27956a53c5204254",
+      "/private/tmp/ol-polarity-20260926T144836389Z/trial-receipt.json": "a30bfa48cc3a0f4f3b8cb066f2845a0dac821628d22f042d23aa19a34401f47f",
+      "/private/tmp/ol-polarity-20260926T144836389Z/kg.sqlite": "148a719dd2362756b4370097a5cae59c7e83bb387946d6535024e21a2c191696",
+      "/private/tmp/ol-polarity-20260926T144836389Z/session.token": "7ab62e1d6e2c8826f4b23d6c0f83ccfd90deac8398c3f2673e68417869568a21",
+      "/private/tmp/ol-polarity-20260926T144836389Z/trial_driver.py": "0a0216288cbca7578aab5671c0718953c4184859ccb452b7b186fd165c3b216d",
+      "/private/tmp/ol-polarity-20260926T144836389Z/scorer-tests.xml": "369191720c97cf73bd3c8daac711f87f6d840d77e9051b883a661841e5033f43",
+      "/private/tmp/ol-polarity-20260926T144836389Z/provenance.jsonl": "488c29201af20440e748903651512507caa166c729897fc9decb1ea7d0cfe145",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p3/gold.json": "db8f243146cc9e4fe929106baf19f2fa97c362b4b8666f15c1a2dbc6f6a46ae2",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p3/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_pre_polarity_index_is_reb0/old.sqlite": "2f5ad714a76406fb319971561227f6b1cc69a82b8ebc8c545c557cac0680bf6a",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_pre_polarity_index_is_reb0/old.sqlite-shm": "bd5340ac5b546a269e4096bc655f19b782bfcd420ba91489610d3b5504c7e448",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_pre_polarity_index_is_reb0/old.sqlite-wal": "c1e6f80822eb6c4a22a5565c8728a7bf94cd294928372f0b7c6b442d5d3f1084",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_pre_polarity_index_is_reb0/kg.sqlite": "df8b895619b629c31703b17ba65e20180320cb3c9649d1366ec5b2ddcb7ca3ab",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p2/gold.json": "5854974d9e5da9326c24e7011518724bc60dad35c8c13b4151b09168a598bc06",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p2/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_matches_the_existing_trip0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_matches_the_existing_trip0/kg.sqlite": "a43518e6dbd1895b478e52110baf91ad1cabbf9d52533cd66fbacf246b7cfe59",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_matches_the_existing_trip0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_matches_the_existing_trip0/documents/0563e2f572ae4e4fa557f874098b13d9/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_damaged0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_damaged0/sources/PMC1.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_node_merge_keeps_opposite0/kg.sqlite": "00ffc6c895122d27195dcd9ae5699c4e9e98b6aab1dc58f8b772ff38767b79c2",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_node_merge_keeps_opposite0/documents/3ccc13795cd54b47a6bbd3dee45b4dda/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_damaged1/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_damaged1/sources/PMC1.txt": "962ae80fcddd0193235905ef9bf930453ab6e0fd2f59f64d9b1b84709126f350",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_paper_prompt_injection_is0/gold.json": "807dd62ee4ce70d5a61058f0a59888fc97c0c20f35978514084ede859e1be755",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_paper_prompt_injection_is0/sources/PMC1.txt": "c59d1e0e6393d6c4a2f635bafcd3c0d1295bc926da4d4c74c0c2735989bcc534",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu2/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu2/kg.sqlite": "e7057e15f0acb67dd40692b8e16f5dec4bbc4526de2900608ba0a420b3eee184",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu2/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu2/documents/6f670faa58f54b758c9e8ce045c35b99/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_rejected_and_invalidated_0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_rejected_and_invalidated_0/kg.sqlite": "0db2b34a2474dfb671291e63360cb8c9d278e35af7b1a7f7b82dd81d43527cd5",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_rejected_and_invalidated_0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_rejected_and_invalidated_0/documents/cfa60f5f6e78481f8c9e0b4b39b0430e/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_cli_emits_counts_only_for0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_cli_emits_counts_only_for0/unrelated-dirty-work.txt": "1b59eef75acd59a65309bea0c768cdac198d49bef0bbc010e8d6a047d896f46d",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_cli_emits_counts_only_for0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_cli_emits_counts_only_for1/gold.json": "97eac5f5c082cac85908aed6e7b11b8f62902d5f8872f0fd56b80cc59e147a4a",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_cli_emits_counts_only_for1/unrelated-dirty-work.txt": "1b59eef75acd59a65309bea0c768cdac198d49bef0bbc010e8d6a047d896f46d",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_cli_emits_counts_only_for1/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_hand_computed_confusion_m0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_hand_computed_confusion_m0/kg.sqlite": "a3340ae9ce49f5c808995195c6e958447702227691a0c6fe6b3f5b8c2d03bfe0",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_hand_computed_confusion_m0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_hand_computed_confusion_m0/documents/19d412b1ea9c4270bfd6d22bd3a55e1d/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai1/gold.json": "515c2b565190f13bfa7452e1aa42884521bc774acdc9c148860614d7888c85c9",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai1/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_conflicting_predictions_c0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_conflicting_predictions_c0/kg.sqlite": "b36996c9c77fd7673c3797e93aeed6f49bcf16af8cb58845da1705d262b9e2c5",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_conflicting_predictions_c0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_conflicting_predictions_c0/documents/fe3c6cd3397a4eb791d0ed81992fd998/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai0/gold.json": "e20bce45118ee0c43be4b0da225fc305ca2a2f3782415637ac08f481ee543d6f",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_same_polarity_still_merge0/kg.sqlite": "e270fdb5dd0b6d9eb50dd134c583964ec1e602b8969fe2cdb68912a03a699fdb",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_same_polarity_still_merge0/documents/fc0487839de74bab8bf1cffa6a2dca55/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p0/gold.json": "5ec461898061919bd67ca2b6998bb81a6876ad089dab6c415e34fc33adc4c995",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p1/gold.json": "d2a04c3e99559e287735d815fb7ef8671e24550c25958d29ebb22cefc440321b",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p1/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu0/kg.sqlite": "ab97136cb74ee06d82d905432dead6119a0de70dcdbe3fe3e4c26b9345cdfb57",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu0/documents/9d85b09d484c4b33958a616fd22b1640/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_existing_gold_loader_stil0/legacy.json": "c13869d5aa0d17e9686a4d21fb97b18ce1a2563940614b6215743ea6c763c447",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu1/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu1/kg.sqlite": "612772ad1a20b2fae2446535846f70aac23eb647293bf4ddf6ca75f6082b4414",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu1/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu1/documents/f0d4b5b650a24e449fc47ddbcc95a018/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_damaged2/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_damaged2/sources/PMC1.txt": "0fbcfb3111195160b1f12d04797f4473436bd4e7c1c0796ab1defa2ce92457b0",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_current_verified_predicti0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_current_verified_predicti0/kg.sqlite": "3bd60d91e8f47d3e2265d77de784bb342ec031fedd153802971debb207509473",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_current_verified_predicti0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_current_verified_predicti0/documents/d96f968ee3f6460ba7ebc3e3e29ddd21/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_absent_gold_class_is_unde0/gold.json": "446c614bcdd4042c4a49cddd9e6053709f66b5676dde97dcec1fda646e3b6628",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_absent_gold_class_is_unde0/kg.sqlite": "54dec19a9a7dba41a9a1ff0d9f547fd97745e344bc30023a570f148e13de5420",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_absent_gold_class_is_unde0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_absent_gold_class_is_unde0/documents/fc9f6f14290a4580a6cc521bbcaa8e5b/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai2/gold.json": "85cc5324b5cb5b6e696c31c1bb295f8fc2a4da7f8911a0e1bd791c4ee6de2582",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai2/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_rejects_span_no0/gold.json": "97eac5f5c082cac85908aed6e7b11b8f62902d5f8872f0fd56b80cc59e147a4a",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_rejects_span_no0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_zero_matches_are_not_repo0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_zero_matches_are_not_repo0/kg.sqlite": "fc6f1e578b1e3fe34e28264eaf272f03f608a09352b67d63b8d9617b8dbe0286",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_zero_matches_are_not_repo0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_opposite_polarities_on_on0/kg.sqlite": "78cd34f0b6ae0972fdd9bab17efc0a7f91253a26f6f365da8086589484237c3c",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_opposite_polarities_on_on0/documents/f989c6e6a29d491a8a5bf70a88133009/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai3/gold.json": "da5deb0f63bad65d2620d6fdabce84ded15296fb2743ff650c7881602274657d",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai3/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai4/gold.json": "35e7efca3efff5b6289cf44b3142d9e810221dae6599d3b3a7f5395df5a0b7a1",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai4/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/documents/rep-2ae1bfcc4183/raw.txt": "8d4bfc54ea578a01da92c798048b868120be8372bf6cb781a0d2642c6a1fbf88",
+      "/private/tmp/ol-polarity-20260926T144836389Z/documents/rep-1131dec589e0/raw.txt": "436d765d666cc633efecc53a061b5e941b3f6c27de733dc5f16d1cd31929b9f2",
+      "/private/tmp/ol-polarity-20260926T144836389Z/documents/rep-5ba0e09575ec/raw.txt": "bd554447c224aba1e20b8a0e2bb484cf93da891e39aa3f41c4f78ba19340acdd",
+      "/private/tmp/ol-polarity-20260926T144836389Z/documents/rep-dce0d78dadec/raw.txt": "f4058de5cec36a1c1f2d1045075c2d661cdf6fa01d91b6545a90ede0ad8b3be8",
+      "/private/tmp/ol-polarity-20260926T144836389Z/documents/rep-e479d944c9e1/raw.txt": "e7af2ffe781b53e5d24f013c96716e153ca494f70fe7fbebcb35f968c942b7e5",
+      "/private/tmp/ol-polarity-20260926T144836389Z/jobs/collect-20260926-235213/provenance.jsonl": "946dffa474b1bb4efe3f59a7d2c9acc9a27bca59d66f863d7968f9a245d0d7ea",
+      "/private/tmp/ol-polarity-20260926T144836389Z/jobs/collect-20260926-235213/status.json": "69774477d46b678182450ca4566f9e9b0501bf8db5002a92157b7c7d7c903abc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/jobs/extract-20260926-235329/provenance.jsonl": "9c6d77c54dfbdfa7dc9997120e34fe1fb63b1e4e95086c2db79573065093648e",
+      "/private/tmp/ol-polarity-20260926T144836389Z/jobs/extract-20260926-235329/status.json": "6e175604ec38541a9216bb4ab50f557a5997778768d726b59803509ecefc65e0",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/kg.sqlite-wal": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/kg.sqlite-shm": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/providers.json": "8c3eea8959591c92b1b84373b06635e993da995451ab532f27956a53c5204254",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/kg.sqlite": "21bad5769320f792b05f6cd5b72f6f6b5817d1328394b34f530c47f86e4a8ab8",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/session.token": "ae171d2a44b0fd939de4ae0a1494e151928c771cbec770bd3752ce8bd20df12e",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/provenance.jsonl": "bfcbae8367bfa7a1cff729cf3dc7d32624949d96527d5a114775c4a3df0a1078",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/documents/rep-9756d3025ad0/raw.txt": "8d4bfc54ea578a01da92c798048b868120be8372bf6cb781a0d2642c6a1fbf88",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/documents/rep-d05dab6ce997/raw.txt": "436d765d666cc633efecc53a061b5e941b3f6c27de733dc5f16d1cd31929b9f2",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/documents/rep-3dc38eb076c1/raw.txt": "bd554447c224aba1e20b8a0e2bb484cf93da891e39aa3f41c4f78ba19340acdd",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/documents/rep-bfcb1f3838c9/raw.txt": "f4058de5cec36a1c1f2d1045075c2d661cdf6fa01d91b6545a90ede0ad8b3be8",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/documents/rep-b98b275bd0e4/raw.txt": "e7af2ffe781b53e5d24f013c96716e153ca494f70fe7fbebcb35f968c942b7e5",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/jobs/collect-20260926-235213/provenance.jsonl": "656fa9c2f518e12de8aa32af9501c1f373e7971b77507cab23670a6327db9043",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/jobs/collect-20260926-235213/status.json": "c2498b2b31c6b2d626e477780b71db56fd39511835ebe5cce6b270638bfb1018",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/jobs/extract-20260926-235329/provenance.jsonl": "b8ec5e31f2c5b7635298ee7b0118f244327716a32a35f3e7e9b42e0454bcbfa7",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/jobs/extract-20260926-235329/status.json": "94c84a1b9266515856252cb86e5bc8637639e49122c4dcd38cb2c45854d54823",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/kg.sqlite-wal": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/kg.sqlite-shm": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/providers.json": "8c3eea8959591c92b1b84373b06635e993da995451ab532f27956a53c5204254",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/kg.sqlite": "1a5ce7a60458bfce7b7886ef194229ed4d3ebdc27c6fa27118d5c403bcc1137e",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/session.token": "7d5bd4a3c1de0d74a4788e15125266baad766b3ff8e32aed2b876614785d924f",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/provenance.jsonl": "b4696c490f1bae117d7275ccf6b73c4269038c470f19f29fed96af31c457629f",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/documents/rep-305a38bcef4a/raw.txt": "bd554447c224aba1e20b8a0e2bb484cf93da891e39aa3f41c4f78ba19340acdd",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/documents/rep-5fbe94b08f52/raw.txt": "436d765d666cc633efecc53a061b5e941b3f6c27de733dc5f16d1cd31929b9f2",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/documents/rep-0e2fb3bb5441/raw.txt": "8d4bfc54ea578a01da92c798048b868120be8372bf6cb781a0d2642c6a1fbf88",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/documents/rep-b01f7cf4e3d1/raw.txt": "e7af2ffe781b53e5d24f013c96716e153ca494f70fe7fbebcb35f968c942b7e5",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/documents/rep-f2596289f936/raw.txt": "f4058de5cec36a1c1f2d1045075c2d661cdf6fa01d91b6545a90ede0ad8b3be8",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/jobs/collect-20260926-235213/provenance.jsonl": "ef7511e01a118ab1995016bb83fc4c55f723c93f7c45180acb010bc591422447",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/jobs/collect-20260926-235213/status.json": "17d90209cbdcf01ebed980008d6d9fb635abfa8585dcd93b199aff03c9194438",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/jobs/extract-20260926-235329/provenance.jsonl": "26e188a06abf8677712e11ebdc955a70a894186e16563060da2f636ab3596f4c",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/jobs/extract-20260926-235329/status.json": "3d158392609261cfa1faa57eeb3321f7460ea312eba820c27a4bcc943d2a9942"
+    },
+    "original_hashes_after": {
+      "/private/tmp/ol-polarity-20260926T144836389Z/kg.sqlite-wal": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "/private/tmp/ol-polarity-20260926T144836389Z/kg.sqlite-shm": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+      "/private/tmp/ol-polarity-20260926T144836389Z/score_trial.py": "14e289b5b55c5ecabd4c8ab40ad7fc49fe919cd4cf6fb46c2ffc739f00842583",
+      "/private/tmp/ol-polarity-20260926T144836389Z/providers.json": "8c3eea8959591c92b1b84373b06635e993da995451ab532f27956a53c5204254",
+      "/private/tmp/ol-polarity-20260926T144836389Z/trial-receipt.json": "a30bfa48cc3a0f4f3b8cb066f2845a0dac821628d22f042d23aa19a34401f47f",
+      "/private/tmp/ol-polarity-20260926T144836389Z/kg.sqlite": "148a719dd2362756b4370097a5cae59c7e83bb387946d6535024e21a2c191696",
+      "/private/tmp/ol-polarity-20260926T144836389Z/session.token": "7ab62e1d6e2c8826f4b23d6c0f83ccfd90deac8398c3f2673e68417869568a21",
+      "/private/tmp/ol-polarity-20260926T144836389Z/trial_driver.py": "0a0216288cbca7578aab5671c0718953c4184859ccb452b7b186fd165c3b216d",
+      "/private/tmp/ol-polarity-20260926T144836389Z/scorer-tests.xml": "369191720c97cf73bd3c8daac711f87f6d840d77e9051b883a661841e5033f43",
+      "/private/tmp/ol-polarity-20260926T144836389Z/provenance.jsonl": "488c29201af20440e748903651512507caa166c729897fc9decb1ea7d0cfe145",
+      "/private/tmp/ol-polarity-20260926T144836389Z/jobs/extract-20260926-235329/provenance.jsonl": "9c6d77c54dfbdfa7dc9997120e34fe1fb63b1e4e95086c2db79573065093648e",
+      "/private/tmp/ol-polarity-20260926T144836389Z/jobs/extract-20260926-235329/status.json": "6e175604ec38541a9216bb4ab50f557a5997778768d726b59803509ecefc65e0",
+      "/private/tmp/ol-polarity-20260926T144836389Z/jobs/collect-20260926-235213/provenance.jsonl": "946dffa474b1bb4efe3f59a7d2c9acc9a27bca59d66f863d7968f9a245d0d7ea",
+      "/private/tmp/ol-polarity-20260926T144836389Z/jobs/collect-20260926-235213/status.json": "69774477d46b678182450ca4566f9e9b0501bf8db5002a92157b7c7d7c903abc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/documents/rep-e479d944c9e1/raw.txt": "e7af2ffe781b53e5d24f013c96716e153ca494f70fe7fbebcb35f968c942b7e5",
+      "/private/tmp/ol-polarity-20260926T144836389Z/documents/rep-dce0d78dadec/raw.txt": "f4058de5cec36a1c1f2d1045075c2d661cdf6fa01d91b6545a90ede0ad8b3be8",
+      "/private/tmp/ol-polarity-20260926T144836389Z/documents/rep-5ba0e09575ec/raw.txt": "bd554447c224aba1e20b8a0e2bb484cf93da891e39aa3f41c4f78ba19340acdd",
+      "/private/tmp/ol-polarity-20260926T144836389Z/documents/rep-1131dec589e0/raw.txt": "436d765d666cc633efecc53a061b5e941b3f6c27de733dc5f16d1cd31929b9f2",
+      "/private/tmp/ol-polarity-20260926T144836389Z/documents/rep-2ae1bfcc4183/raw.txt": "8d4bfc54ea578a01da92c798048b868120be8372bf6cb781a0d2642c6a1fbf88",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai4/gold.json": "35e7efca3efff5b6289cf44b3142d9e810221dae6599d3b3a7f5395df5a0b7a1",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai4/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai3/gold.json": "da5deb0f63bad65d2620d6fdabce84ded15296fb2743ff650c7881602274657d",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai3/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_opposite_polarities_on_on0/kg.sqlite": "78cd34f0b6ae0972fdd9bab17efc0a7f91253a26f6f365da8086589484237c3c",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_opposite_polarities_on_on0/documents/f989c6e6a29d491a8a5bf70a88133009/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_zero_matches_are_not_repo0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_zero_matches_are_not_repo0/kg.sqlite": "fc6f1e578b1e3fe34e28264eaf272f03f608a09352b67d63b8d9617b8dbe0286",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_zero_matches_are_not_repo0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_rejects_span_no0/gold.json": "97eac5f5c082cac85908aed6e7b11b8f62902d5f8872f0fd56b80cc59e147a4a",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_rejects_span_no0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai2/gold.json": "85cc5324b5cb5b6e696c31c1bb295f8fc2a4da7f8911a0e1bd791c4ee6de2582",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai2/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_absent_gold_class_is_unde0/gold.json": "446c614bcdd4042c4a49cddd9e6053709f66b5676dde97dcec1fda646e3b6628",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_absent_gold_class_is_unde0/kg.sqlite": "54dec19a9a7dba41a9a1ff0d9f547fd97745e344bc30023a570f148e13de5420",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_absent_gold_class_is_unde0/documents/fc9f6f14290a4580a6cc521bbcaa8e5b/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_absent_gold_class_is_unde0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_current_verified_predicti0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_current_verified_predicti0/kg.sqlite": "3bd60d91e8f47d3e2265d77de784bb342ec031fedd153802971debb207509473",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_current_verified_predicti0/documents/d96f968ee3f6460ba7ebc3e3e29ddd21/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_current_verified_predicti0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_damaged2/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_damaged2/sources/PMC1.txt": "0fbcfb3111195160b1f12d04797f4473436bd4e7c1c0796ab1defa2ce92457b0",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu1/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu1/kg.sqlite": "612772ad1a20b2fae2446535846f70aac23eb647293bf4ddf6ca75f6082b4414",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu1/documents/f0d4b5b650a24e449fc47ddbcc95a018/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu1/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_existing_gold_loader_stil0/legacy.json": "c13869d5aa0d17e9686a4d21fb97b18ce1a2563940614b6215743ea6c763c447",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu0/kg.sqlite": "ab97136cb74ee06d82d905432dead6119a0de70dcdbe3fe3e4c26b9345cdfb57",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu0/documents/9d85b09d484c4b33958a616fd22b1640/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p1/gold.json": "d2a04c3e99559e287735d815fb7ef8671e24550c25958d29ebb22cefc440321b",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p1/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p0/gold.json": "5ec461898061919bd67ca2b6998bb81a6876ad089dab6c415e34fc33adc4c995",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_same_polarity_still_merge0/kg.sqlite": "e270fdb5dd0b6d9eb50dd134c583964ec1e602b8969fe2cdb68912a03a699fdb",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_same_polarity_still_merge0/documents/fc0487839de74bab8bf1cffa6a2dca55/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai0/gold.json": "e20bce45118ee0c43be4b0da225fc305ca2a2f3782415637ac08f481ee543d6f",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_conflicting_predictions_c0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_conflicting_predictions_c0/kg.sqlite": "b36996c9c77fd7673c3797e93aeed6f49bcf16af8cb58845da1705d262b9e2c5",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_conflicting_predictions_c0/documents/fe3c6cd3397a4eb791d0ed81992fd998/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_conflicting_predictions_c0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai1/gold.json": "515c2b565190f13bfa7452e1aa42884521bc774acdc9c148860614d7888c85c9",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_nonclai1/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_hand_computed_confusion_m0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_hand_computed_confusion_m0/kg.sqlite": "a3340ae9ce49f5c808995195c6e958447702227691a0c6fe6b3f5b8c2d03bfe0",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_hand_computed_confusion_m0/documents/19d412b1ea9c4270bfd6d22bd3a55e1d/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_hand_computed_confusion_m0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_cli_emits_counts_only_for1/gold.json": "97eac5f5c082cac85908aed6e7b11b8f62902d5f8872f0fd56b80cc59e147a4a",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_cli_emits_counts_only_for1/unrelated-dirty-work.txt": "1b59eef75acd59a65309bea0c768cdac198d49bef0bbc010e8d6a047d896f46d",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_cli_emits_counts_only_for1/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_cli_emits_counts_only_for0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_cli_emits_counts_only_for0/unrelated-dirty-work.txt": "1b59eef75acd59a65309bea0c768cdac198d49bef0bbc010e8d6a047d896f46d",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_cli_emits_counts_only_for0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_rejected_and_invalidated_0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_rejected_and_invalidated_0/kg.sqlite": "0db2b34a2474dfb671291e63360cb8c9d278e35af7b1a7f7b82dd81d43527cd5",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_rejected_and_invalidated_0/documents/cfa60f5f6e78481f8c9e0b4b39b0430e/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_rejected_and_invalidated_0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu2/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu2/kg.sqlite": "e7057e15f0acb67dd40692b8e16f5dec4bbc4526de2900608ba0a420b3eee184",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu2/documents/6f670faa58f54b758c9e8ce045c35b99/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_malformed_prediction_refu2/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_paper_prompt_injection_is0/gold.json": "807dd62ee4ce70d5a61058f0a59888fc97c0c20f35978514084ede859e1be755",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_paper_prompt_injection_is0/sources/PMC1.txt": "c59d1e0e6393d6c4a2f635bafcd3c0d1295bc926da4d4c74c0c2735989bcc534",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_damaged1/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_damaged1/sources/PMC1.txt": "962ae80fcddd0193235905ef9bf930453ab6e0fd2f59f64d9b1b84709126f350",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_node_merge_keeps_opposite0/kg.sqlite": "00ffc6c895122d27195dcd9ae5699c4e9e98b6aab1dc58f8b772ff38767b79c2",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_node_merge_keeps_opposite0/documents/3ccc13795cd54b47a6bbd3dee45b4dda/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_damaged0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_damaged0/sources/PMC1.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_matches_the_existing_trip0/gold.json": "35c3d958fbce7d8b75d21d1223ba688a3b3badb435e334c77434773428fb4ffc",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_matches_the_existing_trip0/kg.sqlite": "a43518e6dbd1895b478e52110baf91ad1cabbf9d52533cd66fbacf246b7cfe59",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_matches_the_existing_trip0/documents/0563e2f572ae4e4fa557f874098b13d9/raw.txt": "392eb28179156f04a74420b0b5caa80bcd211ebc8bb3c3c27e2fcf92227427cf",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_matches_the_existing_trip0/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p2/gold.json": "5854974d9e5da9326c24e7011518724bc60dad35c8c13b4151b09168a598bc06",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p2/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_pre_polarity_index_is_reb0/old.sqlite": "2f5ad714a76406fb319971561227f6b1cc69a82b8ebc8c545c557cac0680bf6a",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_pre_polarity_index_is_reb0/old.sqlite-shm": "bd5340ac5b546a269e4096bc655f19b782bfcd420ba91489610d3b5504c7e448",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_pre_polarity_index_is_reb0/old.sqlite-wal": "c1e6f80822eb6c4a22a5565c8728a7bf94cd294928372f0b7c6b442d5d3f1084",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_pre_polarity_index_is_reb0/kg.sqlite": "df8b895619b629c31703b17ba65e20180320cb3c9649d1366ec5b2ddcb7ca3ab",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p3/gold.json": "db8f243146cc9e4fe929106baf19f2fa97c362b4b8666f15c1a2dbc6f6a46ae2",
+      "/private/tmp/ol-polarity-20260926T144836389Z/pytest-scorer/test_validator_refuses_false_p3/sources/PMC1.txt": "77475fd2214fff7195a96f21ed6cc899691d74bb6343d45304b95a8037a03528",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/kg.sqlite-wal": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/kg.sqlite-shm": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/providers.json": "8c3eea8959591c92b1b84373b06635e993da995451ab532f27956a53c5204254",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/kg.sqlite": "21bad5769320f792b05f6cd5b72f6f6b5817d1328394b34f530c47f86e4a8ab8",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/session.token": "ae171d2a44b0fd939de4ae0a1494e151928c771cbec770bd3752ce8bd20df12e",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/provenance.jsonl": "bfcbae8367bfa7a1cff729cf3dc7d32624949d96527d5a114775c4a3df0a1078",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/jobs/extract-20260926-235329/provenance.jsonl": "b8ec5e31f2c5b7635298ee7b0118f244327716a32a35f3e7e9b42e0454bcbfa7",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/jobs/extract-20260926-235329/status.json": "94c84a1b9266515856252cb86e5bc8637639e49122c4dcd38cb2c45854d54823",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/jobs/collect-20260926-235213/provenance.jsonl": "656fa9c2f518e12de8aa32af9501c1f373e7971b77507cab23670a6327db9043",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/jobs/collect-20260926-235213/status.json": "c2498b2b31c6b2d626e477780b71db56fd39511835ebe5cce6b270638bfb1018",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/documents/rep-b98b275bd0e4/raw.txt": "e7af2ffe781b53e5d24f013c96716e153ca494f70fe7fbebcb35f968c942b7e5",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/documents/rep-bfcb1f3838c9/raw.txt": "f4058de5cec36a1c1f2d1045075c2d661cdf6fa01d91b6545a90ede0ad8b3be8",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/documents/rep-3dc38eb076c1/raw.txt": "bd554447c224aba1e20b8a0e2bb484cf93da891e39aa3f41c4f78ba19340acdd",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/documents/rep-d05dab6ce997/raw.txt": "436d765d666cc633efecc53a061b5e941b3f6c27de733dc5f16d1cd31929b9f2",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r2/documents/rep-9756d3025ad0/raw.txt": "8d4bfc54ea578a01da92c798048b868120be8372bf6cb781a0d2642c6a1fbf88",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/kg.sqlite-wal": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/kg.sqlite-shm": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/providers.json": "8c3eea8959591c92b1b84373b06635e993da995451ab532f27956a53c5204254",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/kg.sqlite": "1a5ce7a60458bfce7b7886ef194229ed4d3ebdc27c6fa27118d5c403bcc1137e",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/session.token": "7d5bd4a3c1de0d74a4788e15125266baad766b3ff8e32aed2b876614785d924f",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/provenance.jsonl": "b4696c490f1bae117d7275ccf6b73c4269038c470f19f29fed96af31c457629f",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/jobs/extract-20260926-235329/provenance.jsonl": "26e188a06abf8677712e11ebdc955a70a894186e16563060da2f636ab3596f4c",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/jobs/extract-20260926-235329/status.json": "3d158392609261cfa1faa57eeb3321f7460ea312eba820c27a4bcc943d2a9942",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/jobs/collect-20260926-235213/provenance.jsonl": "ef7511e01a118ab1995016bb83fc4c55f723c93f7c45180acb010bc591422447",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/jobs/collect-20260926-235213/status.json": "17d90209cbdcf01ebed980008d6d9fb635abfa8585dcd93b199aff03c9194438",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/documents/rep-f2596289f936/raw.txt": "f4058de5cec36a1c1f2d1045075c2d661cdf6fa01d91b6545a90ede0ad8b3be8",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/documents/rep-b01f7cf4e3d1/raw.txt": "e7af2ffe781b53e5d24f013c96716e153ca494f70fe7fbebcb35f968c942b7e5",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/documents/rep-0e2fb3bb5441/raw.txt": "8d4bfc54ea578a01da92c798048b868120be8372bf6cb781a0d2642c6a1fbf88",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/documents/rep-5fbe94b08f52/raw.txt": "436d765d666cc633efecc53a061b5e941b3f6c27de733dc5f16d1cd31929b9f2",
+      "/private/tmp/ol-polarity-20260926T144836389Z-r3/documents/rep-305a38bcef4a/raw.txt": "bd554447c224aba1e20b8a0e2bb484cf93da891e39aa3f41c4f78ba19340acdd"
+    },
+    "changed": [],
+    "added": [],
+    "removed": [],
+    "frozen_hashes_before": {
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/tests/gold/agrochem-polarity/gold.json": "c899bc553773f2ee4986d0d808165c7791ad7e5cd9c8ba8ff7a9187458a55203",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/tests/gold/agrochem-polarity/sources/PMC11298438.txt": "8d4bfc54ea578a01da92c798048b868120be8372bf6cb781a0d2642c6a1fbf88",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/tests/gold/agrochem-polarity/sources/PMC12713700.txt": "e7af2ffe781b53e5d24f013c96716e153ca494f70fe7fbebcb35f968c942b7e5",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/tests/gold/agrochem-polarity/sources/PMC12632097.txt": "bd554447c224aba1e20b8a0e2bb484cf93da891e39aa3f41c4f78ba19340acdd",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/tests/gold/agrochem-polarity/sources/PMC12546283.txt": "f4058de5cec36a1c1f2d1045075c2d661cdf6fa01d91b6545a90ede0ad8b3be8",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/tests/gold/agrochem-polarity/sources/PMC12563837.txt": "436d765d666cc633efecc53a061b5e941b3f6c27de733dc5f16d1cd31929b9f2",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/evidence/polarity-trial-2026-09-26-misses.md": "e9aec955bfa545521171f7bb52c5373033f2ba6c1aa660963b706ee6dfa165ba",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/evidence/polarity-trial-2026-09-26.md": "3851cab8ff9641b68c7c604d84ad0dda28b66146660052c5d2336fd824d5ec87",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/evidence/polarity-trial-2026-09-26-rescore.json": "e944a98206fd28c98a354a6a7839bf6c0ad5c6aa867ad018b9e409116ded6e2b"
+    },
+    "frozen_hashes_after": {
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/tests/gold/agrochem-polarity/gold.json": "c899bc553773f2ee4986d0d808165c7791ad7e5cd9c8ba8ff7a9187458a55203",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/tests/gold/agrochem-polarity/sources/PMC11298438.txt": "8d4bfc54ea578a01da92c798048b868120be8372bf6cb781a0d2642c6a1fbf88",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/tests/gold/agrochem-polarity/sources/PMC12713700.txt": "e7af2ffe781b53e5d24f013c96716e153ca494f70fe7fbebcb35f968c942b7e5",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/tests/gold/agrochem-polarity/sources/PMC12632097.txt": "bd554447c224aba1e20b8a0e2bb484cf93da891e39aa3f41c4f78ba19340acdd",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/tests/gold/agrochem-polarity/sources/PMC12546283.txt": "f4058de5cec36a1c1f2d1045075c2d661cdf6fa01d91b6545a90ede0ad8b3be8",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/tests/gold/agrochem-polarity/sources/PMC12563837.txt": "436d765d666cc633efecc53a061b5e941b3f6c27de733dc5f16d1cd31929b9f2",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/evidence/polarity-trial-2026-09-26-misses.md": "e9aec955bfa545521171f7bb52c5373033f2ba6c1aa660963b706ee6dfa165ba",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/evidence/polarity-trial-2026-09-26.md": "3851cab8ff9641b68c7c604d84ad0dda28b66146660052c5d2336fd824d5ec87",
+      "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/evidence/polarity-trial-2026-09-26-rescore.json": "e944a98206fd28c98a354a6a7839bf6c0ad5c6aa867ad018b9e409116ded6e2b"
+    },
+    "scorer_function_unchanged": true,
+    "scorer_function_sha256": "cf98cde13b9427149d74f2bdcdd8fbbb7fcf6614a0af05a61b9e817e86fa51c6",
+    "note": "This session observes 133 regular files, not the historical 188 in task 18; its before/after inventory is identical. No claim is made about earlier deletions."
+  },
+  "verification": {
+    "targeted_tests": {
+      "command": "uv run --all-extras pytest --basetemp=/private/tmp/t19-$RANDOM-$RANDOM tests/test_polarity_eval.py tests/test_species_abbreviation.py tests/test_polarity_fulltext.py > /private/tmp/t19.log 2>&1; echo EXIT=$?",
+      "basetemp": "/private/tmp/t19-27283-22039",
+      "exit": 0,
+      "passed": 95,
+      "log_sha256": "6a42492012bd3659098109e930bd11bb1b4dda49edcff5706299505e1aca8e4b"
+    },
+    "mutation": {
+      "offset_before": 21912,
+      "offset_after": 21913,
+      "first_attempt_exit": 2,
+      "first_attempt_cause": "External test root lacked project import path; not accepted as mutation evidence.",
+      "corrected_command": "PYTHONPATH=. uv run --all-extras pytest -c pyproject.toml --basetemp=/private/tmp/t19-mutant-fixed-$RANDOM-$RANDOM /private/tmp/t19-evidence-20260926/test_offset_mutant.py",
+      "exit": 1,
+      "failed": 1,
+      "error": "PMC12632097: span quote does not match source",
+      "log_sha256": "37450096488a1aad8d333f6a22e17edb8fc574c6c87152015b6f5e98897ed579"
+    },
+    "diagnostics": {
+      "command": "basedpyright --pythonversion 3.12 --pythonpath /Users/hyunjun/Documents/MUNI/ontologylab-wt/w5-t19/.venv/bin/python --project pyproject.toml ontologylab/polarity_eval.py tests/test_polarity_fulltext.py",
+      "exit": 0,
+      "errors": 0,
+      "warnings": 0,
+      "note": "LSP initially used an incompatible interpreter for the pre-existing tuple alias. Explicit project Python 3.12 diagnostics are clean. JSON LSP biome is unavailable; JSON parsing and semantic validation pass."
+    },
+    "build": {
+      "command": "uv build --wheel --out-dir /private/tmp/t19-evidence-20260926/wheels",
+      "exit": 0,
+      "warning": "Pre-existing setuptools project.license table deprecation."
+    },
+    "cli": {
+      "stdout": "{\"papers\": 5, \"relations\": 34, \"relations_per_polarity\": {\"no_effect\": 12, \"refutes\": 5, \"supports\": 17}, \"spans_verified\": 34}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    "replay_command": "PYTHONPATH=. uv run --all-extras python /private/tmp/t19-evidence-20260926/replay.py",
+    "replay_exit": 0,
+    "replay_driver_sha256": "91118202e534b6152582feef6fee92ec8015c98cd2d50e016dba76703c4e1bf1",
+    "temp_paths": [
+      "/private/tmp/t19-27283-22039",
+      "/private/tmp/t19-evidence-20260926",
+      "/private/tmp/t19-mutation-20260926",
+      "/private/tmp/t19-replay-1",
+      "/private/tmp/t19-replay-2",
+      "/private/tmp/t19-replay-3",
+      "/private/tmp/t19.log"
+    ]
+  },
+  "limitations": [
+    "Post-diagnosis replay is not a holdout experiment or a new model trial.",
+    "Resolver sees complete converted bodies; unchanged persisted proposal citations still refer to original excerpts.",
+    "Regenerated insertion timestamps and citations are not original extraction receipts.",
+    "Gold annotation lacks independent expert adjudication; outcome-level bootstrap ignores within-paper and repeat dependence.",
+    "G3 remains FAILED; task 19 completion does not satisfy IS-1."
+  ]
+}
