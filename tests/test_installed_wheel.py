@@ -60,9 +60,10 @@ def _get(url: str, timeout: float = 5.0) -> tuple[int, dict[str, str], bytes]:
 def dist_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Wheel + sdist built into a disposable directory."""
     out = tmp_path_factory.mktemp("dist")
-    _run(
-        ["uv", "build", "--sdist", "--wheel", "--out-dir", str(out)], cwd=ROOT
-    )
+    # Plain `uv build` builds the wheel FROM the sdist, as a release does.
+    # `--sdist --wheel` builds the wheel from the checkout instead, and
+    # setuptools then reuses whatever a stale ignored build/lib holds.
+    _run(["uv", "build", "--out-dir", str(out)], cwd=ROOT)
     return out
 
 
