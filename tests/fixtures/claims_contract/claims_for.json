@@ -1,0 +1,167 @@
+{
+  "claims": [
+    {
+      "confidence": null,
+      "edge_id": "<edge_id>",
+      "evidence": {
+        "doi": null,
+        "retrieved_at": "<ts>",
+        "source_doc_id": "<source_doc_id>",
+        "source_span": {
+          "end": 18,
+          "start": 0
+        },
+        "source_uri": "https://doi.org/10.1/a",
+        "title": "a"
+      },
+      "invalidated_ts": null,
+      "measurement": {
+        "status": "normalized",
+        "unit": "kg/ha",
+        "value": 0.25
+      },
+      "object": {
+        "entity_type": "Pathogen",
+        "id": "<node_id>",
+        "name": "Botrytis cinerea"
+      },
+      "origin": "extracted",
+      "pack_id": "<pack_id>",
+      "polarity": "supports",
+      "provenance": "extracted",
+      "qualifiers": {
+        "polarity": "supports"
+      },
+      "relation": "controls",
+      "retrieved_at": "<ts>",
+      "schema_version_id": "<schema_version_id>",
+      "source_span": {
+        "end": 18,
+        "start": 0
+      },
+      "source_uri": "https://doi.org/10.1/a",
+      "status": "verified",
+      "subject": {
+        "entity_type": "ActiveIngredient",
+        "id": "<node_id>",
+        "name": "Fluopyram"
+      },
+      "unit": "kg/ha",
+      "valid_from": "<ts>",
+      "valid_to": null,
+      "value": 0.25
+    },
+    {
+      "confidence": null,
+      "edge_id": "<edge_id>",
+      "evidence": {
+        "doi": null,
+        "retrieved_at": "<ts>",
+        "source_doc_id": "<source_doc_id>",
+        "source_span": {
+          "end": 44,
+          "start": 20
+        },
+        "source_uri": "https://doi.org/10.1/b",
+        "title": "b"
+      },
+      "invalidated_ts": null,
+      "measurement": {
+        "status": "normalized",
+        "unit": "kg/ha",
+        "value": 0.25
+      },
+      "object": {
+        "entity_type": "Pathogen",
+        "id": "<node_id>",
+        "name": "Botrytis cinerea"
+      },
+      "origin": "extracted",
+      "pack_id": "<pack_id>",
+      "polarity": "no_effect",
+      "provenance": "extracted",
+      "qualifiers": {
+        "polarity": "no_effect"
+      },
+      "relation": "controls",
+      "retrieved_at": "<ts>",
+      "schema_version_id": "<schema_version_id>",
+      "source_span": {
+        "end": 44,
+        "start": 20
+      },
+      "source_uri": "https://doi.org/10.1/b",
+      "status": "verified",
+      "subject": {
+        "entity_type": "ActiveIngredient",
+        "id": "<node_id>",
+        "name": "Fluopyram"
+      },
+      "unit": "kg/ha",
+      "valid_from": "<ts>",
+      "valid_to": null,
+      "value": 0.25
+    },
+    {
+      "confidence": null,
+      "edge_id": "<edge_id>",
+      "evidence": {
+        "doi": null,
+        "retrieved_at": "<ts>",
+        "source_doc_id": "<source_doc_id>",
+        "source_span": {
+          "end": 12,
+          "start": 4
+        },
+        "source_uri": "https://doi.org/10.1/c",
+        "title": "c"
+      },
+      "invalidated_ts": null,
+      "measurement": null,
+      "object": {
+        "entity_type": "Pathogen",
+        "id": "<node_id>",
+        "name": "Alternaria solani"
+      },
+      "origin": "extracted",
+      "pack_id": "<pack_id>",
+      "polarity": "supports",
+      "provenance": "extracted",
+      "qualifiers": {
+        "polarity": "supports"
+      },
+      "relation": "controls",
+      "retrieved_at": "<ts>",
+      "schema_version_id": "<schema_version_id>",
+      "source_span": {
+        "end": 12,
+        "start": 4
+      },
+      "source_uri": "https://doi.org/10.1/c",
+      "status": "verified",
+      "subject": {
+        "entity_type": "ActiveIngredient",
+        "id": "<node_id>",
+        "name": "Fluopyram"
+      },
+      "unit": null,
+      "valid_from": "<ts>",
+      "valid_to": null,
+      "value": null
+    }
+  ],
+  "count": 3,
+  "pack": {
+    "content_hash": "<content_hash>",
+    "evidence_mode": "<evidence_mode>",
+    "integrity_level": "<integrity_level>",
+    "pack_id": "<pack_id>",
+    "pack_schema_version": "<pack_schema_version>"
+  },
+  "polarity_counts": {
+    "no_effect": 1,
+    "refutes": 0,
+    "supports": 2,
+    "unspecified": 0
+  }
+}
