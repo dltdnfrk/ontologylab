@@ -39,7 +39,7 @@ def test_prompt_delivers_nonempty_background_section(qualified_store):
 
 
 def test_extraction_prompt_version():
-    assert extractor.PROMPT_VERSION == "extract-v8"
+    assert extractor.PROMPT_VERSION == "extract-v9"
 
 
 def _persist_statements(store, tmp_path, sentences, qualifiers):
@@ -64,7 +64,7 @@ def _persist_statements(store, tmp_path, sentences, qualifiers):
     outcome, _ = drive(store, tmp_path, engine, text=text)
 
     assert outcome == "" and not outcome.chunk_failed
-    assert engine.calls == 1
+    assert engine.calls == 2
     rows = store.conn.execute("SELECT * FROM edges").fetchall()
     assert len(rows) == len(sentences)
     assert len({row["id"] for row in rows}) == len(sentences)
@@ -72,7 +72,7 @@ def _persist_statements(store, tmp_path, sentences, qualifiers):
     assert len({(row["src_node_id"], row["dst_node_id"]) for row in rows}) == 1
     assert {row["relation_type"] for row in rows} == {"controls"}
     assert {row["status"] for row in rows} == {"proposed"}
-    assert {row["prompt_version"] for row in rows} == {"extract-v8"}
+    assert {row["prompt_version"] for row in rows} == {"extract-v9"}
     normalized = [normalize_statement_qualifiers(scope) for scope in qualifiers]
     assert {
         json.dumps(json.loads(row["qualifiers_json"]), sort_keys=True) for row in rows

@@ -103,6 +103,7 @@ class ExtractRequest(BaseModel):
     doc_ids: list[str] = Field(default_factory=list)
     max_engine_calls: int = Field(default=DEFAULT_MAX_ENGINE_CALLS, ge=1)
     max_transport_retries: int = Field(default=DEFAULT_MAX_TRANSPORT_RETRIES, ge=0, le=100)
+    statement_completion: bool = True
     # Omitted/null sizes the budget from eligible chunks and request timeout.
     time_budget: float | None = Field(default=None, gt=0)
     seed: int = DEFAULT_SEED
