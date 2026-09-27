@@ -154,8 +154,20 @@ Completion makes at most **one actual request**, without JSON or transport
 retries. Its output enters the same parser, normalizers, strict store validators,
 qualified identity and citation binder as the first response. Completion has an
 additional strict source boundary: absent/out-of-chunk spans are refused rather
-than repaired, and a relation's span must contain its endpoint mentions. Typed
+than repaired. Coordinates must be actual JSON integers, not booleans, strings,
+floats or non-finite numbers, and a relation's span must contain its endpoint mentions. Typed
 `extract.proposal_rejected` records retain invalid proposals' reasons.
+Unexpected exceptions at the optional completion provider/parser boundary also
+produce a typed response rejection; the successful first-pass proposals still
+reach the common persistence path. Store-write failures are not swallowed.
+
+In the completion request, the chunk is a JSON string and first-pass statements
+are a JSON array, both serialized with `ensure_ascii=True` and literal `<`
+escaped as `\u003c`. Their data therefore cannot produce opening or closing XML
+delimiters. Decoding recovers source characters exactly; spans index that decoded
+chunk, not the encoded representation. Both blocks are explicitly data, never
+instructions. This preserves the first-pass schema and source-grounding rules
+without interpolating raw source text into the completion request.
 
 The two proposal lists are appended in first-pass order. No update/delete
 operation or model-supplied ID is interpreted. A qualifier enrichment creates a
