@@ -13,9 +13,11 @@ import time
 from typing import Any, Iterable, Optional
 
 from ontologylab.models import ProposedEntity, ProposedRelation
+from ontologylab.statement_qualifiers import canonical_qualifiers
 
 from ontologylab.kgstore_base import (
     EDGE_POLARITY_SQL,
+    EDGE_QUALIFIERS_SQL,
     KGStoreError,
     SchemaValidationError,
     edge_polarity,
@@ -185,13 +187,16 @@ class ProposedMixin:
                     f"relation {rel.id} references unknown entity id {exc}"
                 ) from exc
             span_json = rel.source_span.as_json() if rel.source_span else None
+            qualifier_key = canonical_qualifiers(rel.qualifiers)
             cur = self.conn.execute(
                 "SELECT id FROM edges WHERE schema_version_id = ? AND "
                 "relation_type = ? AND src_node_id = ? AND dst_node_id = ? AND "
                 f"{EDGE_POLARITY_SQL} = ? AND "
+                f"{EDGE_QUALIFIERS_SQL} = ? AND "
                 "status IN ('proposed','verified') AND "
                 f"{self._edge_current_sql()}",
-                (sv_id, rel.relation_type, src, dst, edge_polarity(rel.qualifiers)),
+                (sv_id, rel.relation_type, src, dst, edge_polarity(rel.qualifiers),
+                 qualifier_key),
             )
             dup = cur.fetchone()
             if dup is not None:
@@ -202,10 +207,10 @@ class ProposedMixin:
                 self.conn.execute(
                     "INSERT INTO edges "
                     "(id, schema_version_id, relation_type, src_node_id, dst_node_id, "
-                    " properties_json, qualifiers_json, status, confidence, "
+                    " properties_json, qualifiers_json, qualifiers_key, status, confidence, "
                     " source_doc_id, source_span, extractor_engine, extractor_model, "
                     " prompt_version, created_ts, valid_from, decode_params, origin) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         edge_id,
                         sv_id,
@@ -214,6 +219,7 @@ class ProposedMixin:
                         dst,
                         json.dumps(rel.properties),
                         json.dumps(rel.qualifiers),
+                        qualifier_key,
                         rel.confidence,
                         source_doc_id,
                         span_json,

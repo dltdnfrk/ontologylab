@@ -665,6 +665,12 @@ class SchemaMixin:
             }
             if "extractable" in r.keys() and not r["extractable"]:
                 relation["extractable"] = False
+            if sv["label"] == "agrochem-v2":
+                from ontologylab.schemas import AGROCHEM_STATEMENT_QUALIFIERS
+
+                relation["qualifiers"] = {
+                    **AGROCHEM_STATEMENT_QUALIFIERS, **relation["qualifiers"],
+                }
             relation_types.append(relation)
         return {
             "schema_version_id": sv["id"],

@@ -12,9 +12,11 @@ import sqlite3
 from typing import Any
 
 from ontologylab import ontology_schema as default_schema
+from ontologylab.schemas import AGROCHEM_STATEMENT_QUALIFIERS
 
 from ontologylab.kgstore_base import (
     SchemaValidationError,
+    UnknownQualifierError,
 )
 
 class ValidationMixin:
@@ -116,6 +118,8 @@ class ValidationMixin:
                     "qualifiers must be an object"
                 )
             relation = dict(row)
+            if version["label"] == "agrochem-v2":
+                qualifiers = {**AGROCHEM_STATEMENT_QUALIFIERS, **qualifiers}
             relation["qualifiers"] = qualifiers
             relations[row["name"]] = relation
         return {
@@ -255,10 +259,7 @@ class ValidationMixin:
         for name, value in qualifiers.items():
             spec = specs.get(name)
             if not isinstance(spec, dict):
-                raise SchemaValidationError(
-                    f"undeclared qualifier {name!r} for relation type "
-                    f"{relation_type!r} in schema {schema_version_id}"
-                )
+                raise UnknownQualifierError(name, relation_type, schema_version_id)
             expected = spec.get("type", "string")
             if not isinstance(expected, str) or not self._value_matches_type(
                 value, expected

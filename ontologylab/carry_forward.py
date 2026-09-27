@@ -13,6 +13,7 @@ from ontologylab.kgstore import KGStore, KGStoreError
 from ontologylab.kgstore_base import _execute_sql_script, edge_polarity
 from ontologylab.models import ProposedEntity
 from ontologylab.paths import DEFAULT_ACTOR
+from ontologylab.statement_qualifiers import canonical_qualifiers
 from ontologylab.unit_normalization import normalize_measurement
 
 
@@ -202,11 +203,12 @@ def carry_forward(
                 else:
                     columns.extend([
                         "relation_type", "src_node_id", "dst_node_id",
-                        "qualifiers_json", "valid_from",
+                        "qualifiers_json", "valid_from", "qualifiers_key",
                     ])
                     values.extend([
                         row["relation_type"], id_map[row["src_node_id"]],
                         id_map[row["dst_node_id"]], qualifiers_json, row["valid_from"],
+                        canonical_qualifiers(json.loads(qualifiers_json)),
                     ])
                 store.conn.execute(
                     f"INSERT INTO {table} ({', '.join(columns)}) "

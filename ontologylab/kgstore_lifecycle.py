@@ -8,12 +8,14 @@ from __future__ import annotations
 
 from pathlib import Path
 import contextlib
+import json
 import sqlite3
 import time
 from typing import Any
 
 from ontologylab import ontology_schema as default_schema
 from ontologylab.storage_compatibility import require_writer_compatible
+from ontologylab.statement_qualifiers import canonical_qualifiers
 
 from ontologylab.kgstore_base import (
     KGStoreError,
@@ -350,20 +352,32 @@ class LifecycleMixin:
             conn.execute(
                 "UPDATE edges SET valid_from = created_ts WHERE valid_from IS NULL"
             )
-        # The dedup index predicate gained "invalidated_ts IS NULL" in W13 and
-        # the polarity key in the claim layer; IF NOT EXISTS keeps an old
-        # index alive, so rebuild it when either is missing.
+        # Add a portable materialized scope key; preserve every existing edge
+        # id and raw qualifier JSON. No schema-version switch is needed.
+        if "qualifiers_key" not in {
+            row["name"] for row in conn.execute("PRAGMA table_info(edges)")
+        }:
+            conn.execute(
+                "ALTER TABLE edges ADD COLUMN qualifiers_key TEXT NOT NULL DEFAULT '{}'"
+            )
+            for edge in conn.execute("SELECT id, qualifiers_json FROM edges").fetchall():
+                conn.execute(
+                    "UPDATE edges SET qualifiers_key = ? WHERE id = ?",
+                    (canonical_qualifiers(json.loads(edge["qualifiers_json"])), edge["id"]),
+                )
+        # Replace only the derived index, never rows. Its previous triple /
+        # polarity uniqueness would otherwise forbid qualified statements.
         index_sql_row = conn.execute(
             "SELECT sql FROM sqlite_master WHERE name = 'idx_edges_dedup'"
         ).fetchone()
         index_sql = (index_sql_row["sql"] or "") if index_sql_row else ""
-        if not ("invalidated_ts" in index_sql and "polarity" in index_sql):
+        if not all(key in index_sql for key in ("invalidated_ts", "polarity", "qualifiers_key")):
             conn.execute("DROP INDEX IF EXISTS idx_edges_dedup")
             conn.execute(
                 "CREATE UNIQUE INDEX idx_edges_dedup "
                 "ON edges (schema_version_id, relation_type, src_node_id, "
                 "dst_node_id, "
-                "COALESCE(json_extract(qualifiers_json, '$.polarity'), '')) "
+                "COALESCE(json_extract(qualifiers_json, '$.polarity'), ''), qualifiers_key) "
                 "WHERE status IN ('proposed','verified') "
                 "AND invalidated_ts IS NULL"
             )

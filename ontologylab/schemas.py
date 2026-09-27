@@ -414,12 +414,37 @@ POLARITY_QUALIFIER: dict[str, Any] = {
         "(tested, no significant difference)."
     ),
 }
-# evidence_strength is the model's self-report. It stays out of identity
-# because the critic already supersedes it.
+# Retained for compatibility. Like every supplied qualifier, this participates
+# in qualified-statement identity; it never changes review status.
 _EVIDENCE_STRENGTH_QUALIFIER: dict[str, Any] = {
     "type": "string",
     "enum": ["strong", "moderate", "weak"],
     "required": False,
+}
+
+# Closed platform vocabulary, also accepted on previously installed agrochem-v2
+# schemas without rewriting their immutable type declarations. Values are
+# source labels (or attested CURIEs), not inferred registry identifiers.
+AGROCHEM_STATEMENT_QUALIFIERS: dict[str, dict[str, Any]] = {
+    name: {"type": "string", "required": False, "description": description}
+    for name, description in {
+        "qualified_predicate": "More specific predicate for the full statement reading.",
+        "subject_aspect_qualifier": "Subject aspect, such as growth or abundance.",
+        "object_aspect_qualifier": "Object aspect, such as growth or oviposition.",
+        "subject_direction_qualifier": "Direction of change in the subject aspect.",
+        "object_direction_qualifier": "Direction of change in the object aspect.",
+        "subject_form_or_variant_qualifier": "Subject strain, isolate, variant or life stage.",
+        "object_form_or_variant_qualifier": "Object strain, isolate, variant or life stage.",
+        "subject_part_qualifier": "The subject part involved in the assertion.",
+        "object_part_qualifier": "The object part involved in the assertion.",
+        "population_context_qualifier": "The population constraining the assertion.",
+        "species_context_qualifier": "Species in which the assertion holds.",
+        "anatomical_context_qualifier": "Anatomical location of the assertion.",
+        "causal_mechanism_qualifier": "Explicitly stated causal mechanism.",
+        "study_context": "Project-local: experimental setting and named trial or assay.",
+        "dose": "Project-local: stated dose or rate including units or reference rate.",
+        "application_timing": "Project-local: treatment timing, such as pre-emergence.",
+    }.items()
 }
 
 # Relations that report a finding can be refuted or found null. Structural
@@ -521,7 +546,8 @@ _OVERLAY_RELATIONS: dict[str, tuple[str, str, str, bool]] = {
 
 def _claim_qualifiers(names: tuple[str, ...]) -> dict[str, dict[str, dict[str, Any]]]:
     return {
-        name: {"polarity": POLARITY_QUALIFIER,
+        name: {**AGROCHEM_STATEMENT_QUALIFIERS,
+               "polarity": POLARITY_QUALIFIER,
                "evidence_strength": _EVIDENCE_STRENGTH_QUALIFIER}
         for name in names
     }
@@ -566,7 +592,11 @@ PRESETS: dict[str, dict[str, Any]] = {
             ),
         },
         {**_AGROCHEM_RELATIONS, **_DIAGNOSTIC_RELATIONS},
-        _claim_qualifiers(_AGROCHEM_CLAIM_RELATIONS + _DIAGNOSTIC_CLAIM_RELATIONS),
+        {
+            **{name: dict(AGROCHEM_STATEMENT_QUALIFIERS)
+               for name in (*_AGROCHEM_RELATIONS, *_DIAGNOSTIC_RELATIONS)},
+            **_claim_qualifiers(_AGROCHEM_CLAIM_RELATIONS + _DIAGNOSTIC_CLAIM_RELATIONS),
+        },
         _OVERLAY_ENTITIES,
         _OVERLAY_RELATIONS,
     ),

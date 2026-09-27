@@ -178,7 +178,7 @@ _PACK_COPY_COLUMNS: dict[str, tuple[str, ...]] = {
     ),
     "edges": (
         "id", "schema_version_id", "relation_type", "src_node_id",
-        "dst_node_id", "properties_json", "qualifiers_json", "status",
+        "dst_node_id", "properties_json", "qualifiers_json", "qualifiers_key", "status",
         "confidence", "source_doc_id", "source_span", "extractor_engine",
         "extractor_model", "prompt_version", "created_ts", "verified_ts",
         "verified_by", "review_note", "valid_from", "invalidated_ts",

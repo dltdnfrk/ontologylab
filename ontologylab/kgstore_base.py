@@ -50,6 +50,21 @@ class SchemaValidationError(KGStoreError):
 
 
 @dataclass(frozen=True, slots=True)
+class UnknownQualifierError(SchemaValidationError):
+    """An undeclared qualifier is refused, never silently discarded."""
+
+    qualifier: str
+    relation_type: str
+    schema_version_id: int
+
+    def __str__(self) -> str:
+        return (
+            f"undeclared qualifier {self.qualifier!r} for relation type "
+            f"{self.relation_type!r} in schema {self.schema_version_id}"
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class DocumentIdentityConflict(KGStoreError):
     """Same bytes under two different explicit DOIs: merge refused.
 
@@ -295,6 +310,7 @@ CREATE TABLE IF NOT EXISTS edges (
     dst_node_id       TEXT NOT NULL REFERENCES nodes(id),
     properties_json   TEXT NOT NULL DEFAULT '{}',
     qualifiers_json   TEXT NOT NULL DEFAULT '{}',
+    qualifiers_key    TEXT NOT NULL DEFAULT '{}',
 
     status            TEXT NOT NULL DEFAULT 'proposed'
                           CHECK (status IN ('proposed','verified','rejected')),
@@ -528,6 +544,7 @@ CREATE TABLE IF NOT EXISTS entity_enrichments (
 # from a 'supports' one on the same (relation, src, dst), never a citation of
 # it. Absent polarity maps to '' so every pre-polarity row keeps its identity.
 EDGE_POLARITY_SQL = "COALESCE(json_extract(qualifiers_json, '$.polarity'), '')"
+EDGE_QUALIFIERS_SQL = "qualifiers_key"
 
 
 def edge_polarity(qualifiers: dict[str, Any] | None) -> str:
