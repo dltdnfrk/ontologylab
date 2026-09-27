@@ -12,7 +12,7 @@ from tests.test_statement_qualifier_validation import qualified_store
 
 
 def test_grounded_variants_become_distinct_statements_not_species_aliases(qualified_store, tmp_path):
-    text = "Agent Cedar inhibited Fungus delta isolate L and Fungus delta isolate M."
+    text = "Agent Cedar inhibited Fungus delta isolate L and Fungus delta isolate M in vitro."
     entities = [
         {"name": "Agent Cedar", "entity_type": "ActiveIngredient"},
         {"name": "Fungus delta isolate L", "entity_type": "Pathogen"},
