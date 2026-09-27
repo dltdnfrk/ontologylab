@@ -13,7 +13,7 @@ import time
 from typing import Any, Iterable, Optional
 
 from ontologylab.models import ProposedEntity, ProposedRelation
-from ontologylab.statement_qualifiers import canonical_qualifiers
+from ontologylab.statement_qualifiers import canonical_qualifiers, normalize_statement_qualifiers
 
 from ontologylab.kgstore_base import (
     EDGE_POLARITY_SQL,
@@ -59,6 +59,7 @@ class ProposedMixin:
         entity_rows = list(entities)
         relation_rows = list(relations)
         schema = self._schema_definition(sv_id)
+        raw_qualifiers: dict[str, dict[str, str]] = {}
         entity_types: dict[str, str] = {}
         for ent in entity_rows:
             if ent.synthesized:
@@ -89,6 +90,14 @@ class ProposedMixin:
                 qualifiers=rel.qualifiers,
                 schema=schema,
             )
+        # Validate the entire batch before normalization or graph writes.
+        # Update the proposal too: citation binding uses this same scope.
+        if schema["label"] == "agrochem-v2":
+            for rel in relation_rows:
+                normalized = normalize_statement_qualifiers(rel.qualifiers)
+                if normalized != rel.qualifiers:
+                    raw_qualifiers[rel.id] = dict(rel.qualifiers)
+                    rel.qualifiers = normalized
         now = time.time()
         # Canonical JSON (keys sorted, no spaces): one setting must store as
         # one string regardless of the caller's dict order, or scoping a
@@ -217,7 +226,10 @@ class ProposedMixin:
                         rel.relation_type,
                         src,
                         dst,
-                        json.dumps(rel.properties),
+                        json.dumps(
+                            {"raw_qualifiers": raw_qualifiers[rel.id]}
+                            if rel.id in raw_qualifiers else rel.properties
+                        ),
                         json.dumps(rel.qualifiers),
                         qualifier_key,
                         rel.confidence,

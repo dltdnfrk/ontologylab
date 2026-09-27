@@ -7,6 +7,7 @@ import pytest
 from ontologylab.kgstore import SchemaValidationError
 from ontologylab.kgstore_base import UnknownQualifierError
 from ontologylab.schemas import AGROCHEM_STATEMENT_QUALIFIERS, preset
+from ontologylab.statement_qualifiers import normalize_statement_qualifiers
 from tests.conftest import insert
 from tests.factories import make_entity, make_relation
 
@@ -51,7 +52,9 @@ def test_old_v2_declarations_gain_platform_vocabulary_without_rewrite(qualified_
     insert(qualified_store, doc, [a, b], [
         make_relation(a, b, "controls", qualifiers=qualifiers),
     ])
-    assert json.loads(conn.execute("SELECT qualifiers_json FROM edges").fetchone()[0]) == qualifiers
+    assert json.loads(conn.execute("SELECT qualifiers_json FROM edges").fetchone()[0]) == (
+        normalize_statement_qualifiers(qualifiers)
+    )
     assert conn.execute(
         "SELECT qualifiers_json FROM relation_type WHERE name='controls'"
     ).fetchone()[0] == before

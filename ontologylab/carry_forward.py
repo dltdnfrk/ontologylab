@@ -154,6 +154,7 @@ def carry_forward(
                         src_type=node_types[row["src_node_id"]],
                         dst_type=node_types[row["dst_node_id"]],
                         properties=properties, qualifiers=qualifiers, schema=schema,
+                        stored=True,
                     )
                     qualifiers_json = row["qualifiers_json"]
                 entry = ledger.get(source_id)

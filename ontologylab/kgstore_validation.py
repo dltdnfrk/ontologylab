@@ -325,6 +325,7 @@ class ValidationMixin:
         properties: Any,
         qualifiers: Any,
         schema: dict[str, Any] | None = None,
+        stored: bool = False,
     ) -> None:
         definition = schema or self._schema_definition(schema_version_id)
         relation = definition["relations"].get(relation_type)
@@ -336,8 +337,18 @@ class ValidationMixin:
                 f"{schema_version_id}"
             )
         if properties:
-            raise SchemaValidationError(
-                f"undeclared properties on relation type {relation_type!r}"
+            if not (
+                stored and definition["label"] == "agrochem-v2"
+                and isinstance(properties, dict) and set(properties) == {"raw_qualifiers"}
+            ):
+                raise SchemaValidationError(
+                    f"undeclared properties on relation type {relation_type!r}"
+                )
+            self._validate_qualifiers(
+                schema_version_id=schema_version_id,
+                relation_type=relation_type,
+                qualifiers=properties["raw_qualifiers"],
+                specs=relation.get("qualifiers", {}),
             )
         self._validate_qualifiers(
             schema_version_id=schema_version_id,

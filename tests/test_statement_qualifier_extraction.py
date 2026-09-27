@@ -32,7 +32,7 @@ def test_grounded_variants_become_distinct_statements_not_species_aliases(qualif
     )] == ["Fungus delta"]
     rows = qualified_store.conn.execute("SELECT qualifiers_json FROM edges").fetchall()
     assert {json.loads(r[0])["object_form_or_variant_qualifier"] for r in rows} == {
-        "isolate L", "isolate M",
+        "isolate:l", "isolate:m",
     }
     assert all("isolate" not in row[0] for row in qualified_store.conn.execute(
         "SELECT surface FROM node_aliases"

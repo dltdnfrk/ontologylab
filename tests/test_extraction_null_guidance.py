@@ -10,6 +10,7 @@ import pytest
 
 from ontologylab import extractor
 from ontologylab.schemas import preset
+from ontologylab.statement_qualifiers import normalize_statement_qualifiers
 from tests.test_engine_json_retry import CountingEngine, drive
 from tests.test_statement_qualifier_validation import qualified_store
 
@@ -38,7 +39,7 @@ def test_prompt_delivers_nonempty_background_section(qualified_store):
 
 
 def test_extraction_prompt_version():
-    assert extractor.PROMPT_VERSION == "extract-v7"
+    assert extractor.PROMPT_VERSION == "extract-v8"
 
 
 def _persist_statements(store, tmp_path, sentences, qualifiers):
@@ -71,14 +72,15 @@ def _persist_statements(store, tmp_path, sentences, qualifiers):
     assert len({(row["src_node_id"], row["dst_node_id"]) for row in rows}) == 1
     assert {row["relation_type"] for row in rows} == {"controls"}
     assert {row["status"] for row in rows} == {"proposed"}
-    assert {row["prompt_version"] for row in rows} == {"extract-v7"}
+    assert {row["prompt_version"] for row in rows} == {"extract-v8"}
+    normalized = [normalize_statement_qualifiers(scope) for scope in qualifiers]
     assert {
         json.dumps(json.loads(row["qualifiers_json"]), sort_keys=True) for row in rows
-    } == {json.dumps(scope, sort_keys=True) for scope in qualifiers}
+    } == {json.dumps(scope, sort_keys=True) for scope in normalized}
     assert store.conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0] == 2
     for row in rows:
         scope = json.loads(row["qualifiers_json"])
-        expected_sentence = sentences[qualifiers.index(scope)]
+        expected_sentence = sentences[normalized.index(scope)]
         citations = store.citations("edge", row["id"])
         assert len(citations) == 1
         span = citations[0]["source_span"]
@@ -144,7 +146,7 @@ def test_scripted_background_is_distinct_from_the_finding(
         scope["study_context"]: scope["polarity"]
         for row in rows
         for scope in [json.loads(row["qualifiers_json"])]
-    } == {"background": "supports", "orchard trial": polarity}
+    } == {"background": "supports", "other:orchard trial": polarity}
 
 
 def _seven_word_sequences(text: str) -> set[tuple[str, ...]]:

@@ -19,11 +19,11 @@ def test_mcp_forwards_qualified_claims_without_losing_existing_fields(tmp_path, 
         payload = response["result"]["structuredContent"]
         assert payload == baseline
         assert payload["claims"][0]["qualifiers"] == {
-            "polarity": "supports", "study_context": "field trial",
-            "object_form_or_variant_qualifier": "isolate A",
+            "polarity": "supports", "study_context": "field_trial",
+            "object_form_or_variant_qualifier": "isolate:a",
         }
         assert payload["claims"][1]["qualifiers"] == {
-            "polarity": "no_effect", "study_context": "in vitro",
+            "polarity": "no_effect", "study_context": "in_vitro",
         }
     finally:
         pack.close()

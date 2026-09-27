@@ -12,6 +12,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from ontologylab.statement_qualifiers import normalize_statement_qualifiers
+
 
 def derive(source: dict, mapping: dict) -> dict:
     """Apply the reviewed row table and retain exact inverse coordinates."""
@@ -27,7 +29,7 @@ def derive(source: dict, mapping: dict) -> dict:
             raise ValueError(f"source row {entry['source_row']} changed since mapping review")
         mapped.update(
             src=entry["core_src"], dst=entry["core_dst"],
-            qualifiers=entry["qualifiers"],
+            qualifiers=normalize_statement_qualifiers(entry["qualifiers"]),
             source_row=entry["source_row"],
             original_src=original["src"], original_dst=original["dst"],
         )

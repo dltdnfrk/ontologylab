@@ -31,8 +31,8 @@
       "provenance": "extracted",
       "qualifiers": {
         "polarity": "supports",
-        "study_context": "field trial",
-        "object_form_or_variant_qualifier": "isolate A"
+        "study_context": "field_trial",
+        "object_form_or_variant_qualifier": "isolate:a"
       },
       "relation": "controls",
       "retrieved_at": "<ts>",
@@ -84,7 +84,7 @@
       "provenance": "extracted",
       "qualifiers": {
         "polarity": "no_effect",
-        "study_context": "in vitro"
+        "study_context": "in_vitro"
       },
       "relation": "controls",
       "retrieved_at": "<ts>",

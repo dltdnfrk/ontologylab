@@ -12,14 +12,16 @@ from ontologylab.evaluation import (
     bootstrap_f1_interval,
 )
 from ontologylab.polarity_eval import LABELS, POLARITIES, PolarityGold, _node_match_keys, _rate, _require
-from ontologylab.statement_qualifiers import canonical_qualifiers, normalize_qualifier_value
+from ontologylab.statement_qualifiers import (
+    canonical_qualifiers, normalize_statement_qualifiers, normalize_statement_value,
+)
 
 
 def qualifiers_cover(predicted: dict[str, Any], expected: dict[str, str]) -> bool:
     """Only gold-specified slots constrain a match; extras do not block it."""
     return all(
         key in predicted and isinstance(predicted[key], str)
-        and normalize_qualifier_value(predicted[key]) == normalize_qualifier_value(value)
+        and normalize_statement_value(key, predicted[key]) == normalize_statement_value(key, value)
         for key, value in expected.items()
     )
 
@@ -32,9 +34,10 @@ def score_qualified(conn: sqlite3.Connection, gold: PolarityGold) -> dict[str, A
     still all count, so a correct label never hides an opposing prediction.
     """
     node_keys = _node_match_keys(conn)
+    gold_qualifiers = tuple(normalize_statement_qualifiers(q) for q in gold.qualifiers)
     scopes = [
         (*triple, canonical_qualifiers(qualifiers))
-        for (triple, _), qualifiers in zip(gold.relations, gold.qualifiers)
+        for (triple, _), qualifiers in zip(gold.relations, gold_qualifiers)
     ]
     predictions: dict[tuple[str, ...], set[str]] = defaultdict(set)
     for src, relation, dst, raw, src_id, dst_id in conn.execute(
@@ -47,6 +50,8 @@ def score_qualified(conn: sqlite3.Connection, gold: PolarityGold) -> dict[str, A
         try:
             qualifiers = json.loads(raw)
             _require(isinstance(qualifiers, dict), "edge qualifiers must be an object")
+            _require(all(isinstance(v, str) and bool(v.strip()) for v in qualifiers.values()),
+                     "edge qualifier values must be nonempty strings")
             polarity = qualifiers.get("polarity", "")
             _require(isinstance(polarity, str) and polarity in (*POLARITIES, ""),
                      "invalid predicted polarity")
@@ -65,7 +70,9 @@ def score_qualified(conn: sqlite3.Connection, gold: PolarityGold) -> dict[str, A
             for scope in matches:
                 predictions[scope].add(polarity or "omitted")
         else:
-            predictions[(src, relation, dst, canonical_qualifiers(qualifiers))].add(
+            predictions[(src, relation, dst, canonical_qualifiers(
+                normalize_statement_qualifiers(qualifiers)
+            ))].add(
                 polarity or "omitted"
             )
     matrix = {p: dict.fromkeys(LABELS, 0) for p in LABELS}
@@ -74,7 +81,7 @@ def score_qualified(conn: sqlite3.Connection, gold: PolarityGold) -> dict[str, A
     flips: list[bool] = []
     missing = []
     matched = conflicts = 0
-    for scope, (triple, actual), qualifiers in zip(scopes, gold.relations, gold.qualifiers):
+    for scope, (triple, actual), qualifiers in zip(scopes, gold.relations, gold_qualifiers):
         found = predictions.get(scope, set())
         recall[actual].append(actual in found)
         if not found:

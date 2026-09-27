@@ -49,7 +49,7 @@ from ontologylab.evaluation import (
 )
 from ontologylab.kgstore import normalize_name
 from ontologylab.schemas import AGROCHEM_STATEMENT_QUALIFIERS, POLARITY_QUALIFIER, preset
-from ontologylab.statement_qualifiers import canonical_qualifiers
+from ontologylab.statement_qualifiers import canonical_qualifiers, normalize_statement_qualifiers
 
 POLARITIES = tuple(POLARITY_QUALIFIER["enum"])
 LABELS = (*POLARITIES, "omitted")
@@ -173,6 +173,8 @@ def load_polarity_gold(path: str | Path, *, qualified: bool = False) -> Polarity
                          for key in scope), "unknown gold qualifier")
             _require(all(isinstance(value, str) and bool(value.strip())
                          for value in scope.values()), "invalid gold qualifier value")
+            if qualified:
+                scope = normalize_statement_qualifiers(scope)
             identity = (*triple, item["polarity"], canonical_qualifiers(scope)) if qualified else triple
             _require(identity not in seen, "duplicate or conflicting gold triple")
             seen.add(identity)

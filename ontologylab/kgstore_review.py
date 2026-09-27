@@ -882,6 +882,7 @@ class ReviewMixin:
                 dst_type=dst_node["entity_type"],
                 properties=edge_properties,
                 qualifiers=edge_qualifiers,
+                stored=True,
             )
 
         now = time.time()

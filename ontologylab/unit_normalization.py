@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 from ontologylab.models import ProposedEntity
@@ -62,6 +63,41 @@ _NUMBER_RE = re.compile(r"^\s*([-+]?\d+(?:[.,]\d+)?(?:[eE][-+]?\d+)?)")
 _MICRO = str.maketrans({"\u00b5": "u", "\u03bc": "u"})
 
 MEASUREMENT_KEY = "measurement"
+
+# Exact lexical aliases, not numeric interpretations of qualitative doses.
+DOSE_SYNONYMS = {"dilute dose": "dilute", "dilute doses": "dilute"}
+
+
+def normalize_dose(text: str) -> str:
+    """Canonical value + unit for fully parsed doses; preserve all other text.
+
+    Keep the active-ingredient/acid-equivalent basis and alternatives. Do not
+    parse a numeric prefix of a range, reference rate or unsupported unit.
+    """
+    if text in DOSE_SYNONYMS:
+        return DOSE_SYNONYMS[text]
+    number = r"[-+]?\d+(?:[.,]\d+)?(?:e[-+]?\d+)?"
+    match = re.fullmatch(rf"({number}(?:(?: or | and ){number})*)\s*(.+)", text)
+    if match is None:
+        return text
+    unit_text = match[2].translate(str.maketrans({"\u2212": "-", "\u2010": "-"}))
+    unit_text = re.sub(r"\b(ha|l|kg)\s*(?:\^)?-1\b", r"/\1", unit_text)
+    unit, basis = _parse_unit(unit_text)
+    if unit is None:
+        return text
+    parts = re.split(r"( or | and )", match[1])
+    converted = [
+        part if part in (" or ", " and ") else
+        format(Decimal(part.replace(",", ".")) * Decimal(str(unit.factor)), "f")
+        for part in parts
+    ]
+    # Decimal fixed-point formatting avoids float artifacts and exponent drift.
+    values = [
+        part.rstrip("0").rstrip(".") if "." in part else part
+        for part in converted
+    ]
+    basis_text = f" {basis}" if basis else ""
+    return f"{''.join(values)} { _BASE[unit.dimension]}{basis_text}"
 
 
 def _parse_unit(raw: str) -> tuple[Unit | None, str | None]:

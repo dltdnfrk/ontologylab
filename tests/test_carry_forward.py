@@ -131,6 +131,26 @@ def test_second_run_writes_nothing(fixture_store):
     assert snapshot(store) == before
 
 
+def test_carries_platform_raw_qualifiers_without_reinterpreting_source(fixture_store):
+    store, source, target = fixture_store
+    properties = json.dumps({"raw_qualifiers": {"study_context": "field experiment"}})
+    store.conn.execute(
+        "UPDATE edges SET properties_json=?, qualifiers_json=?, qualifiers_key=? "
+        "WHERE id='v1-edge-105'",
+        (properties, '{"study_context":"field_trial"}', '{"study_context":"field_trial"}'),
+    )
+    store.conn.commit()
+
+    carry_forward(store, source, target)
+
+    copied = store.conn.execute(
+        "SELECT e.properties_json, e.qualifiers_json FROM edges e "
+        "JOIN carry_forward c ON c.to_id=e.id WHERE c.from_id='v1-edge-105'"
+    ).fetchone()
+    assert json.loads(copied[0]) == json.loads(properties)
+    assert json.loads(copied[1]) == {"study_context": "field_trial"}
+
+
 @pytest.mark.parametrize("sql", [
     "UPDATE nodes SET properties_json='{\"value\":17}' WHERE entity_type='DoseRate'",
     "UPDATE edges SET relation_type='unknown' WHERE id='v1-edge-105'",

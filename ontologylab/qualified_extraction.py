@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from ontologylab.models import ProposedEntity, ProposedRelation
-from ontologylab.statement_qualifiers import normalize_qualifier_value
+from ontologylab.statement_qualifiers import normalize_statement_value
 
 _VARIANT = re.compile(
     r"^((?:[A-Z][a-z]+|[A-Z]\.)\s+[a-z][a-z-]+)\s+"
@@ -44,9 +44,9 @@ def split_grounded_variants(
             or entity.name.casefold() not in text[
                 relation.source_span.start:relation.source_span.end
             ].casefold()
-            or (slot in relation.qualifiers and normalize_qualifier_value(
-                relation.qualifiers[slot]
-            ) != normalize_qualifier_value(variant))
+            or (slot in relation.qualifiers and normalize_statement_value(
+                slot, relation.qualifiers[slot]
+            ) != normalize_statement_value(slot, variant))
             for relation, slot in links
         ):
             continue

@@ -191,8 +191,8 @@
       },
       "qualifiers": {
         "object_aspect_qualifier": "growth",
-        "study_context": "in vitro",
-        "object_form_or_variant_qualifier": "isolate 620"
+        "study_context": "in_vitro",
+        "object_form_or_variant_qualifier": "isolate:620"
       },
       "source_row": 0,
       "original_src": "prochloraz",
@@ -212,8 +212,8 @@
       },
       "qualifiers": {
         "object_aspect_qualifier": "growth",
-        "study_context": "in vitro",
-        "object_form_or_variant_qualifier": "isolate 620"
+        "study_context": "in_vitro",
+        "object_form_or_variant_qualifier": "isolate:620"
       },
       "source_row": 1,
       "original_src": "metrafenone",
@@ -233,8 +233,8 @@
       },
       "qualifiers": {
         "object_aspect_qualifier": "growth",
-        "study_context": "in vitro",
-        "object_form_or_variant_qualifier": "isolate 1722"
+        "study_context": "in_vitro",
+        "object_form_or_variant_qualifier": "isolate:1722"
       },
       "source_row": 2,
       "original_src": "prochloraz",
@@ -253,8 +253,8 @@
         "quote": "In crop trial 1, there was no significant difference between the bubble development in the untreated control plots and prochloraz, B. velezensis QST 713 or Kos treated plots inoculated at a rate of 1 × 106 conidia m−2."
       },
       "qualifiers": {
-        "study_context": "crop trial 1",
-        "object_aspect_qualifier": "bubble development"
+        "study_context": "crop_trial:1",
+        "object_aspect_qualifier": "bubble_development"
       },
       "source_row": 3,
       "original_src": "prochloraz",
@@ -273,9 +273,9 @@
         "quote": "In crop trial 1, there was no significant difference between the bubble development in the untreated control plots and prochloraz, B. velezensis QST 713 or Kos treated plots inoculated at a rate of 1 × 106 conidia m−2."
       },
       "qualifiers": {
-        "study_context": "crop trial 1",
-        "object_aspect_qualifier": "bubble development",
-        "subject_form_or_variant_qualifier": "QST 713"
+        "study_context": "crop_trial:1",
+        "object_aspect_qualifier": "bubble_development",
+        "subject_form_or_variant_qualifier": "other:qst713"
       },
       "source_row": 4,
       "original_src": "Bacillus velezensis QST 713",
@@ -294,9 +294,9 @@
         "quote": "In crop trial 1, there was no significant difference between the bubble development in the untreated control plots and prochloraz, B. velezensis QST 713 or Kos treated plots inoculated at a rate of 1 × 106 conidia m−2."
       },
       "qualifiers": {
-        "study_context": "crop trial 1",
-        "object_aspect_qualifier": "bubble development",
-        "subject_form_or_variant_qualifier": "Kos"
+        "study_context": "crop_trial:1",
+        "object_aspect_qualifier": "bubble_development",
+        "subject_form_or_variant_qualifier": "other:kos"
       },
       "source_row": 5,
       "original_src": "Bacillus velezensis Kos",
@@ -315,7 +315,7 @@
         "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b)."
       },
       "qualifiers": {
-        "study_context": "bioassay 2",
+        "study_context": "bioassay:2",
         "dose": "dilute",
         "object_aspect_qualifier": "oviposition"
       },
@@ -336,7 +336,7 @@
         "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b)."
       },
       "qualifiers": {
-        "study_context": "bioassay 2",
+        "study_context": "bioassay:2",
         "dose": "dilute",
         "object_aspect_qualifier": "oviposition"
       },
@@ -357,7 +357,7 @@
         "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b)."
       },
       "qualifiers": {
-        "study_context": "bioassay 2",
+        "study_context": "bioassay:2",
         "dose": "dilute",
         "object_aspect_qualifier": "oviposition"
       },
@@ -378,7 +378,7 @@
         "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b)."
       },
       "qualifiers": {
-        "study_context": "bioassay 2",
+        "study_context": "bioassay:2",
         "dose": "dilute",
         "object_aspect_qualifier": "oviposition"
       },
@@ -399,7 +399,7 @@
         "quote": "However, we found that deltamethrin + PB bait sprays were ineffective in the field."
       },
       "qualifiers": {
-        "study_context": "field trial"
+        "study_context": "field_trial"
       },
       "source_row": 10,
       "original_src": "deltamethrin + PB",
@@ -418,7 +418,7 @@
         "quote": "Cyantraniliprole or PB alone did not significantly affect mortality."
       },
       "qualifiers": {
-        "study_context": "bioassay 1",
+        "study_context": "bioassay:1",
         "object_aspect_qualifier": "mortality"
       },
       "source_row": 11,
@@ -438,7 +438,7 @@
         "quote": "At all time points after the start of the bioassay, mortality was higher in the cyantraniliprole + PB treatment than in the water control (t270 = 4.85; p < 0.001)."
       },
       "qualifiers": {
-        "study_context": "bioassay 1",
+        "study_context": "bioassay:1",
         "object_aspect_qualifier": "mortality"
       },
       "source_row": 12,
@@ -459,7 +459,7 @@
       },
       "qualifiers": {
         "dose": "1x recommended rate",
-        "population_context_qualifier": "R population"
+        "population_context_qualifier": "rpopulation"
       },
       "source_row": 13,
       "original_src": "clodinafop-propargyl",
@@ -479,7 +479,7 @@
       },
       "qualifiers": {
         "dose": "1x recommended rate",
-        "population_context_qualifier": "R population"
+        "population_context_qualifier": "rpopulation"
       },
       "source_row": 14,
       "original_src": "fenoxaprop-P-ethyl",
@@ -499,7 +499,7 @@
       },
       "qualifiers": {
         "dose": "1x recommended rate",
-        "population_context_qualifier": "R population"
+        "population_context_qualifier": "rpopulation"
       },
       "source_row": 15,
       "original_src": "pinoxaden",
@@ -518,8 +518,8 @@
         "quote": "The fresh weight of the R blackgrass plants treated only with PBO did not differ from that of the untreated (control) plants, while the application of PBO two hours before the herbicide treatments considerably increased the herbicidal effect of ACCase- and ALS-inhibitors against the R blackgrass population."
       },
       "qualifiers": {
-        "object_aspect_qualifier": "fresh weight",
-        "population_context_qualifier": "R population"
+        "object_aspect_qualifier": "fresh_weight",
+        "population_context_qualifier": "rpopulation"
       },
       "source_row": 16,
       "original_src": "PBO",
@@ -538,10 +538,10 @@
         "quote": "The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations."
       },
       "qualifiers": {
-        "application_timing": "pre-emergence",
+        "application_timing": "pre_emergence",
         "dose": "half recommended field label rate",
-        "object_aspect_qualifier": "fresh weight",
-        "population_context_qualifier": "R population"
+        "object_aspect_qualifier": "fresh_weight",
+        "population_context_qualifier": "rpopulation"
       },
       "source_row": 17,
       "original_src": "prosulfocarb",
@@ -560,10 +560,10 @@
         "quote": "The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations."
       },
       "qualifiers": {
-        "application_timing": "pre-emergence",
+        "application_timing": "pre_emergence",
         "dose": "half recommended field label rate",
-        "object_aspect_qualifier": "fresh weight",
-        "population_context_qualifier": "R population"
+        "object_aspect_qualifier": "fresh_weight",
+        "population_context_qualifier": "rpopulation"
       },
       "source_row": 18,
       "original_src": "chlorotoluron + diflufenican",
@@ -582,9 +582,9 @@
         "quote": "More specifically, the fresh weight (a) and tiller number (b) produced by winter wheat plants significantly decreased with increasing density of the R and S blackgrass populations, whereas significant differences between populations were observed only in fresh weight."
       },
       "qualifiers": {
-        "study_context": "competition experiment",
-        "object_aspect_qualifier": "fresh weight and tiller number",
-        "population_context_qualifier": "R population"
+        "study_context": "other:competition experiment",
+        "object_aspect_qualifier": "fresh_weight_and_tiller_number",
+        "population_context_qualifier": "rpopulation"
       },
       "source_row": 19,
       "original_src": "R blackgrass population",
@@ -603,9 +603,9 @@
         "quote": "In contrast, indaziflam applied postemergence (95 or 190 g ha−1) exhibited inconsistent control, with control values ranging from near 0% to 90%, and was not statistically different from the non‐treated control or treatment with glufosinate (Fig. )."
       },
       "qualifiers": {
-        "study_context": "field trial",
-        "application_timing": "post-emergence",
-        "dose": "95 or 190 g/ha"
+        "study_context": "field_trial",
+        "application_timing": "post_emergence",
+        "dose": "0.095 or 0.19 kg/ha"
       },
       "source_row": 20,
       "original_src": "indaziflam",
@@ -624,8 +624,8 @@
         "quote": "Glufosinate (1680 g a.i. ha−1) was also ineffective, with control statistically similar to the non‐treated control because of new P. annua emergence."
       },
       "qualifiers": {
-        "study_context": "field trial",
-        "dose": "1680 g a.i./ha"
+        "study_context": "field_trial",
+        "dose": "1.68 kg/ha a.i."
       },
       "source_row": 21,
       "original_src": "glufosinate",
@@ -644,9 +644,9 @@
         "quote": "Fluridone applied preemergence was ineffective across several accessions, with izr‐1, izr‐2, izr‐5, and izr‐8 showing > 50% survival."
       },
       "qualifiers": {
-        "study_context": "glasshouse",
-        "application_timing": "pre-emergence",
-        "population_context_qualifier": "izr-1, izr-2, izr-5 and izr-8"
+        "study_context": "greenhouse",
+        "application_timing": "pre_emergence",
+        "population_context_qualifier": "izr1izr2izr5andizr8"
       },
       "source_row": 22,
       "original_src": "fluridone",
@@ -665,9 +665,9 @@
         "quote": "In contrast, rimsulfuron and glyphosate remained effective, with all resistant accessions showing < 13% survival."
       },
       "qualifiers": {
-        "study_context": "glasshouse",
-        "application_timing": "post-emergence",
-        "population_context_qualifier": "indaziflam-resistant accessions"
+        "study_context": "greenhouse",
+        "application_timing": "post_emergence",
+        "population_context_qualifier": "indaziflamresistantaccessions"
       },
       "source_row": 23,
       "original_src": "rimsulfuron",
@@ -686,9 +686,9 @@
         "quote": "In contrast, rimsulfuron and glyphosate remained effective, with all resistant accessions showing < 13% survival."
       },
       "qualifiers": {
-        "study_context": "glasshouse",
-        "application_timing": "post-emergence",
-        "population_context_qualifier": "indaziflam-resistant accessions"
+        "study_context": "greenhouse",
+        "application_timing": "post_emergence",
+        "population_context_qualifier": "indaziflamresistantaccessions"
       },
       "source_row": 24,
       "original_src": "glyphosate",
@@ -707,9 +707,9 @@
         "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival."
       },
       "qualifiers": {
-        "study_context": "glasshouse",
-        "application_timing": "pre-emergence",
-        "population_context_qualifier": "indaziflam-resistant accessions"
+        "study_context": "greenhouse",
+        "application_timing": "pre_emergence",
+        "population_context_qualifier": "indaziflamresistantaccessions"
       },
       "source_row": 25,
       "original_src": "napropamide",
@@ -728,9 +728,9 @@
         "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival."
       },
       "qualifiers": {
-        "study_context": "glasshouse",
-        "application_timing": "pre-emergence",
-        "population_context_qualifier": "indaziflam-resistant accessions"
+        "study_context": "greenhouse",
+        "application_timing": "pre_emergence",
+        "population_context_qualifier": "indaziflamresistantaccessions"
       },
       "source_row": 26,
       "original_src": "dichlobenil",
@@ -749,9 +749,9 @@
         "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival."
       },
       "qualifiers": {
-        "study_context": "glasshouse",
-        "application_timing": "pre-emergence",
-        "population_context_qualifier": "indaziflam-resistant accessions"
+        "study_context": "greenhouse",
+        "application_timing": "pre_emergence",
+        "population_context_qualifier": "indaziflamresistantaccessions"
       },
       "source_row": 27,
       "original_src": "pyroxasulfone",
@@ -770,7 +770,7 @@
         "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations."
       },
       "qualifiers": {
-        "population_context_qualifier": "Michigan 2020 sampled isolates"
+        "population_context_qualifier": "michigan2020sampledisolates"
       },
       "source_row": 28,
       "original_src": "Botrytis cinerea",
@@ -789,7 +789,7 @@
         "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations."
       },
       "qualifiers": {
-        "population_context_qualifier": "Michigan 2020 sampled isolates"
+        "population_context_qualifier": "michigan2020sampledisolates"
       },
       "source_row": 29,
       "original_src": "Botrytis cinerea",
@@ -808,7 +808,7 @@
         "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations."
       },
       "qualifiers": {
-        "population_context_qualifier": "Michigan 2020 sampled isolates"
+        "population_context_qualifier": "michigan2020sampledisolates"
       },
       "source_row": 30,
       "original_src": "Botrytis cinerea",
@@ -827,7 +827,7 @@
         "quote": "Only two phenotypes (MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil and MFR to pyraclostrobin, boscalid, and thiabendazole) were commonly observed in B. cinerea populations in all 3 years."
       },
       "qualifiers": {
-        "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+        "population_context_qualifier": "michigan20192020and2022sampledpopulations"
       },
       "source_row": 31,
       "original_src": "Botrytis cinerea",
@@ -846,7 +846,7 @@
         "quote": "Only two phenotypes (MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil and MFR to pyraclostrobin, boscalid, and thiabendazole) were commonly observed in B. cinerea populations in all 3 years."
       },
       "qualifiers": {
-        "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+        "population_context_qualifier": "michigan20192020and2022sampledpopulations"
       },
       "source_row": 32,
       "original_src": "Botrytis cinerea",
@@ -865,7 +865,7 @@
         "quote": "Only two phenotypes (MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil and MFR to pyraclostrobin, boscalid, and thiabendazole) were commonly observed in B. cinerea populations in all 3 years."
       },
       "qualifiers": {
-        "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+        "population_context_qualifier": "michigan20192020and2022sampledpopulations"
       },
       "source_row": 33,
       "original_src": "Botrytis cinerea",
