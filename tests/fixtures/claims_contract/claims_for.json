@@ -30,7 +30,9 @@
       "polarity": "supports",
       "provenance": "extracted",
       "qualifiers": {
-        "polarity": "supports"
+        "polarity": "supports",
+        "study_context": "field trial",
+        "object_form_or_variant_qualifier": "isolate A"
       },
       "relation": "controls",
       "retrieved_at": "<ts>",
@@ -81,7 +83,8 @@
       "polarity": "no_effect",
       "provenance": "extracted",
       "qualifiers": {
-        "polarity": "no_effect"
+        "polarity": "no_effect",
+        "study_context": "in vitro"
       },
       "relation": "controls",
       "retrieved_at": "<ts>",

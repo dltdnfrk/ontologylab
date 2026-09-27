@@ -79,7 +79,12 @@ def _controls(
         relation_type="controls",
         src_entity_id=src,
         dst_entity_id=dst,
-        qualifiers={"polarity": polarity},
+        qualifiers={
+            "polarity": polarity,
+            **({"study_context": "field trial",
+                "object_form_or_variant_qualifier": "isolate A"} if rid == "e1" else {}),
+            **({"study_context": "in vitro"} if rid == "e2" else {}),
+        },
         source_span=SourceSpan(start=span[0], end=span[1]),
     )
 

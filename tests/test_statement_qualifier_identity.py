@@ -1,10 +1,9 @@
 """Statement identity and citation binding use the same canonical scope."""
 
-from types import SimpleNamespace
-
 import pytest
 
 from ontologylab.citation_bind import _edge_id
+from ontologylab.citation_types import ChunkCitationBatch
 from tests.conftest import insert
 from tests.factories import make_entity, make_relation
 from tests.test_statement_qualifier_validation import qualified_store
@@ -47,10 +46,16 @@ def test_node_merge_respects_statement_scope(qualified_store, doc, same):
 def test_citation_binds_exact_qualifiers_and_current_edge(qualified_store, doc):
     first = _put(qualified_store, doc, {"study_context": "field"})
     second = _put(qualified_store, doc, {"study_context": "in vitro"})
-    batch = SimpleNamespace(id_map={second[0].id: first[0].id, second[1].id: first[1].id})
+    batch = ChunkCitationBatch(
+        doc.id, 0, 0, (), (second[2],),
+        {second[0].id: first[0].id, second[1].id: first[1].id},
+    )
     assert _edge_id(qualified_store.conn, batch, second[2]) == second[2].id
     qualified_store.approve(second[2].id, cascade=True)
     qualified_store.invalidate_edge(second[2].id, by="test", reason="superseded")
     third = _put(qualified_store, doc, {"study_context": "in vitro"})
-    batch = SimpleNamespace(id_map={third[0].id: first[0].id, third[1].id: first[1].id})
+    batch = ChunkCitationBatch(
+        doc.id, 0, 0, (), (third[2],),
+        {third[0].id: first[0].id, third[1].id: first[1].id},
+    )
     assert _edge_id(qualified_store.conn, batch, third[2]) == third[2].id

@@ -1,6 +1,6 @@
 """Claim -> Evidence queries over a read-only pack.
 
-A claim is one edge: (subject, relation, object) plus its polarity. The
+A claim is one edge: (subject, relation, object), polarity and qualifiers. The
 evidence is where it came from. These functions return both in the shape
 MUNI's Claim->Evidence seam expects, so a caller can ask "what supports or
 refutes X" without reassembling it from graph_query and get_entity.

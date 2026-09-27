@@ -991,6 +991,7 @@ class PackSession:
         period_start: float | None = None,
         period_end: float | None = None,
     ) -> dict[str, Any]:
+        """Return evidence and the full qualifier object for every statement."""
         result = claims.claims_for(
             self._require_store().conn,
             subject_id=subject_id, object_id=object_id,
