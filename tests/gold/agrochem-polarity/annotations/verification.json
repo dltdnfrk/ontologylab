@@ -1,0 +1,65 @@
+{
+  "targeted_pytest": {
+    "command": "uv run --all-extras pytest --basetemp=/private/tmp/t37-10052-6183 tests/test_statement_qualifier_gold.py tests/test_polarity_fulltext.py tests/test_annotation_audit.py > /private/tmp/t37.log 2>&1; pytest_exit=$?; echo EXIT=$pytest_exit; exit \"$pytest_exit\"",
+    "exit": 0,
+    "passed": 43,
+    "stdout_log": "...........................................                              [100%]\n43 passed in 1.03s\n",
+    "log": "/private/tmp/t37.log"
+  },
+  "audit_cli": {
+    "command": "uv run python tests/gold/agrochem-polarity/annotation_audit.py --check",
+    "exit": 0,
+    "stdout": "{\n  \"agrochem-polarity\": {\n    \"agreement\": {\n      \"a_annotation_rows\": 50,\n      \"b_annotation_rows\": 87,\n      \"a_statements\": 50,\n      \"b_statements\": 86,\n      \"b_matches_a\": {\n        \"matched\": 8,\n        \"total\": 50,\n        \"rate\": 0.16\n      },\n      \"a_matches_b\": {\n        \"matched\": 8,\n        \"total\": 86,\n        \"rate\": 0.09302325581395349\n      },\n      \"reciprocal_scope_pairs\": 8,\n      \"reciprocal_statement_match_rate\": 0.11764705882352941,\n      \"unmatched_a\": 42,\n      \"unmatched_b\": 78,\n      \"polarity_disagreements\": 0,\n      \"kappa\": 1.0,\n      \"observed_polarity_agreement\": 1.0,\n      \"expected_polarity_agreement\": 0.625,\n      \"marginal_a\": {\n        \"supports\": 6,\n        \"refutes\": 0,\n        \"no_effect\": 2\n      },\n      \"marginal_b\": {\n        \"supports\": 6,\n        \"refutes\": 0,\n        \"no_effect\": 2\n      },\n      \"confusion_matrix\": {\n        \"supports\": {\n          \"supports\": 6,\n          \"refutes\": 0,\n          \"no_effect\": 0\n        },\n        \"refutes\": {\n          \"supports\": 0,\n          \"refutes\": 0,\n          \"no_effect\": 0\n        },\n        \"no_effect\": {\n          \"supports\": 0,\n          \"refutes\": 0,\n          \"no_effect\": 2\n        }\n      },\n      \"pairs\": [\n        [\n          0,\n          1\n        ],\n        [\n          1,\n          2\n        ],\n        [\n          36,\n          57\n        ],\n        [\n          40,\n          58\n        ],\n        [\n          41,\n          59\n        ],\n        [\n          43,\n          60\n        ],\n        [\n          44,\n          61\n        ],\n        [\n          45,\n          62\n        ]\n      ],\n      \"limitation\": \"Fresh model contexts, not independent humans; selection and within-paper dependence remain.\"\n    },\n    \"disagreement_sentences\": 29\n  },\n  \"agrochem-polarity-silver\": {\n    \"agreement\": {\n      \"a_annotation_rows\": 104,\n      \"b_annotation_rows\": 121,\n      \"a_statements\": 104,\n      \"b_statements\": 119,\n      \"b_matches_a\": {\n        \"matched\": 58,\n        \"total\": 104,\n        \"rate\": 0.5576923076923077\n      },\n      \"a_matches_b\": {\n        \"matched\": 54,\n        \"total\": 119,\n        \"rate\": 0.453781512605042\n      },\n      \"reciprocal_scope_pairs\": 50,\n      \"reciprocal_statement_match_rate\": 0.4484304932735426,\n      \"unmatched_a\": 54,\n      \"unmatched_b\": 69,\n      \"polarity_disagreements\": 0,\n      \"kappa\": 1.0,\n      \"observed_polarity_agreement\": 1.0,\n      \"expected_polarity_agreement\": 0.9232,\n      \"marginal_a\": {\n        \"supports\": 48,\n        \"refutes\": 0,\n        \"no_effect\": 2\n      },\n      \"marginal_b\": {\n        \"supports\": 48,\n        \"refutes\": 0,\n        \"no_effect\": 2\n      },\n      \"confusion_matrix\": {\n        \"supports\": {\n          \"supports\": 48,\n          \"refutes\": 0,\n          \"no_effect\": 0\n        },\n        \"refutes\": {\n          \"supports\": 0,\n          \"refutes\": 0,\n          \"no_effect\": 0\n        },\n        \"no_effect\": {\n          \"supports\": 0,\n          \"refutes\": 0,\n          \"no_effect\": 2\n        }\n      },\n      \"pairs\": [\n        [\n          0,\n          0\n        ],\n        [\n          1,\n          1\n        ],\n        [\n          2,\n          2\n        ],\n        [\n          3,\n          3\n        ],\n        [\n          4,\n          4\n        ],\n        [\n          6,\n          18\n        ],\n        [\n          7,\n          19\n        ],\n        [\n          8,\n          20\n        ],\n        [\n          9,\n          21\n        ],\n        [\n          10,\n          22\n        ],\n        [\n          11,\n          23\n        ],\n        [\n          12,\n          24\n        ],\n        [\n          13,\n          25\n        ],\n        [\n          14,\n          26\n        ],\n        [\n          15,\n          27\n        ],\n        [\n          16,\n          28\n        ],\n        [\n          17,\n          29\n        ],\n        [\n          23,\n          33\n        ],\n        [\n          24,\n          34\n        ],\n        [\n          25,\n          37\n        ],\n        [\n          26,\n          35\n        ],\n        [\n          29,\n          40\n        ],\n        [\n          30,\n          41\n        ],\n        [\n          31,\n          42\n        ],\n        [\n          32,\n          43\n        ],\n        [\n          34,\n          45\n        ],\n        [\n          38,\n          50\n        ],\n        [\n          39,\n          51\n        ],\n        [\n          40,\n          46\n        ],\n        [\n          41,\n          47\n        ],\n        [\n          42,\n          48\n        ],\n        [\n          43,\n          97\n        ],\n        [\n          44,\n          49\n        ],\n        [\n          45,\n          98\n        ],\n        [\n          46,\n          99\n        ],\n        [\n          47,\n          55\n        ],\n        [\n          48,\n          56\n        ],\n        [\n          49,\n          57\n        ],\n        [\n          50,\n          58\n        ],\n        [\n          54,\n          60\n        ],\n        [\n          55,\n          61\n        ],\n        [\n          56,\n          62\n        ],\n        [\n          69,\n          75\n        ],\n        [\n          70,\n          74\n        ],\n        [\n          79,\n          66\n        ],\n        [\n          85,\n          84\n        ],\n        [\n          87,\n          86\n        ],\n        [\n          88,\n          87\n        ],\n        [\n          89,\n          95\n        ],\n        [\n          92,\n          96\n        ]\n      ],\n      \"limitation\": \"Fresh model contexts, not independent humans; selection and within-paper dependence remain.\"\n    },\n    \"disagreement_sentences\": 60\n  },\n  \"gold-silver.json\": {\n    \"papers\": 10,\n    \"relations\": 98,\n    \"relations_per_polarity\": {\n      \"supports\": 88,\n      \"refutes\": 0,\n      \"no_effect\": 10\n    },\n    \"spans_verified\": 98\n  },\n  \"gold-silver-qualified.json\": {\n    \"papers\": 10,\n    \"relations\": 98,\n    \"relations_per_polarity\": {\n      \"supports\": 88,\n      \"refutes\": 0,\n      \"no_effect\": 10\n    },\n    \"spans_verified\": 98\n  }\n}\n",
+    "stderr": ""
+  },
+  "scorer_cli": [
+    {
+      "file": "gold-silver.json",
+      "command": "uv run --all-extras python -m ontologylab.polarity_eval tests/gold/agrochem-polarity-silver/gold-silver.json --qualified",
+      "stdout": "{\"papers\": 10, \"relations\": 98, \"relations_per_polarity\": {\"no_effect\": 10, \"refutes\": 0, \"supports\": 88}, \"spans_verified\": 98}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "file": "gold-silver-qualified.json",
+      "command": "uv run --all-extras python -m ontologylab.polarity_eval tests/gold/agrochem-polarity-silver/gold-silver-qualified.json --qualified",
+      "stdout": "{\"papers\": 10, \"relations\": 98, \"relations_per_polarity\": {\"no_effect\": 10, \"refutes\": 0, \"supports\": 88}, \"spans_verified\": 98}\n",
+      "stderr": "",
+      "exit": 0
+    },
+    {
+      "file": "gold-adjudicated-qualified.json",
+      "command": "uv run --all-extras python -m ontologylab.polarity_eval tests/gold/agrochem-polarity/gold-adjudicated-qualified.json --qualified",
+      "stdout": "{\"papers\": 5, \"relations\": 34, \"relations_per_polarity\": {\"no_effect\": 17, \"refutes\": 0, \"supports\": 17}, \"spans_verified\": 34}\n",
+      "stderr": "",
+      "exit": 0
+    }
+  ],
+  "diagnostics": {
+    "python": "No diagnostics found in annotation_audit.py or test_annotation_audit.py",
+    "json": "Biome not installed; JSON was parsed and checked by the fixture pipeline and tests."
+  },
+  "scope": {
+    "runtime_changes": false,
+    "threshold_changes": false,
+    "extraction_trials": 0,
+    "full_suite_started": false,
+    "snapshot_reissued": false
+  },
+  "cleanup": {
+    "processes": "All task-owned converter, validator and pytest processes exited. Existing-B worker cancelled after its landed output was frozen; other children completed. No server, browser or port was opened.",
+    "files": "Retained per explicit no-deletion instruction.",
+    "temp_paths": [
+      "/private/tmp/t37.log",
+      "/private/tmp/t37-10052-6183",
+      "/var/folders/l_/vy0kynvx0k1dl0p56z0c3xtc0000gn/T/ulw-20260927-235615.XXXXXX.md.0BJv4hc884",
+      "/private/tmp/t37-source-15099-16396",
+      "/private/tmp/t37-binding-20095-21846"
+    ],
+    "retained_worktree_state": [
+      ".venv",
+      ".pytest_cache"
+    ]
+  },
+  "self_review": "HEAVY held because this is a rigorous independent annotation audit. Reviewed protocol, source/license conversion, four qualifier-only gold changes, exact-span binding, statement deduplication, independent kappa oracle, blinding allowlists and preserved initial adjudication. No ulw-plan reviewer gate was triggered."
+}

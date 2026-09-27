@@ -1,0 +1,560 @@
+{
+  "row_provenance": [
+    {
+      "kind": "blind_consensus",
+      "a_index": 0
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 1
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 2
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 3
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 4
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 6
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 7
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 8
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 9
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 10
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 11
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 12
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 13
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 14
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 15
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 16
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 17
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 23
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 45
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 46
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 47
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 48
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 49
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 54
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 55
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 56
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 69
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 70
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 85
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 87
+    },
+    {
+      "kind": "blind_consensus",
+      "a_index": 88
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D001",
+      "side": "a",
+      "index": 5
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D002",
+      "side": "b",
+      "index": 30
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D002",
+      "side": "b",
+      "index": 31
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D002",
+      "side": "b",
+      "index": 32
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D003",
+      "side": "a",
+      "index": 21
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D003",
+      "side": "a",
+      "index": 22
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D008",
+      "side": "b",
+      "index": 38
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D009",
+      "side": "a",
+      "index": 29
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D009",
+      "side": "a",
+      "index": 30
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D009",
+      "side": "a",
+      "index": 31
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D009",
+      "side": "a",
+      "index": 32
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D009",
+      "side": "a",
+      "index": 33
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D009",
+      "side": "a",
+      "index": 34
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D009",
+      "side": "a",
+      "index": 35
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D010",
+      "side": "a",
+      "index": 36
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D010",
+      "side": "a",
+      "index": 37
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D011",
+      "side": "a",
+      "index": 38
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D011",
+      "side": "a",
+      "index": 39
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D011",
+      "side": "a",
+      "index": 40
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D011",
+      "side": "a",
+      "index": 41
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D011",
+      "side": "a",
+      "index": 42
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D011",
+      "side": "a",
+      "index": 43
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D011",
+      "side": "a",
+      "index": 44
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D013",
+      "side": "a",
+      "index": 57
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D013",
+      "side": "a",
+      "index": 58
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D021",
+      "side": "b",
+      "index": 73
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D025",
+      "side": "b",
+      "index": 80
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D025",
+      "side": "b",
+      "index": 81
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D026",
+      "side": "b",
+      "index": 68
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D027",
+      "side": "a",
+      "index": 79
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D027",
+      "side": "b",
+      "index": 67
+    },
+    {
+      "kind": "adjudicated_correction",
+      "decision": "D028"
+    },
+    {
+      "kind": "adjudicated_correction",
+      "decision": "D028"
+    },
+    {
+      "kind": "adjudicated_correction",
+      "decision": "D028"
+    },
+    {
+      "kind": "adjudicated_correction",
+      "decision": "D028"
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D029",
+      "side": "b",
+      "index": 85
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D039",
+      "side": "b",
+      "index": 64
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D040",
+      "side": "b",
+      "index": 83
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D041",
+      "side": "b",
+      "index": 82
+    },
+    {
+      "kind": "adjudicated_correction",
+      "decision": "D043"
+    },
+    {
+      "kind": "adjudicated_correction",
+      "decision": "D043"
+    },
+    {
+      "kind": "adjudicated_correction",
+      "decision": "D043"
+    },
+    {
+      "kind": "adjudicated_correction",
+      "decision": "D043"
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D044",
+      "side": "b",
+      "index": 34
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D044",
+      "side": "b",
+      "index": 35
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D044",
+      "side": "b",
+      "index": 36
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D044",
+      "side": "b",
+      "index": 37
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D045",
+      "side": "b",
+      "index": 39
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D048",
+      "side": "b",
+      "index": 52
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D048",
+      "side": "b",
+      "index": 53
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D048",
+      "side": "b",
+      "index": 54
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D052",
+      "side": "b",
+      "index": 76
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D052",
+      "side": "b",
+      "index": 77
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D052",
+      "side": "b",
+      "index": 78
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D052",
+      "side": "b",
+      "index": 79
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D055",
+      "side": "b",
+      "index": 100
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D055",
+      "side": "b",
+      "index": 101
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D055",
+      "side": "b",
+      "index": 102
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D055",
+      "side": "b",
+      "index": 103
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D055",
+      "side": "b",
+      "index": 104
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D056",
+      "side": "b",
+      "index": 106
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D056",
+      "side": "b",
+      "index": 107
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D057",
+      "side": "b",
+      "index": 109
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D057",
+      "side": "b",
+      "index": 110
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D058",
+      "side": "b",
+      "index": 114
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D060",
+      "side": "b",
+      "index": 119
+    },
+    {
+      "kind": "adjudicated",
+      "decision": "D060",
+      "side": "b",
+      "index": 120
+    }
+  ],
+  "deduplicated_evidence": [
+    {
+      "retained_row": 16,
+      "annotation": {
+        "pmcid": "PMC10818810",
+        "src": "pyridate",
+        "src_type": "ActiveIngredient",
+        "relation": "phytotoxic_to",
+        "dst": "Vicia sativa",
+        "dst_type": "Crop",
+        "polarity": "supports",
+        "quote": "Furthermore, pyridate and flumioxazine herbicide treatments caused an average of 12% injury, while aclonifen and metribuzin plus clomazone affected vetch with 5–7% inconsistent phytotoxicity.",
+        "qualifiers": {},
+        "qualifier_quotes": {},
+        "rationale": "Pyridate caused measured injury to vetch."
+      },
+      "provenance": {
+        "kind": "adjudicated",
+        "decision": "D056",
+        "side": "b",
+        "index": 105
+      }
+    },
+    {
+      "retained_row": 15,
+      "annotation": {
+        "pmcid": "PMC10818810",
+        "src": "metribuzin plus clomazone",
+        "src_type": "Product",
+        "relation": "phytotoxic_to",
+        "dst": "Vicia sativa",
+        "dst_type": "Crop",
+        "polarity": "supports",
+        "quote": "Furthermore, pyridate and flumioxazine herbicide treatments caused an average of 12% injury, while aclonifen and metribuzin plus clomazone affected vetch with 5–7% inconsistent phytotoxicity.",
+        "qualifiers": {},
+        "qualifier_quotes": {},
+        "rationale": "The intact mixture is associated with measured vetch phytotoxicity."
+      },
+      "provenance": {
+        "kind": "adjudicated",
+        "decision": "D056",
+        "side": "b",
+        "index": 108
+      }
+    }
+  ]
+}

@@ -1,0 +1,584 @@
+{
+  "decisions": [
+    {
+      "id": "D001",
+      "accepted": [
+        {
+          "side": "a",
+          "index": 2
+        }
+      ],
+      "corrected": [],
+      "rationale": "The sentence names 'metrafenone' as 'effective against dry bubble' in 'crop trial 2 and 3'."
+    },
+    {
+      "id": "D002",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "Although 'mortality was higher' with 'cyantraniliprole + PB', the sentence does not identify the affected organism."
+    },
+    {
+      "id": "D003",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'did not significantly affect mortality' is a null, but the sentence does not identify the affected organism."
+    },
+    {
+      "id": "D004",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'Oviposition per dish was lower' identifies an effect, but the sentence does not identify the organism."
+    },
+    {
+      "id": "D005",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'did not reduce oviposition' and 'both reduced oviposition' distinguish arms, but no affected organism is named."
+    },
+    {
+      "id": "D006",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'deltamethrin + PB bait sprays were ineffective in the field' gives no target of the ineffectiveness."
+    },
+    {
+      "id": "D007",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'increasing mortality' and 'reducing oviposition' occur in a sentence containing excluded operational biological information."
+    },
+    {
+      "id": "D008",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'emerged adults from fruit samples' were 'not significantly different', but their organism is not identified."
+    },
+    {
+      "id": "D009",
+      "accepted": [
+        {
+          "side": "a",
+          "index": 14
+        },
+        {
+          "side": "a",
+          "index": 15
+        },
+        {
+          "side": "a",
+          "index": 16
+        }
+      ],
+      "corrected": [],
+      "rationale": "'good D. suzukii control efficacy of spinosad, cyantraniliprole and lambda-cyhalothrin in full rate concentrations' supports each named arm."
+    },
+    {
+      "id": "D010",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'control of the R population' does not identify the weed, so neither proposed species is sentence-grounded."
+    },
+    {
+      "id": "D011",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'fresh weight reduction' gives no weed identity, so neither proposed target is resolvable from this sentence."
+    },
+    {
+      "id": "D012",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'cycloxydim applied at 1×, 2×, 4×, and 8× rates provided 46%, 83%, 96%, and 100% control' does not name the controlled weed."
+    },
+    {
+      "id": "D013",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'control, respectively, of the S population' does not name the controlled weed."
+    },
+    {
+      "id": "D014",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'96% or 100% control' names treatments but not the controlled weed."
+    },
+    {
+      "id": "D015",
+      "accepted": [],
+      "corrected": [
+        {
+          "pmcid": "PMC12563837",
+          "src": "mesosulfuron-methyl + iodosulfuron-methyl-sodium",
+          "src_type": "Product",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "The application of 1×, 2×, 4×, and 8× rates of mesosulfuron-methyl + iodosulfuron-methyl-sodium provided 56%, 93%, 99%, and 100%, control of the R blackgrass population, respectively, (e), while the respective control of pyroxsulam was 50% 90%, 95%, and 99% (f).",
+          "qualifiers": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "1×"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "1×"
+          },
+          "rationale": "'1×' of the intact mixture gave '56%' control of the 'R blackgrass population'."
+        },
+        {
+          "pmcid": "PMC12563837",
+          "src": "mesosulfuron-methyl + iodosulfuron-methyl-sodium",
+          "src_type": "Product",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "The application of 1×, 2×, 4×, and 8× rates of mesosulfuron-methyl + iodosulfuron-methyl-sodium provided 56%, 93%, 99%, and 100%, control of the R blackgrass population, respectively, (e), while the respective control of pyroxsulam was 50% 90%, 95%, and 99% (f).",
+          "qualifiers": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "2×"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "2×"
+          },
+          "rationale": "'2×' of the intact mixture gave '93%' control of the 'R blackgrass population'."
+        },
+        {
+          "pmcid": "PMC12563837",
+          "src": "mesosulfuron-methyl + iodosulfuron-methyl-sodium",
+          "src_type": "Product",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "The application of 1×, 2×, 4×, and 8× rates of mesosulfuron-methyl + iodosulfuron-methyl-sodium provided 56%, 93%, 99%, and 100%, control of the R blackgrass population, respectively, (e), while the respective control of pyroxsulam was 50% 90%, 95%, and 99% (f).",
+          "qualifiers": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "4×"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "4×"
+          },
+          "rationale": "'4×' of the intact mixture gave '99%' control of the 'R blackgrass population'."
+        },
+        {
+          "pmcid": "PMC12563837",
+          "src": "mesosulfuron-methyl + iodosulfuron-methyl-sodium",
+          "src_type": "Product",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "The application of 1×, 2×, 4×, and 8× rates of mesosulfuron-methyl + iodosulfuron-methyl-sodium provided 56%, 93%, 99%, and 100%, control of the R blackgrass population, respectively, (e), while the respective control of pyroxsulam was 50% 90%, 95%, and 99% (f).",
+          "qualifiers": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "8×"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "8×"
+          },
+          "rationale": "'8×' of the intact mixture gave '100%' control of the 'R blackgrass population'."
+        },
+        {
+          "pmcid": "PMC12563837",
+          "src": "pyroxsulam",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "The application of 1×, 2×, 4×, and 8× rates of mesosulfuron-methyl + iodosulfuron-methyl-sodium provided 56%, 93%, 99%, and 100%, control of the R blackgrass population, respectively, (e), while the respective control of pyroxsulam was 50% 90%, 95%, and 99% (f).",
+          "qualifiers": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "1×"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "1×"
+          },
+          "rationale": "'respective control of pyroxsulam' assigns '50%' to the '1×' rate for the 'R blackgrass population'."
+        },
+        {
+          "pmcid": "PMC12563837",
+          "src": "pyroxsulam",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "The application of 1×, 2×, 4×, and 8× rates of mesosulfuron-methyl + iodosulfuron-methyl-sodium provided 56%, 93%, 99%, and 100%, control of the R blackgrass population, respectively, (e), while the respective control of pyroxsulam was 50% 90%, 95%, and 99% (f).",
+          "qualifiers": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "2×"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "2×"
+          },
+          "rationale": "'respective control of pyroxsulam' assigns '90%' to the '2×' rate for the 'R blackgrass population'."
+        },
+        {
+          "pmcid": "PMC12563837",
+          "src": "pyroxsulam",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "The application of 1×, 2×, 4×, and 8× rates of mesosulfuron-methyl + iodosulfuron-methyl-sodium provided 56%, 93%, 99%, and 100%, control of the R blackgrass population, respectively, (e), while the respective control of pyroxsulam was 50% 90%, 95%, and 99% (f).",
+          "qualifiers": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "4×"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "4×"
+          },
+          "rationale": "'respective control of pyroxsulam' assigns '95%' to the '4×' rate for the 'R blackgrass population'."
+        },
+        {
+          "pmcid": "PMC12563837",
+          "src": "pyroxsulam",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "The application of 1×, 2×, 4×, and 8× rates of mesosulfuron-methyl + iodosulfuron-methyl-sodium provided 56%, 93%, 99%, and 100%, control of the R blackgrass population, respectively, (e), while the respective control of pyroxsulam was 50% 90%, 95%, and 99% (f).",
+          "qualifiers": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "8×"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "R blackgrass population",
+            "dose": "8×"
+          },
+          "rationale": "'respective control of pyroxsulam' assigns '99%' to the '8×' rate for the 'R blackgrass population'."
+        }
+      ],
+      "rationale": "'1×, 2×, 4×, and 8× rates' have distinct control values for the 'R blackgrass population', requiring rate-specific statements."
+    },
+    {
+      "id": "D016",
+      "accepted": [],
+      "corrected": [
+        {
+          "pmcid": "PMC12563837",
+          "src": "prosulfocarb",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations.",
+          "qualifiers": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "R"
+          },
+          "qualifier_quotes": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "R"
+          },
+          "rationale": "'prosulfocarb' provided '97–98% fresh weight reduction' in 'R' blackgrass."
+        },
+        {
+          "pmcid": "PMC12563837",
+          "src": "prosulfocarb",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations.",
+          "qualifiers": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "S"
+          },
+          "qualifier_quotes": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "S"
+          },
+          "rationale": "'prosulfocarb' provided '97–98% fresh weight reduction' in 'S' blackgrass."
+        },
+        {
+          "pmcid": "PMC12563837",
+          "src": "chlorotoluron + diflufenican",
+          "src_type": "Product",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations.",
+          "qualifiers": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "R"
+          },
+          "qualifier_quotes": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "R"
+          },
+          "rationale": "'chlorotoluron + diflufenican' provided '97–98% fresh weight reduction' in 'R' blackgrass."
+        },
+        {
+          "pmcid": "PMC12563837",
+          "src": "chlorotoluron + diflufenican",
+          "src_type": "Product",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations.",
+          "qualifiers": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "S"
+          },
+          "qualifier_quotes": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "S"
+          },
+          "rationale": "'chlorotoluron + diflufenican' provided '97–98% fresh weight reduction' in 'S' blackgrass."
+        }
+      ],
+      "rationale": "'either prosulfocarb or the formulation' affects 'both R and S blackgrass populations', but the proposed species is absent from the span."
+    },
+    {
+      "id": "D017",
+      "accepted": [],
+      "corrected": [
+        {
+          "pmcid": "PMC12713700",
+          "src": "indaziflam",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "P. annua",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "In terms of P. annua control (Fig. ), indaziflam applied preemergence at 95 and 190 g ha−1 provided > 85% control at 24 weeks after treatment, although with some variability and escapes were observed at the lower rate (Fig. ).",
+          "qualifiers": {
+            "application_timing": "preemergence",
+            "dose": "95",
+            "study_context": "24 weeks after treatment"
+          },
+          "qualifier_quotes": {
+            "application_timing": "preemergence",
+            "dose": "95",
+            "study_context": "24 weeks after treatment"
+          },
+          "rationale": "'95 and 190 g ha−1 provided > 85% control' of 'P. annua' at '24 weeks after treatment'."
+        },
+        {
+          "pmcid": "PMC12713700",
+          "src": "indaziflam",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "P. annua",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "In terms of P. annua control (Fig. ), indaziflam applied preemergence at 95 and 190 g ha−1 provided > 85% control at 24 weeks after treatment, although with some variability and escapes were observed at the lower rate (Fig. ).",
+          "qualifiers": {
+            "application_timing": "preemergence",
+            "dose": "190 g ha−1",
+            "study_context": "24 weeks after treatment"
+          },
+          "qualifier_quotes": {
+            "application_timing": "preemergence",
+            "dose": "190 g ha−1",
+            "study_context": "24 weeks after treatment"
+          },
+          "rationale": "'95 and 190 g ha−1 provided > 85% control' of 'P. annua' at '24 weeks after treatment'."
+        }
+      ],
+      "rationale": "'P. annua' is present and both '95 and 190 g ha−1' rates have '> 85% control', but the species expansion is not supplied."
+    },
+    {
+      "id": "D018",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'was not statistically different from the non‐treated control' is a measured null, but this sentence does not identify the controlled weed."
+    },
+    {
+      "id": "D019",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'not statistically different from glufosinate' compares active treatments, while 'poor suppression' does not establish a measured absence against untreated plants."
+    },
+    {
+      "id": "D020",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'Fluridone applied preemergence was ineffective across several accessions' does not name the affected weed in this span."
+    },
+    {
+      "id": "D021",
+      "accepted": [],
+      "corrected": [
+        {
+          "pmcid": "PMC11298438",
+          "src": "fludioxonil",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "B. cinerea",
+          "dst_type": "Pathogen",
+          "polarity": "supports",
+          "quote": "In 2019, 99% of B. cinerea isolates were sensitive to fludioxonil and fenhexamid and 98% were sensitive to iprodione and fluopyram ().",
+          "qualifiers": {
+            "study_context": "2019",
+            "population_context_qualifier": "B. cinerea isolates"
+          },
+          "qualifier_quotes": {
+            "study_context": "2019",
+            "population_context_qualifier": "B. cinerea isolates"
+          },
+          "rationale": "'99% of B. cinerea isolates were sensitive to fludioxonil' in '2019'."
+        },
+        {
+          "pmcid": "PMC11298438",
+          "src": "fenhexamid",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "B. cinerea",
+          "dst_type": "Pathogen",
+          "polarity": "supports",
+          "quote": "In 2019, 99% of B. cinerea isolates were sensitive to fludioxonil and fenhexamid and 98% were sensitive to iprodione and fluopyram ().",
+          "qualifiers": {
+            "study_context": "2019",
+            "population_context_qualifier": "B. cinerea isolates"
+          },
+          "qualifier_quotes": {
+            "study_context": "2019",
+            "population_context_qualifier": "B. cinerea isolates"
+          },
+          "rationale": "'99% of B. cinerea isolates were sensitive to fludioxonil and fenhexamid' in '2019'."
+        },
+        {
+          "pmcid": "PMC11298438",
+          "src": "iprodione",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "B. cinerea",
+          "dst_type": "Pathogen",
+          "polarity": "supports",
+          "quote": "In 2019, 99% of B. cinerea isolates were sensitive to fludioxonil and fenhexamid and 98% were sensitive to iprodione and fluopyram ().",
+          "qualifiers": {
+            "study_context": "2019",
+            "population_context_qualifier": "B. cinerea isolates"
+          },
+          "qualifier_quotes": {
+            "study_context": "2019",
+            "population_context_qualifier": "B. cinerea isolates"
+          },
+          "rationale": "'98% were sensitive to iprodione and fluopyram' among 'B. cinerea isolates' in '2019'."
+        },
+        {
+          "pmcid": "PMC11298438",
+          "src": "fluopyram",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "B. cinerea",
+          "dst_type": "Pathogen",
+          "polarity": "supports",
+          "quote": "In 2019, 99% of B. cinerea isolates were sensitive to fludioxonil and fenhexamid and 98% were sensitive to iprodione and fluopyram ().",
+          "qualifiers": {
+            "study_context": "2019",
+            "population_context_qualifier": "B. cinerea isolates"
+          },
+          "qualifier_quotes": {
+            "study_context": "2019",
+            "population_context_qualifier": "B. cinerea isolates"
+          },
+          "rationale": "'98% were sensitive to iprodione and fluopyram' among 'B. cinerea isolates' in '2019'."
+        }
+      ],
+      "rationale": "'B. cinerea isolates were sensitive to' the named agents 'In 2019', not a sentence-established expanded species or field control."
+    },
+    {
+      "id": "D022",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'All four insecticides' and 'mortality' do not identify any of the four chemicals or the affected organism in this sentence."
+    },
+    {
+      "id": "D023",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'PB solution alone did not affect mortality' gives neither the expanded product name nor the affected organism."
+    },
+    {
+      "id": "D024",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'all isolates were sensitive to' the four named agents, but the sentence does not identify the isolates' organism."
+    },
+    {
+      "id": "D025",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'all the isolates were sensitive' and 'were sensitive' give no organism identity in this sentence."
+    },
+    {
+      "id": "D026",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'all the isolates were sensitive' and 'were sensitive' give no organism identity in this sentence."
+    },
+    {
+      "id": "G001",
+      "accepted": [],
+      "corrected": [
+        {
+          "pmcid": "PMC12713700",
+          "src": "Glufosinate",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "P. annua",
+          "dst_type": "Weed",
+          "polarity": "no_effect",
+          "quote": "Glufosinate (1680 g a.i. ha−1) was also ineffective, with control statistically similar to the non‐treated control because of new P. annua emergence.",
+          "qualifiers": {
+            "dose": "1680 g a.i. ha−1"
+          },
+          "qualifier_quotes": {
+            "dose": "1680 g a.i. ha−1"
+          },
+          "rationale": "'Glufosinate' was 'ineffective' against 'P. annua' with control 'statistically similar to the non‐treated control'."
+        }
+      ],
+      "rationale": "'Glufosinate' was 'ineffective' against 'P. annua'; neither label's species expansion occurs in this sentence."
+    },
+    {
+      "id": "G002",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'rimsulfuron and glyphosate remained effective' against 'all resistant accessions', but the affected weed is unnamed."
+    },
+    {
+      "id": "G003",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'napropamide, dichlobenil, and pyroxasulfone provided greater control' without identifying the controlled weed."
+    }
+  ],
+  "files_read": [
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotations/disagreements.json"
+  ]
+}

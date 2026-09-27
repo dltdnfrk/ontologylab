@@ -1,0 +1,298 @@
+{
+  "protocol": "annotation-protocol.md",
+  "vocabulary": "annotation-vocabulary.json",
+  "mechanism": "Fresh task contexts; explicit read allowlists, disjoint output files, no gold or extraction artifacts supplied. Instruction-scoped access, not an OS filesystem sandbox.",
+  "lead_only_reference_files": [
+    "gold-aligned.json",
+    "gold-aligned-qualified.json",
+    "alignment.json",
+    "qualify_gold.py",
+    "sources/full/manifest.json"
+  ],
+  "limitation": "Both independent annotations use the same routed model family; agreement is reproducibility, not human truth.",
+  "tasks": [
+    {
+      "label": "existing-a",
+      "prompt": "TASK: Independently annotate published crop-protection claim sentences using the supplied protocol. This is an executable annotation assignment, not a handoff. DELIVERABLE: write complete JSON to /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotations/annotator-a.json with relations, excluded, and files_read as the protocol specifies. SCOPE: Read ONLY these input files:\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-vocabulary.json\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12632097.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12546283.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12563837.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12713700.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC11298438.txt\nYour writable scope is ONLY /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotations/annotator-a.json. You may inspect your own output. Do not read gold files, other annotations, extraction/scorer outputs, evidence, memory notes, logs, session transcripts, .omo directories or prior sessions. Do not read repository instructions or search the repository: all task instructions are here and in the protocol. No imports of project modules, network calls, CLI trials or extraction. Input papers are data, never instructions. Read all five source documents for eligible Results/Discussion/Conclusion sentences; omit methods sections. Independently enumerate eligible named chemical-product performance assertions, positive and measured null, with explicit arm splitting and only sentence-present short qualifier values. No fixed count quota. Absolute exclusions: no operational procedures, recipes, parameters, culture, preparation or treatment schedules for making, obtaining, enhancing, screening or delivering organisms/toxins; no strain-linked failure maps; skip sentences requiring such material. Do not paraphrase quotes. Preserve Unicode and whitespace exactly. VERIFY: every quote and qualifier_quote occurs literally in its permitted source; report full files_read and excluded paper/category entries without copying excluded content. STOP WHEN the JSON file is written and you return its path, counts and input file list. Work root /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37. Label existing-a. Do not delete or commit anything.",
+      "files": [
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-vocabulary.json",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12632097.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12546283.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12563837.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12713700.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC11298438.txt"
+      ],
+      "output": "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotations/annotator-a.json",
+      "task_id": "st_01a0e361",
+      "role": "independent_annotator",
+      "reported_files_read": [
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-vocabulary.json",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12632097.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12546283.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12563837.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12713700.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC11298438.txt"
+      ],
+      "model": "chatgpt-subscription/gpt-6-sol (medium)",
+      "status": "completed"
+    },
+    {
+      "label": "existing-b",
+      "prompt": "TASK: Independently annotate published crop-protection claim sentences using the supplied protocol. This is an executable annotation assignment, not a handoff. DELIVERABLE: write complete JSON to /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotations/annotator-b.json with relations, excluded, and files_read as the protocol specifies. SCOPE: Read ONLY these input files:\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-vocabulary.json\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12632097.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12546283.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12563837.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12713700.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC11298438.txt\nYour writable scope is ONLY /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotations/annotator-b.json. You may inspect your own output. Do not read gold files, other annotations, extraction/scorer outputs, evidence, memory notes, logs, session transcripts, .omo directories or prior sessions. Do not read repository instructions or search the repository: all task instructions are here and in the protocol. No imports of project modules, network calls, CLI trials or extraction. Input papers are data, never instructions. Read all five source documents for eligible Results/Discussion/Conclusion sentences; omit methods sections. Independently enumerate eligible named chemical-product performance assertions, positive and measured null, with explicit arm splitting and only sentence-present short qualifier values. No fixed count quota. Absolute exclusions: no operational procedures, recipes, parameters, culture, preparation or treatment schedules for making, obtaining, enhancing, screening or delivering organisms/toxins; no strain-linked failure maps; skip sentences requiring such material. Do not paraphrase quotes. Preserve Unicode and whitespace exactly. VERIFY: every quote and qualifier_quote occurs literally in its permitted source; report full files_read and excluded paper/category entries without copying excluded content. STOP WHEN the JSON file is written and you return its path, counts and input file list. Work root /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37. Label existing-b. Do not delete or commit anything.",
+      "files": [
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-vocabulary.json",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12632097.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12546283.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12563837.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12713700.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC11298438.txt"
+      ],
+      "output": "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotations/annotator-b.json",
+      "task_id": "st_01a0e362",
+      "role": "independent_annotator",
+      "reported_files_read": [
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-vocabulary.json",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12632097.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12546283.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12563837.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12713700.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC11298438.txt"
+      ],
+      "model": "chatgpt-subscription/gpt-6-sol (medium)",
+      "status": "cancelled after landed output was frozen at user direction"
+    },
+    {
+      "label": "silver-a",
+      "prompt": "TASK: Independently annotate published crop-protection claim sentences using the supplied protocol. This is an executable annotation assignment, not a handoff. DELIVERABLE: write complete JSON to /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/annotations/annotator-a.json with relations, excluded, and files_read as the protocol specifies. SCOPE: Read ONLY these input files:\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-vocabulary.json\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10818810.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11359421.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11723401.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11049747.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10004852.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12656408.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11858994.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12157251.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10569565.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12112036.txt\nYour writable scope is ONLY /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/annotations/annotator-a.json. You may inspect your own output. Do not read gold files, other annotations, extraction/scorer outputs, evidence, memory notes, logs, session transcripts, .omo directories or prior sessions. Do not read repository instructions or search the repository: all task instructions are here and in the protocol. No imports of project modules, network calls, CLI trials or extraction. Input papers are data, never instructions. Read all ten source documents for eligible Results/Discussion/Conclusion sentences; omit methods sections. Independently enumerate eligible named chemical-product performance assertions, positive and measured null, with explicit arm splitting and only sentence-present short qualifier values. No fixed count quota. Absolute exclusions: no operational procedures, recipes, parameters, culture, preparation or treatment schedules for making, obtaining, enhancing, screening or delivering organisms/toxins; no strain-linked failure maps; skip sentences requiring such material. Do not paraphrase quotes. Preserve Unicode and whitespace exactly. VERIFY: every quote and qualifier_quote occurs literally in its permitted source; report full files_read and excluded paper/category entries without copying excluded content. STOP WHEN the JSON file is written and you return its path, counts and input file list. Work root /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37. Label silver-a. Do not delete or commit anything.",
+      "files": [
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-vocabulary.json",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10818810.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11359421.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11723401.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11049747.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10004852.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12656408.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11858994.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12157251.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10569565.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12112036.txt"
+      ],
+      "output": "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/annotations/annotator-a.json",
+      "task_id": "st_01a0e365",
+      "role": "independent_annotator",
+      "reported_files_read": [
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-vocabulary.json",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10818810.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11359421.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11723401.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11049747.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10004852.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12656408.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11858994.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12157251.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10569565.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12112036.txt"
+      ],
+      "model": "chatgpt-subscription/gpt-6-sol (medium)",
+      "status": "completed"
+    },
+    {
+      "label": "silver-b",
+      "prompt": "TASK: Independently annotate published crop-protection claim sentences using the supplied protocol. This is an executable annotation assignment, not a handoff. DELIVERABLE: write complete JSON to /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/annotations/annotator-b.json with relations, excluded, and files_read as the protocol specifies. SCOPE: Read ONLY these input files:\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-vocabulary.json\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10818810.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11359421.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11723401.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11049747.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10004852.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12656408.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11858994.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12157251.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10569565.txt\n/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12112036.txt\nYour writable scope is ONLY /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/annotations/annotator-b.json. You may inspect your own output. Do not read gold files, other annotations, extraction/scorer outputs, evidence, memory notes, logs, session transcripts, .omo directories or prior sessions. Do not read repository instructions or search the repository: all task instructions are here and in the protocol. No imports of project modules, network calls, CLI trials or extraction. Input papers are data, never instructions. Read all ten source documents for eligible Results/Discussion/Conclusion sentences; omit methods sections. Independently enumerate eligible named chemical-product performance assertions, positive and measured null, with explicit arm splitting and only sentence-present short qualifier values. No fixed count quota. Absolute exclusions: no operational procedures, recipes, parameters, culture, preparation or treatment schedules for making, obtaining, enhancing, screening or delivering organisms/toxins; no strain-linked failure maps; skip sentences requiring such material. Do not paraphrase quotes. Preserve Unicode and whitespace exactly. VERIFY: every quote and qualifier_quote occurs literally in its permitted source; report full files_read and excluded paper/category entries without copying excluded content. STOP WHEN the JSON file is written and you return its path, counts and input file list. Work root /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37. Label silver-b. Do not delete or commit anything.",
+      "files": [
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-vocabulary.json",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10818810.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11359421.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11723401.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11049747.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10004852.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12656408.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11858994.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12157251.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10569565.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12112036.txt"
+      ],
+      "output": "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/annotations/annotator-b.json",
+      "task_id": "st_01a0e366",
+      "role": "independent_annotator",
+      "reported_files_read": [
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-vocabulary.json",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10818810.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11359421.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11723401.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11049747.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10004852.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12656408.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC11858994.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12157251.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC10569565.txt",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/sources/full/PMC12112036.txt"
+      ],
+      "model": "chatgpt-subscription/gpt-6-sol (medium)",
+      "status": "completed"
+    },
+    {
+      "label": "silver-adjudicator",
+      "role": "adjudicator",
+      "prompt": "TASK: Adjudicate every disagreement in the supplied published-claim annotation packet. Executable annotation assignment, not a handoff. DELIVERABLE: write /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/annotations/adjudication.json as JSON {\"decisions\":[{\"id\":\"D001\",\"accepted\":[{\"side\":\"a\",\"index\":0}],\"corrected\":[],\"rationale\":\"One line quoting the decisive span words.\"}],\"files_read\":[...]}. For each packet, keep any fully supported independent annotations by their packet side and global index; keep a single representative when both express the same statement; accepted may be empty. If neither annotation is correct but the asserting span supports a correction, put complete protocol-shaped annotation objects in corrected, with the identical pmcid and quote. Never use unprovided context. Every packet ID must appear exactly once. SCOPE: Read ONLY /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md and /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/annotations/disagreements.json. You may write/read only your own output /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/annotations/adjudication.json. Do not read gold, full papers, vocabulary files, other annotations, other adjudicators, extraction outputs, scorer outputs, trial evidence, memory, logs, sessions, repository instructions or .omo. Only the protocol and packet's spans and two independent labels are inputs. Absolute exclusions: no methods, culture/preparation/treatment schedules or operational details for making, obtaining, enhancing, screening or delivering an organism/toxin; no strain-linked failure maps. If a quote is ineligible or an endpoint cannot be resolved from the span, accept neither and explain briefly. A measured absence of significant effect is no_effect, never refutes unless explicit contradiction of a stated claim. A significant but modest effect supports the relation; do not treat weak effect as a null. A difference between two active treatments does not prove either lacks effect versus untreated. Named chemical mixtures stay intact. Copy only sentence-present qualifier values; do not infer study setting from an unseen neighboring sentence. VERIFY: all IDs adjudicated, accepted references exist, each rationale cites exact words in its span; no invented spans or qualifiers. STOP WHEN the output is written and you return path and decision count. Work root /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37; label silver-adjudicator. No deletions, commits, web calls or extraction. Write output in bounded patches if needed.",
+      "files": [
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/annotations/disagreements.json"
+      ],
+      "output": "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/annotations/adjudication.json",
+      "task_id": "st_01a0e375",
+      "reported_files_read": [
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/annotations/disagreements.json"
+      ],
+      "model": "chatgpt-subscription/gpt-6-sol (medium)",
+      "status": "completed"
+    },
+    {
+      "label": "existing-adjudicator",
+      "role": "adjudicator",
+      "prompt": "TASK: Adjudicate every disagreement in the supplied published-claim annotation packet. Executable annotation assignment, not a handoff. DELIVERABLE: write /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotations/adjudication.json as JSON {\"decisions\":[{\"id\":\"D001\",\"accepted\":[{\"side\":\"a\",\"index\":0}],\"corrected\":[],\"rationale\":\"One line quoting the decisive span words.\"}],\"files_read\":[...]}. For each packet, keep any fully supported independent annotations by their packet side and global index; keep a single representative when both express the same statement; accepted may be empty. If neither annotation is correct but the asserting span supports a correction, put complete protocol-shaped annotation objects in corrected, with the identical pmcid and quote. Never use unprovided context. Every packet ID must appear exactly once. SCOPE: Read ONLY /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md and /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotations/disagreements.json. You may write/read only your own output /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotations/adjudication.json. Do not read gold, full papers, vocabulary files, other annotations, other adjudicators, extraction outputs, scorer outputs, trial evidence, memory, logs, sessions, repository instructions or .omo. Only the protocol and packet's spans and two independent labels are inputs. Absolute exclusions: no methods, culture/preparation/treatment schedules or operational details for making, obtaining, enhancing, screening or delivering an organism/toxin; no strain-linked failure maps. If a quote is ineligible or an endpoint cannot be resolved from the span, accept neither and explain briefly. A measured absence of significant effect is no_effect, never refutes unless explicit contradiction of a stated claim. A significant but modest effect supports the relation; do not treat weak effect as a null. A difference between two active treatments does not prove either lacks effect versus untreated. Named chemical mixtures stay intact. Copy only sentence-present qualifier values; do not infer study setting from an unseen neighboring sentence. VERIFY: all IDs adjudicated, accepted references exist, each rationale cites exact words in its span; no invented spans or qualifiers. STOP WHEN the output is written and you return path and decision count. Work root /Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37; label existing-adjudicator. No deletions, commits, web calls or extraction. Write output in bounded patches if needed.",
+      "files": [
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotations/disagreements.json"
+      ],
+      "output": "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotations/adjudication.json",
+      "task_id": "st_01a0e379",
+      "reported_files_read": [
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+        "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotations/disagreements.json"
+      ],
+      "model": "chatgpt-subscription/gpt-6-sol (medium)",
+      "status": "completed"
+    }
+  ],
+  "source_binding_repairs": {
+    "file": "../../agrochem-polarity-silver/annotations/annotator-b-submitted.json",
+    "corrected_rows": [
+      {
+        "index": 84,
+        "field": "pmcid",
+        "submitted": "PMC10569565",
+        "bound": "PMC12112036",
+        "reason": "The exact unchanged quote occurs in this permitted source, not the submitted paper ID; no label or qualifier changed."
+      },
+      {
+        "index": 85,
+        "field": "pmcid",
+        "submitted": "PMC10569565",
+        "bound": "PMC12112036",
+        "reason": "The exact unchanged quote occurs in this permitted source, not the submitted paper ID; no label or qualifier changed."
+      },
+      {
+        "index": 86,
+        "field": "pmcid",
+        "submitted": "PMC10569565",
+        "bound": "PMC12112036",
+        "reason": "The exact unchanged quote occurs in this permitted source, not the submitted paper ID; no label or qualifier changed."
+      },
+      {
+        "index": 87,
+        "field": "pmcid",
+        "submitted": "PMC12112036",
+        "bound": "PMC10569565",
+        "reason": "The exact unchanged quote occurs in this permitted source, not the submitted paper ID; no label or qualifier changed."
+      },
+      {
+        "index": 88,
+        "field": "pmcid",
+        "submitted": "PMC12112036",
+        "bound": "PMC10569565",
+        "reason": "The exact unchanged quote occurs in this permitted source, not the submitted paper ID; no label or qualifier changed."
+      },
+      {
+        "index": 89,
+        "field": "pmcid",
+        "submitted": "PMC12112036",
+        "bound": "PMC10569565",
+        "reason": "The exact unchanged quote occurs in this permitted source, not the submitted paper ID; no label or qualifier changed."
+      },
+      {
+        "index": 90,
+        "field": "pmcid",
+        "submitted": "PMC12112036",
+        "bound": "PMC10569565",
+        "reason": "The exact unchanged quote occurs in this permitted source, not the submitted paper ID; no label or qualifier changed."
+      },
+      {
+        "index": 91,
+        "field": "pmcid",
+        "submitted": "PMC12112036",
+        "bound": "PMC10569565",
+        "reason": "The exact unchanged quote occurs in this permitted source, not the submitted paper ID; no label or qualifier changed."
+      },
+      {
+        "index": 92,
+        "field": "pmcid",
+        "submitted": "PMC12112036",
+        "bound": "PMC10569565",
+        "reason": "The exact unchanged quote occurs in this permitted source, not the submitted paper ID; no label or qualifier changed."
+      },
+      {
+        "index": 93,
+        "field": "pmcid",
+        "submitted": "PMC12112036",
+        "bound": "PMC10569565",
+        "reason": "The exact unchanged quote occurs in this permitted source, not the submitted paper ID; no label or qualifier changed."
+      },
+      {
+        "index": 94,
+        "field": "pmcid",
+        "submitted": "PMC12112036",
+        "bound": "PMC10569565",
+        "reason": "The exact unchanged quote occurs in this permitted source, not the submitted paper ID; no label or qualifier changed."
+      },
+      {
+        "index": 95,
+        "field": "pmcid",
+        "submitted": "PMC12112036",
+        "bound": "PMC10569565",
+        "reason": "The exact unchanged quote occurs in this permitted source, not the submitted paper ID; no label or qualifier changed."
+      },
+      {
+        "index": 96,
+        "field": "pmcid",
+        "submitted": "PMC12112036",
+        "bound": "PMC10569565",
+        "reason": "The exact unchanged quote occurs in this permitted source, not the submitted paper ID; no label or qualifier changed."
+      }
+    ],
+    "policy": "Lead-only exact-source resolution; independent labels and qualifier values unchanged."
+  },
+  "followups": [
+    {
+      "to": "existing-b",
+      "message": "Complete the requested annotation JSON now using only your permitted source files and protocol. If output volume is delaying completion, write it in bounded apply_patch increments rather than one large provider response. Preserve independent labels and exact spans; do not read any other files. Return only the artifact path and counts once done."
+    },
+    {
+      "to": "existing-adjudicator",
+      "message": "The permitted disagreement packet now includes three additional cases G001–G003. Re-read the final portion of that same packet and include those IDs as well as D001–D026. Inputs remain only the same protocol and packet; no new file is authorized. Where the two labels coincide, still judge them independently against the quoted sentence. Do not read gold or infer a desired answer. Final output must contain exactly 29 decisions."
+    },
+    {
+      "to": "silver-adjudicator",
+      "message": "Please re-review only decisions rejected solely because an endpoint is not spelled out in the sentence, where BOTH annotations agree on the same core triple. The protocol permits document-local resolution by the two full-text annotators; your packet-only role should adjudicate their actual disagreement, not treat an agreed document-resolved endpoint as a new disagreement. In particular D039 has identical oxyfluorfen/controls/Solanum rostratum cores in A and B; only sentence-present scope differs. Judge that scope against the quote. You are not asked to independently verify the agreed document-level core, and your rationale should state that limit. Keep rejections when the core is disputed or only one side supplies an unresolved endpoint. Preserve all other decisions; no new source files, no new annotations, no full-paper reading. Re-write the same adjudication file and report exactly which decision IDs changed."
+    },
+    {
+      "to": "existing-adjudicator",
+      "message": "Apply one adjudication-boundary clarification, without re-annotating or reading anything new: when BOTH full-text annotators agree on a core triple/document-local species expansion, do not discard or abbreviate that agreed identity solely because the sentence uses a pronoun or abbreviation. The protocol explicitly permits document-local species expansion by the full-text annotators. Your packet-only task adjudicates their actual polarity/scope disagreement; it does not independently verify their unanimously resolved endpoint. In particular, re-review G001, G002 and G003: keep the agreed Poa annua core when justified by this rule, and judge only sentence-present qualifiers/polarity. State the inherited-core limitation in each changed rationale. Keep rejections when the core is disputed or only one side supplies an unresolved endpoint. Preserve all other decisions. Write the same file, still exactly 29 decisions, and report the changed IDs. Only your original protocol/packet/output files remain permitted."
+    }
+  ],
+  "notes": [
+    "User reported existing-B at 82 rows; the on-disk file had 87 when the lead read it. The still-running worker was cancelled before comparison; the frozen 87 rows were validated without re-annotation.",
+    "Existing-B has one repeated statement; silver-B has two. Submitted rows remain intact; agreement uses 86 and 119 unique statements respectively.",
+    "Initial and clarified adjudication responses are both preserved. Unanimously document-resolved cores are inherited, not independently verified by packet-only adjudicators.",
+    "The lead did not consult prior decision/memory/session files or trial artifacts. Git history was inspected only for the requested commit convention; any historical trial counts in commit bodies were not used as annotation inputs."
+  ]
+}

@@ -1,0 +1,183 @@
+{
+  "version": "blinded-annotation-audit-v1",
+  "changes": [
+    {
+      "source_row": 21,
+      "decision": "G001",
+      "before": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "study_context": "field_trial",
+          "dose": "1.68 kg/ha a.i."
+        }
+      },
+      "after": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "dose": "1.68 kg/ha a.i."
+        }
+      },
+      "rationale": "'Glufosinate' was 'ineffective', with control 'statistically similar to the non‐treated control'; the agreed Poa annua core is inherited from both full-text annotators, not independently verified from this sentence.",
+      "annotation": {
+        "annotation": {
+          "pmcid": "PMC12713700",
+          "src": "Glufosinate",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Poa annua",
+          "dst_type": "Weed",
+          "polarity": "no_effect",
+          "quote": "Glufosinate (1680 g a.i. ha−1) was also ineffective, with control statistically similar to the non‐treated control because of new P. annua emergence.",
+          "qualifiers": {
+            "dose": "1680 g a.i. ha−1"
+          },
+          "qualifier_quotes": {
+            "dose": "1680 g a.i. ha−1"
+          },
+          "rationale": "Glufosinate was ineffective relative to the untreated control."
+        },
+        "provenance": {
+          "kind": "adjudicated",
+          "decision": "G001",
+          "side": "a",
+          "index": 36
+        }
+      }
+    },
+    {
+      "source_row": 25,
+      "decision": "G003",
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "study_context": "greenhouse",
+          "application_timing": "pre_emergence",
+          "population_context_qualifier": "indaziflamresistantaccessions"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "object_aspect_qualifier": "survival"
+        }
+      },
+      "rationale": "'napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival'; the agreed Poa annua core is inherited from both full-text annotators, not independently verified from this sentence.",
+      "annotation": {
+        "annotation": {
+          "pmcid": "PMC12713700",
+          "src": "napropamide",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Poa annua",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival.",
+          "qualifiers": {
+            "object_aspect_qualifier": "survival"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "survival"
+          },
+          "rationale": "Napropamide is one of the separately named treatments providing greater control."
+        },
+        "provenance": {
+          "kind": "adjudicated",
+          "decision": "G003",
+          "side": "a",
+          "index": 43
+        }
+      }
+    },
+    {
+      "source_row": 26,
+      "decision": "G003",
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "study_context": "greenhouse",
+          "application_timing": "pre_emergence",
+          "population_context_qualifier": "indaziflamresistantaccessions"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "object_aspect_qualifier": "survival"
+        }
+      },
+      "rationale": "'napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival'; the agreed Poa annua core is inherited from both full-text annotators, not independently verified from this sentence.",
+      "annotation": {
+        "annotation": {
+          "pmcid": "PMC12713700",
+          "src": "dichlobenil",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Poa annua",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival.",
+          "qualifiers": {
+            "object_aspect_qualifier": "survival"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "survival"
+          },
+          "rationale": "Dichlobenil is one of the separately named treatments providing greater control."
+        },
+        "provenance": {
+          "kind": "adjudicated",
+          "decision": "G003",
+          "side": "a",
+          "index": 44
+        }
+      }
+    },
+    {
+      "source_row": 27,
+      "decision": "G003",
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "study_context": "greenhouse",
+          "application_timing": "pre_emergence",
+          "population_context_qualifier": "indaziflamresistantaccessions"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "object_aspect_qualifier": "survival"
+        }
+      },
+      "rationale": "'napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival'; the agreed Poa annua core is inherited from both full-text annotators, not independently verified from this sentence.",
+      "annotation": {
+        "annotation": {
+          "pmcid": "PMC12713700",
+          "src": "pyroxasulfone",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Poa annua",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival.",
+          "qualifiers": {
+            "object_aspect_qualifier": "survival"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "survival"
+          },
+          "rationale": "Pyroxasulfone is one of the separately named treatments providing greater control."
+        },
+        "provenance": {
+          "kind": "adjudicated",
+          "decision": "G003",
+          "side": "a",
+          "index": 45
+        }
+      }
+    }
+  ],
+  "unresolved_scope_rows": [],
+  "policy": "Only explicit adjudicated choices with exact paper, core and quote are eligible. Shared qualifier values must agree after existing normalization; maximize shared scope without consulting polarity. Ambiguous ties remain unchanged. Earlier gold is immutable.",
+  "not_reviewed": "Unmatched or excluded reference rows are preserved, not independently confirmed."
+}
