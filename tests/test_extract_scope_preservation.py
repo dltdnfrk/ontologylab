@@ -57,7 +57,7 @@ def test_scope_guidance_is_shipped_for_preset_and_installed_schema(agrochem_stor
     assert extractor._AGROCHEM_GUIDANCE not in build_extraction_prompt(
         preset("software-docs"), "No findings."
     )
-    assert extractor.PROMPT_VERSION == "extract-v7"
+    assert extractor.PROMPT_VERSION == "extract-v8"
 
 
 # Constructed passages; none are taken from the frozen polarity gold corpus.
@@ -152,6 +152,14 @@ def test_scripted_findings_keep_relation_and_endpoint_identity(
         "Beetle delta adults": ("Beetle delta", "Pest", "form_or_variant", "adults"),
         "Beetle delta oviposition": ("Beetle delta", "Pest", "aspect", "oviposition"),
     }
+    # Raw scripted inputs above still exercise normalization. Expectations are
+    # reviewed literals, not a call back into the implementation being tested.
+    normalized_values = {
+        "isolate L": "isolate:l", "isolate M": "isolate:m",
+        "strain J": "strain:j", "strain K": "strain:k",
+        "R population": "rpopulation", "S population": "spopulation",
+        "larvae": "life_stage:larva", "adults": "life_stage:adult",
+    }
     for source, source_type, relation, target, target_type, polarity in claims:
         qualifiers = {"polarity": polarity}
         endpoints = []
@@ -176,7 +184,10 @@ def test_scripted_findings_keep_relation_and_endpoint_identity(
             "relation_type": relation, "qualifiers": qualifiers,
         })
         expected.add((source, source_type, relation, target, target_type,
-                      json.dumps(qualifiers, sort_keys=True)))
+                      json.dumps({
+                          key: normalized_values.get(value, value)
+                          for key, value in qualifiers.items()
+                      }, sort_keys=True)))
     engine = CountingEngine([json.dumps({
         "entities": list(entities.values()), "relations": relations,
     })])
@@ -193,12 +204,13 @@ def test_scripted_findings_keep_relation_and_endpoint_identity(
         span = json.loads(node["source_span"])
         assert text[span["start"]:span["end"]] == node["name"]
         assert node["status"] == "proposed"
-        assert node["prompt_version"] == "extract-v7"
+        assert node["prompt_version"] == "extract-v8"
     rows = agrochem_store.conn.execute(
         "SELECT s.name, s.entity_type, e.relation_type, t.name, t.entity_type, "
         "e.qualifiers_json FROM edges e "
         "JOIN nodes s ON s.id=e.src_node_id JOIN nodes t ON t.id=e.dst_node_id"
     ).fetchall()
+    assert len(rows) == len(relations)
     assert {
         (*tuple(row)[:5], json.dumps(json.loads(row[5]), sort_keys=True)) for row in rows
     } == expected

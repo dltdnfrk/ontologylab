@@ -166,10 +166,10 @@ def test_bare_json_and_one_parse_retry_succeed(
     row = store.conn.execute(
         "SELECT name, prompt_version, decode_params, status FROM nodes"
     ).fetchone()
-    assert tuple(row) == ("AlphaBeta", "extract-v7", '{"temperature":0.3}', "proposed")
+    assert tuple(row) == ("AlphaBeta", "extract-v8", '{"temperature":0.3}', "proposed")
     assert store.conn.execute(
         "SELECT prompt_version FROM extraction_runs"
-    ).fetchone()[0] == "extract-v7"
+    ).fetchone()[0] == "extract-v8"
 
 
 @pytest.mark.parametrize("raw", ["garbage", "", '{"entities":', "[]"])
