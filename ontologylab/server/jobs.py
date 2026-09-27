@@ -526,6 +526,7 @@ class JobRegistry:
         time_budget: float | None,
         seed: int,
         max_transport_retries: int = paths.DEFAULT_MAX_TRANSPORT_RETRIES,
+        statement_completion: bool = True,
     ) -> Job:
         """Register an extraction job, spawn its worker thread, return it."""
         return self._spawn(
@@ -538,6 +539,7 @@ class JobRegistry:
             time_budget=time_budget,
             seed=seed,
             max_transport_retries=max_transport_retries,
+            statement_completion=statement_completion,
         )
 
     def create_research(
@@ -766,6 +768,7 @@ class JobRegistry:
         time_budget: float | None,
         seed: int,
         max_transport_retries: int = paths.DEFAULT_MAX_TRANSPORT_RETRIES,
+        statement_completion: bool = True,
     ) -> str:
         """Mirror of ``main._extract_async`` minus CLI printing/kill switch.
 
@@ -802,6 +805,7 @@ class JobRegistry:
                 on_stats=job.accumulate_extraction,
                 should_abort=job.cancel_reason,
                 max_transport_retries=max_transport_retries,
+                statement_completion=statement_completion,
             )
 
             with job._lock:

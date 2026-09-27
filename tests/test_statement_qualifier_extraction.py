@@ -26,7 +26,7 @@ def test_grounded_variants_become_distinct_statements_not_species_aliases(qualif
     ]
     engine = CountingEngine([json.dumps({"entities": entities, "relations": relations})])
     outcome, _ = drive(qualified_store, tmp_path, engine, text=text)
-    assert not outcome.chunk_failed and engine.calls == 1
+    assert not outcome.chunk_failed and engine.calls == 2
     assert [r[0] for r in qualified_store.conn.execute(
         "SELECT name FROM nodes WHERE entity_type='Pathogen'"
     )] == ["Fungus delta"]

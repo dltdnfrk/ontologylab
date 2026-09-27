@@ -160,7 +160,7 @@ removed. The contract golden gains qualifiers inside its existing objects.
 
 ## Extraction and evaluation
 
-`extract-v8` lists the canonical values and requests every qualifier explicitly
+`extract-v9` lists the canonical values and requests every qualifier explicitly
 stated by the asserting span, including aspect, dose, population and study
 context. Completeness is prompt guidance, not a claim of measured model recall.
 Deterministic
@@ -206,3 +206,76 @@ polarity, and equality for every qualifier specified by gold. Extra predicted
 qualifiers are allowed. Different doses, populations, aspects or trial contexts
 cannot receive credit for one another. Legacy scoring remains the default.
 Historical v5-store qualified scores are diagnostics, not a v6 extraction trial.
+
+## Bounded statement completion (todo 34)
+
+After a successful first response, a chunk triggers completion when a parsed
+statement has `population_context_qualifier` or `study_context`, or when its
+agrochem-v2 relation is in `extractor.COMPARISON_RELATIONS`. This explicit set
+covers effect, resistance and comparison relations, plus `reports_efficacy`;
+composition and taxonomy alone do not trigger it. Empty chunks never trigger.
+The request contains the original chunk and JSON first-pass statements with
+chunk-local offsets. It asks only for missing reported arms (including nulls)
+and qualifiers stated in each assertion's span, not inferred context.
+
+Completion makes at most **one actual request**, without JSON or transport
+retries. Its output enters the same parser, normalizers, strict store validators,
+qualified identity and citation binder as the first response. Completion has an
+additional strict source boundary: absent/out-of-chunk spans are refused rather
+than repaired. Coordinates must be actual JSON integers, not booleans, strings,
+floats or non-finite numbers, and a relation's span must contain its endpoint mentions. Typed
+`extract.proposal_rejected` records retain invalid proposals' reasons.
+Unexpected exceptions at the optional completion provider/parser boundary also
+produce a typed response rejection; the successful first-pass proposals still
+reach the common persistence path. Store-write failures are not swallowed.
+
+In the completion request, the chunk is a JSON string and first-pass statements
+are a JSON array, both serialized with `ensure_ascii=True` and literal `<`
+escaped as `\u003c`. Their data therefore cannot produce opening or closing XML
+delimiters. Decoding recovers source characters exactly; spans index that decoded
+chunk, not the encoded representation. Both blocks are explicitly data, never
+instructions. This preserves the first-pass schema and source-grounding rules
+without interpolating raw source text into the completion request.
+
+The two proposal lists are appended in first-pass order. No update/delete
+operation or model-supplied ID is interpreted. A qualifier enrichment creates a
+new statement because qualifiers participate in identity; the original bare
+statement remains proposed. Repeated first-pass identities are ignored after
+normalization: they neither manufacture duplicate citations nor rewrite the
+first edge's qualifiers, confidence, status or span. Human review,
+not completion, decides which statements become knowledge.
+
+`PROMPT_VERSION` is bumped to `extract-v9` rather than versioning only the second
+prompt: lifecycle identity must distinguish this two-pass extraction pipeline
+from completed v8 work. Disabling completion uses `extract-v9-first-only`, so
+enabling it later does not silently reuse an off-mode run. Request provenance
+records `pass=first|completion`, document/chunk, sequential request number and
+pipeline version. Both passes charge the same `extract` accounting step.
+
+### Budget allocation
+
+With N chunks and T transport retries, unrestricted requests would be
+`N * (2 + T + 1)` (first response, one JSON retry, T transport retries, one
+completion). At N=21 and T=2 that is **105**, not 60. The automatic wall budget
+therefore uses `min(105, max_engine_calls)` request slots and the existing
+timeout/backoff allowance per slot. An explicit wall budget stays binding.
+
+Before completion, reserve `(2 + T)` requests per unvisited chunk and the
+corresponding timeout allowance. If completion cannot fit, skip it and log
+`extract.completion_skipped` with the budget/cancellation/disabled reason.
+First-pass retries in enabled agrochem-v2 runs also leave one request for each
+unvisited chunk. Thus 21 first attempts plus at most 39 optional attempts fit
+60, even at worst-case timeouts; no request bypasses the global cap.
+If each first pass needs its JSON retry but no transport retries, all 21 chunks
+succeed and completion uses only remaining capacity. The more conservative
+future-chunk reservation can leave unused slots rather than gamble on retries.
+
+It is impossible to promise 21 successful chunks under arbitrary transport
+failures: even first passes alone can require 84 requests. In that worst case,
+all chunks are attempted within 60 and exhausted retries remain honestly failed,
+not marked successful. A cap below 21 or an explicit short time limit can still
+prevent full coverage. These tests prove mechanics, not improved model recall.
+
+Completion defaults on. CLI: `extract --no-statement-completion`; HTTP:
+`POST /api/extract` with `"statement_completion": false`. The additive request
+field flows through the existing extraction job limits, with no route removal.

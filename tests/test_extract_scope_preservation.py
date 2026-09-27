@@ -57,7 +57,7 @@ def test_scope_guidance_is_shipped_for_preset_and_installed_schema(agrochem_stor
     assert extractor._AGROCHEM_GUIDANCE not in build_extraction_prompt(
         preset("software-docs"), "No findings."
     )
-    assert extractor.PROMPT_VERSION == "extract-v8"
+    assert extractor.PROMPT_VERSION == "extract-v9"
 
 
 # Constructed passages; none are taken from the frozen polarity gold corpus.
@@ -195,7 +195,7 @@ def test_scripted_findings_keep_relation_and_endpoint_identity(
     outcome, _ = drive(agrochem_store, tmp_path, engine, text=text)
 
     assert outcome == "" and not outcome.chunk_failed
-    assert engine.calls == 1
+    assert engine.calls == 2
     nodes = agrochem_store.conn.execute("SELECT * FROM nodes").fetchall()
     assert len(nodes) == len(entities)
     assert {(node["name"], node["entity_type"]) for node in nodes} == entities.keys()
@@ -204,7 +204,7 @@ def test_scripted_findings_keep_relation_and_endpoint_identity(
         span = json.loads(node["source_span"])
         assert text[span["start"]:span["end"]] == node["name"]
         assert node["status"] == "proposed"
-        assert node["prompt_version"] == "extract-v8"
+        assert node["prompt_version"] == "extract-v9"
     rows = agrochem_store.conn.execute(
         "SELECT s.name, s.entity_type, e.relation_type, t.name, t.entity_type, "
         "e.qualifiers_json FROM edges e "
