@@ -188,6 +188,19 @@
         "start": 21912,
         "end": 21980,
         "quote": "Prochloraz was very effective at reducing the growth of isolate 620."
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reducing",
+        "object_form_or_variant_qualifier": "isolate 620"
+      },
+      "char_start": 21346,
+      "char_end": 21414,
+      "annotation_decision": "R01",
+      "qualifiers": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reducing",
+        "object_form_or_variant_qualifier": "isolate 620"
       }
     },
     {
@@ -201,6 +214,21 @@
         "start": 22269,
         "end": 22410,
         "quote": "Metrafenone also significantly reduced the growth of isolate 620 but growth was less severely affected compared to prochloraz treated flasks."
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reduced",
+        "object_form_or_variant_qualifier": "isolate 620",
+        "study_context": "flasks"
+      },
+      "char_start": 21691,
+      "char_end": 21832,
+      "annotation_decision": "R02",
+      "qualifiers": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reduced",
+        "object_form_or_variant_qualifier": "isolate 620",
+        "study_context": "flasks"
       }
     },
     {
@@ -214,6 +242,21 @@
         "start": 23205,
         "end": 23307,
         "quote": "Prochloraz significantly reduced the growth of isolate 1722 in flask cultures, similar to isolate 620."
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reduced",
+        "object_form_or_variant_qualifier": "isolate 1722",
+        "study_context": "flask cultures"
+      },
+      "char_start": 22604,
+      "char_end": 22706,
+      "annotation_decision": "R03",
+      "qualifiers": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reduced",
+        "object_form_or_variant_qualifier": "isolate 1722",
+        "study_context": "flask cultures"
       }
     },
     {
@@ -240,6 +283,19 @@
         "start": 37696,
         "end": 37921,
         "quote": "In crop trial 1, there was no significant difference between the bubble development in the untreated control plots and prochloraz, B. velezensis QST 713 or Kos treated plots inoculated at a rate of 1 × 106 conidia m−2."
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "bubble development",
+        "study_context": "crop trial 1",
+        "subject_form_or_variant_qualifier": "QST 713"
+      },
+      "char_start": 36630,
+      "char_end": 36848,
+      "annotation_decision": "R04",
+      "qualifiers": {
+        "object_aspect_qualifier": "bubble development",
+        "study_context": "crop trial 1",
+        "subject_form_or_variant_qualifier": "QST 713"
       }
     },
     {
@@ -253,6 +309,19 @@
         "start": 37696,
         "end": 37921,
         "quote": "In crop trial 1, there was no significant difference between the bubble development in the untreated control plots and prochloraz, B. velezensis QST 713 or Kos treated plots inoculated at a rate of 1 × 106 conidia m−2."
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "bubble development",
+        "study_context": "crop trial 1",
+        "subject_form_or_variant_qualifier": "Kos"
+      },
+      "char_start": 36630,
+      "char_end": 36848,
+      "annotation_decision": "R04",
+      "qualifiers": {
+        "object_aspect_qualifier": "bubble development",
+        "study_context": "crop trial 1",
+        "subject_form_or_variant_qualifier": "Kos"
       }
     },
     {
@@ -396,6 +465,17 @@
         "start": 29239,
         "end": 29547,
         "quote": "The fresh weight of the R blackgrass plants treated only with PBO did not differ from that of the untreated (control) plants, while the application of PBO two hours before the herbicide treatments considerably increased the herbicidal effect of ACCase- and ALS-inhibitors against the R blackgrass population."
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "fresh weight",
+        "population_context_qualifier": "R blackgrass plants treated only with PBO"
+      },
+      "char_start": 29028,
+      "char_end": 29336,
+      "annotation_decision": "R05",
+      "qualifiers": {
+        "object_aspect_qualifier": "fresh weight",
+        "population_context_qualifier": "R blackgrass plants treated only with PBO"
       }
     },
     {
@@ -409,6 +489,23 @@
         "start": 27082,
         "end": 27316,
         "quote": "The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations."
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence",
+        "dose": "half their recommended field label rate",
+        "object_aspect_qualifier": "fresh weight",
+        "object_direction_qualifier": "reduction",
+        "population_context_qualifier": "R"
+      },
+      "char_start": 26875,
+      "char_end": 27107,
+      "annotation_decision": "E07",
+      "qualifiers": {
+        "application_timing": "pre-emergence",
+        "dose": "half their recommended field label rate",
+        "object_aspect_qualifier": "fresh weight",
+        "object_direction_qualifier": "reduction",
+        "population_context_qualifier": "R"
       }
     },
     {
@@ -422,6 +519,23 @@
         "start": 27082,
         "end": 27316,
         "quote": "The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations."
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence",
+        "dose": "half their recommended field label rate",
+        "object_aspect_qualifier": "fresh weight",
+        "object_direction_qualifier": "reduction",
+        "population_context_qualifier": "R"
+      },
+      "char_start": 26875,
+      "char_end": 27107,
+      "annotation_decision": "E07",
+      "qualifiers": {
+        "application_timing": "pre-emergence",
+        "dose": "half their recommended field label rate",
+        "object_aspect_qualifier": "fresh weight",
+        "object_direction_qualifier": "reduction",
+        "population_context_qualifier": "R"
       }
     },
     {
@@ -462,15 +576,17 @@
         "end": 34130,
         "quote": "Glufosinate (1680 g a.i. ha−1) was also ineffective, with control statistically similar to the non‐treated control because of new P. annua emergence."
       },
-      "qualifiers": {
-        "dose": "1680 g a.i. ha−1"
-      },
       "qualifier_quotes": {
-        "dose": "1680 g a.i. ha−1"
+        "dose": "1680 g a.i. ha−1",
+        "causal_mechanism_qualifier": "new P. annua emergence"
       },
       "char_start": 32583,
       "char_end": 32732,
-      "annotation_decision": "G001"
+      "annotation_decision": "E09",
+      "qualifiers": {
+        "dose": "1680 g a.i. ha−1",
+        "causal_mechanism_qualifier": "new P. annua emergence"
+      }
     },
     {
       "src": "fluridone",
@@ -522,16 +638,7 @@
         "start": 32440,
         "end": 32553,
         "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival."
-      },
-      "qualifiers": {
-        "object_aspect_qualifier": "survival"
-      },
-      "qualifier_quotes": {
-        "object_aspect_qualifier": "survival"
-      },
-      "char_start": 31087,
-      "char_end": 31198,
-      "annotation_decision": "G003"
+      }
     },
     {
       "src": "dichlobenil",
@@ -544,16 +651,7 @@
         "start": 32440,
         "end": 32553,
         "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival."
-      },
-      "qualifiers": {
-        "object_aspect_qualifier": "survival"
-      },
-      "qualifier_quotes": {
-        "object_aspect_qualifier": "survival"
-      },
-      "char_start": 31087,
-      "char_end": 31198,
-      "annotation_decision": "G003"
+      }
     },
     {
       "src": "pyroxasulfone",
@@ -566,16 +664,7 @@
         "start": 32440,
         "end": 32553,
         "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival."
-      },
-      "qualifiers": {
-        "object_aspect_qualifier": "survival"
-      },
-      "qualifier_quotes": {
-        "object_aspect_qualifier": "survival"
-      },
-      "char_start": 31087,
-      "char_end": 31198,
-      "annotation_decision": "G003"
+      }
     },
     {
       "src": "Botrytis cinerea",
@@ -588,6 +677,17 @@
         "start": 16877,
         "end": 16981,
         "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations."
+      },
+      "qualifier_quotes": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
+      },
+      "char_start": 16680,
+      "char_end": 16784,
+      "annotation_decision": "R08",
+      "qualifiers": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
       }
     },
     {
@@ -601,6 +701,17 @@
         "start": 16877,
         "end": 16981,
         "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations."
+      },
+      "qualifier_quotes": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
+      },
+      "char_start": 16680,
+      "char_end": 16784,
+      "annotation_decision": "R08",
+      "qualifiers": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
       }
     },
     {
@@ -614,6 +725,17 @@
         "start": 16877,
         "end": 16981,
         "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations."
+      },
+      "qualifier_quotes": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
+      },
+      "char_start": 16680,
+      "char_end": 16784,
+      "annotation_decision": "R08",
+      "qualifiers": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
       }
     },
     {
@@ -658,7 +780,8 @@
   ],
   "alignment_version": "polarity-alignment-2026-09-27-v2",
   "alignment_source": "alignment.json",
-  "annotation_version": "blinded-annotation-audit-v1",
+  "annotation_version": "blinded-annotation-audit-v2",
   "annotation_review": "Blinded model adjudication; not a new human expert review.",
-  "adjudication_source": "annotations/adjudication.json"
+  "adjudication_source": "annotations/reference-adjudication.json",
+  "reference_review_source": "annotations/reference-review.json"
 }

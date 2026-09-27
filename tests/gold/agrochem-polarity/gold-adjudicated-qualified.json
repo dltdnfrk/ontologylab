@@ -191,12 +191,20 @@
       },
       "qualifiers": {
         "object_aspect_qualifier": "growth",
-        "study_context": "in_vitro",
+        "object_direction_qualifier": "other:reducing",
         "object_form_or_variant_qualifier": "isolate:620"
       },
       "source_row": 0,
       "original_src": "prochloraz",
-      "original_dst": "Lecanicillium fungicola isolate 620"
+      "original_dst": "Lecanicillium fungicola isolate 620",
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reducing",
+        "object_form_or_variant_qualifier": "isolate 620"
+      },
+      "char_start": 21346,
+      "char_end": 21414,
+      "annotation_decision": "R01"
     },
     {
       "src": "metrafenone",
@@ -212,12 +220,22 @@
       },
       "qualifiers": {
         "object_aspect_qualifier": "growth",
-        "study_context": "in_vitro",
-        "object_form_or_variant_qualifier": "isolate:620"
+        "object_direction_qualifier": "other:reduced",
+        "object_form_or_variant_qualifier": "isolate:620",
+        "study_context": "other:flasks"
       },
       "source_row": 1,
       "original_src": "metrafenone",
-      "original_dst": "Lecanicillium fungicola isolate 620"
+      "original_dst": "Lecanicillium fungicola isolate 620",
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reduced",
+        "object_form_or_variant_qualifier": "isolate 620",
+        "study_context": "flasks"
+      },
+      "char_start": 21691,
+      "char_end": 21832,
+      "annotation_decision": "R02"
     },
     {
       "src": "prochloraz",
@@ -233,12 +251,22 @@
       },
       "qualifiers": {
         "object_aspect_qualifier": "growth",
-        "study_context": "in_vitro",
-        "object_form_or_variant_qualifier": "isolate:1722"
+        "object_direction_qualifier": "other:reduced",
+        "object_form_or_variant_qualifier": "isolate:1722",
+        "study_context": "other:flask cultures"
       },
       "source_row": 2,
       "original_src": "prochloraz",
-      "original_dst": "Lecanicillium fungicola isolate 1722"
+      "original_dst": "Lecanicillium fungicola isolate 1722",
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reduced",
+        "object_form_or_variant_qualifier": "isolate 1722",
+        "study_context": "flask cultures"
+      },
+      "char_start": 22604,
+      "char_end": 22706,
+      "annotation_decision": "R03"
     },
     {
       "src": "prochloraz",
@@ -273,13 +301,21 @@
         "quote": "In crop trial 1, there was no significant difference between the bubble development in the untreated control plots and prochloraz, B. velezensis QST 713 or Kos treated plots inoculated at a rate of 1 × 106 conidia m−2."
       },
       "qualifiers": {
-        "study_context": "crop_trial:1",
         "object_aspect_qualifier": "bubble_development",
+        "study_context": "crop_trial:1",
         "subject_form_or_variant_qualifier": "other:qst713"
       },
       "source_row": 4,
       "original_src": "Bacillus velezensis QST 713",
-      "original_dst": "dry bubble disease"
+      "original_dst": "dry bubble disease",
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "bubble development",
+        "study_context": "crop trial 1",
+        "subject_form_or_variant_qualifier": "QST 713"
+      },
+      "char_start": 36630,
+      "char_end": 36848,
+      "annotation_decision": "R04"
     },
     {
       "src": "Bacillus velezensis",
@@ -294,13 +330,21 @@
         "quote": "In crop trial 1, there was no significant difference between the bubble development in the untreated control plots and prochloraz, B. velezensis QST 713 or Kos treated plots inoculated at a rate of 1 × 106 conidia m−2."
       },
       "qualifiers": {
-        "study_context": "crop_trial:1",
         "object_aspect_qualifier": "bubble_development",
+        "study_context": "crop_trial:1",
         "subject_form_or_variant_qualifier": "other:kos"
       },
       "source_row": 5,
       "original_src": "Bacillus velezensis Kos",
-      "original_dst": "dry bubble disease"
+      "original_dst": "dry bubble disease",
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "bubble development",
+        "study_context": "crop trial 1",
+        "subject_form_or_variant_qualifier": "Kos"
+      },
+      "char_start": 36630,
+      "char_end": 36848,
+      "annotation_decision": "R04"
     },
     {
       "src": "cyantraniliprole",
@@ -519,11 +563,18 @@
       },
       "qualifiers": {
         "object_aspect_qualifier": "fresh_weight",
-        "population_context_qualifier": "rpopulation"
+        "population_context_qualifier": "rblackgrassplantstreatedonlywithpbo"
       },
       "source_row": 16,
       "original_src": "PBO",
-      "original_dst": "R blackgrass population"
+      "original_dst": "R blackgrass population",
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "fresh weight",
+        "population_context_qualifier": "R blackgrass plants treated only with PBO"
+      },
+      "char_start": 29028,
+      "char_end": 29336,
+      "annotation_decision": "R05"
     },
     {
       "src": "prosulfocarb",
@@ -539,13 +590,24 @@
       },
       "qualifiers": {
         "application_timing": "pre_emergence",
-        "dose": "half recommended field label rate",
+        "dose": "half their recommended field label rate",
         "object_aspect_qualifier": "fresh_weight",
-        "population_context_qualifier": "rpopulation"
+        "object_direction_qualifier": "other:reduction",
+        "population_context_qualifier": "r"
       },
       "source_row": 17,
       "original_src": "prosulfocarb",
-      "original_dst": "R blackgrass population"
+      "original_dst": "R blackgrass population",
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence",
+        "dose": "half their recommended field label rate",
+        "object_aspect_qualifier": "fresh weight",
+        "object_direction_qualifier": "reduction",
+        "population_context_qualifier": "R"
+      },
+      "char_start": 26875,
+      "char_end": 27107,
+      "annotation_decision": "E07"
     },
     {
       "src": "chlorotoluron + diflufenican",
@@ -561,13 +623,24 @@
       },
       "qualifiers": {
         "application_timing": "pre_emergence",
-        "dose": "half recommended field label rate",
+        "dose": "half their recommended field label rate",
         "object_aspect_qualifier": "fresh_weight",
-        "population_context_qualifier": "rpopulation"
+        "object_direction_qualifier": "other:reduction",
+        "population_context_qualifier": "r"
       },
       "source_row": 18,
       "original_src": "chlorotoluron + diflufenican",
-      "original_dst": "R blackgrass population"
+      "original_dst": "R blackgrass population",
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence",
+        "dose": "half their recommended field label rate",
+        "object_aspect_qualifier": "fresh weight",
+        "object_direction_qualifier": "reduction",
+        "population_context_qualifier": "R"
+      },
+      "char_start": 26875,
+      "char_end": 27107,
+      "annotation_decision": "E07"
     },
     {
       "src": "blackgrass",
@@ -624,17 +697,19 @@
         "quote": "Glufosinate (1680 g a.i. ha−1) was also ineffective, with control statistically similar to the non‐treated control because of new P. annua emergence."
       },
       "qualifiers": {
-        "dose": "1.68 kg/ha a.i."
+        "dose": "1.68 kg/ha a.i.",
+        "causal_mechanism_qualifier": "new p. annua emergence"
       },
       "source_row": 21,
       "original_src": "glufosinate",
       "original_dst": "Poa annua",
       "qualifier_quotes": {
-        "dose": "1680 g a.i. ha−1"
+        "dose": "1680 g a.i. ha−1",
+        "causal_mechanism_qualifier": "new P. annua emergence"
       },
       "char_start": 32583,
       "char_end": 32732,
-      "annotation_decision": "G001"
+      "annotation_decision": "E09"
     },
     {
       "src": "fluridone",
@@ -712,17 +787,13 @@
         "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival."
       },
       "qualifiers": {
-        "object_aspect_qualifier": "survival"
+        "study_context": "greenhouse",
+        "application_timing": "pre_emergence",
+        "population_context_qualifier": "indaziflamresistantaccessions"
       },
       "source_row": 25,
       "original_src": "napropamide",
-      "original_dst": "Poa annua",
-      "qualifier_quotes": {
-        "object_aspect_qualifier": "survival"
-      },
-      "char_start": 31087,
-      "char_end": 31198,
-      "annotation_decision": "G003"
+      "original_dst": "Poa annua"
     },
     {
       "src": "dichlobenil",
@@ -737,17 +808,13 @@
         "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival."
       },
       "qualifiers": {
-        "object_aspect_qualifier": "survival"
+        "study_context": "greenhouse",
+        "application_timing": "pre_emergence",
+        "population_context_qualifier": "indaziflamresistantaccessions"
       },
       "source_row": 26,
       "original_src": "dichlobenil",
-      "original_dst": "Poa annua",
-      "qualifier_quotes": {
-        "object_aspect_qualifier": "survival"
-      },
-      "char_start": 31087,
-      "char_end": 31198,
-      "annotation_decision": "G003"
+      "original_dst": "Poa annua"
     },
     {
       "src": "pyroxasulfone",
@@ -762,17 +829,13 @@
         "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival."
       },
       "qualifiers": {
-        "object_aspect_qualifier": "survival"
+        "study_context": "greenhouse",
+        "application_timing": "pre_emergence",
+        "population_context_qualifier": "indaziflamresistantaccessions"
       },
       "source_row": 27,
       "original_src": "pyroxasulfone",
-      "original_dst": "Poa annua",
-      "qualifier_quotes": {
-        "object_aspect_qualifier": "survival"
-      },
-      "char_start": 31087,
-      "char_end": 31198,
-      "annotation_decision": "G003"
+      "original_dst": "Poa annua"
     },
     {
       "src": "Botrytis cinerea",
@@ -787,11 +850,19 @@
         "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations."
       },
       "qualifiers": {
-        "population_context_qualifier": "michigan2020sampledisolates"
+        "study_context": "other:2020",
+        "population_context_qualifier": "bothlocations"
       },
       "source_row": 28,
       "original_src": "Botrytis cinerea",
-      "original_dst": "fludioxonil"
+      "original_dst": "fludioxonil",
+      "qualifier_quotes": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
+      },
+      "char_start": 16680,
+      "char_end": 16784,
+      "annotation_decision": "R08"
     },
     {
       "src": "Botrytis cinerea",
@@ -806,11 +877,19 @@
         "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations."
       },
       "qualifiers": {
-        "population_context_qualifier": "michigan2020sampledisolates"
+        "study_context": "other:2020",
+        "population_context_qualifier": "bothlocations"
       },
       "source_row": 29,
       "original_src": "Botrytis cinerea",
-      "original_dst": "fenhexamid"
+      "original_dst": "fenhexamid",
+      "qualifier_quotes": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
+      },
+      "char_start": 16680,
+      "char_end": 16784,
+      "annotation_decision": "R08"
     },
     {
       "src": "Botrytis cinerea",
@@ -825,11 +904,19 @@
         "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations."
       },
       "qualifiers": {
-        "population_context_qualifier": "michigan2020sampledisolates"
+        "study_context": "other:2020",
+        "population_context_qualifier": "bothlocations"
       },
       "source_row": 30,
       "original_src": "Botrytis cinerea",
-      "original_dst": "iprodione"
+      "original_dst": "iprodione",
+      "qualifier_quotes": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
+      },
+      "char_start": 16680,
+      "char_end": 16784,
+      "annotation_decision": "R08"
     },
     {
       "src": "Botrytis cinerea",
@@ -893,7 +980,8 @@
   "alignment_source": "alignment.json",
   "statement_model": "biolink-qualified-v1",
   "mapping_source": "qualified-mapping.json",
-  "annotation_version": "blinded-annotation-audit-v1",
+  "annotation_version": "blinded-annotation-audit-v2",
   "annotation_review": "Blinded model adjudication; not a new human expert review.",
-  "adjudication_source": "annotations/adjudication.json"
+  "adjudication_source": "annotations/reference-adjudication.json",
+  "reference_review_source": "annotations/reference-review.json"
 }

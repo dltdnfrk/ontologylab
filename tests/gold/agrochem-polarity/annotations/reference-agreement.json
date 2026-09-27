@@ -1,0 +1,115 @@
+{
+  "design": "targeted_reference_review",
+  "reference_rows": 15,
+  "distinct_asserting_sentences": 9,
+  "agreement": {
+    "a_annotation_rows": 28,
+    "b_annotation_rows": 28,
+    "a_statements": 28,
+    "b_statements": 28,
+    "b_matches_a": {
+      "matched": 14,
+      "total": 28,
+      "rate": 0.5
+    },
+    "a_matches_b": {
+      "matched": 14,
+      "total": 28,
+      "rate": 0.5
+    },
+    "reciprocal_scope_pairs": 14,
+    "reciprocal_statement_match_rate": 0.5,
+    "unmatched_a": 14,
+    "unmatched_b": 14,
+    "polarity_disagreements": 0,
+    "kappa": 1,
+    "observed_polarity_agreement": 1,
+    "expected_polarity_agreement": 0.5102040816326531,
+    "marginal_a": {
+      "supports": 8,
+      "refutes": 0,
+      "no_effect": 6
+    },
+    "marginal_b": {
+      "supports": 8,
+      "refutes": 0,
+      "no_effect": 6
+    },
+    "confusion_matrix": {
+      "supports": {
+        "supports": 8,
+        "refutes": 0,
+        "no_effect": 0
+      },
+      "refutes": {
+        "supports": 0,
+        "refutes": 0,
+        "no_effect": 0
+      },
+      "no_effect": {
+        "supports": 0,
+        "refutes": 0,
+        "no_effect": 6
+      }
+    },
+    "pairs": [
+      [
+        0,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        2,
+        2
+      ],
+      [
+        3,
+        3
+      ],
+      [
+        4,
+        4
+      ],
+      [
+        5,
+        5
+      ],
+      [
+        6,
+        6
+      ],
+      [
+        8,
+        8
+      ],
+      [
+        9,
+        9
+      ],
+      [
+        10,
+        10
+      ],
+      [
+        11,
+        11
+      ],
+      [
+        18,
+        18
+      ],
+      [
+        19,
+        19
+      ],
+      [
+        20,
+        20
+      ]
+    ],
+    "limitation": "Fresh model contexts, not independent humans; selection and within-paper dependence remain."
+  }
+}

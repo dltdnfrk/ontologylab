@@ -1,9 +1,998 @@
 {
-  "version": "blinded-annotation-audit-v1",
+  "version": "blinded-annotation-audit-v2",
   "changes": [
     {
+      "source_row": 0,
+      "decision": "R01",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "object_aspect_qualifier": "growth",
+          "study_context": "in_vitro",
+          "object_form_or_variant_qualifier": "isolate:620"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "object_aspect_qualifier": "growth",
+          "object_direction_qualifier": "other:reducing",
+          "object_form_or_variant_qualifier": "isolate:620"
+        }
+      },
+      "rationale": "Consensus: 'reducing the growth' supports inhibition; the agreed species endpoint is inherited, not independently full-text verified.",
+      "annotation": {
+        "annotation": {
+          "src": "Prochloraz",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "Lecanicillium fungicola",
+          "dst_type": "Pathogen",
+          "polarity": "supports",
+          "qualifiers": {
+            "object_aspect_qualifier": "growth",
+            "object_direction_qualifier": "reducing",
+            "object_form_or_variant_qualifier": "isolate 620"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "growth",
+            "object_direction_qualifier": "reducing",
+            "object_form_or_variant_qualifier": "isolate 620"
+          },
+          "pmcid": "PMC12632097",
+          "quote_sha256": "2d558880dd62caba47d656a5c7195256fb93f4dea731e91aef01f5727fcee633",
+          "rationale": "Consensus: 'reducing the growth' supports inhibition; the agreed species endpoint is inherited, not independently full-text verified."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "R01",
+          "selection": {
+            "kind": "accepted",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 1,
+      "decision": "R02",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "object_aspect_qualifier": "growth",
+          "study_context": "in_vitro",
+          "object_form_or_variant_qualifier": "isolate:620"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "object_aspect_qualifier": "growth",
+          "object_direction_qualifier": "other:reduced",
+          "object_form_or_variant_qualifier": "isolate:620",
+          "study_context": "other:flasks"
+        }
+      },
+      "rationale": "'Significantly reduced' supports inhibition despite the weaker comparative effect; the comparator adds no independent arm, and the agreed species endpoint is inherited without full-text verification.",
+      "annotation": {
+        "annotation": {
+          "src": "Metrafenone",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "Lecanicillium fungicola",
+          "dst_type": "Pathogen",
+          "polarity": "supports",
+          "qualifiers": {
+            "object_aspect_qualifier": "growth",
+            "object_direction_qualifier": "reduced",
+            "object_form_or_variant_qualifier": "isolate 620",
+            "study_context": "flasks"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "growth",
+            "object_direction_qualifier": "reduced",
+            "object_form_or_variant_qualifier": "isolate 620",
+            "study_context": "flasks"
+          },
+          "pmcid": "PMC12632097",
+          "quote_sha256": "05dcd64ba7114e3ece43b037f55ad4c48b950070b663be6d4d8448217c6ccf53",
+          "rationale": "'Significantly reduced' supports inhibition despite the weaker comparative effect; the comparator adds no independent arm, and the agreed species endpoint is inherited without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "R02",
+          "selection": {
+            "kind": "accepted",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 2,
+      "decision": "R03",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "object_aspect_qualifier": "growth",
+          "study_context": "in_vitro",
+          "object_form_or_variant_qualifier": "isolate:1722"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "object_aspect_qualifier": "growth",
+          "object_direction_qualifier": "other:reduced",
+          "object_form_or_variant_qualifier": "isolate:1722",
+          "study_context": "other:flask cultures"
+        }
+      },
+      "rationale": "'Significantly reduced the growth' directly asserts one arm; the similarity reference does not independently restate the comparator outcome, and the agreed species endpoint is inherited without full-text verification.",
+      "annotation": {
+        "annotation": {
+          "src": "Prochloraz",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "Lecanicillium fungicola",
+          "dst_type": "Pathogen",
+          "polarity": "supports",
+          "qualifiers": {
+            "object_aspect_qualifier": "growth",
+            "object_direction_qualifier": "reduced",
+            "object_form_or_variant_qualifier": "isolate 1722",
+            "study_context": "flask cultures"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "growth",
+            "object_direction_qualifier": "reduced",
+            "object_form_or_variant_qualifier": "isolate 1722",
+            "study_context": "flask cultures"
+          },
+          "pmcid": "PMC12632097",
+          "quote_sha256": "e2e94988bfbde7f56b848655254721d9d454af5eb575949a1e2b0bacdf9d8c3b",
+          "rationale": "'Significantly reduced the growth' directly asserts one arm; the similarity reference does not independently restate the comparator outcome, and the agreed species endpoint is inherited without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "R03",
+          "selection": {
+            "kind": "accepted",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 4,
+      "decision": "R04",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 1
+      },
+      "before": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "study_context": "crop_trial:1",
+          "object_aspect_qualifier": "bubble_development",
+          "subject_form_or_variant_qualifier": "other:qst713"
+        }
+      },
+      "after": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "object_aspect_qualifier": "bubble_development",
+          "study_context": "crop_trial:1",
+          "subject_form_or_variant_qualifier": "other:qst713"
+        }
+      },
+      "rationale": "'No significant difference' assigns measured nulls to three arms without a null direction; named biological agents favor ActiveIngredient over an unasserted formulation, and agreed endpoint expansions are inherited without full-text verification. Retain each quoted variant qualifier so normalized endpoints remain distinct.",
+      "annotation": {
+        "annotation": {
+          "src": "Bacillus velezensis QST 713",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "dry bubble disease",
+          "dst_type": "Disease",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "object_aspect_qualifier": "bubble development",
+            "study_context": "crop trial 1"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "bubble development",
+            "study_context": "crop trial 1"
+          },
+          "pmcid": "PMC12632097",
+          "quote_sha256": "b6aa117ae26fa383dd9244737df6ded3a91984c99e4d673d80eb0ad4a063b0cd",
+          "rationale": "'No significant difference' assigns measured nulls to three arms without a null direction; named biological agents favor ActiveIngredient over an unasserted formulation, and agreed endpoint expansions are inherited without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "R04",
+          "selection": {
+            "kind": "accepted",
+            "index": 1
+          }
+        }
+      }
+    },
+    {
+      "source_row": 5,
+      "decision": "R04",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 2
+      },
+      "before": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "study_context": "crop_trial:1",
+          "object_aspect_qualifier": "bubble_development",
+          "subject_form_or_variant_qualifier": "other:kos"
+        }
+      },
+      "after": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "object_aspect_qualifier": "bubble_development",
+          "study_context": "crop_trial:1",
+          "subject_form_or_variant_qualifier": "other:kos"
+        }
+      },
+      "rationale": "'No significant difference' assigns measured nulls to three arms without a null direction; named biological agents favor ActiveIngredient over an unasserted formulation, and agreed endpoint expansions are inherited without full-text verification. Retain each quoted variant qualifier so normalized endpoints remain distinct.",
+      "annotation": {
+        "annotation": {
+          "src": "Bacillus velezensis Kos",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "dry bubble disease",
+          "dst_type": "Disease",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "object_aspect_qualifier": "bubble development",
+            "study_context": "crop trial 1"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "bubble development",
+            "study_context": "crop trial 1"
+          },
+          "pmcid": "PMC12632097",
+          "quote_sha256": "b6aa117ae26fa383dd9244737df6ded3a91984c99e4d673d80eb0ad4a063b0cd",
+          "rationale": "'No significant difference' assigns measured nulls to three arms without a null direction; named biological agents favor ActiveIngredient over an unasserted formulation, and agreed endpoint expansions are inherited without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "R04",
+          "selection": {
+            "kind": "accepted",
+            "index": 2
+          }
+        }
+      }
+    },
+    {
+      "source_row": 6,
+      "applied": false,
+      "review_rationale": "The sentence names products and 'oviposition' but no pest endpoint.",
+      "decision": "E01",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "before": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "study_context": "bioassay:2",
+          "dose": "dilute",
+          "object_aspect_qualifier": "oviposition"
+        }
+      },
+      "after": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "object_aspect_qualifier": "oviposition",
+          "dose": "dilute"
+        }
+      },
+      "rationale": "'Did not reduce' and 'both reduced' establish two null and two positive arms; add the explicit positive direction only, inheriting the semantically shared pest endpoint without full-text verification.",
+      "annotation": {
+        "annotation": {
+          "src": "cyantraniliprole",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "Drosophila suzukii",
+          "dst_type": "Pest",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "object_aspect_qualifier": "oviposition",
+            "dose": "Dilute doses"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "oviposition",
+            "dose": "Dilute doses"
+          },
+          "pmcid": "PMC12546283",
+          "quote_sha256": "8202efdc2997f4bd3e9d1bc98bee3afc185a9e4c9561a84cbac272222fbaf5d2",
+          "rationale": "'Did not reduce' and 'both reduced' establish two null and two positive arms; add the explicit positive direction only, inheriting the semantically shared pest endpoint without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "E01",
+          "selection": {
+            "kind": "accepted",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 7,
+      "applied": false,
+      "review_rationale": "The sentence names products and 'oviposition' but no pest endpoint.",
+      "decision": "E01",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 1
+      },
+      "before": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "study_context": "bioassay:2",
+          "dose": "dilute",
+          "object_aspect_qualifier": "oviposition"
+        }
+      },
+      "after": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "object_aspect_qualifier": "oviposition",
+          "dose": "dilute"
+        }
+      },
+      "rationale": "'Did not reduce' and 'both reduced' establish two null and two positive arms; add the explicit positive direction only, inheriting the semantically shared pest endpoint without full-text verification.",
+      "annotation": {
+        "annotation": {
+          "src": "spinosad",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "Drosophila suzukii",
+          "dst_type": "Pest",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "object_aspect_qualifier": "oviposition",
+            "dose": "Dilute doses"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "oviposition",
+            "dose": "Dilute doses"
+          },
+          "pmcid": "PMC12546283",
+          "quote_sha256": "8202efdc2997f4bd3e9d1bc98bee3afc185a9e4c9561a84cbac272222fbaf5d2",
+          "rationale": "'Did not reduce' and 'both reduced' establish two null and two positive arms; add the explicit positive direction only, inheriting the semantically shared pest endpoint without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "E01",
+          "selection": {
+            "kind": "accepted",
+            "index": 1
+          }
+        }
+      }
+    },
+    {
+      "source_row": 8,
+      "applied": false,
+      "review_rationale": "The sentence names products and 'oviposition' but no pest endpoint.",
+      "decision": "E01",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "corrected",
+        "index": 0
+      },
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "study_context": "bioassay:2",
+          "dose": "dilute",
+          "object_aspect_qualifier": "oviposition"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "object_aspect_qualifier": "oviposition",
+          "object_direction_qualifier": "other:reduced",
+          "dose": "dilute"
+        }
+      },
+      "rationale": "'Did not reduce' and 'both reduced' establish two null and two positive arms; add the explicit positive direction only, inheriting the semantically shared pest endpoint without full-text verification.",
+      "annotation": {
+        "annotation": {
+          "src": "lambda-cyhalothrin",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "Drosophila suzukii",
+          "dst_type": "Pest",
+          "polarity": "supports",
+          "qualifiers": {
+            "object_aspect_qualifier": "oviposition",
+            "object_direction_qualifier": "reduced",
+            "dose": "dilute doses"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "oviposition",
+            "object_direction_qualifier": "reduced",
+            "dose": "dilute doses"
+          },
+          "pmcid": "PMC12546283",
+          "quote_sha256": "8202efdc2997f4bd3e9d1bc98bee3afc185a9e4c9561a84cbac272222fbaf5d2",
+          "rationale": "'Did not reduce' and 'both reduced' establish two null and two positive arms; add the explicit positive direction only, inheriting the semantically shared pest endpoint without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "E01",
+          "selection": {
+            "kind": "corrected",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 9,
+      "applied": false,
+      "review_rationale": "The sentence names products and 'oviposition' but no pest endpoint.",
+      "decision": "E01",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "corrected",
+        "index": 1
+      },
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "study_context": "bioassay:2",
+          "dose": "dilute",
+          "object_aspect_qualifier": "oviposition"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "object_aspect_qualifier": "oviposition",
+          "object_direction_qualifier": "other:reduced",
+          "dose": "dilute"
+        }
+      },
+      "rationale": "'Did not reduce' and 'both reduced' establish two null and two positive arms; add the explicit positive direction only, inheriting the semantically shared pest endpoint without full-text verification.",
+      "annotation": {
+        "annotation": {
+          "src": "deltamethrin",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "Drosophila suzukii",
+          "dst_type": "Pest",
+          "polarity": "supports",
+          "qualifiers": {
+            "object_aspect_qualifier": "oviposition",
+            "object_direction_qualifier": "reduced",
+            "dose": "dilute doses"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "oviposition",
+            "object_direction_qualifier": "reduced",
+            "dose": "dilute doses"
+          },
+          "pmcid": "PMC12546283",
+          "quote_sha256": "8202efdc2997f4bd3e9d1bc98bee3afc185a9e4c9561a84cbac272222fbaf5d2",
+          "rationale": "'Did not reduce' and 'both reduced' establish two null and two positive arms; add the explicit positive direction only, inheriting the semantically shared pest endpoint without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "E01",
+          "selection": {
+            "kind": "corrected",
+            "index": 1
+          }
+        }
+      }
+    },
+    {
+      "source_row": 11,
+      "applied": false,
+      "review_rationale": "'Did not significantly affect mortality' does not identify whose mortality was measured.",
+      "decision": "E03",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "corrected",
+        "index": 0
+      },
+      "before": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "study_context": "bioassay:1",
+          "object_aspect_qualifier": "mortality"
+        }
+      },
+      "after": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "object_aspect_qualifier": "mortality"
+        }
+      },
+      "rationale": "'Cyantraniliprole or PB alone' assigns the mortality null separately to both agents; retain literal PB rather than its unverified expansion, inheriting only the shared pest endpoint.",
+      "annotation": {
+        "annotation": {
+          "src": "PB",
+          "src_type": "Product",
+          "relation": "toxic_to",
+          "dst": "Drosophila suzukii",
+          "dst_type": "Pest",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "object_aspect_qualifier": "mortality"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "mortality"
+          },
+          "pmcid": "PMC12546283",
+          "quote_sha256": "bb80157c86ce10f3ac49670de1d4a369c50e730c7a4a8054ea3e944d93d7dd17",
+          "rationale": "'Cyantraniliprole or PB alone' assigns the mortality null separately to both agents; retain literal PB rather than its unverified expansion, inheriting only the shared pest endpoint."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "E03",
+          "selection": {
+            "kind": "corrected",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 12,
+      "applied": false,
+      "review_rationale": "'Mortality was higher' does not identify the affected pest.",
+      "decision": "E04",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "corrected",
+        "index": 0
+      },
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "study_context": "bioassay:1",
+          "object_aspect_qualifier": "mortality"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "object_aspect_qualifier": "mortality",
+          "object_direction_qualifier": "other:higher",
+          "study_context": "other:at all time points after the start of the bioassay"
+        }
+      },
+      "rationale": "'Mortality was higher' supports the intact mixture, with explicit comparative direction and observation scope; the water control is not another effect arm, and the shared pest endpoint is inherited without full-text verification.",
+      "annotation": {
+        "annotation": {
+          "src": "cyantraniliprole + PB",
+          "src_type": "Product",
+          "relation": "toxic_to",
+          "dst": "Drosophila suzukii",
+          "dst_type": "Pest",
+          "polarity": "supports",
+          "qualifiers": {
+            "object_aspect_qualifier": "mortality",
+            "object_direction_qualifier": "higher",
+            "study_context": "At all time points after the start of the bioassay"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "mortality",
+            "object_direction_qualifier": "higher",
+            "study_context": "At all time points after the start of the bioassay"
+          },
+          "pmcid": "PMC12546283",
+          "quote_sha256": "4e0bc6b118d6045aadda0240d27f0b1db2e47dfe93ec63b6342db9ba7e7616ce",
+          "rationale": "'Mortality was higher' supports the intact mixture, with explicit comparative direction and observation scope; the water control is not another effect arm, and the shared pest endpoint is inherited without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "E04",
+          "selection": {
+            "kind": "corrected",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 15,
+      "applied": false,
+      "review_rationale": "'Fresh weight reduction' does not identify the affected weed.",
+      "decision": "E06",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "before": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "dose": "1x_label_rate",
+          "population_context_qualifier": "rpopulation"
+        }
+      },
+      "after": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "dose": "1x_label_rate",
+          "object_aspect_qualifier": "fresh_weight"
+        }
+      },
+      "rationale": "'Reduction, respectively' maps one zero and three positive outcomes, retaining direction only for positive arms; neither R-population scope nor a field setting is stated, and the shared weed endpoint is inherited without full-text verification.",
+      "annotation": {
+        "annotation": {
+          "src": "pinoxaden",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Alopecurus myosuroides",
+          "dst_type": "Weed",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "dose": "1×",
+            "object_aspect_qualifier": "fresh weight"
+          },
+          "qualifier_quotes": {
+            "dose": "1×",
+            "object_aspect_qualifier": "fresh weight"
+          },
+          "pmcid": "PMC12563837",
+          "quote_sha256": "fa9dc3e4f2ccb3ad7e8cc84512b823a49a96b689c5cce7f4925ce0dbd9f0534b",
+          "rationale": "'Reduction, respectively' maps one zero and three positive outcomes, retaining direction only for positive arms; neither R-population scope nor a field setting is stated, and the shared weed endpoint is inherited without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "E06",
+          "selection": {
+            "kind": "accepted",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 16,
+      "decision": "R05",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "before": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "object_aspect_qualifier": "fresh_weight",
+          "population_context_qualifier": "rpopulation"
+        }
+      },
+      "after": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "object_aspect_qualifier": "fresh_weight",
+          "population_context_qualifier": "rblackgrassplantstreatedonlywithpbo"
+        }
+      },
+      "rationale": "'Did not differ' supplies the standalone null, while 'increased the herbicidal effect' supports two enhancement arms; treatment context is not a molecular variant, and enhancement does not establish formally quantified synergy.",
+      "annotation": {
+        "annotation": {
+          "src": "PBO",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "R blackgrass plants treated only with PBO"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "R blackgrass plants treated only with PBO"
+          },
+          "pmcid": "PMC12563837",
+          "quote_sha256": "c1f3d1df9e7f36a2ed9ad6322243f622c26be4f3e2b048cecaebd1931a30a8b2",
+          "rationale": "'Did not differ' supplies the standalone null, while 'increased the herbicidal effect' supports two enhancement arms; treatment context is not a molecular variant, and enhancement does not establish formally quantified synergy."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "R05",
+          "selection": {
+            "kind": "accepted",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 17,
+      "decision": "E07",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "corrected",
+        "index": 0
+      },
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "application_timing": "pre_emergence",
+          "dose": "half recommended field label rate",
+          "object_aspect_qualifier": "fresh_weight",
+          "population_context_qualifier": "rpopulation"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "application_timing": "pre_emergence",
+          "dose": "half their recommended field label rate",
+          "object_aspect_qualifier": "fresh_weight",
+          "object_direction_qualifier": "other:reduction",
+          "population_context_qualifier": "r"
+        }
+      },
+      "rationale": "'Either' product and 'both R and S' explicitly warrant four positive arms; preserve the formulation intact, add the stated reduction direction, and retain literal blackgrass.",
+      "annotation": {
+        "annotation": {
+          "src": "prosulfocarb",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "qualifiers": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "object_direction_qualifier": "reduction",
+            "population_context_qualifier": "R"
+          },
+          "qualifier_quotes": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "object_direction_qualifier": "reduction",
+            "population_context_qualifier": "R"
+          },
+          "pmcid": "PMC12563837",
+          "quote_sha256": "35544dad032a80a3b47f75b9084979d58d3e63053f4474425942a4682d634e19",
+          "rationale": "'Either' product and 'both R and S' explicitly warrant four positive arms; preserve the formulation intact, add the stated reduction direction, and retain literal blackgrass."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "E07",
+          "selection": {
+            "kind": "corrected",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 18,
+      "decision": "E07",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "corrected",
+        "index": 2
+      },
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "application_timing": "pre_emergence",
+          "dose": "half recommended field label rate",
+          "object_aspect_qualifier": "fresh_weight",
+          "population_context_qualifier": "rpopulation"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "application_timing": "pre_emergence",
+          "dose": "half their recommended field label rate",
+          "object_aspect_qualifier": "fresh_weight",
+          "object_direction_qualifier": "other:reduction",
+          "population_context_qualifier": "r"
+        }
+      },
+      "rationale": "'Either' product and 'both R and S' explicitly warrant four positive arms; preserve the formulation intact, add the stated reduction direction, and retain literal blackgrass.",
+      "annotation": {
+        "annotation": {
+          "src": "chlorotoluron + diflufenican",
+          "src_type": "Product",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "qualifiers": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "object_direction_qualifier": "reduction",
+            "population_context_qualifier": "R"
+          },
+          "qualifier_quotes": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "object_direction_qualifier": "reduction",
+            "population_context_qualifier": "R"
+          },
+          "pmcid": "PMC12563837",
+          "quote_sha256": "35544dad032a80a3b47f75b9084979d58d3e63053f4474425942a4682d634e19",
+          "rationale": "'Either' product and 'both R and S' explicitly warrant four positive arms; preserve the formulation intact, add the stated reduction direction, and retain literal blackgrass."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "E07",
+          "selection": {
+            "kind": "corrected",
+            "index": 2
+          }
+        }
+      }
+    },
+    {
+      "source_row": 19,
+      "applied": false,
+      "review_rationale": "The sentence attributes the decrease to “increasing density of the R and S blackgrass populations,” but names no chemical product or active ingredient required by the protocol’s scope.",
+      "decision": "R06",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "study_context": "other:competition experiment",
+          "object_aspect_qualifier": "fresh_weight_and_tiller_number",
+          "population_context_qualifier": "rpopulation"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "population_context_qualifier": "r",
+          "subject_aspect_qualifier": "density",
+          "subject_direction_qualifier": "increased",
+          "object_aspect_qualifier": "other:fresh weight (a) and tiller number (b)",
+          "object_direction_qualifier": "decreased"
+        }
+      },
+      "rationale": "'Only in fresh weight' explicitly distinguishes the between-population positive and null comparisons; retain separate R/S arms with the composite measured endpoint, without inventing a difference direction.",
+      "annotation": {
+        "annotation": {
+          "src": "blackgrass",
+          "src_type": "Weed",
+          "relation": "inhibits",
+          "dst": "winter wheat",
+          "dst_type": "Crop",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "R",
+            "subject_aspect_qualifier": "density",
+            "subject_direction_qualifier": "increasing",
+            "object_aspect_qualifier": "fresh weight (a) and tiller number (b)",
+            "object_direction_qualifier": "decreased"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "R",
+            "subject_aspect_qualifier": "density",
+            "subject_direction_qualifier": "increasing",
+            "object_aspect_qualifier": "fresh weight (a) and tiller number (b)",
+            "object_direction_qualifier": "decreased"
+          },
+          "pmcid": "PMC12563837",
+          "quote_sha256": "0f64ed3e18abef98a57f0a99ff2bd61ee16a377081fa18e99f2157b69a68b764",
+          "rationale": "'Only in fresh weight' explicitly distinguishes the between-population positive and null comparisons; retain separate R/S arms with the composite measured endpoint, without inventing a difference direction."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "R06",
+          "selection": {
+            "kind": "accepted",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 20,
+      "applied": false,
+      "review_rationale": "'Inconsistent control' and 'non‐treated control' do not name the weed endpoint.",
+      "decision": "E08",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "before": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "study_context": "field_trial",
+          "application_timing": "post_emergence",
+          "dose": "0.095 or 0.19 kg/ha"
+        }
+      },
+      "after": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "application_timing": "post_emergence",
+          "dose": "0.095 or 0.19 kg/ha"
+        }
+      },
+      "rationale": "'Not statistically different from the non‐treated control' supports the reported collective null, without separately resolved dose outcomes or an independent glufosinate effect; the agreed weed endpoint is inherited without full-text verification.",
+      "annotation": {
+        "annotation": {
+          "src": "indaziflam",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Poa annua",
+          "dst_type": "Weed",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "application_timing": "postemergence",
+            "dose": "95 or 190 g ha−1"
+          },
+          "qualifier_quotes": {
+            "application_timing": "postemergence",
+            "dose": "95 or 190 g ha−1"
+          },
+          "pmcid": "PMC12713700",
+          "quote_sha256": "faa7a9f8239ff4cfc73f275abfa460effde9e5af44fb6ca8f149fc88e51c5b19",
+          "rationale": "'Not statistically different from the non‐treated control' supports the reported collective null, without separately resolved dose outcomes or an independent glufosinate effect; the agreed weed endpoint is inherited without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "E08",
+          "selection": {
+            "kind": "accepted",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
       "source_row": 21,
-      "decision": "G001",
+      "decision": "E09",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "corrected",
+        "index": 0
+      },
       "before": {
         "polarity": "no_effect",
         "qualifiers": {
@@ -14,39 +1003,222 @@
       "after": {
         "polarity": "no_effect",
         "qualifiers": {
-          "dose": "1.68 kg/ha a.i."
+          "dose": "1.68 kg/ha a.i.",
+          "causal_mechanism_qualifier": "new p. annua emergence"
         }
       },
-      "rationale": "'Glufosinate' was 'ineffective', with control 'statistically similar to the non‐treated control'; the agreed Poa annua core is inherited from both full-text annotators, not independently verified from this sentence.",
+      "rationale": "'Ineffective' establishes no_effect, while 'because of new P. annua emergence' explicitly supplies the reported explanation rather than resistance; the agreed species expansion is inherited without full-text verification.",
       "annotation": {
         "annotation": {
-          "pmcid": "PMC12713700",
           "src": "Glufosinate",
           "src_type": "ActiveIngredient",
           "relation": "controls",
           "dst": "Poa annua",
           "dst_type": "Weed",
           "polarity": "no_effect",
-          "quote": "Glufosinate (1680 g a.i. ha−1) was also ineffective, with control statistically similar to the non‐treated control because of new P. annua emergence.",
           "qualifiers": {
-            "dose": "1680 g a.i. ha−1"
+            "dose": "1680 g a.i. ha−1",
+            "causal_mechanism_qualifier": "new P. annua emergence"
           },
           "qualifier_quotes": {
-            "dose": "1680 g a.i. ha−1"
+            "dose": "1680 g a.i. ha−1",
+            "causal_mechanism_qualifier": "new P. annua emergence"
           },
-          "rationale": "Glufosinate was ineffective relative to the untreated control."
+          "pmcid": "PMC12713700",
+          "quote_sha256": "76e5201e8ca198f79f1cb33a3b92a58d6a63b8cd42f86ac7c2da1b28e4badff4",
+          "rationale": "'Ineffective' establishes no_effect, while 'because of new P. annua emergence' explicitly supplies the reported explanation rather than resistance; the agreed species expansion is inherited without full-text verification."
         },
         "provenance": {
-          "kind": "adjudicated",
-          "decision": "G001",
-          "side": "a",
-          "index": 36
+          "kind": "reference_adjudicated",
+          "decision": "E09",
+          "selection": {
+            "kind": "corrected",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 22,
+      "applied": false,
+      "review_rationale": "The quote says “several accessions” but does not identify them as Poa annua, so neither reviewer’s named weed endpoint is grounded in the supplied sentence.",
+      "decision": "R07",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "collective",
+        "index": 0
+      },
+      "before": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "study_context": "greenhouse",
+          "application_timing": "pre_emergence",
+          "population_context_qualifier": "izr1izr2izr5andizr8"
+        }
+      },
+      "after": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "population_context_qualifier": "severalaccessions",
+          "object_aspect_qualifier": "survival",
+          "application_timing": "pre_emergence"
+        }
+      },
+      "rationale": "'Ineffective' supports four accession-scoped no_effect labels, not unchanged survival; survival is the aspect rather than its numerical threshold, and the agreed species endpoint is inherited without full-text verification. 'Ineffective across several accessions' also supports the collective statement as a broader projection, not an extra independent observation or a claim about every accession.",
+      "annotation": {
+        "annotation": {
+          "src": "Fluridone",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Poa annua",
+          "dst_type": "Weed",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "population_context_qualifier": "several accessions",
+            "object_aspect_qualifier": "survival",
+            "application_timing": "preemergence"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "several accessions",
+            "object_aspect_qualifier": "survival",
+            "application_timing": "preemergence"
+          },
+          "pmcid": "PMC12713700",
+          "quote_sha256": "73ae515d788768d8b7f7942bcd7735b96af29a67db058b2a4665ba17db77b12d",
+          "rationale": "'Ineffective' supports four accession-scoped no_effect labels, not unchanged survival; survival is the aspect rather than its numerical threshold, and the agreed species endpoint is inherited without full-text verification. 'Ineffective across several accessions' also supports the collective statement as a broader projection, not an extra independent observation or a claim about every accession."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "R07",
+          "selection": {
+            "kind": "collective",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 23,
+      "applied": false,
+      "review_rationale": "'All resistant accessions' does not identify the weed whose survival was measured.",
+      "decision": "E10",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "study_context": "greenhouse",
+          "application_timing": "post_emergence",
+          "population_context_qualifier": "indaziflamresistantaccessions"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "population_context_qualifier": "allresistantaccessions",
+          "object_aspect_qualifier": "survival"
+        }
+      },
+      "rationale": "Consensus: 'remained effective' supports two product arms across the stated accessions, without specifying what they resist or inferring a survival-change direction; the agreed weed endpoint is inherited without full-text verification.",
+      "annotation": {
+        "annotation": {
+          "src": "rimsulfuron",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Poa annua",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "all resistant accessions",
+            "object_aspect_qualifier": "survival"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "all resistant accessions",
+            "object_aspect_qualifier": "survival"
+          },
+          "pmcid": "PMC12713700",
+          "quote_sha256": "6d9050be4995665451d6938597a61db48e4f9406ec06a9f394e49c41e794e773",
+          "rationale": "Consensus: 'remained effective' supports two product arms across the stated accessions, without specifying what they resist or inferring a survival-change direction; the agreed weed endpoint is inherited without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "E10",
+          "selection": {
+            "kind": "accepted",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 24,
+      "applied": false,
+      "review_rationale": "'All resistant accessions' does not identify the weed whose survival was measured.",
+      "decision": "E10",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 1
+      },
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "study_context": "greenhouse",
+          "application_timing": "post_emergence",
+          "population_context_qualifier": "indaziflamresistantaccessions"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "population_context_qualifier": "allresistantaccessions",
+          "object_aspect_qualifier": "survival"
+        }
+      },
+      "rationale": "Consensus: 'remained effective' supports two product arms across the stated accessions, without specifying what they resist or inferring a survival-change direction; the agreed weed endpoint is inherited without full-text verification.",
+      "annotation": {
+        "annotation": {
+          "src": "glyphosate",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Poa annua",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "all resistant accessions",
+            "object_aspect_qualifier": "survival"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "all resistant accessions",
+            "object_aspect_qualifier": "survival"
+          },
+          "pmcid": "PMC12713700",
+          "quote_sha256": "6d9050be4995665451d6938597a61db48e4f9406ec06a9f394e49c41e794e773",
+          "rationale": "Consensus: 'remained effective' supports two product arms across the stated accessions, without specifying what they resist or inferring a survival-change direction; the agreed weed endpoint is inherited without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "E10",
+          "selection": {
+            "kind": "accepted",
+            "index": 1
+          }
         }
       }
     },
     {
       "source_row": 25,
-      "decision": "G003",
+      "applied": false,
+      "review_rationale": "'Greater control' and '< 13% survival' do not identify the affected weed.",
+      "decision": "E11",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 0
+      },
       "before": {
         "polarity": "supports",
         "qualifiers": {
@@ -61,36 +1233,45 @@
           "object_aspect_qualifier": "survival"
         }
       },
-      "rationale": "'napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival'; the agreed Poa annua core is inherited from both full-text annotators, not independently verified from this sentence.",
+      "rationale": "Consensus: 'provided greater control' supports three product arms with survival as the endpoint aspect; no population or timing is imported, and the agreed weed endpoint is inherited without full-text verification.",
       "annotation": {
         "annotation": {
-          "pmcid": "PMC12713700",
           "src": "napropamide",
           "src_type": "ActiveIngredient",
           "relation": "controls",
           "dst": "Poa annua",
           "dst_type": "Weed",
           "polarity": "supports",
-          "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival.",
           "qualifiers": {
             "object_aspect_qualifier": "survival"
           },
           "qualifier_quotes": {
             "object_aspect_qualifier": "survival"
           },
-          "rationale": "Napropamide is one of the separately named treatments providing greater control."
+          "pmcid": "PMC12713700",
+          "quote_sha256": "f5b6ddbc4b1a3707e7dfe96f9326d6c8b33ad9eda5af8e23edf48cd9859b6dad",
+          "rationale": "Consensus: 'provided greater control' supports three product arms with survival as the endpoint aspect; no population or timing is imported, and the agreed weed endpoint is inherited without full-text verification."
         },
         "provenance": {
-          "kind": "adjudicated",
-          "decision": "G003",
-          "side": "a",
-          "index": 43
+          "kind": "reference_adjudicated",
+          "decision": "E11",
+          "selection": {
+            "kind": "accepted",
+            "index": 0
+          }
         }
       }
     },
     {
       "source_row": 26,
-      "decision": "G003",
+      "applied": false,
+      "review_rationale": "'Greater control' and '< 13% survival' do not identify the affected weed.",
+      "decision": "E11",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 1
+      },
       "before": {
         "polarity": "supports",
         "qualifiers": {
@@ -105,36 +1286,45 @@
           "object_aspect_qualifier": "survival"
         }
       },
-      "rationale": "'napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival'; the agreed Poa annua core is inherited from both full-text annotators, not independently verified from this sentence.",
+      "rationale": "Consensus: 'provided greater control' supports three product arms with survival as the endpoint aspect; no population or timing is imported, and the agreed weed endpoint is inherited without full-text verification.",
       "annotation": {
         "annotation": {
-          "pmcid": "PMC12713700",
           "src": "dichlobenil",
           "src_type": "ActiveIngredient",
           "relation": "controls",
           "dst": "Poa annua",
           "dst_type": "Weed",
           "polarity": "supports",
-          "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival.",
           "qualifiers": {
             "object_aspect_qualifier": "survival"
           },
           "qualifier_quotes": {
             "object_aspect_qualifier": "survival"
           },
-          "rationale": "Dichlobenil is one of the separately named treatments providing greater control."
+          "pmcid": "PMC12713700",
+          "quote_sha256": "f5b6ddbc4b1a3707e7dfe96f9326d6c8b33ad9eda5af8e23edf48cd9859b6dad",
+          "rationale": "Consensus: 'provided greater control' supports three product arms with survival as the endpoint aspect; no population or timing is imported, and the agreed weed endpoint is inherited without full-text verification."
         },
         "provenance": {
-          "kind": "adjudicated",
-          "decision": "G003",
-          "side": "a",
-          "index": 44
+          "kind": "reference_adjudicated",
+          "decision": "E11",
+          "selection": {
+            "kind": "accepted",
+            "index": 1
+          }
         }
       }
     },
     {
       "source_row": 27,
-      "decision": "G003",
+      "applied": false,
+      "review_rationale": "'Greater control' and '< 13% survival' do not identify the affected weed.",
+      "decision": "E11",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 2
+      },
       "before": {
         "polarity": "supports",
         "qualifiers": {
@@ -149,35 +1339,403 @@
           "object_aspect_qualifier": "survival"
         }
       },
-      "rationale": "'napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival'; the agreed Poa annua core is inherited from both full-text annotators, not independently verified from this sentence.",
+      "rationale": "Consensus: 'provided greater control' supports three product arms with survival as the endpoint aspect; no population or timing is imported, and the agreed weed endpoint is inherited without full-text verification.",
       "annotation": {
         "annotation": {
-          "pmcid": "PMC12713700",
           "src": "pyroxasulfone",
           "src_type": "ActiveIngredient",
           "relation": "controls",
           "dst": "Poa annua",
           "dst_type": "Weed",
           "polarity": "supports",
-          "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival.",
           "qualifiers": {
             "object_aspect_qualifier": "survival"
           },
           "qualifier_quotes": {
             "object_aspect_qualifier": "survival"
           },
-          "rationale": "Pyroxasulfone is one of the separately named treatments providing greater control."
+          "pmcid": "PMC12713700",
+          "quote_sha256": "f5b6ddbc4b1a3707e7dfe96f9326d6c8b33ad9eda5af8e23edf48cd9859b6dad",
+          "rationale": "Consensus: 'provided greater control' supports three product arms with survival as the endpoint aspect; no population or timing is imported, and the agreed weed endpoint is inherited without full-text verification."
         },
         "provenance": {
-          "kind": "adjudicated",
-          "decision": "G003",
-          "side": "a",
-          "index": 45
+          "kind": "reference_adjudicated",
+          "decision": "E11",
+          "selection": {
+            "kind": "accepted",
+            "index": 2
+          }
+        }
+      }
+    },
+    {
+      "source_row": 28,
+      "decision": "R08",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "before": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "population_context_qualifier": "michigan2020sampledisolates"
+        }
+      },
+      "after": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "study_context": "other:2020",
+          "population_context_qualifier": "bothlocations"
+        }
+      },
+      "rationale": "Consensus: 'no resistant isolate was observed' denotes three measured absence claims, not demonstrated control or refutation; the agreed species endpoint is inherited without full-text verification.",
+      "annotation": {
+        "annotation": {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "fludioxonil",
+          "dst_type": "ActiveIngredient",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "study_context": "2020",
+            "population_context_qualifier": "both locations"
+          },
+          "qualifier_quotes": {
+            "study_context": "2020",
+            "population_context_qualifier": "both locations"
+          },
+          "pmcid": "PMC11298438",
+          "quote_sha256": "7420ceb380648f2b6b7069979d0e28989511c194d616a9572f8d255c244ce3e2",
+          "rationale": "Consensus: 'no resistant isolate was observed' denotes three measured absence claims, not demonstrated control or refutation; the agreed species endpoint is inherited without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "R08",
+          "selection": {
+            "kind": "accepted",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 29,
+      "decision": "R08",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 1
+      },
+      "before": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "population_context_qualifier": "michigan2020sampledisolates"
+        }
+      },
+      "after": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "study_context": "other:2020",
+          "population_context_qualifier": "bothlocations"
+        }
+      },
+      "rationale": "Consensus: 'no resistant isolate was observed' denotes three measured absence claims, not demonstrated control or refutation; the agreed species endpoint is inherited without full-text verification.",
+      "annotation": {
+        "annotation": {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "fenhexamid",
+          "dst_type": "ActiveIngredient",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "study_context": "2020",
+            "population_context_qualifier": "both locations"
+          },
+          "qualifier_quotes": {
+            "study_context": "2020",
+            "population_context_qualifier": "both locations"
+          },
+          "pmcid": "PMC11298438",
+          "quote_sha256": "7420ceb380648f2b6b7069979d0e28989511c194d616a9572f8d255c244ce3e2",
+          "rationale": "Consensus: 'no resistant isolate was observed' denotes three measured absence claims, not demonstrated control or refutation; the agreed species endpoint is inherited without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "R08",
+          "selection": {
+            "kind": "accepted",
+            "index": 1
+          }
+        }
+      }
+    },
+    {
+      "source_row": 30,
+      "decision": "R08",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "accepted",
+        "index": 2
+      },
+      "before": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "population_context_qualifier": "michigan2020sampledisolates"
+        }
+      },
+      "after": {
+        "polarity": "no_effect",
+        "qualifiers": {
+          "study_context": "other:2020",
+          "population_context_qualifier": "bothlocations"
+        }
+      },
+      "rationale": "Consensus: 'no resistant isolate was observed' denotes three measured absence claims, not demonstrated control or refutation; the agreed species endpoint is inherited without full-text verification.",
+      "annotation": {
+        "annotation": {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "iprodione",
+          "dst_type": "ActiveIngredient",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "study_context": "2020",
+            "population_context_qualifier": "both locations"
+          },
+          "qualifier_quotes": {
+            "study_context": "2020",
+            "population_context_qualifier": "both locations"
+          },
+          "pmcid": "PMC11298438",
+          "quote_sha256": "7420ceb380648f2b6b7069979d0e28989511c194d616a9572f8d255c244ce3e2",
+          "rationale": "Consensus: 'no resistant isolate was observed' denotes three measured absence claims, not demonstrated control or refutation; the agreed species endpoint is inherited without full-text verification."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "R08",
+          "selection": {
+            "kind": "accepted",
+            "index": 2
+          }
+        }
+      }
+    },
+    {
+      "source_row": 31,
+      "applied": false,
+      "review_rationale": "“Two phenotypes” identifies distinct resistance variants, while “B. cinerea populations” supplies their population context and “all 3 years” their study context.",
+      "decision": "R09",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "collective",
+        "index": 0
+      },
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "population_context_qualifier": "michigan20192020and2022sampledpopulations"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "population_context_qualifier": "bcinereapopulations",
+          "study_context": "other:all 3 years"
+        }
+      },
+      "rationale": "'Two phenotypes' warrants separate four-member and three-member phenotype arms, using the variant qualifier rather than collapsing population scope; no unlisted null is implied, and species expansion is inherited without full-text verification. The three shared resistance endpoints also permit broader collective projections under 'B. cinerea populations' and 'all 3 years', not extra independent observations or universal individual-level claims; cyprodinil lacks an assertion for the second phenotype, so no shared projection or inferred null is added.",
+      "annotation": {
+        "annotation": {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "pyraclostrobin",
+          "dst_type": "ActiveIngredient",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "B. cinerea populations",
+            "study_context": "all 3 years"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "B. cinerea populations",
+            "study_context": "all 3 years"
+          },
+          "pmcid": "PMC11298438",
+          "quote_sha256": "bb06d713bc02236b7d20473aefb857209ded61bad22690107721d79ec3903909",
+          "rationale": "'Two phenotypes' warrants separate four-member and three-member phenotype arms, using the variant qualifier rather than collapsing population scope; no unlisted null is implied, and species expansion is inherited without full-text verification. The three shared resistance endpoints also permit broader collective projections under 'B. cinerea populations' and 'all 3 years', not extra independent observations or universal individual-level claims; cyprodinil lacks an assertion for the second phenotype, so no shared projection or inferred null is added."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "R09",
+          "selection": {
+            "kind": "collective",
+            "index": 0
+          }
+        }
+      }
+    },
+    {
+      "source_row": 32,
+      "applied": false,
+      "review_rationale": "“Two phenotypes” identifies distinct resistance variants, while “B. cinerea populations” supplies their population context and “all 3 years” their study context.",
+      "decision": "R09",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "collective",
+        "index": 1
+      },
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "population_context_qualifier": "michigan20192020and2022sampledpopulations"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "population_context_qualifier": "bcinereapopulations",
+          "study_context": "other:all 3 years"
+        }
+      },
+      "rationale": "'Two phenotypes' warrants separate four-member and three-member phenotype arms, using the variant qualifier rather than collapsing population scope; no unlisted null is implied, and species expansion is inherited without full-text verification. The three shared resistance endpoints also permit broader collective projections under 'B. cinerea populations' and 'all 3 years', not extra independent observations or universal individual-level claims; cyprodinil lacks an assertion for the second phenotype, so no shared projection or inferred null is added.",
+      "annotation": {
+        "annotation": {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "boscalid",
+          "dst_type": "ActiveIngredient",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "B. cinerea populations",
+            "study_context": "all 3 years"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "B. cinerea populations",
+            "study_context": "all 3 years"
+          },
+          "pmcid": "PMC11298438",
+          "quote_sha256": "bb06d713bc02236b7d20473aefb857209ded61bad22690107721d79ec3903909",
+          "rationale": "'Two phenotypes' warrants separate four-member and three-member phenotype arms, using the variant qualifier rather than collapsing population scope; no unlisted null is implied, and species expansion is inherited without full-text verification. The three shared resistance endpoints also permit broader collective projections under 'B. cinerea populations' and 'all 3 years', not extra independent observations or universal individual-level claims; cyprodinil lacks an assertion for the second phenotype, so no shared projection or inferred null is added."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "R09",
+          "selection": {
+            "kind": "collective",
+            "index": 1
+          }
+        }
+      }
+    },
+    {
+      "source_row": 33,
+      "applied": false,
+      "review_rationale": "“Two phenotypes” identifies distinct resistance variants, while “B. cinerea populations” supplies their population context and “all 3 years” their study context.",
+      "decision": "R09",
+      "decision_file": "annotations/reference-adjudication.json",
+      "selection": {
+        "kind": "collective",
+        "index": 2
+      },
+      "before": {
+        "polarity": "supports",
+        "qualifiers": {
+          "population_context_qualifier": "michigan20192020and2022sampledpopulations"
+        }
+      },
+      "after": {
+        "polarity": "supports",
+        "qualifiers": {
+          "population_context_qualifier": "bcinereapopulations",
+          "study_context": "other:all 3 years"
+        }
+      },
+      "rationale": "'Two phenotypes' warrants separate four-member and three-member phenotype arms, using the variant qualifier rather than collapsing population scope; no unlisted null is implied, and species expansion is inherited without full-text verification. The three shared resistance endpoints also permit broader collective projections under 'B. cinerea populations' and 'all 3 years', not extra independent observations or universal individual-level claims; cyprodinil lacks an assertion for the second phenotype, so no shared projection or inferred null is added.",
+      "annotation": {
+        "annotation": {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "thiabendazole",
+          "dst_type": "ActiveIngredient",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "B. cinerea populations",
+            "study_context": "all 3 years"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "B. cinerea populations",
+            "study_context": "all 3 years"
+          },
+          "pmcid": "PMC11298438",
+          "quote_sha256": "bb06d713bc02236b7d20473aefb857209ded61bad22690107721d79ec3903909",
+          "rationale": "'Two phenotypes' warrants separate four-member and three-member phenotype arms, using the variant qualifier rather than collapsing population scope; no unlisted null is implied, and species expansion is inherited without full-text verification. The three shared resistance endpoints also permit broader collective projections under 'B. cinerea populations' and 'all 3 years', not extra independent observations or universal individual-level claims; cyprodinil lacks an assertion for the second phenotype, so no shared projection or inferred null is added."
+        },
+        "provenance": {
+          "kind": "reference_adjudicated",
+          "decision": "R09",
+          "selection": {
+            "kind": "collective",
+            "index": 2
+          }
         }
       }
     }
   ],
   "unresolved_scope_rows": [],
-  "policy": "Only explicit adjudicated choices with exact paper, core and quote are eligible. Shared qualifier values must agree after existing normalization; maximize shared scope without consulting polarity. Ambiguous ties remain unchanged. Earlier gold is immutable.",
-  "not_reviewed": "Unmatched or excluded reference rows are preserved, not independently confirmed."
+  "policy": "Every aligned reference row requires two independent annotation records or one annotation plus explicit adjudication, bound to its asserting span. Only explicit adjudicated sentence scope may change the new siblings; earlier gold remains immutable.",
+  "review_coverage": {
+    "file": "annotations/reference-review.json",
+    "reference_rows": 34,
+    "targeted_inputs": "annotations/reference-inputs.json",
+    "targeted_agreement": "annotations/reference-agreement.json",
+    "original_free_enumeration_agreement": "annotations/agreement.json"
+  },
+  "fix_changes": {
+    "baseline": "0b783485d73ab6b534df4e5a4e809ab13ba0f804",
+    "qualifier_changed_rows": [
+      1,
+      2,
+      3,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      12,
+      13,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34
+    ],
+    "confirmed_unchanged_rows": [
+      4,
+      11,
+      14,
+      15,
+      26,
+      27,
+      28
+    ],
+    "polarity_changed_rows": []
+  }
 }

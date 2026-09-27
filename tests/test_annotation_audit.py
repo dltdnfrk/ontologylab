@@ -245,15 +245,24 @@ def test_pre_adjudication_receipts_recompute_and_old_gold_is_immutable():
     assert result["agrochem-polarity"]["agreement"]["a_statements"] > 0
 
 
+def test_every_aligned_reference_row_has_a_reviewed_disposition() -> None:
+    # Exercise the same source/evidence boundary as the offline audit CLI.
+    assert AUDIT["reference_coverage"](GOLD) == 34
+
+
 def test_gold_changes_are_only_explicit_adjudicated_source_scope():
     # Given: immutable reference rows and separately versioned adjudication.
     changes = json.loads((GOLD / "gold-change-record.json").read_text())["changes"]
+    reviews = json.loads((GOLD / "annotations/reference-review.json").read_text())["rows"]
     decisions = {d["id"]: d for d in json.loads(
         (GOLD / "annotations/adjudication.json").read_text()
     )["decisions"]}
+    decisions.update({d["id"]: d for d in json.loads(
+        (GOLD / "annotations/reference-adjudication.json").read_text()
+    )["decisions"]})
     allowed = {"polarity", "qualifiers", "qualifier_quotes", "char_start", "char_end",
                "annotation_decision"}
-    # When / Then: every changed field is traceable; unreviewed rows stay verbatim.
+    # When / Then: every changed field is traceable; confirmed rows stay verbatim.
     for before_file, after_file in (
         ("gold-aligned.json", "gold-adjudicated.json"),
         ("gold-aligned-qualified.json", "gold-adjudicated-qualified.json"),
@@ -268,7 +277,13 @@ def test_gold_changes_are_only_explicit_adjudicated_source_scope():
                 assert new == old
                 continue
             change = by_row[index]
-            assert change["rationale"] == decisions[change["decision"]]["rationale"]
+            if change.get("applied") is False:
+                assert reviews[index]["adjudicated_selection"]["kind"] == "rejected"
+                assert change["review_rationale"] == decisions[change["decision"]]["rationale"]
+                assert new == old
+                continue
+            decision = decisions[change["decision"]]
+            assert change["rationale"] == decision.get("change_rationale", decision["rationale"])
             assert new["annotation_decision"] == change["decision"]
             assert {k: v for k, v in new.items() if k not in allowed} == {
                 k: v for k, v in old.items() if k not in allowed
@@ -276,7 +291,15 @@ def test_gold_changes_are_only_explicit_adjudicated_source_scope():
             annotation = change["annotation"]["annotation"]
             assert new["polarity"] == annotation["polarity"]
             assert normalize_statement_qualifiers(new["qualifiers"]) == change["after"]["qualifiers"]
-            assert new["span"]["quote"] == annotation["quote"]
+            if "quote" in annotation:
+                assert new["span"]["quote"] == annotation["quote"]
+            else:
+                # New records cite existing sentences without duplicating incidental
+                # operational content; the actual span still passes source binding.
+                quote = new["span"]["quote"]
+                assert hashlib.sha256(quote.encode()).hexdigest() == annotation["quote_sha256"]
+                text = (GOLD / "sources/full" / f"{new['pmcid']}.txt").read_text()
+                AUDIT["bind_annotation"]({**annotation, "quote": quote}, text)
 
 
 def test_blind_vocabulary_is_exactly_the_existing_schema():
