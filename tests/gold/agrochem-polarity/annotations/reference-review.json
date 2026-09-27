@@ -1,0 +1,1382 @@
+{
+  "version": "reference-row-review-v1",
+  "reference": "gold-aligned.json",
+  "model_review": "Independent model contexts, not a new human expert review.",
+  "rows": [
+    {
+      "source_row": 0,
+      "row": 1,
+      "pmcid": "PMC12632097",
+      "span": {
+        "start": 21912,
+        "end": 21980
+      },
+      "char_start": 21346,
+      "char_end": 21414,
+      "disposition": "reviewed_two_annotators",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R01",
+          "indices": [
+            0
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R01",
+          "indices": [
+            0
+          ]
+        }
+      ],
+      "citation": "very effective at reducing the growth",
+      "rationale": "very effective at reducing the growth: two blinded annotation records identify the asserted arm in this source span.",
+      "adjudicated_selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "granularity": "one",
+      "aligned_disposition": "qualifiers_changed",
+      "disposition_against_start": "qualifiers_changed"
+    },
+    {
+      "source_row": 1,
+      "row": 2,
+      "pmcid": "PMC12632097",
+      "span": {
+        "start": 22269,
+        "end": 22410
+      },
+      "char_start": 21691,
+      "char_end": 21832,
+      "disposition": "reviewed_two_annotators",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R02",
+          "indices": [
+            0
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R02",
+          "indices": [
+            0
+          ]
+        }
+      ],
+      "citation": "significantly reduced the growth",
+      "rationale": "significantly reduced the growth: two blinded annotation records identify the asserted arm in this source span.",
+      "adjudicated_selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "granularity": "one",
+      "aligned_disposition": "qualifiers_changed",
+      "disposition_against_start": "qualifiers_changed"
+    },
+    {
+      "source_row": 2,
+      "row": 3,
+      "pmcid": "PMC12632097",
+      "span": {
+        "start": 23205,
+        "end": 23307
+      },
+      "char_start": 22604,
+      "char_end": 22706,
+      "disposition": "reviewed_two_annotators",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R03",
+          "indices": [
+            0
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R03",
+          "indices": [
+            0
+          ]
+        }
+      ],
+      "citation": "significantly reduced the growth",
+      "rationale": "significantly reduced the growth: two blinded annotation records identify the asserted arm in this source span.",
+      "adjudicated_selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "granularity": "one",
+      "aligned_disposition": "qualifiers_changed",
+      "disposition_against_start": "qualifiers_changed"
+    },
+    {
+      "source_row": 3,
+      "row": 4,
+      "pmcid": "PMC12632097",
+      "span": {
+        "start": 37696,
+        "end": 37921
+      },
+      "char_start": 36630,
+      "char_end": 36848,
+      "disposition": "reviewed_two_annotators",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R04",
+          "indices": [
+            0
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R04",
+          "indices": [
+            0
+          ]
+        }
+      ],
+      "citation": "no significant difference between the bubble development",
+      "rationale": "no significant difference between the bubble development: two blinded annotation records identify the asserted arm in this source span.",
+      "adjudicated_selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "granularity": "several",
+      "aligned_disposition": "confirmed_unchanged",
+      "disposition_against_start": "confirmed_unchanged"
+    },
+    {
+      "source_row": 4,
+      "row": 5,
+      "pmcid": "PMC12632097",
+      "span": {
+        "start": 37696,
+        "end": 37921
+      },
+      "char_start": 36630,
+      "char_end": 36848,
+      "disposition": "reviewed_two_annotators",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R04",
+          "indices": [
+            1
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R04",
+          "indices": [
+            1
+          ]
+        }
+      ],
+      "citation": "no significant difference between the bubble development",
+      "rationale": "no significant difference between the bubble development: two blinded annotation records identify the asserted arm in this source span.",
+      "adjudicated_selection": {
+        "kind": "accepted",
+        "index": 1
+      },
+      "granularity": "several",
+      "aligned_disposition": "qualifiers_changed",
+      "disposition_against_start": "qualifiers_changed"
+    },
+    {
+      "source_row": 5,
+      "row": 6,
+      "pmcid": "PMC12632097",
+      "span": {
+        "start": 37696,
+        "end": 37921
+      },
+      "char_start": 36630,
+      "char_end": 36848,
+      "disposition": "reviewed_two_annotators",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R04",
+          "indices": [
+            2
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R04",
+          "indices": [
+            2
+          ]
+        }
+      ],
+      "citation": "no significant difference between the bubble development",
+      "rationale": "no significant difference between the bubble development: two blinded annotation records identify the asserted arm in this source span.",
+      "adjudicated_selection": {
+        "kind": "accepted",
+        "index": 2
+      },
+      "granularity": "several",
+      "aligned_disposition": "qualifiers_changed",
+      "disposition_against_start": "qualifiers_changed"
+    },
+    {
+      "source_row": 6,
+      "row": 7,
+      "pmcid": "PMC12546283",
+      "span": {
+        "start": 24161,
+        "end": 24362
+      },
+      "char_start": 23729,
+      "char_end": 23921,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            6
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            12
+          ]
+        }
+      ],
+      "citation": "did not reduce oviposition",
+      "rationale": "did not reduce oviposition: reviewed; The sentence names products and 'oviposition' but no pest endpoint.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E01"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 7,
+      "row": 8,
+      "pmcid": "PMC12546283",
+      "span": {
+        "start": 24161,
+        "end": 24362
+      },
+      "char_start": 23729,
+      "char_end": 23921,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            7
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            13
+          ]
+        }
+      ],
+      "citation": "did not reduce oviposition",
+      "rationale": "did not reduce oviposition: reviewed; The sentence names products and 'oviposition' but no pest endpoint.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E01"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 8,
+      "row": 9,
+      "pmcid": "PMC12546283",
+      "span": {
+        "start": 24161,
+        "end": 24362
+      },
+      "char_start": 23729,
+      "char_end": 23921,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            8
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            14
+          ]
+        }
+      ],
+      "citation": "both reduced oviposition",
+      "rationale": "both reduced oviposition: reviewed; The sentence names products and 'oviposition' but no pest endpoint.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E01"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 9,
+      "row": 10,
+      "pmcid": "PMC12546283",
+      "span": {
+        "start": 24161,
+        "end": 24362
+      },
+      "char_start": 23729,
+      "char_end": 23921,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            9
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            15
+          ]
+        }
+      ],
+      "citation": "both reduced oviposition",
+      "rationale": "both reduced oviposition: reviewed; The sentence names products and 'oviposition' but no pest endpoint.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E01"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 10,
+      "row": 11,
+      "pmcid": "PMC12546283",
+      "span": {
+        "start": 33159,
+        "end": 33246
+      },
+      "char_start": 32427,
+      "char_end": 32510,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            10
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            16
+          ]
+        }
+      ],
+      "citation": "were ineffective in the field",
+      "rationale": "were ineffective in the field: reviewed; 'Ineffective in the field' does not name the pest being controlled.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E02"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "one",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 11,
+      "row": 12,
+      "pmcid": "PMC12546283",
+      "span": {
+        "start": 21918,
+        "end": 21986
+      },
+      "char_start": 21631,
+      "char_end": 21699,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            5
+          ]
+        }
+      ],
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E03"
+      },
+      "citation": "PB alone did not significantly affect mortality",
+      "rationale": "PB alone did not significantly affect mortality: reviewed; 'Did not significantly affect mortality' does not identify whose mortality was measured.",
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 12,
+      "row": 13,
+      "pmcid": "PMC12546283",
+      "span": {
+        "start": 21742,
+        "end": 21917
+      },
+      "char_start": 21467,
+      "char_end": 21630,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            3
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            3
+          ]
+        }
+      ],
+      "citation": "mortality was higher",
+      "rationale": "mortality was higher: reviewed; 'Mortality was higher' does not identify the affected pest.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E04"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "one",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 13,
+      "row": 14,
+      "pmcid": "PMC12563837",
+      "span": {
+        "start": 24273,
+        "end": 24489
+      },
+      "char_start": 24120,
+      "char_end": 24332,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            17
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            33
+          ]
+        }
+      ],
+      "citation": "0%",
+      "rationale": "0%: reviewed; 'The R population' is not identified as blackgrass or another weed in this sentence.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E05"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 14,
+      "row": 15,
+      "pmcid": "PMC12563837",
+      "span": {
+        "start": 24273,
+        "end": 24489
+      },
+      "char_start": 24120,
+      "char_end": 24332,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            18
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            34
+          ]
+        }
+      ],
+      "citation": "0%",
+      "rationale": "0%: reviewed; 'The R population' is not identified as blackgrass or another weed in this sentence.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E05"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 15,
+      "row": 16,
+      "pmcid": "PMC12563837",
+      "span": {
+        "start": 24490,
+        "end": 24655
+      },
+      "char_start": 24333,
+      "char_end": 24494,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            19
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            41
+          ]
+        }
+      ],
+      "citation": "0%, 48%, 83%, and 89% fresh weight reduction",
+      "rationale": "0%, 48%, 83%, and 89% fresh weight reduction: reviewed; 'Fresh weight reduction' does not identify the affected weed.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E06"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 16,
+      "row": 17,
+      "pmcid": "PMC12563837",
+      "span": {
+        "start": 29239,
+        "end": 29547
+      },
+      "char_start": 29028,
+      "char_end": 29336,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R05",
+          "indices": [
+            0
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R05",
+          "indices": [
+            0
+          ]
+        }
+      ],
+      "citation": "treated only with PBO did not differ",
+      "rationale": "treated only with PBO did not differ: two blinded annotation records require the recorded adjudication.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "R05"
+      },
+      "adjudicated_selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "granularity": "several",
+      "aligned_disposition": "qualifiers_changed",
+      "disposition_against_start": "qualifiers_changed"
+    },
+    {
+      "source_row": 17,
+      "row": 18,
+      "pmcid": "PMC12563837",
+      "span": {
+        "start": 27082,
+        "end": 27316
+      },
+      "char_start": 26875,
+      "char_end": 27107,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            32
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            51
+          ]
+        }
+      ],
+      "citation": "provided 97–98% fresh weight reduction",
+      "rationale": "The asserting span \"provided 97–98% fresh weight reduction\" establishes supports; apply the cited adjudicated sentence-only scope.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E07"
+      },
+      "adjudicated_selection": {
+        "kind": "corrected",
+        "index": 0
+      },
+      "granularity": "several",
+      "aligned_disposition": "qualifiers_changed",
+      "disposition_against_start": "qualifiers_changed"
+    },
+    {
+      "source_row": 18,
+      "row": 19,
+      "pmcid": "PMC12563837",
+      "span": {
+        "start": 27082,
+        "end": 27316
+      },
+      "char_start": 26875,
+      "char_end": 27107,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            33
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            52
+          ]
+        }
+      ],
+      "citation": "provided 97–98% fresh weight reduction",
+      "rationale": "The asserting span \"provided 97–98% fresh weight reduction\" establishes supports; apply the cited adjudicated sentence-only scope.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E07"
+      },
+      "adjudicated_selection": {
+        "kind": "corrected",
+        "index": 2
+      },
+      "granularity": "several",
+      "aligned_disposition": "qualifiers_changed",
+      "disposition_against_start": "qualifiers_changed"
+    },
+    {
+      "source_row": 19,
+      "row": 20,
+      "pmcid": "PMC12563837",
+      "span": {
+        "start": 31412,
+        "end": 31680
+      },
+      "char_start": 31181,
+      "char_end": 31449,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R06",
+          "indices": [
+            0
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R06",
+          "indices": [
+            0
+          ]
+        }
+      ],
+      "citation": "significantly decreased with increasing density",
+      "rationale": "significantly decreased with increasing density: reviewed; The sentence attributes the decrease to “increasing density of the R and S blackgrass populations,” but names no chemical product or active ingredient required by the protocol’s scope.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "R06"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 20,
+      "row": 21,
+      "pmcid": "PMC12713700",
+      "span": {
+        "start": 33716,
+        "end": 33974
+      },
+      "char_start": 32333,
+      "char_end": 32582,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            35
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            55,
+            56
+          ]
+        }
+      ],
+      "citation": "was not statistically different from the non‐treated control",
+      "rationale": "was not statistically different from the non‐treated control: reviewed; 'Inconsistent control' and 'non‐treated control' do not name the weed endpoint.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E08"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "one",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 21,
+      "row": 22,
+      "pmcid": "PMC12713700",
+      "span": {
+        "start": 33975,
+        "end": 34130
+      },
+      "char_start": 32583,
+      "char_end": 32732,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            36
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            57
+          ]
+        }
+      ],
+      "citation": "was also ineffective",
+      "rationale": "The asserting span \"was also ineffective\" establishes no_effect; apply the cited adjudicated sentence-only scope.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E09"
+      },
+      "adjudicated_selection": {
+        "kind": "corrected",
+        "index": 0
+      },
+      "granularity": "one",
+      "aligned_disposition": "qualifiers_changed",
+      "disposition_against_start": "qualifiers_changed"
+    },
+    {
+      "source_row": 22,
+      "row": 23,
+      "pmcid": "PMC12713700",
+      "span": {
+        "start": 32170,
+        "end": 32313
+      },
+      "char_start": 30827,
+      "char_end": 30960,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R07",
+          "indices": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R07",
+          "indices": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "citation": "was ineffective across several accessions",
+      "rationale": "was ineffective across several accessions: reviewed; The quote says “several accessions” but does not identify them as Poa annua, so neither reviewer’s named weed endpoint is grounded in the supplied sentence.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "R07"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 23,
+      "row": 24,
+      "pmcid": "PMC12713700",
+      "span": {
+        "start": 31965,
+        "end": 32080
+      },
+      "char_start": 30625,
+      "char_end": 30738,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            40
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            58
+          ]
+        }
+      ],
+      "citation": "remained effective",
+      "rationale": "remained effective: reviewed; 'All resistant accessions' does not identify the weed whose survival was measured.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E10"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 24,
+      "row": 25,
+      "pmcid": "PMC12713700",
+      "span": {
+        "start": 31965,
+        "end": 32080
+      },
+      "char_start": 30625,
+      "char_end": 30738,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            41
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            59
+          ]
+        }
+      ],
+      "citation": "remained effective",
+      "rationale": "remained effective: reviewed; 'All resistant accessions' does not identify the weed whose survival was measured.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E10"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 25,
+      "row": 26,
+      "pmcid": "PMC12713700",
+      "span": {
+        "start": 32440,
+        "end": 32553
+      },
+      "char_start": 31087,
+      "char_end": 31198,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            43
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            60
+          ]
+        }
+      ],
+      "citation": "provided greater control",
+      "rationale": "provided greater control: reviewed; 'Greater control' and '< 13% survival' do not identify the affected weed.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E11"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 26,
+      "row": 27,
+      "pmcid": "PMC12713700",
+      "span": {
+        "start": 32440,
+        "end": 32553
+      },
+      "char_start": 31087,
+      "char_end": 31198,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            44
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            61
+          ]
+        }
+      ],
+      "citation": "provided greater control",
+      "rationale": "provided greater control: reviewed; 'Greater control' and '< 13% survival' do not identify the affected weed.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E11"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 27,
+      "row": 28,
+      "pmcid": "PMC12713700",
+      "span": {
+        "start": 32440,
+        "end": 32553
+      },
+      "char_start": 31087,
+      "char_end": 31198,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "annotator-a.json",
+          "indices": [
+            45
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "annotator-b.json",
+          "indices": [
+            62
+          ]
+        }
+      ],
+      "citation": "provided greater control",
+      "rationale": "provided greater control: reviewed; 'Greater control' and '< 13% survival' do not identify the affected weed.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "E11"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 28,
+      "row": 29,
+      "pmcid": "PMC11298438",
+      "span": {
+        "start": 16877,
+        "end": 16981
+      },
+      "char_start": 16680,
+      "char_end": 16784,
+      "disposition": "reviewed_two_annotators",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R08",
+          "indices": [
+            0
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R08",
+          "indices": [
+            0
+          ]
+        }
+      ],
+      "citation": "no resistant isolate was observed",
+      "rationale": "no resistant isolate was observed: two blinded annotation records identify the asserted arm in this source span.",
+      "adjudicated_selection": {
+        "kind": "accepted",
+        "index": 0
+      },
+      "granularity": "several",
+      "aligned_disposition": "qualifiers_changed",
+      "disposition_against_start": "qualifiers_changed"
+    },
+    {
+      "source_row": 29,
+      "row": 30,
+      "pmcid": "PMC11298438",
+      "span": {
+        "start": 16877,
+        "end": 16981
+      },
+      "char_start": 16680,
+      "char_end": 16784,
+      "disposition": "reviewed_two_annotators",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R08",
+          "indices": [
+            1
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R08",
+          "indices": [
+            1
+          ]
+        }
+      ],
+      "citation": "no resistant isolate was observed",
+      "rationale": "no resistant isolate was observed: two blinded annotation records identify the asserted arm in this source span.",
+      "adjudicated_selection": {
+        "kind": "accepted",
+        "index": 1
+      },
+      "granularity": "several",
+      "aligned_disposition": "qualifiers_changed",
+      "disposition_against_start": "qualifiers_changed"
+    },
+    {
+      "source_row": 30,
+      "row": 31,
+      "pmcid": "PMC11298438",
+      "span": {
+        "start": 16877,
+        "end": 16981
+      },
+      "char_start": 16680,
+      "char_end": 16784,
+      "disposition": "reviewed_two_annotators",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R08",
+          "indices": [
+            2
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R08",
+          "indices": [
+            2
+          ]
+        }
+      ],
+      "citation": "no resistant isolate was observed",
+      "rationale": "no resistant isolate was observed: two blinded annotation records identify the asserted arm in this source span.",
+      "adjudicated_selection": {
+        "kind": "accepted",
+        "index": 2
+      },
+      "granularity": "several",
+      "aligned_disposition": "qualifiers_changed",
+      "disposition_against_start": "qualifiers_changed"
+    },
+    {
+      "source_row": 31,
+      "row": 32,
+      "pmcid": "PMC11298438",
+      "span": {
+        "start": 17552,
+        "end": 17757
+      },
+      "char_start": 17341,
+      "char_end": 17544,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R09",
+          "indices": [
+            0,
+            4
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R09",
+          "indices": [
+            0,
+            4
+          ]
+        }
+      ],
+      "citation": "were commonly observed in B. cinerea populations in all 3 years",
+      "rationale": "were commonly observed in B. cinerea populations in all 3 years: reviewed; “Two phenotypes” identifies distinct resistance variants, while “B. cinerea populations” supplies their population context and “all 3 years” their study context.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "R09"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 32,
+      "row": 33,
+      "pmcid": "PMC11298438",
+      "span": {
+        "start": 17552,
+        "end": 17757
+      },
+      "char_start": 17341,
+      "char_end": 17544,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R09",
+          "indices": [
+            1,
+            5
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R09",
+          "indices": [
+            1,
+            5
+          ]
+        }
+      ],
+      "citation": "were commonly observed in B. cinerea populations in all 3 years",
+      "rationale": "were commonly observed in B. cinerea populations in all 3 years: reviewed; “Two phenotypes” identifies distinct resistance variants, while “B. cinerea populations” supplies their population context and “all 3 years” their study context.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "R09"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    },
+    {
+      "source_row": 33,
+      "row": 34,
+      "pmcid": "PMC11298438",
+      "span": {
+        "start": 17552,
+        "end": 17757
+      },
+      "char_start": 17341,
+      "char_end": 17544,
+      "disposition": "reviewed_adjudicated",
+      "reviews": [
+        {
+          "annotator": "a",
+          "file": "reference-annotator-a.json",
+          "packet_id": "R09",
+          "indices": [
+            2,
+            6
+          ]
+        },
+        {
+          "annotator": "b",
+          "file": "reference-annotator-b.json",
+          "packet_id": "R09",
+          "indices": [
+            2,
+            6
+          ]
+        }
+      ],
+      "citation": "were commonly observed in B. cinerea populations in all 3 years",
+      "rationale": "were commonly observed in B. cinerea populations in all 3 years: reviewed; “Two phenotypes” identifies distinct resistance variants, while “B. cinerea populations” supplies their population context and “all 3 years” their study context.",
+      "adjudication": {
+        "file": "reference-adjudication.json",
+        "id": "R09"
+      },
+      "adjudicated_selection": {
+        "kind": "rejected"
+      },
+      "granularity": "several",
+      "aligned_disposition": "reviewed_rejected",
+      "disposition_against_start": "reviewed_rejected"
+    }
+  ],
+  "comparison_baseline": "0b783485d73ab6b534df4e5a4e809ab13ba0f804",
+  "grouping_policy": "Keep the 34 existing reference row identities; split-arm decisions remain explicit, and collective projections for R07/R09 are labeled broader projections, not additional observations."
+}

@@ -1,0 +1,56 @@
+{
+  "version": "targeted-reference-review-v1",
+  "task_names": [
+    "reference-annotator-a",
+    "reference-annotator-b"
+  ],
+  "task_ids": [
+    "st_01a0e394",
+    "st_01a0e395"
+  ],
+  "inputs": [
+    "tests/gold/agrochem-polarity/annotation-protocol.md",
+    "tests/gold/agrochem-polarity/annotation-vocabulary.json",
+    "tests/gold/agrochem-polarity/sources/full/PMC12632097.txt",
+    "tests/gold/agrochem-polarity/sources/full/PMC12563837.txt",
+    "tests/gold/agrochem-polarity/sources/full/PMC12713700.txt",
+    "tests/gold/agrochem-polarity/sources/full/PMC11298438.txt"
+  ],
+  "prompt_sha256": "6fd65b6ca1fd9473fed1e1b9028a628394599e1db1b182d79de29b5ba0f66d81",
+  "packet_binding": "reference-inputs.json",
+  "payload": "Only protocol, vocabulary, containing stored full texts and asserting quotes; packet IDs are opaque and carry no gold label or row number.",
+  "output_contract": "Review each packet for one/several statements, polarity and literal non-operational qualifier values; return citation, rationale and files_read. Do not repeat a complete quote containing incidental operational biological material.",
+  "exclusions": [
+    "gold labels, relations and qualifiers",
+    "other annotator output",
+    "extraction/scorer output",
+    "trial evidence",
+    "memory notes",
+    "session transcripts",
+    "methods/culture/treatment-schedule transcription",
+    "operational biological parameters"
+  ],
+  "targeted_override": "Review every supplied asserting sentence, including nonchemical endpoints; incidental operational biological content is not transcribed or represented as qualifiers.",
+  "limitations": "Fresh model contexts, not independent human annotators. This targeted reference review is distinct from original free enumeration.",
+  "work_root": "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37",
+  "adjudicator": {
+    "task_name": "reference-adjudicator",
+    "task_id": "st_01a0e39d",
+    "protocol": "tests/gold/agrochem-polarity/annotation-protocol.md",
+    "initial_prompt_sha256": "77766c4f4acfd14e8b314467f64702577c0c9b70a773e1d5513d6016ed72112e",
+    "additional_packets": [
+      "E01",
+      "E02",
+      "E03",
+      "E04",
+      "E05",
+      "E06",
+      "E07",
+      "E08",
+      "E09",
+      "E10",
+      "E11"
+    ],
+    "inputs": "Only protocol, asserting quotes and both completed annotations, including inherited endpoint spellings; never gold or full texts."
+  }
+}

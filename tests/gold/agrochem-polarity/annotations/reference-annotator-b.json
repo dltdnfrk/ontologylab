@@ -1,0 +1,570 @@
+{
+  "reviews": [
+    {
+      "id": "R01",
+      "granularity": "one",
+      "statements": [
+        {
+          "src": "Prochloraz",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "Lecanicillium fungicola",
+          "dst_type": "Pathogen",
+          "polarity": "supports",
+          "qualifiers": {
+            "object_aspect_qualifier": "growth",
+            "object_direction_qualifier": "reducing",
+            "object_form_or_variant_qualifier": "isolate 620"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "growth",
+            "object_direction_qualifier": "reducing",
+            "object_form_or_variant_qualifier": "isolate 620"
+          }
+        }
+      ],
+      "citation": "very effective at reducing the growth",
+      "rationale": "The sentence asserts positive growth inhibition for one explicitly identified isolate without specifying an application rate or setting."
+    },
+    {
+      "id": "R02",
+      "granularity": "one",
+      "statements": [
+        {
+          "src": "Metrafenone",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "Lecanicillium fungicola",
+          "dst_type": "Pathogen",
+          "polarity": "supports",
+          "qualifiers": {
+            "object_aspect_qualifier": "growth",
+            "object_direction_qualifier": "reduced",
+            "object_form_or_variant_qualifier": "isolate 620",
+            "study_context": "flasks"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "growth",
+            "object_direction_qualifier": "reduced",
+            "object_form_or_variant_qualifier": "isolate 620",
+            "study_context": "flasks"
+          }
+        }
+      ],
+      "citation": "also significantly reduced the growth",
+      "rationale": "Metrafenone has a positive inhibition claim despite its weaker effect, while prochloraz serves as the comparison rather than an independently quantified arm."
+    },
+    {
+      "id": "R03",
+      "granularity": "several",
+      "statements": [
+        {
+          "src": "Prochloraz",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "Lecanicillium fungicola",
+          "dst_type": "Pathogen",
+          "polarity": "supports",
+          "qualifiers": {
+            "object_aspect_qualifier": "growth",
+            "object_direction_qualifier": "reduced",
+            "object_form_or_variant_qualifier": "isolate 1722",
+            "study_context": "flask cultures"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "growth",
+            "object_direction_qualifier": "reduced",
+            "object_form_or_variant_qualifier": "isolate 1722",
+            "study_context": "flask cultures"
+          }
+        },
+        {
+          "src": "Prochloraz",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "Lecanicillium fungicola",
+          "dst_type": "Pathogen",
+          "polarity": "supports",
+          "qualifiers": {
+            "object_aspect_qualifier": "growth",
+            "object_direction_qualifier": "reduced",
+            "object_form_or_variant_qualifier": "isolate 620"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "growth",
+            "object_direction_qualifier": "reduced",
+            "object_form_or_variant_qualifier": "isolate 620"
+          }
+        }
+      ],
+      "citation": "significantly reduced the growth",
+      "rationale": "The similarity clause explicitly extends the positive growth-reduction outcome to the second named isolate, without asserting equal effect sizes."
+    },
+    {
+      "id": "R04",
+      "granularity": "several",
+      "statements": [
+        {
+          "src": "prochloraz",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "dry bubble disease",
+          "dst_type": "Disease",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "object_aspect_qualifier": "bubble development",
+            "study_context": "crop trial 1"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "bubble development",
+            "study_context": "crop trial 1"
+          }
+        },
+        {
+          "src": "Bacillus velezensis QST 713",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "dry bubble disease",
+          "dst_type": "Disease",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "object_aspect_qualifier": "bubble development",
+            "study_context": "crop trial 1"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "bubble development",
+            "study_context": "crop trial 1"
+          }
+        },
+        {
+          "src": "Bacillus velezensis Kos",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "dry bubble disease",
+          "dst_type": "Disease",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "object_aspect_qualifier": "bubble development",
+            "study_context": "crop trial 1"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "bubble development",
+            "study_context": "crop trial 1"
+          }
+        }
+      ],
+      "citation": "there was no significant difference",
+      "rationale": "Three treatment arms share a measured null against the untreated control, retaining the trial and disease endpoint but omitting the operational inoculation parameter."
+    },
+    {
+      "id": "R05",
+      "granularity": "several",
+      "statements": [
+        {
+          "src": "PBO",
+          "src_type": "ActiveIngredient",
+          "relation": "inhibits",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "subject_form_or_variant_qualifier": "only with PBO",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "R blackgrass plants"
+          },
+          "qualifier_quotes": {
+            "subject_form_or_variant_qualifier": "only with PBO",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "R blackgrass plants"
+          }
+        },
+        {
+          "src": "PBO",
+          "src_type": "ActiveIngredient",
+          "relation": "synergizes_with",
+          "dst": "ACCase-inhibitors",
+          "dst_type": "MoAGroup",
+          "polarity": "supports",
+          "qualifiers": {
+            "object_aspect_qualifier": "herbicidal effect",
+            "object_direction_qualifier": "increased",
+            "population_context_qualifier": "R blackgrass population"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "herbicidal effect",
+            "object_direction_qualifier": "increased",
+            "population_context_qualifier": "R blackgrass population"
+          }
+        },
+        {
+          "src": "PBO",
+          "src_type": "ActiveIngredient",
+          "relation": "synergizes_with",
+          "dst": "ALS-inhibitors",
+          "dst_type": "MoAGroup",
+          "polarity": "supports",
+          "qualifiers": {
+            "object_aspect_qualifier": "herbicidal effect",
+            "object_direction_qualifier": "increased",
+            "population_context_qualifier": "R blackgrass population"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "herbicidal effect",
+            "object_direction_qualifier": "increased",
+            "population_context_qualifier": "R blackgrass population"
+          }
+        }
+      ],
+      "citation": "considerably increased the herbicidal effect",
+      "rationale": "PBO alone has a measured fresh-weight null whereas both named inhibitor groups have positive potentiation claims, with the treatment schedule omitted under the scope guard."
+    },
+    {
+      "id": "R06",
+      "granularity": "several",
+      "statements": [
+        {
+          "src": "blackgrass",
+          "src_type": "Weed",
+          "relation": "inhibits",
+          "dst": "winter wheat",
+          "dst_type": "Crop",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "R",
+            "subject_aspect_qualifier": "density",
+            "subject_direction_qualifier": "increasing",
+            "object_aspect_qualifier": "fresh weight (a) and tiller number (b)",
+            "object_direction_qualifier": "decreased"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "R",
+            "subject_aspect_qualifier": "density",
+            "subject_direction_qualifier": "increasing",
+            "object_aspect_qualifier": "fresh weight (a) and tiller number (b)",
+            "object_direction_qualifier": "decreased"
+          }
+        },
+        {
+          "src": "blackgrass",
+          "src_type": "Weed",
+          "relation": "inhibits",
+          "dst": "winter wheat",
+          "dst_type": "Crop",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "S",
+            "subject_aspect_qualifier": "density",
+            "subject_direction_qualifier": "increasing",
+            "object_aspect_qualifier": "fresh weight (a) and tiller number (b)",
+            "object_direction_qualifier": "decreased"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "S",
+            "subject_aspect_qualifier": "density",
+            "subject_direction_qualifier": "increasing",
+            "object_aspect_qualifier": "fresh weight (a) and tiller number (b)",
+            "object_direction_qualifier": "decreased"
+          }
+        },
+        {
+          "src": "R and S blackgrass populations",
+          "src_type": "Weed",
+          "relation": "associated_with",
+          "dst": "winter wheat",
+          "dst_type": "Crop",
+          "polarity": "supports",
+          "qualifiers": {
+            "subject_aspect_qualifier": "differences between populations",
+            "object_aspect_qualifier": "fresh weight"
+          },
+          "qualifier_quotes": {
+            "subject_aspect_qualifier": "differences between populations",
+            "object_aspect_qualifier": "fresh weight"
+          }
+        },
+        {
+          "src": "R and S blackgrass populations",
+          "src_type": "Weed",
+          "relation": "associated_with",
+          "dst": "winter wheat",
+          "dst_type": "Crop",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "subject_aspect_qualifier": "differences between populations",
+            "object_aspect_qualifier": "tiller number"
+          },
+          "qualifier_quotes": {
+            "subject_aspect_qualifier": "differences between populations",
+            "object_aspect_qualifier": "tiller number"
+          }
+        }
+      ],
+      "citation": "significant differences between populations were observed only in fresh weight",
+      "rationale": "Both populations support the composite density-dependent inhibition claim, while the explicit 'only' contrast supports a between-population difference in fresh weight but not tiller number."
+    },
+    {
+      "id": "R07",
+      "granularity": "several",
+      "statements": [
+        {
+          "src": "Fluridone",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Poa annua",
+          "dst_type": "Weed",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "application_timing": "preemergence",
+            "population_context_qualifier": "izr‐1",
+            "object_aspect_qualifier": "> 50% survival"
+          },
+          "qualifier_quotes": {
+            "application_timing": "preemergence",
+            "population_context_qualifier": "izr‐1",
+            "object_aspect_qualifier": "> 50% survival"
+          }
+        },
+        {
+          "src": "Fluridone",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Poa annua",
+          "dst_type": "Weed",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "application_timing": "preemergence",
+            "population_context_qualifier": "izr‐2",
+            "object_aspect_qualifier": "> 50% survival"
+          },
+          "qualifier_quotes": {
+            "application_timing": "preemergence",
+            "population_context_qualifier": "izr‐2",
+            "object_aspect_qualifier": "> 50% survival"
+          }
+        },
+        {
+          "src": "Fluridone",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Poa annua",
+          "dst_type": "Weed",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "application_timing": "preemergence",
+            "population_context_qualifier": "izr‐5",
+            "object_aspect_qualifier": "> 50% survival"
+          },
+          "qualifier_quotes": {
+            "application_timing": "preemergence",
+            "population_context_qualifier": "izr‐5",
+            "object_aspect_qualifier": "> 50% survival"
+          }
+        },
+        {
+          "src": "Fluridone",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Poa annua",
+          "dst_type": "Weed",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "application_timing": "preemergence",
+            "population_context_qualifier": "izr‐8",
+            "object_aspect_qualifier": "> 50% survival"
+          },
+          "qualifier_quotes": {
+            "application_timing": "preemergence",
+            "population_context_qualifier": "izr‐8",
+            "object_aspect_qualifier": "> 50% survival"
+          }
+        }
+      ],
+      "citation": "was ineffective across several accessions",
+      "rationale": "The explicit ineffectiveness assertion is no_effect for each named accession, preserving the survival outcome without converting its percentage into a dose or inferring unchanged survival."
+    },
+    {
+      "id": "R08",
+      "granularity": "several",
+      "statements": [
+        {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "fludioxonil",
+          "dst_type": "ActiveIngredient",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "study_context": "2020",
+            "population_context_qualifier": "both locations"
+          },
+          "qualifier_quotes": {
+            "study_context": "2020",
+            "population_context_qualifier": "both locations"
+          }
+        },
+        {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "fenhexamid",
+          "dst_type": "ActiveIngredient",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "study_context": "2020",
+            "population_context_qualifier": "both locations"
+          },
+          "qualifier_quotes": {
+            "study_context": "2020",
+            "population_context_qualifier": "both locations"
+          }
+        },
+        {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "iprodione",
+          "dst_type": "ActiveIngredient",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "study_context": "2020",
+            "population_context_qualifier": "both locations"
+          },
+          "qualifier_quotes": {
+            "study_context": "2020",
+            "population_context_qualifier": "both locations"
+          }
+        }
+      ],
+      "citation": "no resistant isolate was observed",
+      "rationale": "Measured absence of resistance is no_effect for each named fungicide, retaining the stated year and collective location scope without importing location names."
+    },
+    {
+      "id": "R09",
+      "granularity": "several",
+      "statements": [
+        {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "pyraclostrobin",
+          "dst_type": "ActiveIngredient",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil",
+            "study_context": "all 3 years"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil",
+            "study_context": "all 3 years"
+          }
+        },
+        {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "boscalid",
+          "dst_type": "ActiveIngredient",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil",
+            "study_context": "all 3 years"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil",
+            "study_context": "all 3 years"
+          }
+        },
+        {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "thiabendazole",
+          "dst_type": "ActiveIngredient",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil",
+            "study_context": "all 3 years"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil",
+            "study_context": "all 3 years"
+          }
+        },
+        {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "cyprodinil",
+          "dst_type": "ActiveIngredient",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil",
+            "study_context": "all 3 years"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil",
+            "study_context": "all 3 years"
+          }
+        },
+        {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "pyraclostrobin",
+          "dst_type": "ActiveIngredient",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "MFR to pyraclostrobin, boscalid, and thiabendazole",
+            "study_context": "all 3 years"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "MFR to pyraclostrobin, boscalid, and thiabendazole",
+            "study_context": "all 3 years"
+          }
+        },
+        {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "boscalid",
+          "dst_type": "ActiveIngredient",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "MFR to pyraclostrobin, boscalid, and thiabendazole",
+            "study_context": "all 3 years"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "MFR to pyraclostrobin, boscalid, and thiabendazole",
+            "study_context": "all 3 years"
+          }
+        },
+        {
+          "src": "Botrytis cinerea",
+          "src_type": "Pathogen",
+          "relation": "resistant_to",
+          "dst": "thiabendazole",
+          "dst_type": "ActiveIngredient",
+          "polarity": "supports",
+          "qualifiers": {
+            "population_context_qualifier": "MFR to pyraclostrobin, boscalid, and thiabendazole",
+            "study_context": "all 3 years"
+          },
+          "qualifier_quotes": {
+            "population_context_qualifier": "MFR to pyraclostrobin, boscalid, and thiabendazole",
+            "study_context": "all 3 years"
+          }
+        }
+      ],
+      "citation": "were commonly observed in B. cinerea populations",
+      "rationale": "Two explicitly defined phenotypes yield four and three scoped resistance statements respectively, not a Cartesian product, a tested mixture, or an inferred cyprodinil null for the second phenotype."
+    }
+  ],
+  "files_read": [
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-vocabulary.json",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12632097.txt",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12563837.txt",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12713700.txt",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC11298438.txt"
+  ]
+}

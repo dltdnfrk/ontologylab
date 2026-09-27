@@ -1,0 +1,752 @@
+{
+  "decisions": [
+    {
+      "id": "D001",
+      "accepted": [
+        {
+          "side": "a",
+          "index": 5
+        }
+      ],
+      "corrected": [],
+      "rationale": "The words \"pyridate caused a moderate control of C. album\" assert control, not a null."
+    },
+    {
+      "id": "D002",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 30
+        },
+        {
+          "side": "b",
+          "index": 31
+        },
+        {
+          "side": "b",
+          "index": 32
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"aclonifen, flumioxazine, and imazamox showed significantly higher plant dry biomass\" assigns each named treatment the higher-biomass outcome in \"GS1\"."
+    },
+    {
+      "id": "D003",
+      "accepted": [
+        {
+          "side": "a",
+          "index": 21
+        },
+        {
+          "side": "a",
+          "index": 22
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"aclonifen, benfluralin) led to increased lupine dry biomass\" assigns the result to both treatments in \"GS2\"."
+    },
+    {
+      "id": "D004",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"the control effect of A. retroflexus was 100%\" does not name the controlling product."
+    },
+    {
+      "id": "D005",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"control effect of E. crus-galli was higher than 70% at all treatments\" does not identify penoxsulam."
+    },
+    {
+      "id": "D006",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"control effect of C. album was less than 55%\" is a measured effect, but the sentence does not identify the product."
+    },
+    {
+      "id": "D007",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"yield of the 1/2X spraying dosage increases significantly by 24%\" does not identify penoxsulam or the crop."
+    },
+    {
+      "id": "D008",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 38
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"penoxsulam has obvious phytotoxicity to foxtail millet\" directly supports the crop-harm relation."
+    },
+    {
+      "id": "D009",
+      "accepted": [
+        {
+          "side": "a",
+          "index": 29
+        },
+        {
+          "side": "a",
+          "index": 30
+        },
+        {
+          "side": "a",
+          "index": 31
+        },
+        {
+          "side": "a",
+          "index": 32
+        },
+        {
+          "side": "a",
+          "index": 33
+        },
+        {
+          "side": "a",
+          "index": 34
+        },
+        {
+          "side": "a",
+          "index": 35
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"controlled 95–100%\" names six effective arms including the intact \"Cyprosulfamid + Izoxaflutole\" mixture, and \"Saflufenacil application resulted in partial control\" supports the seventh."
+    },
+    {
+      "id": "D010",
+      "accepted": [
+        {
+          "side": "a",
+          "index": 36
+        },
+        {
+          "side": "a",
+          "index": 37
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"final shoot fresh weight\" was reduced and \"Fomesafen and Cyprosulfamid + Izoxaflutole applications led to 100% eradication\"."
+    },
+    {
+      "id": "D011",
+      "accepted": [
+        {
+          "side": "a",
+          "index": 38
+        },
+        {
+          "side": "a",
+          "index": 39
+        },
+        {
+          "side": "a",
+          "index": 40
+        },
+        {
+          "side": "a",
+          "index": 41
+        },
+        {
+          "side": "a",
+          "index": 42
+        },
+        {
+          "side": "a",
+          "index": 43
+        },
+        {
+          "side": "a",
+          "index": 44
+        }
+      ],
+      "corrected": [],
+      "rationale": "The five named treatments \"were the most effective\" while \"Imazamox and Aclonifen were not effective\" in the \"post-emergence pot trial\"."
+    },
+    {
+      "id": "D012",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"VERPE\", \"THLAR\", \"LAMPU\", and \"CAPBP\" are not expanded to weed names in the supplied sentence."
+    },
+    {
+      "id": "D013",
+      "accepted": [
+        {
+          "side": "a",
+          "index": 57
+        },
+        {
+          "side": "a",
+          "index": 58
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"nicosulfuron with MSO 3 (84%)\" and \"with MSO 1 (68%)\" each have a measured positive \"total WCE\"."
+    },
+    {
+      "id": "D014",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"Tested herbicide treatments\" and \"no injury\" establish a null, but the sentence does not name nicosulfuron."
+    },
+    {
+      "id": "D015",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"application of N\" is not expanded to nicosulfuron, and \"grain yield\" does not identify a crop in this span."
+    },
+    {
+      "id": "D016",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"pre- and post-emergence treatment (H2)\" and \"pre-emergence treatment (H1)\" do not identify either claimed mixture."
+    },
+    {
+      "id": "D017",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"H1 treatment\" has a \"complete lack of herbicide efficacy\", but the mixture behind H1 is absent from this sentence."
+    },
+    {
+      "id": "D018",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"pre-emergence herbicide application\" had \"an average efficacy of 96%\", but its chemical identity is not stated."
+    },
+    {
+      "id": "D019",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"Both herbicides showed good control\" leaves both herbicide names and the target species unresolved."
+    },
+    {
+      "id": "D020",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"Metribuzin\" has \"higher efficacy at elevated temperatures\", but \"all populations\" does not identify the weed."
+    },
+    {
+      "id": "D021",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 73
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"metolachlor · oxyfluorfen · pendimethalin achieved the highest control efficacy against grassy weeds\" on \"plant density control and fresh weight control\" at \"experimental site 2\"."
+    },
+    {
+      "id": "D022",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"least phytotoxicity to marigold plants, with a recorded level of 1\" does not establish that level 1 means no injury."
+    },
+    {
+      "id": "D023",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"Metolachlor followed, exhibiting a phytotoxicity level of 2\" does not name the affected crop."
+    },
+    {
+      "id": "D024",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"combination treatment of metolachlor, oxyfluorfen, and pendimethalin\" has \"a phytotoxicity level of 1\", but neither the crop nor the meaning of level 1 is given."
+    },
+    {
+      "id": "D025",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 80
+        },
+        {
+          "side": "b",
+          "index": 81
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"yields of marigolds in the pendimethalin and oxyfluorfen treatments were comparable to those in the control group\" supports two measured nulls."
+    },
+    {
+      "id": "D026",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 68
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"fomesafen treatment showed the highest reduction rates in both the density and fresh weight\" \"across two experimental sites\"."
+    },
+    {
+      "id": "D027",
+      "accepted": [
+        {
+          "side": "a",
+          "index": 79
+        },
+        {
+          "side": "b",
+          "index": 67
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"haloxyfop-P-methyl achieved the highest fresh weight suppression rate (>92%) against gramineous weeds\" and \"no observed phytotoxicity to marigolds\" are distinct outcomes."
+    },
+    {
+      "id": "D028",
+      "accepted": [],
+      "corrected": [
+        {
+          "pmcid": "PMC12157251",
+          "src": "fomesafen",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Galinsoga quadriradiata",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "Although fomesafen is a selective herbicide for soybean fields, our trial showed that at the recommended rate (412.5 g a.i. ha−1), it effectively controlled major broadleaf weeds in marigold fields, including Galinsoga quadriradiata, Ageratum conyzoides, and Acroglochin persicarioides, without causing phytotoxicity to marigolds.",
+          "qualifiers": {
+            "study_context": "marigold fields",
+            "dose": "412.5 g a.i. ha−1"
+          },
+          "qualifier_quotes": {
+            "study_context": "marigold fields",
+            "dose": "412.5 g a.i. ha−1"
+          },
+          "rationale": "The sentence says fomesafen \"effectively controlled\" Galinsoga at the stated rate."
+        },
+        {
+          "pmcid": "PMC12157251",
+          "src": "fomesafen",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Ageratum conyzoides",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "Although fomesafen is a selective herbicide for soybean fields, our trial showed that at the recommended rate (412.5 g a.i. ha−1), it effectively controlled major broadleaf weeds in marigold fields, including Galinsoga quadriradiata, Ageratum conyzoides, and Acroglochin persicarioides, without causing phytotoxicity to marigolds.",
+          "qualifiers": {
+            "study_context": "marigold fields",
+            "dose": "412.5 g a.i. ha−1"
+          },
+          "qualifier_quotes": {
+            "study_context": "marigold fields",
+            "dose": "412.5 g a.i. ha−1"
+          },
+          "rationale": "The sentence says fomesafen \"effectively controlled\" Ageratum at the stated rate."
+        },
+        {
+          "pmcid": "PMC12157251",
+          "src": "fomesafen",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "Acroglochin persicarioides",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "Although fomesafen is a selective herbicide for soybean fields, our trial showed that at the recommended rate (412.5 g a.i. ha−1), it effectively controlled major broadleaf weeds in marigold fields, including Galinsoga quadriradiata, Ageratum conyzoides, and Acroglochin persicarioides, without causing phytotoxicity to marigolds.",
+          "qualifiers": {
+            "study_context": "marigold fields",
+            "dose": "412.5 g a.i. ha−1"
+          },
+          "qualifier_quotes": {
+            "study_context": "marigold fields",
+            "dose": "412.5 g a.i. ha−1"
+          },
+          "rationale": "The sentence says fomesafen \"effectively controlled\" Acroglochin at the stated rate."
+        },
+        {
+          "pmcid": "PMC12157251",
+          "src": "fomesafen",
+          "src_type": "ActiveIngredient",
+          "relation": "phytotoxic_to",
+          "dst": "marigolds",
+          "dst_type": "Crop",
+          "polarity": "no_effect",
+          "quote": "Although fomesafen is a selective herbicide for soybean fields, our trial showed that at the recommended rate (412.5 g a.i. ha−1), it effectively controlled major broadleaf weeds in marigold fields, including Galinsoga quadriradiata, Ageratum conyzoides, and Acroglochin persicarioides, without causing phytotoxicity to marigolds.",
+          "qualifiers": {
+            "study_context": "marigold fields",
+            "dose": "412.5 g a.i. ha−1"
+          },
+          "qualifier_quotes": {
+            "study_context": "marigold fields",
+            "dose": "412.5 g a.i. ha−1"
+          },
+          "rationale": "\"without causing phytotoxicity to marigolds\" is a measured absence at the stated rate."
+        }
+      ],
+      "rationale": "\"at the recommended rate (412.5 g a.i. ha−1)\" qualifies all four asserted arms but is missing from both annotation sets."
+    },
+    {
+      "id": "D029",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"spinetoram showed good toxicity\" and \"control efficacy of 43~75%\" do not identify the pest in this sentence."
+    },
+    {
+      "id": "D030",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"glyphosate and glyphosate trimesium\" controlled \"the weed\", whose identity is absent from the span."
+    },
+    {
+      "id": "D031",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"2,4-D and triclopyr\" controlled \"plants\", whose species is not supplied."
+    },
+    {
+      "id": "D032",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"stem diameter of the 4X spraying dosage decreases by 44%\" does not identify the chemical or crop."
+    },
+    {
+      "id": "D033",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"above-ground fresh weight decreases by 48%\" under \"3X\" does not identify the chemical or crop."
+    },
+    {
+      "id": "D034",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"above-ground fresh weight was significantly reduced by 79%\" under \"2X\" does not identify the chemical or crop."
+    },
+    {
+      "id": "D035",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"above-ground dry weight was significantly reduced by 92%\" under \"4X\" does not identify the chemical or crop."
+    },
+    {
+      "id": "D036",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"no significant difference\" under \"1/2X and 1X\" is a measured null, but the chemical and crop are unnamed."
+    },
+    {
+      "id": "D037",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"above-ground dry weight increases by 25%\" at \"1/2X\" does not identify the chemical or crop."
+    },
+    {
+      "id": "D038",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"no significant difference between the MDA content of the CK and all dosages\" omits the chemical and crop."
+    },
+    {
+      "id": "D039",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"oxyfluorfen performed better under low temperatures\" does not identify the target weed."
+    },
+    {
+      "id": "D040",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"fomesafen treatment produced the highest yield\" does not name the crop whose yield was measured."
+    },
+    {
+      "id": "D041",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 82
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"yield and yield increase rate for marigolds treated with metolachlor · oxyfluorfen · pendimethalin were the highest\" supports the intact mixture and composite outcome."
+    },
+    {
+      "id": "D042",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"showed low efficacy (<54%)\" is not a null, but the sentence never identifies C. album as its endpoint."
+    },
+    {
+      "id": "D043",
+      "accepted": [],
+      "corrected": [
+        {
+          "pmcid": "PMC10818810",
+          "src": "aclonifen",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "S. marianum",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "More specifically, the use of aclonifen, benfluralin, terbuthylazine plus pendimethalin, and flumioxazin resulted in a moderate control of S. marianum, while pendimethalin plus clomazone, metribuzin plus clomazone, s-metolachlor plus pendimethalin, pyridate, and imazamox showed poor efficacy.",
+          "qualifiers": {},
+          "qualifier_quotes": {},
+          "rationale": "The quote attributes \"moderate control of S. marianum\" to aclonifen."
+        },
+        {
+          "pmcid": "PMC10818810",
+          "src": "benfluralin",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "S. marianum",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "More specifically, the use of aclonifen, benfluralin, terbuthylazine plus pendimethalin, and flumioxazin resulted in a moderate control of S. marianum, while pendimethalin plus clomazone, metribuzin plus clomazone, s-metolachlor plus pendimethalin, pyridate, and imazamox showed poor efficacy.",
+          "qualifiers": {},
+          "qualifier_quotes": {},
+          "rationale": "The quote attributes \"moderate control of S. marianum\" to benfluralin."
+        },
+        {
+          "pmcid": "PMC10818810",
+          "src": "terbuthylazine plus pendimethalin",
+          "src_type": "Product",
+          "relation": "controls",
+          "dst": "S. marianum",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "More specifically, the use of aclonifen, benfluralin, terbuthylazine plus pendimethalin, and flumioxazin resulted in a moderate control of S. marianum, while pendimethalin plus clomazone, metribuzin plus clomazone, s-metolachlor plus pendimethalin, pyridate, and imazamox showed poor efficacy.",
+          "qualifiers": {},
+          "qualifier_quotes": {},
+          "rationale": "The intact mixture \"terbuthylazine plus pendimethalin\" has \"moderate control of S. marianum\"."
+        },
+        {
+          "pmcid": "PMC10818810",
+          "src": "flumioxazin",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "S. marianum",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "quote": "More specifically, the use of aclonifen, benfluralin, terbuthylazine plus pendimethalin, and flumioxazin resulted in a moderate control of S. marianum, while pendimethalin plus clomazone, metribuzin plus clomazone, s-metolachlor plus pendimethalin, pyridate, and imazamox showed poor efficacy.",
+          "qualifiers": {},
+          "qualifier_quotes": {},
+          "rationale": "The quote attributes \"moderate control of S. marianum\" to flumioxazin."
+        }
+      ],
+      "rationale": "\"moderate control of S. marianum\" supports four named arms, but the supplied sentence does not expand its abbreviated endpoint."
+    },
+    {
+      "id": "D044",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 34
+        },
+        {
+          "side": "b",
+          "index": 35
+        },
+        {
+          "side": "b",
+          "index": 36
+        },
+        {
+          "side": "b",
+          "index": 37
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"penoxsulam has some effect on A. retroflexus, C. album, D. sanguinalis, and E. crus-galli\" explicitly assigns positive effects to all four."
+    },
+    {
+      "id": "D045",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 39
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"penoxsulam\" caused \"all five yield indexes of foxtail millet\" to show \"a decreasing trend\"; the measured composite is kept intact."
+    },
+    {
+      "id": "D046",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"effective pre-emergence herbicides\" repeats outcomes stated more specifically in D009 rather than adding a distinct claim."
+    },
+    {
+      "id": "D047",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"most effective post-emergence herbicides\" repeats outcomes stated more specifically in D011 rather than adding a distinct claim."
+    },
+    {
+      "id": "D048",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 52
+        },
+        {
+          "side": "b",
+          "index": 53
+        },
+        {
+          "side": "b",
+          "index": 54
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"three pre-emergence herbicide combinations demonstrated superior control of Trianthema portulacastrum\" in the \"nethouse experiment\" assigns the result to each named intact mixture."
+    },
+    {
+      "id": "D049",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"control of VERPE\" at \"37.8 vs 41.1%\" shows a positive effect, but VERPE is not expanded to a weed name here."
+    },
+    {
+      "id": "D050",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"MCPA + tribenuron-methyl\" showed \"high effectiveness in all locations\", but the sentence does not identify the target weeds."
+    },
+    {
+      "id": "D051",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"metribuzin\" reduced \"shoot fresh weight\" at \"high temperature\", but \"the plants\" and \"all populations\" do not name the weed."
+    },
+    {
+      "id": "D052",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 76
+        },
+        {
+          "side": "b",
+          "index": 77
+        },
+        {
+          "side": "b",
+          "index": 78
+        },
+        {
+          "side": "b",
+          "index": 79
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"no differences in the number of flowers per plant\" compared with control applies to each of \"pendimethalin, metolachlor, butralin, and oxyfluorfen\"."
+    },
+    {
+      "id": "D053",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"moderate effects\" and \"failed to affect the weed\" express distinct polarities, but \"the weed\" has no identifiable species in this span."
+    },
+    {
+      "id": "D054",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"triclopyr and glyphosate\" \"completely killed weed plants\", but their species is not given."
+    },
+    {
+      "id": "D055",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 100
+        },
+        {
+          "side": "b",
+          "index": 101
+        },
+        {
+          "side": "b",
+          "index": 102
+        },
+        {
+          "side": "b",
+          "index": 103
+        },
+        {
+          "side": "b",
+          "index": 104
+        }
+      ],
+      "corrected": [],
+      "rationale": "The five named \"herbicide treatments\" \"caused 18–25% severe damage on vetch\" in \"GS2\"."
+    },
+    {
+      "id": "D056",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 105
+        },
+        {
+          "side": "b",
+          "index": 106
+        },
+        {
+          "side": "b",
+          "index": 107
+        },
+        {
+          "side": "b",
+          "index": 108
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"pyridate and flumioxazine\" \"caused an average of 12% injury\", while \"aclonifen and metribuzin plus clomazone affected vetch with 5–7% inconsistent phytotoxicity\"."
+    },
+    {
+      "id": "D057",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 109
+        },
+        {
+          "side": "b",
+          "index": 110
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"terbuthylazine plus pendimethalin caused\" \"damage of 12–13% in both seasons\" and \"pendimethalin plus clomazone caused\" \"damage of 7–8%\" to pea plants."
+    },
+    {
+      "id": "D058",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 114
+        }
+      ],
+      "corrected": [],
+      "rationale": "\"benfluralin\" is among the treatments that \"promotively impacted the pea dry biomass in GS2\"; the GS1 clause does not identify pea as its crop."
+    },
+    {
+      "id": "D059",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "\"penoxsulam treatment causes a decrease in the above-ground dry weight\" but does not name foxtail millet or another crop."
+    },
+    {
+      "id": "D060",
+      "accepted": [
+        {
+          "side": "b",
+          "index": 119
+        },
+        {
+          "side": "b",
+          "index": 120
+        }
+      ],
+      "corrected": [],
+      "rationale": "The cited statement says \"metribuzin) was sufficient to control weeds and ensure the highest edamame yield\" and supplies \"pre-emergence\" explicitly."
+    }
+  ],
+  "files_read": [
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity-silver/annotations/disagreements.json"
+  ]
+}

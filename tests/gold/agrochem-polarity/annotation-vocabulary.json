@@ -1,0 +1,45 @@
+{
+  "schema": "agrochem-v2",
+  "source": ["ontologylab/schemas.py", "ontologylab/statement_qualifiers.py"],
+  "entity_types": ["Crop", "Pathogen", "Pest", "Weed", "Disease", "ActiveIngredient", "Product", "Region", "MoAGroup", "TargetSite", "Protein", "Gene", "ResistanceMutation", "ResistanceMechanism", "Pathway", "ResidueLimit", "PreHarvestInterval", "ToxicityEndpoint", "NonTargetOrganism", "RegulatoryAction", "Formulation", "ApplicationMethod", "DoseRate", "GrowthStage", "Trial", "EfficacyOutcome", "Probe", "Fluorophore", "DetectionTarget", "SampleMatrix", "AssayCondition", "PerformanceMetric"],
+  "claim_relations": ["controls", "infects", "damages", "causes", "targets", "confers_resistance_to", "resistant_to", "cross_resistant_with", "inhibits", "toxic_to", "phytotoxic_to", "synergizes_with", "associated_with", "detects", "cross_reacts_with", "interferes_with"],
+  "qualifier_keys": ["qualified_predicate", "subject_aspect_qualifier", "object_aspect_qualifier", "subject_direction_qualifier", "object_direction_qualifier", "subject_form_or_variant_qualifier", "object_form_or_variant_qualifier", "subject_part_qualifier", "object_part_qualifier", "population_context_qualifier", "species_context_qualifier", "anatomical_context_qualifier", "causal_mechanism_qualifier", "study_context", "dose", "application_timing"],
+  "polarity": ["supports", "refutes", "no_effect"],
+  "values": {
+    "study_context": {
+      "in_vitro": ["in vitro", "in-vitro"],
+      "greenhouse": ["glasshouse", "glasshouse screening", "greenhouse screening"],
+      "field_trial": ["field", "field trial", "field experiment"],
+      "crop_trial": ["crop trial"],
+      "bioassay": ["bioassay"],
+      "background": ["background"]
+    },
+    "aspect": {
+      "growth": ["growth"], "oviposition": ["oviposition"], "mortality": ["mortality"],
+      "survival": ["survival"], "yield": ["yield"], "density": ["density"],
+      "abundance": ["abundance"], "bubble_development": ["bubble development"],
+      "fresh_weight": ["fresh weight", "fresh-weight"],
+      "dry_weight": ["dry weight", "dry-weight"],
+      "tiller_number": ["tiller number"],
+      "fresh_weight_and_tiller_number": ["fresh weight and tiller number"]
+    },
+    "direction": {
+      "increased": ["increase", "increasing"],
+      "decreased": ["decrease", "decreasing"],
+      "unchanged": ["no change"]
+    },
+    "application_timing": {
+      "pre_emergence": ["pre-emergence", "preemergence", "pre emergence"],
+      "post_emergence": ["post-emergence", "postemergence", "post emergence"],
+      "early_post_emergence": ["early-postemergence", "early postemergence", "early-post-emergence", "early post-emergence"]
+    },
+    "life_stage": {
+      "egg": ["eggs"], "larva": ["larvae", "larval"], "pupa": ["pupae", "pupal"],
+      "nymph": ["nymphs", "nymphal"], "adult": ["adults"], "seedling": ["seedlings"]
+    },
+    "form_or_variant_kind": {
+      "strain": ["strain"], "isolate": ["isolate"], "variant": ["variant"],
+      "life_stage": ["life stage"]
+    }
+  }
+}

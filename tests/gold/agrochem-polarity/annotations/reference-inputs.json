@@ -1,0 +1,164 @@
+{
+  "version": "targeted-reference-review-v1",
+  "offset_convention": "zero-based half-open Unicode characters and UTF-8 bytes",
+  "previously_uncovered_rows": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    17,
+    20,
+    23,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34
+  ],
+  "packets": [
+    {
+      "id": "R01",
+      "pmcid": "PMC12632097",
+      "char_start": 21346,
+      "char_end": 21414,
+      "span": {
+        "start": 21912,
+        "end": 21980
+      },
+      "quote_sha256": "2d558880dd62caba47d656a5c7195256fb93f4dea731e91aef01f5727fcee633",
+      "source": "sources/full/PMC12632097.txt",
+      "reference_rows": [
+        1
+      ]
+    },
+    {
+      "id": "R02",
+      "pmcid": "PMC12632097",
+      "char_start": 21691,
+      "char_end": 21832,
+      "span": {
+        "start": 22269,
+        "end": 22410
+      },
+      "quote_sha256": "05dcd64ba7114e3ece43b037f55ad4c48b950070b663be6d4d8448217c6ccf53",
+      "source": "sources/full/PMC12632097.txt",
+      "reference_rows": [
+        2
+      ]
+    },
+    {
+      "id": "R03",
+      "pmcid": "PMC12632097",
+      "char_start": 22604,
+      "char_end": 22706,
+      "span": {
+        "start": 23205,
+        "end": 23307
+      },
+      "quote_sha256": "e2e94988bfbde7f56b848655254721d9d454af5eb575949a1e2b0bacdf9d8c3b",
+      "source": "sources/full/PMC12632097.txt",
+      "reference_rows": [
+        3
+      ]
+    },
+    {
+      "id": "R04",
+      "pmcid": "PMC12632097",
+      "char_start": 36630,
+      "char_end": 36848,
+      "span": {
+        "start": 37696,
+        "end": 37921
+      },
+      "quote_sha256": "b6aa117ae26fa383dd9244737df6ded3a91984c99e4d673d80eb0ad4a063b0cd",
+      "source": "sources/full/PMC12632097.txt",
+      "reference_rows": [
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "id": "R05",
+      "pmcid": "PMC12563837",
+      "char_start": 29028,
+      "char_end": 29336,
+      "span": {
+        "start": 29239,
+        "end": 29547
+      },
+      "quote_sha256": "c1f3d1df9e7f36a2ed9ad6322243f622c26be4f3e2b048cecaebd1931a30a8b2",
+      "source": "sources/full/PMC12563837.txt",
+      "reference_rows": [
+        17
+      ]
+    },
+    {
+      "id": "R06",
+      "pmcid": "PMC12563837",
+      "char_start": 31181,
+      "char_end": 31449,
+      "span": {
+        "start": 31412,
+        "end": 31680
+      },
+      "quote_sha256": "0f64ed3e18abef98a57f0a99ff2bd61ee16a377081fa18e99f2157b69a68b764",
+      "source": "sources/full/PMC12563837.txt",
+      "reference_rows": [
+        20
+      ]
+    },
+    {
+      "id": "R07",
+      "pmcid": "PMC12713700",
+      "char_start": 30827,
+      "char_end": 30960,
+      "span": {
+        "start": 32170,
+        "end": 32313
+      },
+      "quote_sha256": "73ae515d788768d8b7f7942bcd7735b96af29a67db058b2a4665ba17db77b12d",
+      "source": "sources/full/PMC12713700.txt",
+      "reference_rows": [
+        23
+      ]
+    },
+    {
+      "id": "R08",
+      "pmcid": "PMC11298438",
+      "char_start": 16680,
+      "char_end": 16784,
+      "span": {
+        "start": 16877,
+        "end": 16981
+      },
+      "quote_sha256": "7420ceb380648f2b6b7069979d0e28989511c194d616a9572f8d255c244ce3e2",
+      "source": "sources/full/PMC11298438.txt",
+      "reference_rows": [
+        29,
+        30,
+        31
+      ]
+    },
+    {
+      "id": "R09",
+      "pmcid": "PMC11298438",
+      "char_start": 17341,
+      "char_end": 17544,
+      "span": {
+        "start": 17552,
+        "end": 17757
+      },
+      "quote_sha256": "bb06d713bc02236b7d20473aefb857209ded61bad22690107721d79ec3903909",
+      "source": "sources/full/PMC11298438.txt",
+      "reference_rows": [
+        32,
+        33,
+        34
+      ]
+    }
+  ]
+}
