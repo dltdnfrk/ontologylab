@@ -60,10 +60,9 @@ For the exact assertion and experimental scope:
 
 The `extract-v8` polarity precedence and examples already implement this ruling.
 Todo 33 does not change prompt text or `PROMPT_VERSION`.
-Zero observed members of a category (for example, resistant isolates) is not
-automatically a null treatment effect or a contradiction of a stated claim.
-Where the source and this ruling do not resolve that distinction, retain the
-historical label and record ambiguity rather than infer an expected claim.
+Measured absence of resistant isolates in a sampled cohort is `no_effect`;
+without an explicit contradiction of a stated or expected claim about that
+cohort, it is not `refutes`.
 
 ### Value normalization, reviewed 2026-09-27 (todo 30)
 
@@ -182,10 +181,10 @@ The generator uses the same deterministic value normalization as new writes;
 `qualified-mapping.json` retains the reviewed source labels.
 Its default output is `gold-qualified-normalized.json` (old polarity, current
 dose normalization). `--kind aligned` emits `gold-aligned.json` from
-`gold-fulltext.json` and the reviewed `alignment.json`: only rows 11 and 23
+`gold-fulltext.json` and the reviewed `alignment.json`: rows 11, 23 and 29-31
 (one-based) change from `refutes` to `no_effect`. All other row fields,
-including historical context wording, remain identical. Rows 29-31 are
-explicitly ambiguous and retain their old labels. The alignment table records
+including historical context wording, remain identical. No rows remain
+ambiguous after the user's cohort-absence adjudication. The alignment table records
 all 34 quotes, decisions, rationales and full-body context coordinates.
 
 `--kind aligned-qualified` emits `gold-aligned-qualified.json` by applying

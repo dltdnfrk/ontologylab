@@ -761,7 +761,7 @@
       "src": "Botrytis cinerea",
       "relation": "resistant_to",
       "dst": "fludioxonil",
-      "polarity": "refutes",
+      "polarity": "no_effect",
       "pmcid": "PMC11298438",
       "context": "Michigan 2020 sampled isolates only; explicitly no resistant isolates, not a claim about all populations or years.",
       "span": {
@@ -780,7 +780,7 @@
       "src": "Botrytis cinerea",
       "relation": "resistant_to",
       "dst": "fenhexamid",
-      "polarity": "refutes",
+      "polarity": "no_effect",
       "pmcid": "PMC11298438",
       "context": "Michigan 2020 sampled isolates only; explicitly no resistant isolates, not a claim about all populations or years.",
       "span": {
@@ -799,7 +799,7 @@
       "src": "Botrytis cinerea",
       "relation": "resistant_to",
       "dst": "iprodione",
-      "polarity": "refutes",
+      "polarity": "no_effect",
       "pmcid": "PMC11298438",
       "context": "Michigan 2020 sampled isolates only; explicitly no resistant isolates, not a claim about all populations or years.",
       "span": {
@@ -872,7 +872,7 @@
       "original_dst": "thiabendazole"
     }
   ],
-  "alignment_version": "polarity-alignment-2026-09-27-v1",
+  "alignment_version": "polarity-alignment-2026-09-27-v2",
   "alignment_source": "alignment.json",
   "statement_model": "biolink-qualified-v1",
   "mapping_source": "qualified-mapping.json"

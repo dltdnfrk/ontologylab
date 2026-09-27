@@ -55,7 +55,7 @@ def test_alignment_changes_only_reviewed_labels_and_preserves_field_bytes():
     assert generated.encode() == (CORPUS / "gold-aligned.json").read_bytes()
     assert len(table["rows"]) == len(aligned["relations"]) == 34
     assert [r["row"] for r in table["rows"]] == list(range(1, 35))
-    assert [r["row"] for r in table["rows"] if r["status"] == "ambiguous"] == [29, 30, 31]
+    assert [r["row"] for r in table["rows"] if r["status"] == "ambiguous"] == []
     changes = []
     for index, (old, new, review) in enumerate(zip(
         source["relations"], aligned["relations"], table["rows"], strict=True,
@@ -66,7 +66,7 @@ def test_alignment_changes_only_reviewed_labels_and_preserves_field_bytes():
             old["span"]["quote"], old["polarity"], new["polarity"],
         )
         expected = copy.deepcopy(old)
-        if index in (10, 22):
+        if index in (10, 22, 28, 29, 30):
             expected["polarity"] = "no_effect"
             changes.append((index + 1, old["polarity"], new["polarity"]))
             assert review["status"] == "changed"
@@ -79,7 +79,11 @@ def test_alignment_changes_only_reviewed_labels_and_preserves_field_bytes():
         body = (CORPUS / context["source"]).read_bytes()
         assert body[old["span"]["start"]:old["span"]["end"]] == review["quote"].encode()
         assert review["quote"].encode() in body[context["start"]:context["end"]]
-    assert changes == [(11, "refutes", "no_effect"), (23, "refutes", "no_effect")]
+    assert changes == [
+        (11, "refutes", "no_effect"), (23, "refutes", "no_effect"),
+        (29, "refutes", "no_effect"), (30, "refutes", "no_effect"),
+        (31, "refutes", "no_effect"),
+    ]
     assert aligned["papers"] == source["papers"]
     assert validate_gold(CORPUS / "gold-aligned.json")["spans_verified"] == 34
 
@@ -96,7 +100,7 @@ def test_alignment_rejects_unreviewed_changes(damage):
     elif damage == "changed_quote":
         table["rows"][10]["quote"] = "Different evidence"
     else:
-        table["rows"][28]["new"] = "no_effect"
+        table["rows"][28]["status"] = "ambiguous"
     # When / Then: no artifact can be produced from unreviewed edits.
     script = runpy.run_path(str(CORPUS / "qualify_gold.py"))
     with pytest.raises(ValueError):
@@ -120,7 +124,7 @@ def test_qualified_derivations_preserve_all_non_dose_scope(kind, filename):
         expected = copy.deepcopy(before)
         if index in (13, 14, 15):
             expected["qualifiers"]["dose"] = "1x_label_rate"
-        if kind == "aligned-qualified" and index in (10, 22):
+        if kind == "aligned-qualified" and index in (10, 22, 28, 29, 30):
             expected["polarity"] = "no_effect"
         assert json.dumps(after, ensure_ascii=False).encode() == json.dumps(
             expected, ensure_ascii=False,

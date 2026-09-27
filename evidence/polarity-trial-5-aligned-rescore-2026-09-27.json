@@ -494,22 +494,19 @@
           }
         },
         "recall_no_effect": {
-          "value": 0.2857142857142857,
+          "value": 0.23529411764705882,
           "numerator": 12,
-          "denominator": 42,
+          "denominator": 51,
           "ci95": {
-            "low": 0.1429,
-            "high": 0.4286
+            "low": 0.1176,
+            "high": 0.3529
           }
         },
         "recall_refutes": {
-          "value": 0,
+          "value": null,
           "numerator": 0,
-          "denominator": 9,
-          "ci95": {
-            "low": 0,
-            "high": 0
-          }
+          "denominator": 0,
+          "ci95": null
         },
         "recall_no_effect_refutes": {
           "value": 0.23529411764705882,
@@ -554,21 +551,18 @@
           },
           "recall_no_effect": {
             "ci95": {
-              "high": 0.3571,
+              "high": 0.2941,
               "low": 0
             },
-            "denominator": 14,
+            "denominator": 17,
             "numerator": 2,
-            "value": 0.14285714285714285
+            "value": 0.11764705882352941
           },
           "recall_refutes": {
-            "ci95": {
-              "high": 0,
-              "low": 0
-            },
-            "denominator": 3,
+            "ci95": null,
+            "denominator": 0,
             "numerator": 0,
-            "value": 0
+            "value": null
           },
           "recall_no_effect_refutes": {
             "ci95": {
@@ -611,21 +605,18 @@
           },
           "recall_no_effect": {
             "ci95": {
-              "high": 0.6429,
-              "low": 0.1429
+              "high": 0.5294,
+              "low": 0.1176
             },
-            "denominator": 14,
+            "denominator": 17,
             "numerator": 5,
-            "value": 0.35714285714285715
+            "value": 0.29411764705882354
           },
           "recall_refutes": {
-            "ci95": {
-              "high": 0,
-              "low": 0
-            },
-            "denominator": 3,
+            "ci95": null,
+            "denominator": 0,
             "numerator": 0,
-            "value": 0
+            "value": null
           },
           "recall_no_effect_refutes": {
             "ci95": {
@@ -668,21 +659,18 @@
           },
           "recall_no_effect": {
             "ci95": {
-              "high": 0.6429,
-              "low": 0.1429
+              "high": 0.5294,
+              "low": 0.1176
             },
-            "denominator": 14,
+            "denominator": 17,
             "numerator": 5,
-            "value": 0.35714285714285715
+            "value": 0.29411764705882354
           },
           "recall_refutes": {
-            "ci95": {
-              "high": 0,
-              "low": 0
-            },
-            "denominator": 3,
+            "ci95": null,
+            "denominator": 0,
             "numerator": 0,
-            "value": 0
+            "value": null
           },
           "recall_no_effect_refutes": {
             "ci95": {
@@ -722,22 +710,19 @@
           }
         },
         "recall_no_effect": {
-          "value": 0.40476190476190477,
+          "value": 0.3333333333333333,
           "numerator": 17,
-          "denominator": 42,
+          "denominator": 51,
           "ci95": {
-            "low": 0.2619,
-            "high": 0.5476
+            "low": 0.1961,
+            "high": 0.451
           }
         },
         "recall_refutes": {
-          "value": 0,
+          "value": null,
           "numerator": 0,
-          "denominator": 9,
-          "ci95": {
-            "low": 0,
-            "high": 0
-          }
+          "denominator": 0,
+          "ci95": null
         },
         "recall_no_effect_refutes": {
           "value": 0.3333333333333333,
@@ -782,21 +767,18 @@
           },
           "recall_no_effect": {
             "ci95": {
-              "high": 0.6429,
-              "low": 0.1429
+              "high": 0.5294,
+              "low": 0.1176
             },
-            "denominator": 14,
+            "denominator": 17,
             "numerator": 5,
-            "value": 0.35714285714285715
+            "value": 0.29411764705882354
           },
           "recall_refutes": {
-            "ci95": {
-              "high": 0,
-              "low": 0
-            },
-            "denominator": 3,
+            "ci95": null,
+            "denominator": 0,
             "numerator": 0,
-            "value": 0
+            "value": null
           },
           "recall_no_effect_refutes": {
             "ci95": {
@@ -839,21 +821,18 @@
           },
           "recall_no_effect": {
             "ci95": {
-              "high": 0.7143,
-              "low": 0.2143
+              "high": 0.5882,
+              "low": 0.1176
             },
-            "denominator": 14,
+            "denominator": 17,
             "numerator": 6,
-            "value": 0.42857142857142855
+            "value": 0.35294117647058826
           },
           "recall_refutes": {
-            "ci95": {
-              "high": 0,
-              "low": 0
-            },
-            "denominator": 3,
+            "ci95": null,
+            "denominator": 0,
             "numerator": 0,
-            "value": 0
+            "value": null
           },
           "recall_no_effect_refutes": {
             "ci95": {
@@ -896,21 +875,18 @@
           },
           "recall_no_effect": {
             "ci95": {
-              "high": 0.7143,
-              "low": 0.2143
+              "high": 0.5882,
+              "low": 0.1176
             },
-            "denominator": 14,
+            "denominator": 17,
             "numerator": 6,
-            "value": 0.42857142857142855
+            "value": 0.35294117647058826
           },
           "recall_refutes": {
-            "ci95": {
-              "high": 0,
-              "low": 0
-            },
-            "denominator": 3,
+            "ci95": null,
+            "denominator": 0,
             "numerator": 0,
-            "value": 0
+            "value": null
           },
           "recall_no_effect_refutes": {
             "ci95": {
@@ -933,5 +909,7 @@
         }
       ]
     }
-  }
+  },
+  "alignment_version": "polarity-alignment-2026-09-27-v2",
+  "adjudication": "Rows 29-31 are measured absence of resistant isolates, not contradictions. All five original refutes labels are now no_effect; refutes recall is undefined (0/0), not zero."
 }
