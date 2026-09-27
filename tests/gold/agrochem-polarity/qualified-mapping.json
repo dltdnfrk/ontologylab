@@ -1,0 +1,501 @@
+{
+  "source": "gold-fulltext.json",
+  "source_sha256": "cf7ea33f227540f201f2142eb7fa640bf08a1edf3cb039528c3b4828796f4f23",
+  "review": {
+    "date": "2026-09-27",
+    "reviewer": "task-27 engineering annotation review",
+    "basis": "Every frozen row, context and quote inspected. Only endpoint decomposition and explicitly recorded context are mapped; no polarity, relation or span changes. Not independent expert adjudication."
+  },
+  "rows": [
+    {
+      "source_row": 0,
+      "source": {
+        "src": "prochloraz",
+        "dst": "Lecanicillium fungicola isolate 620",
+        "context": "In vitro growth; isolate identity from article title and Results."
+      },
+      "core_src": "prochloraz",
+      "core_dst": "Lecanicillium fungicola",
+      "qualifiers": {
+        "object_aspect_qualifier": "growth",
+        "study_context": "in vitro",
+        "object_form_or_variant_qualifier": "isolate 620"
+      }
+    },
+    {
+      "source_row": 1,
+      "source": {
+        "src": "metrafenone",
+        "dst": "Lecanicillium fungicola isolate 620",
+        "context": "In vitro growth, not crop-trial disease control."
+      },
+      "core_src": "metrafenone",
+      "core_dst": "Lecanicillium fungicola",
+      "qualifiers": {
+        "object_aspect_qualifier": "growth",
+        "study_context": "in vitro",
+        "object_form_or_variant_qualifier": "isolate 620"
+      }
+    },
+    {
+      "source_row": 2,
+      "source": {
+        "src": "prochloraz",
+        "dst": "Lecanicillium fungicola isolate 1722",
+        "context": "In vitro growth."
+      },
+      "core_src": "prochloraz",
+      "core_dst": "Lecanicillium fungicola",
+      "qualifiers": {
+        "object_aspect_qualifier": "growth",
+        "study_context": "in vitro",
+        "object_form_or_variant_qualifier": "isolate 1722"
+      }
+    },
+    {
+      "source_row": 3,
+      "source": {
+        "src": "prochloraz",
+        "dst": "dry bubble disease",
+        "context": "Crop trial 1; bubble development versus untreated control, not lower-pressure trials. B. velezensis and Kos expanded from the body and article title."
+      },
+      "core_src": "prochloraz",
+      "core_dst": "dry bubble disease",
+      "qualifiers": {
+        "study_context": "crop trial 1",
+        "object_aspect_qualifier": "bubble development"
+      }
+    },
+    {
+      "source_row": 4,
+      "source": {
+        "src": "Bacillus velezensis QST 713",
+        "dst": "dry bubble disease",
+        "context": "Crop trial 1; bubble development versus untreated control, not lower-pressure trials. B. velezensis and Kos expanded from the body and article title."
+      },
+      "core_src": "Bacillus velezensis",
+      "core_dst": "dry bubble disease",
+      "qualifiers": {
+        "study_context": "crop trial 1",
+        "object_aspect_qualifier": "bubble development",
+        "subject_form_or_variant_qualifier": "QST 713"
+      }
+    },
+    {
+      "source_row": 5,
+      "source": {
+        "src": "Bacillus velezensis Kos",
+        "dst": "dry bubble disease",
+        "context": "Crop trial 1; bubble development versus untreated control, not lower-pressure trials. B. velezensis and Kos expanded from the body and article title."
+      },
+      "core_src": "Bacillus velezensis",
+      "core_dst": "dry bubble disease",
+      "qualifiers": {
+        "study_context": "crop trial 1",
+        "object_aspect_qualifier": "bubble development",
+        "subject_form_or_variant_qualifier": "Kos"
+      }
+    },
+    {
+      "source_row": 6,
+      "source": {
+        "src": "cyantraniliprole",
+        "dst": "Drosophila suzukii oviposition",
+        "context": "Bioassay 2; dilute insecticide alone, oviposition endpoint (not mortality). D. suzukii expanded from title."
+      },
+      "core_src": "cyantraniliprole",
+      "core_dst": "Drosophila suzukii",
+      "qualifiers": {
+        "study_context": "bioassay 2",
+        "dose": "dilute",
+        "object_aspect_qualifier": "oviposition"
+      }
+    },
+    {
+      "source_row": 7,
+      "source": {
+        "src": "spinosad",
+        "dst": "Drosophila suzukii oviposition",
+        "context": "Bioassay 2; dilute insecticide alone, oviposition endpoint (not mortality). D. suzukii expanded from title."
+      },
+      "core_src": "spinosad",
+      "core_dst": "Drosophila suzukii",
+      "qualifiers": {
+        "study_context": "bioassay 2",
+        "dose": "dilute",
+        "object_aspect_qualifier": "oviposition"
+      }
+    },
+    {
+      "source_row": 8,
+      "source": {
+        "src": "lambda-cyhalothrin",
+        "dst": "Drosophila suzukii oviposition",
+        "context": "Bioassay 2; dilute insecticide alone, oviposition endpoint."
+      },
+      "core_src": "lambda-cyhalothrin",
+      "core_dst": "Drosophila suzukii",
+      "qualifiers": {
+        "study_context": "bioassay 2",
+        "dose": "dilute",
+        "object_aspect_qualifier": "oviposition"
+      }
+    },
+    {
+      "source_row": 9,
+      "source": {
+        "src": "deltamethrin",
+        "dst": "Drosophila suzukii oviposition",
+        "context": "Bioassay 2; dilute insecticide alone, oviposition endpoint."
+      },
+      "core_src": "deltamethrin",
+      "core_dst": "Drosophila suzukii",
+      "qualifiers": {
+        "study_context": "bioassay 2",
+        "dose": "dilute",
+        "object_aspect_qualifier": "oviposition"
+      }
+    },
+    {
+      "source_row": 10,
+      "source": {
+        "src": "deltamethrin + PB",
+        "dst": "Drosophila suzukii",
+        "context": "Field bait sprays, explicitly ineffective; not jar bioassays. PB denotes phagostimulant bait."
+      },
+      "core_src": "deltamethrin + PB",
+      "core_dst": "Drosophila suzukii",
+      "qualifiers": {
+        "study_context": "field trial"
+      }
+    },
+    {
+      "source_row": 11,
+      "source": {
+        "src": "PB",
+        "dst": "Drosophila suzukii",
+        "context": "Bioassay 1; PB alone versus water control; mortality endpoint."
+      },
+      "core_src": "PB",
+      "core_dst": "Drosophila suzukii",
+      "qualifiers": {
+        "study_context": "bioassay 1",
+        "object_aspect_qualifier": "mortality"
+      }
+    },
+    {
+      "source_row": 12,
+      "source": {
+        "src": "cyantraniliprole + PB",
+        "dst": "Drosophila suzukii",
+        "context": "Bioassay 1; combined treatment versus water control, mortality endpoint."
+      },
+      "core_src": "cyantraniliprole + PB",
+      "core_dst": "Drosophila suzukii",
+      "qualifiers": {
+        "study_context": "bioassay 1",
+        "object_aspect_qualifier": "mortality"
+      }
+    },
+    {
+      "source_row": 13,
+      "source": {
+        "src": "clodinafop-propargyl",
+        "dst": "R blackgrass population",
+        "context": "Resistant population, recommended 1x rate: measured 0% control; not the higher rates."
+      },
+      "core_src": "clodinafop-propargyl",
+      "core_dst": "blackgrass",
+      "qualifiers": {
+        "dose": "1x recommended rate",
+        "population_context_qualifier": "R population"
+      }
+    },
+    {
+      "source_row": 14,
+      "source": {
+        "src": "fenoxaprop-P-ethyl",
+        "dst": "R blackgrass population",
+        "context": "Resistant population, recommended 1x rate: measured 0% control; not the higher rates."
+      },
+      "core_src": "fenoxaprop-P-ethyl",
+      "core_dst": "blackgrass",
+      "qualifiers": {
+        "dose": "1x recommended rate",
+        "population_context_qualifier": "R population"
+      }
+    },
+    {
+      "source_row": 15,
+      "source": {
+        "src": "pinoxaden",
+        "dst": "R blackgrass population",
+        "context": "Resistant population, recommended 1x rate: measured 0% fresh-weight reduction."
+      },
+      "core_src": "pinoxaden",
+      "core_dst": "blackgrass",
+      "qualifiers": {
+        "dose": "1x recommended rate",
+        "population_context_qualifier": "R population"
+      }
+    },
+    {
+      "source_row": 16,
+      "source": {
+        "src": "PBO",
+        "dst": "R blackgrass population",
+        "context": "Piperonyl butoxide alone versus untreated control, not the combinations."
+      },
+      "core_src": "PBO",
+      "core_dst": "blackgrass",
+      "qualifiers": {
+        "object_aspect_qualifier": "fresh weight",
+        "population_context_qualifier": "R population"
+      }
+    },
+    {
+      "source_row": 17,
+      "source": {
+        "src": "prosulfocarb",
+        "dst": "R blackgrass population",
+        "context": "Resistant blackgrass; pre-emergence; mixture remains a single treatment."
+      },
+      "core_src": "prosulfocarb",
+      "core_dst": "blackgrass",
+      "qualifiers": {
+        "application_timing": "pre-emergence",
+        "dose": "half recommended field label rate",
+        "object_aspect_qualifier": "fresh weight",
+        "population_context_qualifier": "R population"
+      }
+    },
+    {
+      "source_row": 18,
+      "source": {
+        "src": "chlorotoluron + diflufenican",
+        "dst": "R blackgrass population",
+        "context": "Resistant blackgrass; pre-emergence; mixture remains a single treatment."
+      },
+      "core_src": "chlorotoluron + diflufenican",
+      "core_dst": "blackgrass",
+      "qualifiers": {
+        "application_timing": "pre-emergence",
+        "dose": "half recommended field label rate",
+        "object_aspect_qualifier": "fresh weight",
+        "population_context_qualifier": "R population"
+      }
+    },
+    {
+      "source_row": 19,
+      "source": {
+        "src": "R blackgrass population",
+        "dst": "winter wheat",
+        "context": "Competition reduces winter wheat growth; R is the resistant population, not a gene."
+      },
+      "core_src": "blackgrass",
+      "core_dst": "winter wheat",
+      "qualifiers": {
+        "study_context": "competition experiment",
+        "object_aspect_qualifier": "fresh weight and tiller number",
+        "population_context_qualifier": "R population"
+      }
+    },
+    {
+      "source_row": 20,
+      "source": {
+        "src": "indaziflam",
+        "dst": "Poa annua",
+        "context": "Field postemergence treatment, not the effective preemergence treatment; measured null versus untreated."
+      },
+      "core_src": "indaziflam",
+      "core_dst": "Poa annua",
+      "qualifiers": {
+        "study_context": "field trial",
+        "application_timing": "post-emergence",
+        "dose": "95 or 190 g/ha"
+      }
+    },
+    {
+      "source_row": 21,
+      "source": {
+        "src": "glufosinate",
+        "dst": "Poa annua",
+        "context": "Field outcome statistically similar to untreated; new emergence explains failure."
+      },
+      "core_src": "glufosinate",
+      "core_dst": "Poa annua",
+      "qualifiers": {
+        "study_context": "field trial",
+        "dose": "1680 g a.i./ha"
+      }
+    },
+    {
+      "source_row": 22,
+      "source": {
+        "src": "fluridone",
+        "dst": "Poa annua",
+        "context": "Glasshouse preemergence, resistant accessions izr-1, izr-2, izr-5 and izr-8. Explicit ineffective claim, not a statistical-null statement."
+      },
+      "core_src": "fluridone",
+      "core_dst": "Poa annua",
+      "qualifiers": {
+        "study_context": "glasshouse",
+        "application_timing": "pre-emergence",
+        "population_context_qualifier": "izr-1, izr-2, izr-5 and izr-8"
+      }
+    },
+    {
+      "source_row": 23,
+      "source": {
+        "src": "rimsulfuron",
+        "dst": "Poa annua",
+        "context": "Glasshouse postemergence, indaziflam-resistant accessions."
+      },
+      "core_src": "rimsulfuron",
+      "core_dst": "Poa annua",
+      "qualifiers": {
+        "study_context": "glasshouse",
+        "application_timing": "post-emergence",
+        "population_context_qualifier": "indaziflam-resistant accessions"
+      }
+    },
+    {
+      "source_row": 24,
+      "source": {
+        "src": "glyphosate",
+        "dst": "Poa annua",
+        "context": "Glasshouse postemergence, indaziflam-resistant accessions."
+      },
+      "core_src": "glyphosate",
+      "core_dst": "Poa annua",
+      "qualifiers": {
+        "study_context": "glasshouse",
+        "application_timing": "post-emergence",
+        "population_context_qualifier": "indaziflam-resistant accessions"
+      }
+    },
+    {
+      "source_row": 25,
+      "source": {
+        "src": "napropamide",
+        "dst": "Poa annua",
+        "context": "Glasshouse preemergence, indaziflam-resistant accessions."
+      },
+      "core_src": "napropamide",
+      "core_dst": "Poa annua",
+      "qualifiers": {
+        "study_context": "glasshouse",
+        "application_timing": "pre-emergence",
+        "population_context_qualifier": "indaziflam-resistant accessions"
+      }
+    },
+    {
+      "source_row": 26,
+      "source": {
+        "src": "dichlobenil",
+        "dst": "Poa annua",
+        "context": "Glasshouse preemergence, indaziflam-resistant accessions."
+      },
+      "core_src": "dichlobenil",
+      "core_dst": "Poa annua",
+      "qualifiers": {
+        "study_context": "glasshouse",
+        "application_timing": "pre-emergence",
+        "population_context_qualifier": "indaziflam-resistant accessions"
+      }
+    },
+    {
+      "source_row": 27,
+      "source": {
+        "src": "pyroxasulfone",
+        "dst": "Poa annua",
+        "context": "Glasshouse preemergence, indaziflam-resistant accessions."
+      },
+      "core_src": "pyroxasulfone",
+      "core_dst": "Poa annua",
+      "qualifiers": {
+        "study_context": "glasshouse",
+        "application_timing": "pre-emergence",
+        "population_context_qualifier": "indaziflam-resistant accessions"
+      }
+    },
+    {
+      "source_row": 28,
+      "source": {
+        "src": "Botrytis cinerea",
+        "dst": "fludioxonil",
+        "context": "Michigan 2020 sampled isolates only; explicitly no resistant isolates, not a claim about all populations or years."
+      },
+      "core_src": "Botrytis cinerea",
+      "core_dst": "fludioxonil",
+      "qualifiers": {
+        "population_context_qualifier": "Michigan 2020 sampled isolates"
+      }
+    },
+    {
+      "source_row": 29,
+      "source": {
+        "src": "Botrytis cinerea",
+        "dst": "fenhexamid",
+        "context": "Michigan 2020 sampled isolates only; explicitly no resistant isolates, not a claim about all populations or years."
+      },
+      "core_src": "Botrytis cinerea",
+      "core_dst": "fenhexamid",
+      "qualifiers": {
+        "population_context_qualifier": "Michigan 2020 sampled isolates"
+      }
+    },
+    {
+      "source_row": 30,
+      "source": {
+        "src": "Botrytis cinerea",
+        "dst": "iprodione",
+        "context": "Michigan 2020 sampled isolates only; explicitly no resistant isolates, not a claim about all populations or years."
+      },
+      "core_src": "Botrytis cinerea",
+      "core_dst": "iprodione",
+      "qualifiers": {
+        "population_context_qualifier": "Michigan 2020 sampled isolates"
+      }
+    },
+    {
+      "source_row": 31,
+      "source": {
+        "src": "Botrytis cinerea",
+        "dst": "pyraclostrobin",
+        "context": "Michigan sampled populations, shared multi-fungicide resistance phenotypes in 2019, 2020 and 2022."
+      },
+      "core_src": "Botrytis cinerea",
+      "core_dst": "pyraclostrobin",
+      "qualifiers": {
+        "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+      }
+    },
+    {
+      "source_row": 32,
+      "source": {
+        "src": "Botrytis cinerea",
+        "dst": "boscalid",
+        "context": "Michigan sampled populations, shared multi-fungicide resistance phenotypes in 2019, 2020 and 2022."
+      },
+      "core_src": "Botrytis cinerea",
+      "core_dst": "boscalid",
+      "qualifiers": {
+        "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+      }
+    },
+    {
+      "source_row": 33,
+      "source": {
+        "src": "Botrytis cinerea",
+        "dst": "thiabendazole",
+        "context": "Michigan sampled populations, shared multi-fungicide resistance phenotypes in 2019, 2020 and 2022."
+      },
+      "core_src": "Botrytis cinerea",
+      "core_dst": "thiabendazole",
+      "qualifiers": {
+        "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+      }
+    }
+  ]
+}

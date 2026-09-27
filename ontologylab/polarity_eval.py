@@ -48,7 +48,8 @@ from ontologylab.evaluation import (
     bootstrap_f1_interval,
 )
 from ontologylab.kgstore import normalize_name
-from ontologylab.schemas import POLARITY_QUALIFIER, preset
+from ontologylab.schemas import AGROCHEM_STATEMENT_QUALIFIERS, POLARITY_QUALIFIER, preset
+from ontologylab.statement_qualifiers import canonical_qualifiers
 
 POLARITIES = tuple(POLARITY_QUALIFIER["enum"])
 LABELS = (*POLARITIES, "omitted")
@@ -61,6 +62,7 @@ class PolarityGold:
 
     relations: tuple[tuple[Triple, str], ...]
     papers: int
+    qualifiers: tuple[dict[str, str], ...] = ()
 
 
 def _require(condition: bool, message: str) -> None:
@@ -68,7 +70,7 @@ def _require(condition: bool, message: str) -> None:
         raise GoldError(message)
 
 
-def load_polarity_gold(path: str | Path) -> PolarityGold:
+def load_polarity_gold(path: str | Path, *, qualified: bool = False) -> PolarityGold:
     """Validate schema vocabulary, source integrity and exact body spans.
 
     This is offline integrity validation, not semantic adjudication or an
@@ -154,7 +156,8 @@ def load_polarity_gold(path: str | Path) -> PolarityGold:
             if "polarity" in rt["qualifiers"]
         }
         relations: list[tuple[Triple, str]] = []
-        seen: set[Triple] = set()
+        qualifier_sets: list[dict[str, str]] = []
+        seen: set[tuple] = set()
         cited: set[str] = set()
         for item in raw["relations"]:
             _require(all(isinstance(item[k], str) and bool(item[k].strip())
@@ -164,8 +167,16 @@ def load_polarity_gold(path: str | Path) -> PolarityGold:
             _require(item["polarity"] in POLARITIES, "invalid gold polarity")
             triple = normalize_name(item["src"]), item["relation"], normalize_name(item["dst"])
             _require(bool(triple[0]) and bool(triple[2]), "empty normalized name")
-            _require(triple not in seen, "duplicate or conflicting gold triple")
-            seen.add(triple)
+            scope = item.get("qualifiers", {}) if qualified else {}
+            _require(isinstance(scope, dict), "gold qualifiers must be an object")
+            _require(all(key in AGROCHEM_STATEMENT_QUALIFIERS or key == "evidence_strength"
+                         for key in scope), "unknown gold qualifier")
+            _require(all(isinstance(value, str) and bool(value.strip())
+                         for value in scope.values()), "invalid gold qualifier value")
+            identity = (*triple, item["polarity"], canonical_qualifiers(scope)) if qualified else triple
+            _require(identity not in seen, "duplicate or conflicting gold triple")
+            seen.add(identity)
+            qualifier_sets.append(scope)
             pmcid = item["pmcid"]
             _require(pmcid in sources, "relation cites unknown paper")
             data, ranges = sources[pmcid]
@@ -180,14 +191,14 @@ def load_polarity_gold(path: str | Path) -> PolarityGold:
             relations.append((triple, item["polarity"]))
             cited.add(pmcid)
         _require(cited == set(sources), "uncited source in corpus")
-        return PolarityGold(tuple(relations), len(sources))
+        return PolarityGold(tuple(relations), len(sources), tuple(qualifier_sets))
     except (OSError, UnicodeError, ValueError, KeyError, TypeError, AttributeError) as exc:
         raise GoldError(f"malformed polarity gold: {exc}") from exc
 
 
-def validate_gold(path: str | Path) -> dict[str, Any]:
+def validate_gold(path: str | Path, *, qualified: bool = False) -> dict[str, Any]:
     """Return counts only after every source and span has passed validation."""
-    gold = load_polarity_gold(path)
+    gold = load_polarity_gold(path, qualified=qualified)
     counts = Counter(polarity for _, polarity in gold.relations)
     return {
         "papers": gold.papers,
@@ -250,8 +261,14 @@ def _node_match_keys(store_conn: sqlite3.Connection) -> dict[str, set[str]]:
     return keys
 
 
-def score_polarity(store_conn: sqlite3.Connection, gold_path: str | Path) -> dict[str, Any]:
+def score_polarity(
+    store_conn: sqlite3.Connection, gold_path: str | Path, *, qualified: bool = False,
+) -> dict[str, Any]:
     """Score a v2 trial store without writes or changes to connection state."""
+    if qualified:
+        from ontologylab.qualified_polarity_eval import score_qualified
+
+        return score_qualified(store_conn, load_polarity_gold(gold_path, qualified=True))
     gold = load_polarity_gold(gold_path)
     node_keys = _node_match_keys(store_conn)
     predictions: dict[Triple, set[str]] = defaultdict(set)
@@ -339,9 +356,18 @@ def main(argv: list[str] | None = None) -> int:
     """Offline gold-validator CLI; errors never print a success count."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("gold", type=Path)
+    parser.add_argument("--qualified", action="store_true")
+    parser.add_argument("--store", type=Path, help="Read-only trial SQLite copy to score")
     args = parser.parse_args(argv)
     try:
-        counts = validate_gold(args.gold)
+        if args.store is None:
+            counts = validate_gold(args.gold, qualified=args.qualified)
+        else:
+            conn = sqlite3.connect(args.store.resolve().as_uri() + "?mode=ro", uri=True)
+            try:
+                counts = score_polarity(conn, args.gold, qualified=args.qualified)
+            finally:
+                conn.close()
     except GoldError as exc:
         print(f"polarity gold refused: {exc}", file=sys.stderr)
         return 1
