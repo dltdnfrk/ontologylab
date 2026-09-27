@@ -45,6 +45,26 @@ Existing installed agrochem-v2 schemas inherit the platform slots at validation
 and prompt-read boundaries, without rewriting their stored declarations.
 Other schemas do not inherit the agrochem vocabulary.
 
+### Polarity ruling, 2026-09-27 (todo 33)
+
+For the exact assertion and experimental scope:
+
+- `no_effect` is a measured absence of a significant effect. Tested outcomes
+  described as "ineffective", "not significantly different", or "did not reduce"
+  belong here; negative wording alone does not make a refutation.
+- `refutes` is reserved for an explicit contradiction of a stated or expected
+  claim, not merely a measured null. If a passage does both, the measured
+  finding remains `no_effect`; a separate contradiction needs its own span.
+- `supports` asserts a positive effect or a positive nonexperimental relation.
+  A comparison between two effective treatments is not a null versus untreated.
+
+The `extract-v8` polarity precedence and examples already implement this ruling.
+Todo 33 does not change prompt text or `PROMPT_VERSION`.
+Zero observed members of a category (for example, resistant isolates) is not
+automatically a null treatment effect or a contradiction of a stated claim.
+Where the source and this ruling do not resolve that distinction, retain the
+historical label and record ambiguity rather than infer an expected claim.
+
 ### Value normalization, reviewed 2026-09-27 (todo 30)
 
 Engineering review against the frozen mapping and trial-4 surfaces, not
@@ -61,7 +81,36 @@ population inference or automatic aspect completion.
 | Life stages inside both form/variant slots | `egg` (eggs), `larva` (larvae, larval), `pupa` (pupae, pupal), `nymph` (nymphs, nymphal), `adult` (adults), `seedling` (seedlings), stored as `life_stage:<value>` |
 | Form/variant kinds | `strain`, `isolate`, `variant`, `life_stage`; store `kind:<label>`. Strain/isolate/variant labels use `kgstore_base.normalize_name`; a bare unclassified label stays `other:<normalized name>`, never an inferred strain. |
 | `population_context_qualifier` | Free text via NFKC and `normalize_name`. Preserve location, year, sampling and list order. No aliases between R and resistant, or between broader and narrower populations. |
-| `dose` | NFKC/case/whitespace plus the unit table in `unit_normalization`. Exact qualitative aliases: dilute dose, dilute doses -> dilute. Fully parsed numeric doses (including `or`/`and` alternatives) become canonical value + unit, retaining a.i./a.e. basis. Reciprocal ha/L/kg unit spellings such as `ha-1` and `ha−1` map to slash units. Unsupported units, ranges and reference rates retain normalized text and punctuation. |
+| `dose` | NFKC/case/whitespace plus the unit table in `unit_normalization`. Exact qualitative aliases: dilute dose, dilute doses -> dilute. Fully parsed numeric doses (including `or`/`and` alternatives) become canonical value + unit, retaining a.i./a.e. basis. Reciprocal ha/L/kg unit spellings such as `ha-1` and `ha−1` map to slash units. Numeric label-rate multiples use the exact rule below; other reference rates, unsupported units and ranges retain normalized text and punctuation. |
+
+#### Exact label-rate multiples (todo 33)
+
+Within the agrochem `dose` slot, a bare numeric `Nx` or `N×` is label-rate
+shorthand, not an arbitrary fold change. This reading is explicitly grounded
+for the blackgrass gold in the full body's whole-plant rate-response section,
+which defines the multiples relative to each herbicide's recommended label
+field rate. Do not encode a stock dilution, control-relative ratio or
+magnification using that shorthand; retain its named reference.
+
+After NFKC, casefold and whitespace collapse, the entire value must match:
+an unsigned integer or decimal with digits on both sides of the decimal point,
+optional whitespace, `x` or `×`, and either no suffix, `_label_rate`, or a
+single space followed by one of these exact suffixes:
+`recommended rate`, `label rate`, `field label rate`,
+`recommended label rate`, `recommended field label rate`,
+`recommended label field rate`.
+
+Render the number without redundant leading/trailing zeroes and append
+`x_label_rate`: `1x`, `1× recommended rate` and `01.00x label rate` all become
+`1x_label_rate`; `0.5x` becomes `0.5x_label_rate`, never `1x_label_rate`.
+The value remains relative to the same treatment's label rate, not a mass
+conversion or permission to merge different treatment/population statements.
+Named alternative references, additional text, fractions, word numbers,
+ranges and alternatives are not matched (`1x control rate`, `1x stock
+concentration`, `1x or 2x`, and `half recommended field label rate` stay distinct).
+There is no fuzzy matching or inference from neighboring assertions.
+The existing store boundary and qualified scorer both call this rule through
+`normalize_statement_value("dose", ...)`; raw provenance remains available.
 
 All listed canonical values are also accepted. Unicode hyphens U+2010,
 U+2011, U+2012, U+2013 and U+2212 are equivalent only during closed-table
@@ -123,15 +172,35 @@ aspect or trial context, or records qualified mentions as species aliases.
 Scripted engines test these mechanics, not model compliance or model recall.
 
 `tests/gold/agrochem-polarity/qualified-mapping.json` is an explicitly reviewed
-mapping of all 34 original rows. The script `qualify_gold.py` emits a
-deterministic derived file without modifying either old gold file. Original
+mapping of all 34 original rows. The script `qualify_gold.py` emits
+versioned deterministic derivations without modifying historical gold. Original
 row indexes and names are retained for exact reconstruction. The mapping
 review is an engineering annotation review against frozen contexts and quotes,
 not independent expert adjudication.
 
-The generator uses the same deterministic value normalization as new writes.
-Original findings, spans, polarity, contexts and reversible coordinates remain
-unchanged; `qualified-mapping.json` retains the reviewed source labels.
+The generator uses the same deterministic value normalization as new writes;
+`qualified-mapping.json` retains the reviewed source labels.
+Its default output is `gold-qualified-normalized.json` (old polarity, current
+dose normalization). `--kind aligned` emits `gold-aligned.json` from
+`gold-fulltext.json` and the reviewed `alignment.json`: only rows 11 and 23
+(one-based) change from `refutes` to `no_effect`. All other row fields,
+including historical context wording, remain identical. Rows 29-31 are
+explicitly ambiguous and retain their old labels. The alignment table records
+all 34 quotes, decisions, rationales and full-body context coordinates.
+
+`--kind aligned-qualified` emits `gold-aligned-qualified.json` by applying
+the existing qualified mapping and current normalization to that aligned
+source. Thus polarity alignment and dose normalization are separate operations;
+the only qualifier changes from archived `gold-qualified.json` are the doses
+in rows 14-16. `--check` verifies the selected committed artifact byte for byte.
+`gold.json`, `gold-fulltext.json`, `gold-qualified.json` and
+`qualified-mapping.json` remain frozen.
+
+Use the aligned qualified derivation for qualified scoring and
+`gold-aligned.json` for legacy scoring, preserving each scorer's endpoint
+representation. A rescore of trial-5's frozen export is an offline diagnostic
+under the revised definition, not a new extraction trial or independent
+holdout. Keep historical scores alongside it and leave thresholds unchanged.
 
 Qualified scoring normalizes both sides and requires the same normalized/recorded-alias core triple and
 polarity, and equality for every qualifier specified by gold. Extra predicted

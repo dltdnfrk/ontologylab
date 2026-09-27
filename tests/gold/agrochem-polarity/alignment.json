@@ -1,0 +1,519 @@
+{
+  "version": "polarity-alignment-2026-09-27-v1",
+  "source": "gold-fulltext.json",
+  "source_sha256": "cf7ea33f227540f201f2142eb7fa640bf08a1edf3cb039528c3b4828796f4f23",
+  "rule": "A measured absence of a significant effect, including measured ineffectiveness, is no_effect; refutes is reserved for explicit contradiction of a stated or expected claim.",
+  "review": "All 34 source spans and surrounding full-body results/discussion reviewed against the user ruling on 2026-09-27; engineering annotation review, not independent expert adjudication. Historical context strings remain verbatim even when their old label rationale is superseded here.",
+  "rows": [
+    {
+      "row": 1,
+      "source_row": 0,
+      "pmcid": "PMC12632097",
+      "quote": "Prochloraz was very effective at reducing the growth of isolate 620.",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "Positive in-vitro growth inhibition of isolate 620 remains supports under the ruling; it is not a null or contradiction.",
+      "context_evidence": {
+        "source": "sources/full/PMC12632097.txt",
+        "start": 21562,
+        "end": 22430
+      }
+    },
+    {
+      "row": 2,
+      "source_row": 1,
+      "pmcid": "PMC12632097",
+      "quote": "Metrafenone also significantly reduced the growth of isolate 620 but growth was less severely affected compared to prochloraz treated flasks.",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "Positive in-vitro growth inhibition remains supports; weaker efficacy than prochloraz is not a measured null under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12632097.txt",
+        "start": 21919,
+        "end": 22860
+      }
+    },
+    {
+      "row": 3,
+      "source_row": 2,
+      "pmcid": "PMC12632097",
+      "quote": "Prochloraz significantly reduced the growth of isolate 1722 in flask cultures, similar to isolate 620.",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "The significant reduction in isolate 1722 growth remains supports under the positive-finding branch of the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12632097.txt",
+        "start": 22855,
+        "end": 23757
+      }
+    },
+    {
+      "row": 4,
+      "source_row": 3,
+      "pmcid": "PMC12632097",
+      "quote": "In crop trial 1, there was no significant difference between the bubble development in the untreated control plots and prochloraz, B. velezensis QST 713 or Kos treated plots inoculated at a rate of 1 × 106 conidia m−2.",
+      "old": "no_effect",
+      "new": "no_effect",
+      "status": "unchanged",
+      "rationale": "No significant crop-trial-1 bubble-development difference versus untreated plots is a measured null, hence no_effect under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12632097.txt",
+        "start": 37346,
+        "end": 38371
+      }
+    },
+    {
+      "row": 5,
+      "source_row": 4,
+      "pmcid": "PMC12632097",
+      "quote": "In crop trial 1, there was no significant difference between the bubble development in the untreated control plots and prochloraz, B. velezensis QST 713 or Kos treated plots inoculated at a rate of 1 × 106 conidia m−2.",
+      "old": "no_effect",
+      "new": "no_effect",
+      "status": "unchanged",
+      "rationale": "No significant crop-trial-1 difference for QST 713 versus untreated plots is a measured null, hence no_effect under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12632097.txt",
+        "start": 37346,
+        "end": 38371
+      }
+    },
+    {
+      "row": 6,
+      "source_row": 5,
+      "pmcid": "PMC12632097",
+      "quote": "In crop trial 1, there was no significant difference between the bubble development in the untreated control plots and prochloraz, B. velezensis QST 713 or Kos treated plots inoculated at a rate of 1 × 106 conidia m−2.",
+      "old": "no_effect",
+      "new": "no_effect",
+      "status": "unchanged",
+      "rationale": "No significant crop-trial-1 difference for Kos versus untreated plots is a measured null, hence no_effect under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12632097.txt",
+        "start": 37346,
+        "end": 38371
+      }
+    },
+    {
+      "row": 7,
+      "source_row": 6,
+      "pmcid": "PMC12546283",
+      "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b).",
+      "old": "no_effect",
+      "new": "no_effect",
+      "status": "unchanged",
+      "rationale": "The dilute cyantraniliprole arm did not reduce oviposition, a measured null that remains no_effect under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12546283.txt",
+        "start": 23811,
+        "end": 24812
+      }
+    },
+    {
+      "row": 8,
+      "source_row": 7,
+      "pmcid": "PMC12546283",
+      "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b).",
+      "old": "no_effect",
+      "new": "no_effect",
+      "status": "unchanged",
+      "rationale": "The dilute spinosad arm did not reduce oviposition, a measured null that remains no_effect under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12546283.txt",
+        "start": 23811,
+        "end": 24812
+      }
+    },
+    {
+      "row": 9,
+      "source_row": 8,
+      "pmcid": "PMC12546283",
+      "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b).",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "The dilute lambda-cyhalothrin arm significantly reduced oviposition, so supports remains correct under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12546283.txt",
+        "start": 23811,
+        "end": 24812
+      }
+    },
+    {
+      "row": 10,
+      "source_row": 9,
+      "pmcid": "PMC12546283",
+      "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b).",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "The dilute deltamethrin arm significantly reduced oviposition, so supports remains correct under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12546283.txt",
+        "start": 23811,
+        "end": 24812
+      }
+    },
+    {
+      "row": 11,
+      "source_row": 10,
+      "pmcid": "PMC12546283",
+      "quote": "However, we found that deltamethrin + PB bait sprays were ineffective in the field.",
+      "old": "refutes",
+      "new": "no_effect",
+      "status": "changed",
+      "rationale": "The field-treatment finding is measured ineffectiveness, so the ruling requires no_effect; the nearby cage and jar results concern different settings, not an explicit contradiction of this field claim.",
+      "context_evidence": {
+        "source": "sources/full/PMC12546283.txt",
+        "start": 32809,
+        "end": 33696
+      }
+    },
+    {
+      "row": 12,
+      "source_row": 11,
+      "pmcid": "PMC12546283",
+      "quote": "Cyantraniliprole or PB alone did not significantly affect mortality.",
+      "old": "no_effect",
+      "new": "no_effect",
+      "status": "unchanged",
+      "rationale": "PB alone did not significantly affect bioassay mortality, a measured null that remains no_effect under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12546283.txt",
+        "start": 21568,
+        "end": 22436
+      }
+    },
+    {
+      "row": 13,
+      "source_row": 12,
+      "pmcid": "PMC12546283",
+      "quote": "At all time points after the start of the bioassay, mortality was higher in the cyantraniliprole + PB treatment than in the water control (t270 = 4.85; p < 0.001).",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "The combined treatment increased mortality versus water, a positive finding that remains supports under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12546283.txt",
+        "start": 21392,
+        "end": 22367
+      }
+    },
+    {
+      "row": 14,
+      "source_row": 13,
+      "pmcid": "PMC12563837",
+      "quote": "In contrast, the application of the 1×, 2×, 4×, and 8× rates of clodinafop-propargyl or fenoxaprop-P-ethyl resulted in 0%, 4%, 15% and 62% or 0%, 0%, 14%, and 27% control of the R population, respectively, (a,b).",
+      "old": "no_effect",
+      "new": "no_effect",
+      "status": "unchanged",
+      "rationale": "The recommended-rate resistant arm measured zero control, so no_effect remains correct under the ruling irrespective of higher-rate effects.",
+      "context_evidence": {
+        "source": "sources/full/PMC12563837.txt",
+        "start": 23923,
+        "end": 24939
+      }
+    },
+    {
+      "row": 15,
+      "source_row": 14,
+      "pmcid": "PMC12563837",
+      "quote": "In contrast, the application of the 1×, 2×, 4×, and 8× rates of clodinafop-propargyl or fenoxaprop-P-ethyl resulted in 0%, 4%, 15% and 62% or 0%, 0%, 14%, and 27% control of the R population, respectively, (a,b).",
+      "old": "no_effect",
+      "new": "no_effect",
+      "status": "unchanged",
+      "rationale": "The recommended-rate resistant arm measured zero control, so no_effect remains correct under the ruling irrespective of higher-rate effects.",
+      "context_evidence": {
+        "source": "sources/full/PMC12563837.txt",
+        "start": 23923,
+        "end": 24939
+      }
+    },
+    {
+      "row": 16,
+      "source_row": 15,
+      "pmcid": "PMC12563837",
+      "quote": "In addition, the application of pinoxaden at field label rates of 1×, 2×, 4×, and 8× resulted in 0%, 48%, 83%, and 89% fresh weight reduction, respectively, (c).",
+      "old": "no_effect",
+      "new": "no_effect",
+      "status": "unchanged",
+      "rationale": "The recommended-rate resistant arm measured zero fresh-weight reduction, so no_effect remains correct under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12563837.txt",
+        "start": 24140,
+        "end": 25105
+      }
+    },
+    {
+      "row": 17,
+      "source_row": 16,
+      "pmcid": "PMC12563837",
+      "quote": "The fresh weight of the R blackgrass plants treated only with PBO did not differ from that of the untreated (control) plants, while the application of PBO two hours before the herbicide treatments considerably increased the herbicidal effect of ACCase- and ALS-inhibitors against the R blackgrass population.",
+      "old": "no_effect",
+      "new": "no_effect",
+      "status": "unchanged",
+      "rationale": "PBO alone had no measured fresh-weight difference versus untreated plants, so no_effect remains correct without transferring combination effects.",
+      "context_evidence": {
+        "source": "sources/full/PMC12563837.txt",
+        "start": 28889,
+        "end": 29997
+      }
+    },
+    {
+      "row": 18,
+      "source_row": 17,
+      "pmcid": "PMC12563837",
+      "quote": "The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations.",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "The pre-emergence treatment reduced fresh weight at the stated rate, a positive finding that remains supports under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12563837.txt",
+        "start": 26732,
+        "end": 27766
+      }
+    },
+    {
+      "row": 19,
+      "source_row": 18,
+      "pmcid": "PMC12563837",
+      "quote": "The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations.",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "The pre-emergence mixture reduced fresh weight at the stated rate, a positive finding that remains supports under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12563837.txt",
+        "start": 26732,
+        "end": 27766
+      }
+    },
+    {
+      "row": 20,
+      "source_row": 19,
+      "pmcid": "PMC12563837",
+      "quote": "More specifically, the fresh weight (a) and tiller number (b) produced by winter wheat plants significantly decreased with increasing density of the R and S blackgrass populations, whereas significant differences between populations were observed only in fresh weight.",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "Increasing blackgrass density significantly reduced wheat growth, so the positive damages assertion remains supports under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12563837.txt",
+        "start": 31062,
+        "end": 32130
+      }
+    },
+    {
+      "row": 21,
+      "source_row": 20,
+      "pmcid": "PMC12713700",
+      "quote": "In contrast, indaziflam applied postemergence (95 or 190 g ha−1) exhibited inconsistent control, with control values ranging from near 0% to 90%, and was not statistically different from the non‐treated control or treatment with glufosinate (Fig. ).",
+      "old": "no_effect",
+      "new": "no_effect",
+      "status": "unchanged",
+      "rationale": "Postemergence field control was not statistically different from untreated control, so no_effect remains correct under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12713700.txt",
+        "start": 33366,
+        "end": 34424
+      }
+    },
+    {
+      "row": 22,
+      "source_row": 21,
+      "pmcid": "PMC12713700",
+      "quote": "Glufosinate (1680 g a.i. ha−1) was also ineffective, with control statistically similar to the non‐treated control because of new P. annua emergence.",
+      "old": "no_effect",
+      "new": "no_effect",
+      "status": "unchanged",
+      "rationale": "The ineffective field treatment was statistically similar to untreated control, so no_effect remains correct under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12713700.txt",
+        "start": 33625,
+        "end": 34580
+      }
+    },
+    {
+      "row": 23,
+      "source_row": 22,
+      "pmcid": "PMC12713700",
+      "quote": "Fluridone applied preemergence was ineffective across several accessions, with izr‐1, izr‐2, izr‐5, and izr‐8 showing > 50% survival.",
+      "old": "refutes",
+      "new": "no_effect",
+      "status": "changed",
+      "rationale": "The authors report measured preemergence ineffectiveness with survival data, so the ruling requires no_effect rather than refutes; no stated or expected claim is explicitly contradicted.",
+      "context_evidence": {
+        "source": "sources/full/PMC12713700.txt",
+        "start": 31820,
+        "end": 32763
+      }
+    },
+    {
+      "row": 24,
+      "source_row": 23,
+      "pmcid": "PMC12713700",
+      "quote": "In contrast, rimsulfuron and glyphosate remained effective, with all resistant accessions showing < 13% survival.",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "The postemergence treatment remained effective in the tested accessions, so supports remains correct under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12713700.txt",
+        "start": 31615,
+        "end": 32530
+      }
+    },
+    {
+      "row": 25,
+      "source_row": 24,
+      "pmcid": "PMC12713700",
+      "quote": "In contrast, rimsulfuron and glyphosate remained effective, with all resistant accessions showing < 13% survival.",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "The postemergence treatment remained effective in the tested accessions, so supports remains correct under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12713700.txt",
+        "start": 31615,
+        "end": 32530
+      }
+    },
+    {
+      "row": 26,
+      "source_row": 25,
+      "pmcid": "PMC12713700",
+      "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival.",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "The preemergence treatment provided greater control, so supports remains correct under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12713700.txt",
+        "start": 32090,
+        "end": 33003
+      }
+    },
+    {
+      "row": 27,
+      "source_row": 26,
+      "pmcid": "PMC12713700",
+      "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival.",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "The preemergence treatment provided greater control, so supports remains correct under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12713700.txt",
+        "start": 32090,
+        "end": 33003
+      }
+    },
+    {
+      "row": 28,
+      "source_row": 27,
+      "pmcid": "PMC12713700",
+      "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival.",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "The preemergence treatment provided greater control, so supports remains correct under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC12713700.txt",
+        "start": 32090,
+        "end": 33003
+      }
+    },
+    {
+      "row": 29,
+      "source_row": 28,
+      "pmcid": "PMC11298438",
+      "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations.",
+      "old": "refutes",
+      "new": "refutes",
+      "status": "ambiguous",
+      "rationale": "The ruling does not unambiguously classify zero observed resistant isolates: this is neither a tested null efficacy effect nor an explicit contradiction of a stated claim about this cohort, so retain refutes and mark ambiguous.",
+      "context_evidence": {
+        "source": "sources/full/PMC11298438.txt",
+        "start": 16527,
+        "end": 17431
+      }
+    },
+    {
+      "row": 30,
+      "source_row": 29,
+      "pmcid": "PMC11298438",
+      "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations.",
+      "old": "refutes",
+      "new": "refutes",
+      "status": "ambiguous",
+      "rationale": "The ruling does not unambiguously classify zero observed resistant isolates: this is neither a tested null efficacy effect nor an explicit contradiction of a stated claim about this cohort, so retain refutes and mark ambiguous.",
+      "context_evidence": {
+        "source": "sources/full/PMC11298438.txt",
+        "start": 16527,
+        "end": 17431
+      }
+    },
+    {
+      "row": 31,
+      "source_row": 30,
+      "pmcid": "PMC11298438",
+      "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations.",
+      "old": "refutes",
+      "new": "refutes",
+      "status": "ambiguous",
+      "rationale": "The ruling does not unambiguously classify zero observed resistant isolates: this is neither a tested null efficacy effect nor an explicit contradiction of a stated claim about this cohort, so retain refutes and mark ambiguous.",
+      "context_evidence": {
+        "source": "sources/full/PMC11298438.txt",
+        "start": 16527,
+        "end": 17431
+      }
+    },
+    {
+      "row": 32,
+      "source_row": 31,
+      "pmcid": "PMC11298438",
+      "quote": "Only two phenotypes (MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil and MFR to pyraclostrobin, boscalid, and thiabendazole) were commonly observed in B. cinerea populations in all 3 years.",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "The observed multi-fungicide phenotype positively asserts resistance in the sampled years, so supports remains correct under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC11298438.txt",
+        "start": 17202,
+        "end": 18207
+      }
+    },
+    {
+      "row": 33,
+      "source_row": 32,
+      "pmcid": "PMC11298438",
+      "quote": "Only two phenotypes (MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil and MFR to pyraclostrobin, boscalid, and thiabendazole) were commonly observed in B. cinerea populations in all 3 years.",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "The observed multi-fungicide phenotype positively asserts resistance in the sampled years, so supports remains correct under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC11298438.txt",
+        "start": 17202,
+        "end": 18207
+      }
+    },
+    {
+      "row": 34,
+      "source_row": 33,
+      "pmcid": "PMC11298438",
+      "quote": "Only two phenotypes (MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil and MFR to pyraclostrobin, boscalid, and thiabendazole) were commonly observed in B. cinerea populations in all 3 years.",
+      "old": "supports",
+      "new": "supports",
+      "status": "unchanged",
+      "rationale": "The observed multi-fungicide phenotype positively asserts resistance in the sampled years, so supports remains correct under the ruling.",
+      "context_evidence": {
+        "source": "sources/full/PMC11298438.txt",
+        "start": 17202,
+        "end": 18207
+      }
+    }
+  ]
+}

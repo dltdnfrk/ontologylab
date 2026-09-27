@@ -67,15 +67,29 @@ MEASUREMENT_KEY = "measurement"
 # Exact lexical aliases, not numeric interpretations of qualitative doses.
 DOSE_SYNONYMS = {"dilute dose": "dilute", "dilute doses": "dilute"}
 
+# In the agrochem dose slot, bare Nx is shorthand for the label rate.
+# A named alternative reference (control, stock, etc.) must never match.
+_LABEL_RATE_RE = re.compile(
+    r"(\d+(?:\.\d+)?)\s*[x\u00d7]"
+    r"(?:_label_rate| (?:recommended rate|label rate|field label rate|"
+    r"recommended label rate|recommended field label rate|recommended label field rate))?"
+)
+
 
 def normalize_dose(text: str) -> str:
     """Canonical value + unit for fully parsed doses; preserve all other text.
 
     Keep the active-ingredient/acid-equivalent basis and alternatives. Do not
-    parse a numeric prefix of a range, reference rate or unsupported unit.
+    parse a numeric prefix of a range or unsupported unit. Exact numeric
+    label-rate multiples retain their reference basis, never an inferred mass.
     """
     if text in DOSE_SYNONYMS:
         return DOSE_SYNONYMS[text]
+    label_rate = _LABEL_RATE_RE.fullmatch(text)
+    if label_rate is not None:
+        value = format(Decimal(label_rate[1]), "f")
+        value = value.rstrip("0").rstrip(".") if "." in value else value
+        return f"{value}x_label_rate"
     number = r"[-+]?\d+(?:[.,]\d+)?(?:e[-+]?\d+)?"
     match = re.fullmatch(rf"({number}(?:(?: or | and ){number})*)\s*(.+)", text)
     if match is None:
