@@ -344,6 +344,8 @@ class LifecycleMixin:
             "extractor_model",
             "prompt_version",
             "decode_params",
+            # No backfill: old mixed-pass runs cannot be attributed honestly.
+            "extraction_passes",
         ):
             if column not in citation_columns:
                 conn.execute(f"ALTER TABLE citations ADD COLUMN {column} TEXT")

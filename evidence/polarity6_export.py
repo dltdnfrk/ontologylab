@@ -48,6 +48,12 @@ if sys.argv[1] == "export":
         "scope": "All persisted rows, including rejected and invalidated rows.",
         "spans": "Original source_span fields plus complete citations and citation_receipts.",
         "polarities": "Original edges.qualifiers_json; no normalization or filtering.",
+        "extraction_passes": (
+            "citations.extraction_passes is a JSON set of known producing passes "
+            "(first, completion); NULL or an absent column means unrecorded. "
+            "Duplicate observations within a chunk share the retained citation; "
+            "union citation sets by (kind, item_id) for statement attribution."
+        ),
     }
 elif sys.argv[1] == "rescore":
     exported = json.loads(Path(sys.argv[2]).read_text())

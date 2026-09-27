@@ -188,6 +188,7 @@ _PACK_COPY_COLUMNS: dict[str, tuple[str, ...]] = {
     "citations": (
         "kind", "item_id", "source_doc_id", "source_span", "created_ts",
         "extractor_engine", "extractor_model", "prompt_version", "decode_params",
+        "extraction_passes",
     ),
     "ontology_term": (
         "id", "iri", "preferred_label", "language", "definition", "lifecycle",

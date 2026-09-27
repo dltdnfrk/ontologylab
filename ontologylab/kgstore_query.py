@@ -18,11 +18,13 @@ from ontologylab.kgstore_base import (
     _edge_dict,
     _node_dict,
     _status_clause,
+    extraction_passes,
     normalize_name,
     span_excerpt,
 )
 
 class QueryMixin:
+    conn: sqlite3.Connection
 
     # ------------------------------------------------------------------
     # Verified-only reads (pack build + ground-truth queries)
@@ -154,6 +156,7 @@ class QueryMixin:
                 "model": row["extractor_model"] if "extractor_model" in keys else None,
                 "prompt_version": row["prompt_version"] if "prompt_version" in keys else None,
                 "created_ts": row["created_ts"],
+                "passes": extraction_passes(self.conn, kind, item_id),
             },
             "review": {
                 "verified_by": row["verified_by"] if "verified_by" in keys else None,

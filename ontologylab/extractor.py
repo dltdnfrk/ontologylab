@@ -1690,7 +1690,14 @@ async def run_extraction(
                             ) if proposal_pass[entity.id] == "completion" else entity.id
                             for entity in accepted_entities
                         }
-                        first_statements = set()
+                        # Preserve pass observations even when the existing
+                        # duplicate policy keeps only the first proposal.
+                        observed_passes = {
+                            entity.id: {proposal_pass[entity.id]} for entity in accepted_entities
+                        }
+                        for entity in accepted_entities:
+                            observed_passes[endpoint_ids[entity.id]].add(proposal_pass[entity.id])
+                        first_statements = {}
                         result.relations = []
                         for relation in accepted_relations:
                             relation.src_entity_id = endpoint_ids[relation.src_entity_id]
@@ -1705,13 +1712,15 @@ async def run_extraction(
                                 edge_polarity(scope), canonical_qualifiers(scope),
                             )
                             if proposal_pass[relation.id] == "first":
-                                first_statements.add(identity)
+                                first_statements[identity] = relation.id
                             elif identity in first_statements:
+                                observed_passes[first_statements[identity]].add("completion")
                                 provenance.log("extract.completion_duplicate", {
                                     "doc_id": doc_id, "chunk": chunk.index,
                                     "pass": "completion", "id": relation.id,
                                 })
                                 continue
+                            observed_passes[relation.id] = {proposal_pass[relation.id]}
                             result.relations.append(relation)
                         used_endpoints = {
                             endpoint for relation in result.relations
@@ -1731,6 +1740,7 @@ async def run_extraction(
                             prompt_version=run_prompt_version,
                             # What the provider actually used, not merely requested.
                             decode_params=usage.get("decode_params"),
+                            proposal_passes=observed_passes,
                             commit=False,
                         )
                         # Bind citations to THIS run's receipts when the

@@ -252,6 +252,38 @@ enabling it later does not silently reuse an off-mode run. Request provenance
 records `pass=first|completion`, document/chunk, sequential request number and
 pipeline version. Both passes charge the same `extract` accounting step.
 
+### Accepted statement pass provenance
+
+`citations.extraction_passes` is nullable TEXT containing a JSON set in stable
+order: `["first"]`, `["completion"]`, or `["first","completion"]`. The extractor
+supplies the pass for every node and edge proposal retained for persistence,
+including synthesized endpoints. This is platform metadata, not a model field,
+qualifier, identity key, score, or review status.
+
+Within a chunk, when completion repeats a normalized first-pass statement or
+endpoint, its pass is unioned into the retained proposal's citation. We retain
+the existing first span and metadata rather than adding another citation or
+letting completion rewrite the first proposal. The set means the statement was
+observed in both passes, not that both responses supplied the same span. It is
+not a response transcript or a first-pass counterfactual. Across chunks, runs,
+or store-level identity merges, each existing citation append keeps its own
+set; readers union the sets for the resolved node/edge. Thus no extra evidence
+counts or graph identities are manufactured just to record attribution.
+
+Migration adds only the nullable citation column. Legacy rows and callers
+without a pass map remain NULL: **unrecorded**, never presumed first-pass.
+Read-only older packs also return null without migration. A union of known
+passes does not attribute any untagged historical mentions; per-citation nulls
+remain visible. Node/edge IDs and all existing row fields are preserved.
+
+`KGStore.citations` exposes the parsed set per citation; `KGStore.provenance`
+includes `extraction.passes`. `claims_for` and the other
+claim readers expose additive `extraction_passes`; the existing `provenance`
+origin string is unchanged. Pack builds and carry-forward copy the column.
+`evidence/polarity6_export.py` exports its original stored JSON with every
+citation and explains the null/set rule in its envelope. Frozen trial exports
+are unchanged and cannot acquire attribution retroactively.
+
 ### Budget allocation
 
 With N chunks and T transport retries, unrestricted requests would be

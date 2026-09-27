@@ -16,7 +16,7 @@ import json
 import sqlite3
 from typing import Any
 
-from ontologylab.kgstore_base import EDGE_POLARITY_SQL
+from ontologylab.kgstore_base import EDGE_POLARITY_SQL, extraction_passes
 
 POLARITIES = ("supports", "refutes", "no_effect")
 _OPPOSING = ("refutes", "no_effect")
@@ -119,6 +119,7 @@ def _claim_rows(
             "status": row["status"],
             "origin": row["origin"],
             "provenance": row["origin"],
+            "extraction_passes": extraction_passes(conn, "edge", row["id"]),
             "confidence": row["confidence"],
             "measurement": measurement,
             "value": normalized.get("value"),

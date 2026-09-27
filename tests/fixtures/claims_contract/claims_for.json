@@ -3,6 +3,7 @@
     {
       "confidence": null,
       "edge_id": "<edge_id>",
+      "extraction_passes": null,
       "evidence": {
         "doi": null,
         "retrieved_at": "<ts>",
@@ -56,6 +57,7 @@
     {
       "confidence": null,
       "edge_id": "<edge_id>",
+      "extraction_passes": null,
       "evidence": {
         "doi": null,
         "retrieved_at": "<ts>",
@@ -108,6 +110,7 @@
     {
       "confidence": null,
       "edge_id": "<edge_id>",
+      "extraction_passes": null,
       "evidence": {
         "doi": null,
         "retrieved_at": "<ts>",

@@ -7,6 +7,7 @@ ontologylab.kgstore facade can share them without circular imports.
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -27,6 +28,27 @@ MATCH_SCORE_PRECISION = 4
 # scale (asserted by the parity tests).
 VEC_SHORTLIST_FACTOR = 8
 VEC_SHORTLIST_MIN_MARGIN = 64
+
+
+def extraction_passes(
+    conn: sqlite3.Connection, kind: str, item_id: str,
+) -> list[str] | None:
+    """Known producing passes across citations; NULL means unrecorded.
+
+    Old immutable packs have no column and must remain readable without DDL.
+    A known set is not a claim that older, untagged mentions came from it.
+    """
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(citations)")}
+    if "extraction_passes" not in columns:
+        return None
+    seen: set[str] = set()
+    for row in conn.execute(
+        "SELECT extraction_passes FROM citations WHERE kind = ? AND item_id = ?",
+        (kind, item_id),
+    ):
+        if row[0] is not None:
+            seen.update(json.loads(row[0]))
+    return [name for name in ("first", "completion") if name in seen] or None
 
 
 def _execute_sql_script(conn: sqlite3.Connection, script: str) -> None:
@@ -362,7 +384,8 @@ CREATE TABLE IF NOT EXISTS citations (
     extractor_engine TEXT,
     extractor_model  TEXT,
     prompt_version   TEXT,
-    decode_params    TEXT
+    decode_params    TEXT,
+    extraction_passes TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_citations_item ON citations (kind, item_id);
 

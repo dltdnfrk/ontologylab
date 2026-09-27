@@ -28,6 +28,7 @@ SECTION_6_KEYS = frozenset({
 })
 
 CURRENT_KEYS = frozenset({
+    "extraction_passes",
     "edge_id",
     "subject",
     "relation",

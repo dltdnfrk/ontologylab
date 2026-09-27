@@ -217,9 +217,12 @@ def carry_forward(
                 )
                 new_id = id_map[row["id"]]
                 store.conn.execute(
-                    "INSERT INTO citations SELECT kind, ?, source_doc_id, source_span, "
+                    "INSERT INTO citations "
+                    "(kind, item_id, source_doc_id, source_span, created_ts, "
+                    "extractor_engine, extractor_model, prompt_version, decode_params, extraction_passes) "
+                    "SELECT kind, ?, source_doc_id, source_span, "
                     "created_ts, extractor_engine, extractor_model, prompt_version, "
-                    "decode_params FROM citations WHERE kind = ? AND item_id = ?",
+                    "decode_params, extraction_passes FROM citations WHERE kind = ? AND item_id = ?",
                     (new_id, kind, row["id"]),
                 )
                 if kind == "node":

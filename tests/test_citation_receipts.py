@@ -324,7 +324,8 @@ def test_baseline_citations_api_returns_source_doc_and_span(
             "SELECT id FROM nodes WHERE name = 'PaymentGateway'"
         ).fetchone()["id"]
         citation = store.citations("node", node_id)[0]
-        assert set(citation) == {"source_doc_id", "source_span"}
+        assert set(citation) == {"source_doc_id", "source_span", "extraction_passes"}
+        assert citation["extraction_passes"] is None
         assert citation["source_doc_id"] == document.id
         assert citation["source_span"] == {"start": 4, "end": 18}
         assert _citation_receipt_count(store.conn) == 0

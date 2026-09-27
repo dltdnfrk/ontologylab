@@ -42,6 +42,7 @@ class ProposedMixin:
         decode_params: dict[str, Any] | None = None,
         commit: bool = True,
         origin: str = "extracted",
+        proposal_passes: dict[str, set[str]] | None = None,
     ) -> dict[str, Any]:
         """Insert extraction output as ``proposed`` rows, resolving entities.
 
@@ -58,6 +59,16 @@ class ProposedMixin:
         sv_id = self.active_schema_version()["id"]
         entity_rows = list(entities)
         relation_rows = list(relations)
+        pass_json: dict[str, str] = {}
+        if proposal_passes is not None:
+            for proposal in [*entity_rows, *relation_rows]:
+                passes = proposal_passes.get(proposal.id, set())
+                if not passes or not passes <= {"first", "completion"}:
+                    raise KGStoreError(f"invalid extraction passes for {proposal.id}")
+                pass_json[proposal.id] = json.dumps(
+                    [name for name in ("first", "completion") if name in passes],
+                    separators=(",", ":"),
+                )
         schema = self._schema_definition(sv_id)
         raw_qualifiers: dict[str, dict[str, str]] = {}
         entity_types: dict[str, str] = {}
@@ -185,6 +196,7 @@ class ProposedMixin:
                 extractor_model,
                 prompt_version,
                 decode_json,
+                pass_json.get(ent.id),
             )
 
         for rel in relation_rows:
@@ -255,6 +267,7 @@ class ProposedMixin:
                 extractor_model,
                 prompt_version,
                 decode_json,
+                pass_json.get(rel.id),
             )
 
         if commit:
@@ -405,12 +418,13 @@ class ProposedMixin:
         extractor_model: str | None,
         prompt_version: str | None,
         decode_params: str | None,
+        extraction_passes: str | None = None,
     ) -> None:
         self.conn.execute(
             "INSERT INTO citations "
             "(kind, item_id, source_doc_id, source_span, created_ts, "
-            "extractor_engine, extractor_model, prompt_version, decode_params) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "extractor_engine, extractor_model, prompt_version, decode_params, extraction_passes) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 kind,
                 item_id,
@@ -421,12 +435,13 @@ class ProposedMixin:
                 extractor_model,
                 prompt_version,
                 decode_params,
+                extraction_passes,
             ),
         )
 
     def citations(self, kind: str, item_id: str) -> list[dict[str, Any]]:
         cur = self.conn.execute(
-            "SELECT source_doc_id, source_span, created_ts FROM citations "
+            "SELECT * FROM citations "
             "WHERE kind = ? AND item_id = ? ORDER BY created_ts ASC",
             (kind, item_id),
         )
@@ -434,6 +449,10 @@ class ProposedMixin:
             {
                 "source_doc_id": r["source_doc_id"],
                 "source_span": json.loads(r["source_span"]) if r["source_span"] else None,
+                "extraction_passes": (
+                    json.loads(r["extraction_passes"])
+                    if "extraction_passes" in r.keys() and r["extraction_passes"] else None
+                ),
             }
             for r in cur.fetchall()
         ]
