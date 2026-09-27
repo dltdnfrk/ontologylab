@@ -12,7 +12,7 @@ import pytest
 import ontologylab.carry_forward as module
 from ontologylab.carry_forward import CarryForwardError, carry_forward
 from ontologylab.kgstore import KGStore
-from ontologylab.kgstore_base import EDGE_POLARITY_SQL, SchemaValidationError
+from ontologylab.kgstore_base import EDGE_POLARITY_SQL, SchemaValidationError, UnknownQualifierError
 from ontologylab.packbuilder import build_pack
 from tests.fixtures.carry_forward.build_v1_fixture import build_fixture
 
@@ -146,6 +146,28 @@ def test_target_validation_refuses_everything(fixture_store, sql):
     with pytest.raises(SchemaValidationError):
         carry_forward(store, source, target)
 
+    assert snapshot(store) == before
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_unknown_qualifier_raises_typed_refusal_and_rolls_back(fixture_store, dry_run):
+    store, source, target = fixture_store
+    store.conn.execute(
+        "UPDATE edges SET qualifiers_json=? WHERE id='v1-edge-105'",
+        (json.dumps({"invented_scope": "adult"}),),
+    )
+    store.conn.commit()
+    before = snapshot(store)
+
+    with pytest.raises(UnknownQualifierError) as caught:
+        carry_forward(store, source, target, dry_run=dry_run)
+
+    assert caught.value.qualifier == "invented_scope"
+    assert caught.value.relation_type == "controls"
+    assert caught.value.schema_version_id == target
+    assert caught.value.__traceback__ is not None
+    assert not store.conn.in_transaction
+    assert store._tx_depth == 0
     assert snapshot(store) == before
 
 

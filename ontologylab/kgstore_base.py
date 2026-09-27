@@ -49,9 +49,13 @@ class SchemaValidationError(KGStoreError):
     """Raised when a graph write does not conform to its row's ontology."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class UnknownQualifierError(SchemaValidationError):
-    """An undeclared qualifier is refused, never silently discarded."""
+    """An undeclared qualifier is refused, never silently discarded.
+
+    Exception metadata must remain mutable: contextlib assigns __traceback__
+    when propagating this refusal through a transaction context manager.
+    """
 
     qualifier: str
     relation_type: str
