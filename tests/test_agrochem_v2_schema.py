@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from ontologylab import extractor
 from ontologylab.extractor import build_extraction_prompt, chunk_document, parse_and_validate_extraction
 from ontologylab.schemas import PRESETS, preset
 from tests.conftest import insert
@@ -68,7 +69,9 @@ def test_v2_edges_keep_supports_and_no_effect_apart(store, doc) -> None:
 def test_prompt_tells_the_model_to_keep_null_results(store) -> None:
     _install(store)
     prompt = build_extraction_prompt(store.get_schema(), "text")
-    assert '"no_effect" when it reports testing it and finding' in prompt
+    for guidance in (extractor._POLARITY_GUIDANCE, extractor._MULTI_ARM_GUIDANCE):
+        assert guidance.strip()
+        assert prompt.count(guidance) == 1
 
 
 def test_parsed_null_result_carries_no_effect_polarity(store) -> None:

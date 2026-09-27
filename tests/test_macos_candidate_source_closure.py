@@ -58,14 +58,16 @@ def test_task11_policy_covers_every_authoritative_path_class() -> None:
     assert not audit.missing, sorted(audit.missing)
     # The completion wave added carry_forward, extraction_eligibility,
     # polarity_eval, and species_abbreviation; the rebuilt web assets replace
-    # the two old hashed files rather than changing their count.
+    # the two old hashed files rather than changing their count. Qualified
+    # statements added ontologylab/statement_qualifiers.py,
+    # ontologylab/qualified_extraction.py, and ontologylab/qualified_polarity_eval.py.
     assert (
         len(audit.declared),
         len(audit.authoritative),
         len(audit.task10_authoritative),
         len(audit.missing),
         len(audit.generated_violations),
-    ) == (100, 363, 27, 0, 0)
+    ) == (100, 366, 27, 0, 0)
     assert not audit.generated_violations
     assert covered("ontologylab/storage-compatibility.json", audit.declared)
     assert not any(
