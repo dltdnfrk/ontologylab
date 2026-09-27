@@ -619,6 +619,7 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
         max_engine_calls=args.max_engine_calls,
         time_budget=args.time_budget,
         decode_params=extraction_decode_params(engine),
+        max_transport_retries=args.max_transport_retries,
         on_progress=_print,
         on_stats=_accumulate,
         should_abort=lambda: (
@@ -1967,6 +1968,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     p_extract.add_argument("--max-engine-calls", type=int,
                            default=paths.DEFAULT_MAX_ENGINE_CALLS)
+    p_extract.add_argument(
+        "--max-transport-retries", type=int,
+        choices=range(0, 101), default=paths.DEFAULT_MAX_TRANSPORT_RETRIES,
+        metavar="N", help="Transient retries per chunk (0-100; default: 2).",
+    )
     p_extract.add_argument("--time-budget", type=float,
                            default=None,
                            help="Wall-clock seconds (default: size from eligible "

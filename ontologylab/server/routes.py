@@ -2493,6 +2493,7 @@ def start_extract(deps: AppDependency, body: ExtractRequest) -> dict[str, Any]:
         model=body.model,
         doc_ids=body.doc_ids,
         max_engine_calls=body.max_engine_calls,
+        max_transport_retries=body.max_transport_retries,
         time_budget=body.time_budget,
         seed=body.seed,
     )
