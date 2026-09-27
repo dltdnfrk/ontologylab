@@ -29,6 +29,7 @@ DEFAULT_SEED: int = 7
 # Shared request cap and research wall-clock default. Direct extraction sizes
 # an omitted wall budget from its eligible chunks in run_extract_job.
 DEFAULT_MAX_ENGINE_CALLS: int = 500
+DEFAULT_MAX_TRANSPORT_RETRIES: int = 2
 DEFAULT_TIME_BUDGET_S: float = 7200.0
 
 # Audit-trail actor recorded on approve/reject/merge/invalidate when the

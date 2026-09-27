@@ -20,11 +20,12 @@ with a fabricated offset.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
@@ -37,6 +38,8 @@ from ontologylab.engines import (
     CHUNK_MARKER_CLOSE,
     CHUNK_MARKER_OPEN,
     EngineError,
+    MAX_TRANSPORT_BACKOFF_S,
+    TransientEngineError,
     _DEFAULT_TIMEOUT_S,
     extract_fenced_block,
 )
@@ -54,6 +57,7 @@ from ontologylab.normalization import (
     normalize_proposal,
 )
 from ontologylab.provenance import Provenance
+from ontologylab.paths import DEFAULT_MAX_TRANSPORT_RETRIES
 from ontologylab.unit_normalization import normalize_measurement
 from ontologylab.registry import CASRegistryCache, MoARegistryCache, RegistryCache
 from ontologylab.safety import Caps
@@ -969,6 +973,8 @@ async def run_extract_job(
     on_progress: Callable[[str], None],
     on_stats: Callable[[dict[str, int]], None],
     should_abort: Callable[[], str] | None,
+    max_transport_retries: int = DEFAULT_MAX_TRANSPORT_RETRIES,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> ExtractionOutcome:
     provenance = Provenance(str(job_dir), seed=seed)
     effective_model = effective_extractor_model(engine, model)
@@ -997,28 +1003,32 @@ async def run_extract_job(
     if not ids:
         return ExtractionOutcome("")
     if time_budget is None:
-        # Each chunk can issue an initial request and one parse retry. Size
-        # the automatic wall budget for those requests, capped by spend,
-        # with 10% for local parsing/persistence. Explicit limits stay binding.
+        # One initial request, one parse retry, and N transport retries per
+        # chunk share the same spend cap (including its reserve slots).
+        # Account for bounded waits too; explicit wall limits stay binding.
         chunk_count = sum(
             len(chunk_document(store.document_raw_text(doc_id))) for doc_id in ids
         )
-        request_slots = 2 * chunk_count
+        request_slots = (2 + max_transport_retries) * chunk_count
         if max_engine_calls:
             request_slots = min(request_slots, max_engine_calls)
         request_timeout = getattr(engine, "_timeout_s", _DEFAULT_TIMEOUT_S)
-        time_budget = provenance.elapsed_s + request_slots * request_timeout * 1.1
+        time_budget = provenance.elapsed_s + request_slots * (
+            request_timeout * 1.1 + MAX_TRANSPORT_BACKOFF_S
+        )
         provenance.log("extract.budget", {
             "chunks": chunk_count,
             "request_slots": request_slots,
             "request_timeout_s": request_timeout,
             "time_budget_s": time_budget,
             "max_engine_calls": max_engine_calls,
+            "max_transport_retries": max_transport_retries,
         })
     caps = Caps(SimpleNamespace(
         iterations=0,
         time_budget_s=time_budget,
         max_engine_calls=max_engine_calls,
+        max_transport_retries=max_transport_retries,
     ))
     provenance.log(
         "extract.start",
@@ -1048,6 +1058,7 @@ async def run_extract_job(
         on_stats=_accumulate,
         should_abort=should_abort,
         decode_params=decode_params,
+        sleep=sleep,
     )
     provenance.log("extract.end", {"totals": totals, "stopped": stopped_reason})
     # Merge reflux: extraction just minted new proposed nodes, so the
@@ -1079,6 +1090,7 @@ async def run_extraction(
     should_abort: Callable[[], str] | None = None,
     decode_params: dict[str, Any] | None = None,
     receipt_sets: dict[str, Any] | None = None,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> ExtractionOutcome:
     """Extract every chunk and return its stop reason and failure outcome.
 
@@ -1097,8 +1109,9 @@ async def run_extraction(
       are thread-bound and the worker must open its own inside the thread.
 
     Budget checks run *before* each engine call, so a spent budget costs
-    nothing. A parse failure gets one counted retry; an engine failure or
-    a second parse failure is logged and skipped without discarding other chunks.
+    nothing. A parse failure gets one counted retry; transient transports
+    get at most N additional requests per chunk, not N per parse attempt.
+    All attempts pass the same cap and accounting boundary.
     """
     schema = store.get_schema()
     # Review→extract feedback: human rejections become negative examples in
@@ -1130,6 +1143,9 @@ async def run_extraction(
     stopped_reason = ""
     abort_triggered = False
     chunk_failed = False
+    max_transport_retries = getattr(
+        caps.config, "max_transport_retries", DEFAULT_MAX_TRANSPORT_RETRIES
+    )
     with ExtractionState(store.conn) as lifecycle:
         active_run_id: str | None = None
         try:
@@ -1160,7 +1176,11 @@ async def run_extraction(
                     )
                     result = None
                     error_kind = ""
-                    for attempt in range(2):
+                    attempts = 0
+                    parse_failures = 0
+                    transport_retries = 0
+                    retry_delay = 0.0
+                    while parse_failures < 2:
                         stop, reason = caps.should_stop(
                             {
                                 "elapsed": provenance.elapsed_s,
@@ -1176,10 +1196,20 @@ async def run_extraction(
                                 stopped_reason = aborted
                                 abort_triggered = True
                                 break
-                        if attempt == 0 and not lifecycle.claim(
+                        if retry_delay:
+                            provenance.log("extract.transport_retry", {
+                                "doc_id": doc_id, "chunk": chunk.index,
+                                "retry": transport_retries, "delay_s": retry_delay,
+                            })
+                            await sleep(retry_delay)
+                            retry_delay = 0.0
+                            # Backoff can cross the wall cap or cancellation.
+                            continue
+                        if attempts == 0 and not lifecycle.claim(
                             plan.run_id, chunk.index
                         ):
                             break
+                        attempts += 1
                         usage = {"error": "engine_error"}
                         started = time.monotonic()
                         try:
@@ -1204,12 +1234,23 @@ async def run_extraction(
                                     "doc_id": doc_id,
                                     "chunk": chunk.index,
                                     "error": str(exc),
+                                    "type": type(exc).__name__,
                                 },
                             )
                             on_progress(
                                 f"[ontologylab] engine error on "
                                 f"{doc_id}#{chunk.index}: {ENGINE_FAILURE_SUMMARY}"
                             )
+                            if (
+                                isinstance(exc, TransientEngineError)
+                                and transport_retries < max_transport_retries
+                            ):
+                                retry_delay = min(
+                                    MAX_TRANSPORT_BACKOFF_S,
+                                    max(2.0 ** min(transport_retries, 3), exc.retry_after_s),
+                                )
+                                transport_retries += 1
+                                continue
                             break
                         try:
                             result = parse_and_validate_extraction(
@@ -1217,6 +1258,7 @@ async def run_extraction(
                             )
                         except EngineError as exc:
                             error_kind = "parse_rejected"
+                            parse_failures += 1
                             provenance.log(
                                 "extract.parse_rejected",
                                 {

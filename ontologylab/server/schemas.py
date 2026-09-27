@@ -33,6 +33,7 @@ from ontologylab.paths import (
     DEFAULT_ACTOR,
     DEFAULT_ENGINE,
     DEFAULT_MAX_ENGINE_CALLS,
+    DEFAULT_MAX_TRANSPORT_RETRIES,
     DEFAULT_SEED,
     DEFAULT_TIME_BUDGET_S,
 )
@@ -101,6 +102,7 @@ class ExtractRequest(BaseModel):
     model: str | None = OFFLINE_LAUNCH_POLICY.default_model
     doc_ids: list[str] = Field(default_factory=list)
     max_engine_calls: int = Field(default=DEFAULT_MAX_ENGINE_CALLS, ge=1)
+    max_transport_retries: int = Field(default=DEFAULT_MAX_TRANSPORT_RETRIES, ge=0, le=100)
     # Omitted/null sizes the budget from eligible chunks and request timeout.
     time_budget: float | None = Field(default=None, gt=0)
     seed: int = DEFAULT_SEED
