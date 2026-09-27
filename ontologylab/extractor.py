@@ -218,6 +218,10 @@ Polarity precedence for the exact assertion being extracted:
    may be its own refutes assertion with its own supporting span.
 3. supports = a measured positive effect for this outcome, or an explicit
    positive assertion for a relation that is not an experimental finding.
+"""
+
+
+_BACKGROUND_GUIDANCE = """\
 Introductory and background claims are not the study's finding. Either skip
 them or, when the schema permits, emit them with study_context="background".
 They must not override the finding, inherit its context or replace a null.
@@ -430,6 +434,9 @@ from the document chunk below, strictly following the ontology schema.
 6. If nothing is extractable, return {{"entities": [], "relations": []}}.
 
 {_POLARITY_GUIDANCE}
+
+<background-separation>
+{_BACKGROUND_GUIDANCE}</background-separation>
 
 {agrochem_guidance}
 

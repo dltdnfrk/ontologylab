@@ -24,6 +24,19 @@ def test_prompt_ships_comparison_and_precedence_blocks(qualified_store, block_na
         assert prompt.count(block) == 1
 
 
+def test_prompt_delivers_nonempty_background_section(qualified_store):
+    for schema in (preset("agrochem-v2"), qualified_store.get_schema()):
+        prompt = extractor.build_extraction_prompt(schema, "No findings.")
+        sections = re.findall(
+            r"<background-separation>\n(.*?)</background-separation>",
+            prompt, flags=re.DOTALL,
+        )
+        assert len(sections) == 1
+        # Check the section contract and shipped copy, never editorial wording.
+        assert sections[0].strip()
+        assert sections[0] == extractor._BACKGROUND_GUIDANCE
+
+
 def test_extraction_prompt_version():
     assert extractor.PROMPT_VERSION == "extract-v7"
 
@@ -126,6 +139,12 @@ def test_scripted_background_is_distinct_from_the_finding(
         {"polarity": "supports", "study_context": "background"},
         {"polarity": polarity, "study_context": "orchard trial"},
     ])
+    rows = qualified_store.conn.execute("SELECT qualifiers_json FROM edges").fetchall()
+    assert {
+        scope["study_context"]: scope["polarity"]
+        for row in rows
+        for scope in [json.loads(row["qualifiers_json"])]
+    } == {"background": "supports", "orchard trial": polarity}
 
 
 def _seven_word_sequences(text: str) -> set[tuple[str, ...]]:
