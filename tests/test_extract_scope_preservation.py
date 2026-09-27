@@ -57,7 +57,7 @@ def test_scope_guidance_is_shipped_for_preset_and_installed_schema(agrochem_stor
     assert extractor._AGROCHEM_GUIDANCE not in build_extraction_prompt(
         preset("software-docs"), "No findings."
     )
-    assert extractor.PROMPT_VERSION == "extract-v5"
+    assert extractor.PROMPT_VERSION == "extract-v6"
 
 
 # Constructed passages; none are taken from the frozen polarity gold corpus.
@@ -139,7 +139,31 @@ def test_scripted_findings_keep_relation_and_endpoint_identity(
 ):
     entities = {}
     relations = []
+    expected = set()
+    # Reviewed fixture annotations, independent of production post-processing.
+    scopes = {
+        "Fungus delta isolate L": ("Fungus delta", "Pathogen", "form_or_variant", "isolate L"),
+        "Fungus delta isolate M": ("Fungus delta", "Pathogen", "form_or_variant", "isolate M"),
+        "Bacterium delta strain J": ("Bacterium delta", "Pathogen", "form_or_variant", "strain J"),
+        "Bacterium delta strain K": ("Bacterium delta", "Pathogen", "form_or_variant", "strain K"),
+        "R meadowgrass population": ("meadowgrass", "Weed", "population_context", "R population"),
+        "S meadowgrass population": ("meadowgrass", "Weed", "population_context", "S population"),
+        "Beetle delta larvae": ("Beetle delta", "Pest", "form_or_variant", "larvae"),
+        "Beetle delta adults": ("Beetle delta", "Pest", "form_or_variant", "adults"),
+        "Beetle delta oviposition": ("Beetle delta", "Pest", "aspect", "oviposition"),
+    }
     for source, source_type, relation, target, target_type, polarity in claims:
+        qualifiers = {"polarity": polarity}
+        endpoints = []
+        for side, name, entity_type in (
+            ("subject", source, source_type), ("object", target, target_type),
+        ):
+            if name in scopes:
+                name, entity_type, slot, value = scopes[name]
+                key = f"{slot}_qualifier" if slot == "population_context" else f"{side}_{slot}_qualifier"
+                qualifiers[key] = value
+            endpoints.extend((name, entity_type))
+        source, source_type, target, target_type = endpoints
         for name, entity_type in ((source, source_type), (target, target_type)):
             start = text.index(name)
             entities[name, entity_type] = {
@@ -149,8 +173,10 @@ def test_scripted_findings_keep_relation_and_endpoint_identity(
         relations.append({
             "source": {"name": source, "entity_type": source_type},
             "target": {"name": target, "entity_type": target_type},
-            "relation_type": relation, "qualifiers": {"polarity": polarity},
+            "relation_type": relation, "qualifiers": qualifiers,
         })
+        expected.add((source, source_type, relation, target, target_type,
+                      json.dumps(qualifiers, sort_keys=True)))
     engine = CountingEngine([json.dumps({
         "entities": list(entities.values()), "relations": relations,
     })])
@@ -167,15 +193,15 @@ def test_scripted_findings_keep_relation_and_endpoint_identity(
         span = json.loads(node["source_span"])
         assert text[span["start"]:span["end"]] == node["name"]
         assert node["status"] == "proposed"
-        assert node["prompt_version"] == "extract-v5"
+        assert node["prompt_version"] == "extract-v6"
     rows = agrochem_store.conn.execute(
         "SELECT s.name, s.entity_type, e.relation_type, t.name, t.entity_type, "
         "e.qualifiers_json FROM edges e "
         "JOIN nodes s ON s.id=e.src_node_id JOIN nodes t ON t.id=e.dst_node_id"
     ).fetchall()
     assert {
-        (*tuple(row)[:5], json.loads(row[5])["polarity"]) for row in rows
-    } == set(claims)
+        (*tuple(row)[:5], json.dumps(json.loads(row[5]), sort_keys=True)) for row in rows
+    } == expected
     assert agrochem_store.conn.execute("SELECT COUNT(*) FROM node_aliases").fetchone()[0] == 0
 
 

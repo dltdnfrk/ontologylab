@@ -58,8 +58,9 @@ from ontologylab.unit_normalization import normalize_measurement
 from ontologylab.registry import CASRegistryCache, MoARegistryCache, RegistryCache
 from ontologylab.safety import Caps
 from ontologylab.species_abbreviation import resolve_species_abbreviation
+from ontologylab.qualified_extraction import split_grounded_variants
 
-PROMPT_VERSION = "extract-v5"
+PROMPT_VERSION = "extract-v6"
 ENGINE_FAILURE_SUMMARY = "extraction engine failed"
 
 # Heuristic tokenizer: ~4 chars/token (no model-specific tokenizer dep).
@@ -212,19 +213,27 @@ Agrochem relation selection and endpoint scope:
   result is not by itself evidence of disease control in a crop.
   "reduces" is not an agrochem-v2 relation: determine WHAT was reduced and in
   which experiment before choosing inhibits or controls.
-- Keep the tested endpoint, not just its organism: a process, a life stage,
-  a named population, an isolate, a strain and a disease are not interchangeable.
-  Copy the full qualified mention verbatim from the span asserting THIS
-  finding into name and every relation endpoint reference. Keep species prefixes, population
-  labels, isolate/strain identifiers, life-stage words and process words.
-  Use the shortest span that supports the assertion. Do not attach a qualifier
-  from another sentence, figure caption, treatment arm or document section.
-  If the asserting sentence names the bare organism, keep that bare mention;
-  another occurrence of an isolate or adult stage does not qualify this one.
+- Use the Biolink fully-qualified-statement model: entity names are core
+  concepts (species, chemical, crop or named disease), not decorated findings.
+  Compose full semantics in relation qualifiers. Put isolates, strains and
+  life stages in subject_form_or_variant_qualifier or
+  object_form_or_variant_qualifier; populations in population_context_qualifier;
+  measured aspects (growth, oviposition, mortality) in subject_aspect_qualifier
+  or object_aspect_qualifier. Use species_context_qualifier and
+  anatomical_context_qualifier for explicitly stated contextual species and
+  anatomy. Use study_context for in vitro, field trial or a named assay; dose
+  for the stated rate with units; application_timing for pre/post-emergence.
+  Only use slots declared above. Keep each relation's own context separate.
+  The core triple must remain true when qualifiers are ignored, except
+  negation, which stays in polarity. Use qualified_predicate only when the
+  full reading needs a more specific predicate; never invent a causal claim.
+  Use the shortest span supporting THIS assertion and its qualifiers.
+  Do not attach context from a different sentence, figure, treatment arm or
+  document section. A bare-organism finding has no inferred isolate or stage.
   If an endpoint is implicit, use only its unambiguous local antecedent and
   include that antecedent in the evidence span; do not borrow distant context.
-  Do not turn these narrower entities into aliases of the bare species.
-  Use Pathway for a biological process and Disease for a named disease.
+  Do not add qualified mentions as aliases of the core concept.
+  Use Pathway for a standalone biological process and Disease for a named disease.
   If the chunk only says "isolate Z" or a symptom, keep that source wording;
   do not invent an absent species prefix or equate a symptom to a disease.
 - A tested mixture is ONE treatment entity with the complete combination name,
@@ -242,24 +251,32 @@ Agrochem relation selection and endpoint scope:
 
 Invented mini-examples (not study evidence; only extract the real chunk):
 Input: Agent A reduced growth of Fungus alpha isolate Z in vitro.
-Output: Agent A --inhibits [supports]--> Fungus alpha isolate Z (Pathogen).
+Output: Agent A --inhibits--> Fungus alpha (Pathogen), qualifiers:
+{"polarity":"supports","object_form_or_variant_qualifier":"isolate Z",
+ "object_aspect_qualifier":"growth","study_context":"in vitro"}.
 Input: Agent A did not significantly reduce Moth beta oviposition.
-Output: Agent A --inhibits [no_effect]--> Moth beta oviposition (Pathway).
+Output: Agent A --inhibits--> Moth beta (Pest), qualifiers:
+{"polarity":"no_effect","object_aspect_qualifier":"oviposition"}.
 Input: Agent A controlled R ryegrass population; it had no significant effect
 on S ryegrass population.
-Output: Agent A --controls [supports]--> R ryegrass population (Weed);
-Agent A --controls [no_effect]--> S ryegrass population (Weed). Keep two nodes.
+Output: two Agent A --controls--> ryegrass (Weed) statements, qualifiers
+{"polarity":"supports","population_context_qualifier":"R population"} and
+{"polarity":"no_effect","population_context_qualifier":"S population"}.
 Input: Agent A controlled Moth beta larvae but not Moth beta adults.
-Output: Agent A --controls [supports]--> Moth beta larvae (Pest);
-Agent A --controls [refutes]--> Moth beta adults (Pest). Keep the life stages.
+Output: two Agent A --controls--> Moth beta (Pest) statements, qualifiers
+{"polarity":"supports","object_form_or_variant_qualifier":"larvae"} and
+{"polarity":"refutes","object_form_or_variant_qualifier":"adults"}.
 Input: Bacterium gamma strain K did not significantly control leaf spot disease.
-Output: Bacterium gamma strain K --controls [no_effect]--> leaf spot disease
-(Disease). Keep the strain and disease names; do not substitute an organism.
+Output: Bacterium gamma --controls--> leaf spot disease (Disease), qualifiers
+{"polarity":"no_effect","subject_form_or_variant_qualifier":"strain K"}.
+Keep the named disease; do not substitute its causal organism.
 Input: Agent A + Adjuvant B controlled R ryegrass population; Agent A alone
 was ineffective against R ryegrass population.
-Output: Agent A + Adjuvant B (Product) --controls [supports]--> R ryegrass
-population; Agent A (ActiveIngredient) --controls [refutes]--> R ryegrass
-population. Do not infer synergy or transfer mixture efficacy to Agent A.
+Output: Agent A + Adjuvant B (Product) --controls--> ryegrass (Weed),
+{"polarity":"supports","population_context_qualifier":"R population"};
+Agent A (ActiveIngredient) --controls--> ryegrass (Weed),
+{"polarity":"refutes","population_context_qualifier":"R population"}.
+Do not infer synergy or transfer mixture efficacy to Agent A.
 """
 
 
@@ -1169,6 +1186,8 @@ async def run_extraction(
                             },
                         )
                     try:
+                        if schema.get("schema_label") == "agrochem-v2":
+                            split_grounded_variants(result.entities, result.relations, raw_text)
                         for entity in result.entities:
                             resolve_species_abbreviation(entity, raw_text)
                             if registry is not None:
