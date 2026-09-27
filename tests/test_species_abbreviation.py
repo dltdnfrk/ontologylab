@@ -148,6 +148,85 @@ def test_resolution_keeps_existing_alias_without_duplicates() -> None:
     assert proposal.properties == {"group": "insect"}
 
 
+@pytest.mark.parametrize("suffix", [" oviposition", " adults oviposition", " growth"])
+def test_organism_derived_pathway_keeps_process_and_scope(suffix: str) -> None:
+    # Given: a species-led process name and one document-local expansion.
+    proposal = make_entity("D. suzukii" + suffix, "Pathway")
+    span = proposal.source_span
+    # When
+    resolve_species_abbreviation(proposal, "Drosophila suzukii.")
+    # Then: expand only the binomial, never drop the process or qualifiers.
+    assert proposal.name == "Drosophila suzukii" + suffix
+    assert proposal.aliases == ["D. suzukii" + suffix]
+    assert proposal.source_span is span
+
+
+@pytest.mark.parametrize(("text", "reason"), [
+    ("Only D. suzukii oviposition.", "absent"),
+    ("Drosophila suzukii and Dacus suzukii.", "ambiguous"),
+])
+def test_pathway_expansion_requires_unique_document_local_species(text, reason) -> None:
+    # Given: a model alias is not authority for an absent/ambiguous expansion.
+    proposal = make_entity(
+        "D. suzukii oviposition", "Pathway", aliases=["Drosophila suzukii oviposition"],
+    )
+    # When
+    resolve_species_abbreviation(proposal, text)
+    # Then
+    assert proposal.name == "D. suzukii oviposition"
+    assert proposal.properties == {"abbreviation_unresolved": reason}
+
+
+@pytest.mark.parametrize("name", ["D. suzukii", "D. suzukii.", "MAPK signaling"])
+def test_pathway_without_species_led_process_is_untouched(name) -> None:
+    # Given / When
+    proposal = make_entity(name, "Pathway")
+    resolve_species_abbreviation(proposal, "Drosophila suzukii.")
+    # Then
+    assert proposal.name == name
+    assert proposal.aliases == []
+    assert proposal.properties == {}
+
+
+def test_pathway_expansion_reaches_stored_relation_endpoint(store, tmp_path) -> None:
+    from tests.test_engine_json_retry import CountingEngine, drive
+
+    # Given: a constructed process assertion, not a gold-derived answer.
+    schema = preset("agrochem-v2")
+    store.install_schema(
+        label=schema["label"], description=schema["description"],
+        entity_types=schema["entity_types"], relation_types=schema["relation_types"],
+    )
+    text = "Moth beta. Agent Elm did not inhibit M. beta adults oviposition."
+    engine = CountingEngine([json.dumps({
+        "entities": [
+            {"name": "Agent Elm", "entity_type": "ActiveIngredient"},
+            {"name": "M. beta adults oviposition", "entity_type": "Pathway"},
+        ],
+        "relations": [{
+            "source": {"name": "Agent Elm", "entity_type": "ActiveIngredient"},
+            "target": {"name": "M. beta adults oviposition", "entity_type": "Pathway"},
+            "relation_type": "inhibits", "qualifiers": {"polarity": "no_effect"},
+        }],
+    })])
+    # When: parse, resolve, persist, and bind the real edge.
+    outcome, _ = drive(store, tmp_path, engine, text=text)
+    # Then: only the organism prefix expands; process, scope and evidence survive.
+    assert outcome == "" and not outcome.chunk_failed
+    row = store.conn.execute(
+        "SELECT n.name, n.status, n.source_span, e.qualifiers_json "
+        "FROM edges e JOIN nodes n ON n.id=e.dst_node_id"
+    ).fetchone()
+    assert row["name"] == "Moth beta adults oviposition"
+    assert row["status"] == "proposed"
+    assert json.loads(row["qualifiers_json"]) == {"polarity": "no_effect"}
+    span = json.loads(row["source_span"])
+    assert text[span["start"]:span["end"]] == "M. beta adults oviposition"
+    assert store.conn.execute(
+        "SELECT normalized_alias FROM node_aliases"
+    ).fetchone()[0] == normalize_name("M. beta adults oviposition")
+
+
 class _SpeciesEngine:
     """Emit fixed proposals from chunk surfaces, never call a provider."""
 

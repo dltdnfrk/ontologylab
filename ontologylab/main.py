@@ -1968,7 +1968,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_extract.add_argument("--max-engine-calls", type=int,
                            default=paths.DEFAULT_MAX_ENGINE_CALLS)
     p_extract.add_argument("--time-budget", type=float,
-                           default=paths.DEFAULT_TIME_BUDGET_S)
+                           default=None,
+                           help="Wall-clock seconds (default: size from eligible "
+                                "chunks and engine request timeout).")
     _add_data_dir(p_extract)
     p_extract.set_defaults(func=cmd_extract)
 

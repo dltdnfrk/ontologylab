@@ -496,7 +496,7 @@ class JobRegistry:
         model: str | None,
         doc_ids: list[str],
         max_engine_calls: int,
-        time_budget: float,
+        time_budget: float | None,
         seed: int,
     ) -> Job:
         """Register an extraction job, spawn its worker thread, return it."""
@@ -725,7 +725,7 @@ class JobRegistry:
         *,
         doc_ids: list[str],
         max_engine_calls: int,
-        time_budget: float,
+        time_budget: float | None,
         seed: int,
     ) -> str:
         """Mirror of ``main._extract_async`` minus CLI printing/kill switch.

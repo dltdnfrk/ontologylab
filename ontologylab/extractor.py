@@ -37,6 +37,7 @@ from ontologylab.engines import (
     CHUNK_MARKER_CLOSE,
     CHUNK_MARKER_OPEN,
     EngineError,
+    _DEFAULT_TIMEOUT_S,
     extract_fenced_block,
 )
 from ontologylab.extraction_eligibility import (
@@ -58,7 +59,7 @@ from ontologylab.registry import CASRegistryCache, MoARegistryCache, RegistryCac
 from ontologylab.safety import Caps
 from ontologylab.species_abbreviation import resolve_species_abbreviation
 
-PROMPT_VERSION = "extract-v4"
+PROMPT_VERSION = "extract-v5"
 ENGINE_FAILURE_SUMMARY = "extraction engine failed"
 
 # Heuristic tokenizer: ~4 chars/token (no model-specific tokenizer dep).
@@ -213,9 +214,15 @@ Agrochem relation selection and endpoint scope:
   which experiment before choosing inhibits or controls.
 - Keep the tested endpoint, not just its organism: a process, a life stage,
   a named population, an isolate, a strain and a disease are not interchangeable.
-  Copy the full qualified mention verbatim from its source span into name and
-  into every relation endpoint reference. Keep species prefixes, population
+  Copy the full qualified mention verbatim from the span asserting THIS
+  finding into name and every relation endpoint reference. Keep species prefixes, population
   labels, isolate/strain identifiers, life-stage words and process words.
+  Use the shortest span that supports the assertion. Do not attach a qualifier
+  from another sentence, figure caption, treatment arm or document section.
+  If the asserting sentence names the bare organism, keep that bare mention;
+  another occurrence of an isolate or adult stage does not qualify this one.
+  If an endpoint is implicit, use only its unambiguous local antecedent and
+  include that antecedent in the evidence span; do not borrow distant context.
   Do not turn these narrower entities into aliases of the bare species.
   Use Pathway for a biological process and Disease for a named disease.
   If the chunk only says "isolate Z" or a symptom, keep that source wording;
@@ -882,20 +889,13 @@ async def run_extract_job(
     seed: int,
     doc_ids: list[str] | None,
     max_engine_calls: int,
-    time_budget: float,
+    time_budget: float | None,
     decode_params: dict[str, Any] | None,
     on_progress: Callable[[str], None],
     on_stats: Callable[[dict[str, int]], None],
     should_abort: Callable[[], str] | None,
 ) -> ExtractionOutcome:
     provenance = Provenance(str(job_dir), seed=seed)
-    caps = Caps(
-        SimpleNamespace(
-            iterations=0,
-            time_budget_s=time_budget,
-            max_engine_calls=max_engine_calls,
-        )
-    )
     effective_model = effective_extractor_model(engine, model)
     ids = list(doc_ids or ()) or extraction_doc_ids(store)
     # The direct entries refuse named abstract-only documents before a job
@@ -921,6 +921,30 @@ async def run_extract_job(
         )
     if not ids:
         return ExtractionOutcome("")
+    if time_budget is None:
+        # Each chunk can issue an initial request and one parse retry. Size
+        # the automatic wall budget for those requests, capped by spend,
+        # with 10% for local parsing/persistence. Explicit limits stay binding.
+        chunk_count = sum(
+            len(chunk_document(store.document_raw_text(doc_id))) for doc_id in ids
+        )
+        request_slots = 2 * chunk_count
+        if max_engine_calls:
+            request_slots = min(request_slots, max_engine_calls)
+        request_timeout = getattr(engine, "_timeout_s", _DEFAULT_TIMEOUT_S)
+        time_budget = provenance.elapsed_s + request_slots * request_timeout * 1.1
+        provenance.log("extract.budget", {
+            "chunks": chunk_count,
+            "request_slots": request_slots,
+            "request_timeout_s": request_timeout,
+            "time_budget_s": time_budget,
+            "max_engine_calls": max_engine_calls,
+        })
+    caps = Caps(SimpleNamespace(
+        iterations=0,
+        time_budget_s=time_budget,
+        max_engine_calls=max_engine_calls,
+    ))
     provenance.log(
         "extract.start",
         {

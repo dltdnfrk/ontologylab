@@ -19,13 +19,19 @@ def resolve_species_abbreviation(
     """Mutate a proposal only on a unique, exact document-local full binomial.
 
     Preserve everything after the epithet, including population qualifiers
-    and punctuation. No registry, aliases, other documents, or model output
+    and punctuation, including a species-led Pathway's process suffix.
+    No registry, aliases, other documents, or model output
     supply the expansion; repeated mentions of one full form are not ambiguous.
     """
-    if proposal.entity_type not in _ORGANISM_TYPES:
+    if proposal.entity_type not in _ORGANISM_TYPES and proposal.entity_type != "Pathway":
         return proposal
     abbreviated = _ABBREVIATION.match(proposal.name)
     if abbreviated is None:
+        return proposal
+    if proposal.entity_type == "Pathway" and not re.match(
+        r"\s+[A-Za-z]", proposal.name[abbreviated.end():]
+    ):
+        # A bare binomial typed as a Pathway is not a species-led process.
         return proposal
 
     initial, epithet = abbreviated.groups()
