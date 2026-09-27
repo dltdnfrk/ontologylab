@@ -70,6 +70,38 @@ class Provenance:
         self._last_step: str | None = None
         self._last_payload: dict[str, Any] = {}
 
+    @classmethod
+    def resume(cls, run_dir: str, seed: int) -> Provenance:
+        """Continue a stopped writer from its authoritative append-only log.
+
+        The caller must own the run exclusively. In particular, the job
+        failure boundary calls this only after its coroutine has unwound.
+        A status snapshot may be stale; it is never the accounting source.
+        """
+        provenance = cls(run_dir, seed)
+        if not provenance.jsonl_path.exists():
+            return provenance
+        with provenance.jsonl_path.open(encoding="utf-8") as handle:
+            for line in handle:
+                entry = json.loads(line)
+                if provenance._log_count == 0:
+                    provenance.seed = entry["seed"]
+                    provenance._start_ts = entry["ts"]
+                step = entry["step"]
+                payload = entry["payload"]
+                usage = provenance._per_step.setdefault(step, StepUsage())
+                usage.log_entries += 1
+                provenance._log_count += 1
+                provenance._last_step = step
+                provenance._last_payload = payload
+                if payload.get("engine_call") is True:
+                    elapsed_s = payload["elapsed_s"]
+                    provenance._engine_calls += 1
+                    provenance._engine_elapsed_s += elapsed_s
+                    usage.calls += 1
+                    usage.elapsed_s += elapsed_s
+        return provenance
+
     def log(self, step: str, payload: dict[str, Any] | None = None) -> None:
         """Append one JSON line recording ``step`` and ``payload``."""
         self.log_many(((step, dict(payload) if payload is not None else {}),))

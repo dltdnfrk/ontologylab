@@ -675,7 +675,7 @@ class JobRegistry:
                 job.error = summary
                 job.finished_ts = time.time()
             with suppress(Exception):
-                Provenance(str(job_dir), seed=0).log(
+                Provenance.resume(str(job_dir), seed=0).log(
                     "job.failed",
                     {"job_id": job.job_id, "type": type(exc).__name__,
                      "error": str(exc)},
