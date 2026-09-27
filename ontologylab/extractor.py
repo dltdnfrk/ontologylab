@@ -46,7 +46,7 @@ from ontologylab.extraction_eligibility import (
     refusal_message,
 )
 from ontologylab.extraction_state import ExtractionState, effective_extractor_model
-from ontologylab.kgstore import normalize_name
+from ontologylab.kgstore import SchemaValidationError, normalize_name
 from ontologylab.models import ProposedEntity, ProposedRelation, SourceSpan
 from ontologylab.normalization import (
     ACTIVE_ENTITY_TYPE,
@@ -1184,6 +1184,79 @@ async def run_extraction(
                         # durable record is the resolution flags).
                         for entity in result.entities:
                             entity.properties.pop("alias_authority", None)
+                        # Refuse individual model proposals at the same strict
+                        # boundary as insert_proposed, before any writes. Keep
+                        # genuine store/transaction failures fatal.
+                        sv_id = schema["schema_version_id"]
+                        definition = store._schema_definition(sv_id)
+                        accepted_entities = []
+                        entity_types = {}
+                        for entity in result.entities:
+                            try:
+                                store._validate_properties(
+                                    schema_version_id=sv_id,
+                                    entity_type=entity.entity_type,
+                                    properties=entity.properties,
+                                    schema=definition,
+                                )
+                            except SchemaValidationError as exc:
+                                provenance.log(
+                                    "extract.proposal_rejected",
+                                    {
+                                        "doc_id": doc_id, "chunk": chunk.index,
+                                        "kind": "entity", "id": entity.id,
+                                        "name": entity.name,
+                                        "type": type(exc).__name__,
+                                        "reason": "schema_validation",
+                                        "error": str(exc),
+                                    },
+                                )
+                                continue
+                            accepted_entities.append(entity)
+                            entity_types[entity.id] = entity.entity_type
+                        accepted_relations = []
+                        for relation in result.relations:
+                            reason = "schema_validation"
+                            try:
+                                if (
+                                    relation.src_entity_id not in entity_types
+                                    or relation.dst_entity_id not in entity_types
+                                ):
+                                    reason = "rejected_endpoint"
+                                    raise SchemaValidationError(
+                                        "relation references a rejected entity"
+                                    )
+                                store._validate_relation(
+                                    schema_version_id=sv_id,
+                                    relation_type=relation.relation_type,
+                                    src_type=entity_types[relation.src_entity_id],
+                                    dst_type=entity_types[relation.dst_entity_id],
+                                    properties=relation.properties,
+                                    qualifiers=relation.qualifiers,
+                                    schema=definition,
+                                )
+                            except SchemaValidationError as exc:
+                                provenance.log(
+                                    "extract.proposal_rejected",
+                                    {
+                                        "doc_id": doc_id, "chunk": chunk.index,
+                                        "kind": "relation", "id": relation.id,
+                                        "type": type(exc).__name__,
+                                        "reason": reason, "error": str(exc),
+                                    },
+                                )
+                                continue
+                            accepted_relations.append(relation)
+                        rejected_counts = {
+                            "entities_rejected": len(result.entities) - len(accepted_entities),
+                            "relations_rejected": len(result.relations) - len(accepted_relations),
+                        }
+                        if any(rejected_counts.values()):
+                            # Refusals already happened, even if a later
+                            # store write fails. Count them exactly once.
+                            on_stats(dict.fromkeys(TOTALS_KEYS, 0) | rejected_counts)
+                        result.entities = accepted_entities
+                        result.relations = accepted_relations
                         stats = store.insert_proposed(
                             result.entities,
                             result.relations,
@@ -1229,7 +1302,9 @@ async def run_extraction(
                                 chunk_receipt_id=chunk_receipt_id,
                             ),
                         )
-                        lifecycle.succeeded(plan.run_id, chunk.index, stats)
+                        lifecycle.succeeded(
+                            plan.run_id, chunk.index, stats | rejected_counts
+                        )
                     except Exception:
                         lifecycle.failed(plan.run_id, chunk.index, "write_error")
                         raise

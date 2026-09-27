@@ -38,6 +38,7 @@ from ontologylab.extraction_state import (
 from ontologylab.extractor import (
     ENGINE_FAILURE_SUMMARY,
     ExtractionOutcome,
+    TOTALS_KEYS,
     extraction_decode_params,
     extraction_doc_ids,
     run_extract_job,
@@ -69,6 +70,7 @@ from ontologylab.trace import Step, source_step
 # `complete` used to paint "리서치 완료!" over a run that produced nothing.
 RESEARCH_NO_SOURCES = "no-source-answered"
 NO_SOURCES_SUMMARY = "research stopped: no_usable_source"
+ALL_PROPOSALS_REJECTED = "extraction failed: all_proposals_rejected"
 
 _PROGRESS_MAXLEN = 50
 
@@ -127,7 +129,11 @@ def summarize_failure(exc: BaseException) -> str:
 
 
 def _new_totals() -> dict[str, int]:
-    return {"nodes_new": 0, "nodes_merged": 0, "edges_new": 0, "edges_merged": 0}
+    return {
+        **dict.fromkeys(TOTALS_KEYS, 0),
+        "entities_rejected": 0,
+        "relations_rejected": 0,
+    }
 
 
 @dataclass
@@ -226,6 +232,19 @@ class Job:
             self.steps.append(step)
         self.log(step.line)
 
+    def accumulate_extraction(self, stats: Mapping[str, int]) -> None:
+        """Keep persisted counts and visible refusal events on the same path."""
+        with self._lock:
+            for key in self.totals:
+                self.totals[key] += stats.get(key, 0)
+        entities = stats.get("entities_rejected", 0)
+        relations = stats.get("relations_rejected", 0)
+        if entities or relations:
+            self.record(Step(
+                "ontologylab", "proposal_rejected", "failed",
+                f"{entities} entities, {relations} relations",
+            ))
+
     def set_phase(self, phase: str) -> None:
         """Move to a new phase and announce it on the progress log.
 
@@ -252,6 +271,14 @@ class Job:
                 "started_ts": self.started_ts,
                 "finished_ts": self.finished_ts,
                 "totals": dict(self.totals),
+                "warnings": [{
+                    "code": "proposals_rejected",
+                    "entities_rejected": self.totals.get("entities_rejected", 0),
+                    "relations_rejected": self.totals.get("relations_rejected", 0),
+                }] if (
+                    self.totals.get("entities_rejected", 0)
+                    or self.totals.get("relations_rejected", 0)
+                ) else [],
                 "sources": [
                     {"name": name, **state}
                     for name, state in self.sources.items()
@@ -675,7 +702,7 @@ class JobRegistry:
                 job.error = summary
                 job.finished_ts = time.time()
             with suppress(Exception):
-                Provenance(str(job_dir), seed=0).log(
+                Provenance.resume(str(job_dir), seed=0).log(
                     "job.failed",
                     {"job_id": job.job_id, "type": type(exc).__name__,
                      "error": str(exc)},
@@ -691,7 +718,7 @@ class JobRegistry:
                 # complete run look truncated, inviting the reviewer to pay
                 # for the same documents twice. `stopped_reason` is non-empty
                 # only when the loop really stopped early.
-                produced = any(job.totals.values())
+                produced = any(job.totals.get(key, 0) for key in TOTALS_KEYS)
                 if stopped_reason == RESEARCH_NO_SOURCES:
                     job.status = "failed"
                     job.error = NO_SOURCES_SUMMARY
@@ -712,6 +739,15 @@ class JobRegistry:
                     # job must agree with it.
                     job.status = "failed"
                     job.error = ENGINE_FAILURE_SUMMARY
+                elif not produced and (
+                    job.totals.get("entities_rejected", 0)
+                    or job.totals.get("relations_rejected", 0)
+                ):
+                    # Like no_usable_source: every proposal was refused, not
+                    # a successful empty extraction. Mixed results retain
+                    # their successes and expose counts through warnings.
+                    job.status = "failed"
+                    job.error = ALL_PROPOSALS_REJECTED
                 else:
                     job.status = "complete"
                 job.finished_ts = time.time()
@@ -748,11 +784,6 @@ class JobRegistry:
                 job.log("[ontologylab] no unprocessed documents to extract")
                 return ""
 
-            def _accumulate(stats: dict[str, int]) -> None:
-                with job._lock:
-                    for key in job.totals:
-                        job.totals[key] += stats.get(key, 0)
-
             stopped_reason = await run_extract_job(
                 store,
                 engine=engine,
@@ -765,7 +796,7 @@ class JobRegistry:
                 time_budget=time_budget,
                 decode_params=extraction_decode_params(engine),
                 on_progress=job.log,
-                on_stats=_accumulate,
+                on_stats=job.accumulate_extraction,
                 should_abort=job.cancel_reason,
             )
 
@@ -776,6 +807,12 @@ class JobRegistry:
             if stopped_reason.chunk_failed:
                 job.log(
                     f"[ontologylab] extraction failed: {ENGINE_FAILURE_SUMMARY}"
+                )
+            elif totals["entities_rejected"] or totals["relations_rejected"]:
+                job.log(
+                    "[ontologylab] extraction finished with rejected proposals: "
+                    f"{totals['entities_rejected']} entities, "
+                    f"{totals['relations_rejected']} relations"
                 )
             else:
                 job.log(
@@ -808,16 +845,6 @@ class JobRegistry:
             with job._lock:
                 job.model = model
 
-        def on_stats(stats: Mapping[str, int]) -> None:
-            with job._lock:
-                for key in (
-                    "nodes_new",
-                    "nodes_merged",
-                    "edges_new",
-                    "edges_merged",
-                ):
-                    job.totals[key] += stats.get(key, 0)
-
         def on_artifacts_changed(
             pointers: ResearchArtifactPointers,
         ) -> None:
@@ -833,7 +860,7 @@ class JobRegistry:
                 on_progress=job.log,
                 on_source_event=self._source_event(job),
                 on_model_resolved=on_model_resolved,
-                on_stats=on_stats,
+                on_stats=job.accumulate_extraction,
                 on_artifacts_changed=on_artifacts_changed,
                 abort_reason=job.cancel_reason,
             ),
