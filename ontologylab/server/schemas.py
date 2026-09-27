@@ -488,6 +488,14 @@ class ResearchSummary(BaseModel):
     post_extraction_counts: ResearchPostExtractionCounts | None
 
 
+class ProposalRejectionWarning(BaseModel):
+    """Safe, machine-readable counts; raw validation errors stay on disk."""
+
+    code: Literal["proposals_rejected"]
+    entities_rejected: int
+    relations_rejected: int
+
+
 class JobStatus(BaseModel):
     """Status snapshot of one background extraction job (Extraction Jobs screen)."""
 
@@ -518,6 +526,7 @@ class JobStatus(BaseModel):
     # the job detail renders comes from here. Omitting it from the response
     # model would drop it silently, exactly like `steps` above.
     sources: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[ProposalRejectionWarning] = Field(default_factory=list)
     corpus_available: bool = False
     research_summary: ResearchSummary | None = None
     research_summary_error: str | None = None

@@ -115,7 +115,10 @@ def test_adapter_maps_service_events_and_returns_one_outcome(
         callbacks.on_progress("adapter-progress")
         callbacks.on_source_event("source_ok", "crossref", 2)
         callbacks.on_model_resolved("resolved-model")
-        callbacks.on_stats({"nodes_new": 2, "edges_new": 3, "unknown": 99})
+        callbacks.on_stats({
+            "nodes_new": 2, "edges_new": 3, "unknown": 99,
+            "entities_rejected": 2, "relations_rejected": 1,
+        })
         callbacks.on_artifacts_changed(pointers)
         return ResearchRunResult(expected)
 
@@ -136,7 +139,12 @@ def test_adapter_maps_service_events_and_returns_one_outcome(
         "nodes_merged": 0,
         "edges_new": 3,
         "edges_merged": 0,
+        "entities_rejected": 2,
+        "relations_rejected": 1,
     }
+    assert job.as_status()["warnings"] == [{
+        "code": "proposals_rejected", "entities_rejected": 2, "relations_rejected": 1,
+    }]
     assert job.sources == {"crossref": {"status": "ok", "detail": "2"}}
     assert job.research_pointers == pointers
     store = KGStore.open(paths.kg_db_path(registry.data_dir))

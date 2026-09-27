@@ -1223,6 +1223,14 @@ async def run_extraction(
                                 )
                                 continue
                             accepted_relations.append(relation)
+                        rejected_counts = {
+                            "entities_rejected": len(result.entities) - len(accepted_entities),
+                            "relations_rejected": len(result.relations) - len(accepted_relations),
+                        }
+                        if any(rejected_counts.values()):
+                            # Refusals already happened, even if a later
+                            # store write fails. Count them exactly once.
+                            on_stats(dict.fromkeys(TOTALS_KEYS, 0) | rejected_counts)
                         result.entities = accepted_entities
                         result.relations = accepted_relations
                         stats = store.insert_proposed(
@@ -1270,7 +1278,9 @@ async def run_extraction(
                                 chunk_receipt_id=chunk_receipt_id,
                             ),
                         )
-                        lifecycle.succeeded(plan.run_id, chunk.index, stats)
+                        lifecycle.succeeded(
+                            plan.run_id, chunk.index, stats | rejected_counts
+                        )
                     except Exception:
                         lifecycle.failed(plan.run_id, chunk.index, "write_error")
                         raise
