@@ -60,7 +60,7 @@ from ontologylab.safety import Caps
 from ontologylab.species_abbreviation import resolve_species_abbreviation
 from ontologylab.qualified_extraction import split_grounded_variants
 
-PROMPT_VERSION = "extract-v6"
+PROMPT_VERSION = "extract-v7"
 ENGINE_FAILURE_SUMMARY = "extraction engine failed"
 
 # Heuristic tokenizer: ~4 chars/token (no model-specific tokenizer dep).
@@ -203,6 +203,44 @@ Fluopyram had no significant effect on Botrytis. Boscalid suppressed Botrytis.
 ```"""
 
 
+_POLARITY_GUIDANCE = """\
+Polarity precedence for the exact assertion being extracted:
+1. no_effect = a measured absence of a statistically significant effect.
+   In a tested outcome, "no significant difference", "did not reduce",
+   "not statistically different from the untreated control", and "ineffective"
+   describe measured nulls. Choose no_effect before interpreting negative
+   wording as refutes; a negation alone does not establish a refutation.
+2. refutes = the source explicitly contradicts a claimed or expected positive
+   relation, rather than merely reporting a measured null. For example,
+   "Contrary to earlier accounts, Agent A does not control Moth beta."
+   If a passage both challenges a prior claim and reports a measured null,
+   keep the measured finding as no_effect; a separately stated contradiction
+   may be its own refutes assertion with its own supporting span.
+3. supports = a measured positive effect for this outcome, or an explicit
+   positive assertion for a relation that is not an experimental finding.
+Introductory and background claims are not the study's finding. Either skip
+them or, when the schema permits, emit them with study_context="background".
+They must not override the finding, inherit its context or replace a null.
+"""
+
+
+_MULTI_ARM_GUIDANCE = """\
+Comparison completeness:
+When the source reports a comparison, emit a separate statement for EACH
+reported treatment arm and population, including every null arm. Never drop
+the null arm just because another arm has a positive effect. Enumerate the
+reported outcomes before emitting relations, then check that each has its
+own statement. Do not invent outcomes for arms that were not reported.
+Use population_context_qualifier for the source's population label and
+object_form_or_variant_qualifier for its strain, isolate or life stage.
+Keep species names as core entities; different qualified statements may
+share the same endpoints. Keep each arm's polarity, dose, measured aspect
+and study_context attached to its own evidence span. A resistant population
+with a measured null needs its own no_effect statement even when the
+susceptible population supports the same relation.
+"""
+
+
 _AGROCHEM_GUIDANCE = """\
 Agrochem relation selection and endpoint scope:
 - Use the relation definitions above, not a verb-to-label substitution.
@@ -254,18 +292,21 @@ Input: Agent A reduced growth of Fungus alpha isolate Z in vitro.
 Output: Agent A --inhibits--> Fungus alpha (Pathogen), qualifiers:
 {"polarity":"supports","object_form_or_variant_qualifier":"isolate Z",
  "object_aspect_qualifier":"growth","study_context":"in vitro"}.
-Input: Agent A did not significantly reduce Moth beta oviposition.
+Input: In the cage assay, Agent A did not reduce Moth beta oviposition.
 Output: Agent A --inhibits--> Moth beta (Pest), qualifiers:
-{"polarity":"no_effect","object_aspect_qualifier":"oviposition"}.
-Input: Agent A controlled R ryegrass population; it had no significant effect
-on S ryegrass population.
+{"polarity":"no_effect","object_aspect_qualifier":"oviposition",
+ "study_context":"cage assay"}.
+Input: Agent A suppressed ryegrass in the susceptible population.
+In the resistant population, Agent A was ineffective against ryegrass.
 Output: two Agent A --controls--> ryegrass (Weed) statements, qualifiers
-{"polarity":"supports","population_context_qualifier":"R population"} and
-{"polarity":"no_effect","population_context_qualifier":"S population"}.
-Input: Agent A controlled Moth beta larvae but not Moth beta adults.
+{"polarity":"supports","population_context_qualifier":"susceptible population"} and
+{"polarity":"no_effect","population_context_qualifier":"resistant population"}.
+Input: Agent A controlled Moth beta larvae. Testing Moth beta adults found
+no significant difference in mortality relative to untreated cages.
 Output: two Agent A --controls--> Moth beta (Pest) statements, qualifiers
 {"polarity":"supports","object_form_or_variant_qualifier":"larvae"} and
-{"polarity":"refutes","object_form_or_variant_qualifier":"adults"}.
+{"polarity":"no_effect","object_form_or_variant_qualifier":"adults",
+ "object_aspect_qualifier":"mortality"}.
 Input: Bacterium gamma strain K did not significantly control leaf spot disease.
 Output: Bacterium gamma --controls--> leaf spot disease (Disease), qualifiers
 {"polarity":"no_effect","subject_form_or_variant_qualifier":"strain K"}.
@@ -275,8 +316,19 @@ was ineffective against R ryegrass population.
 Output: Agent A + Adjuvant B (Product) --controls--> ryegrass (Weed),
 {"polarity":"supports","population_context_qualifier":"R population"};
 Agent A (ActiveIngredient) --controls--> ryegrass (Weed),
-{"polarity":"refutes","population_context_qualifier":"R population"}.
+{"polarity":"no_effect","population_context_qualifier":"R population"}.
 Do not infer synergy or transfer mixture efficacy to Agent A.
+Input: Contrary to earlier accounts, Agent A does not control Moth beta.
+Output: Agent A --controls--> Moth beta (Pest),
+{"polarity":"refutes"}.
+Input: The introduction describes Agent A as controlling Moth beta.
+In the orchard trial, mortality after Agent A treatment was statistically
+indistinguishable from mortality among untreated Moth beta.
+Output: Agent A --controls--> Moth beta (Pest),
+{"polarity":"supports","study_context":"background"} and
+{"polarity":"no_effect","study_context":"orchard trial",
+ "object_aspect_qualifier":"mortality"}.
+The background statement may instead be skipped; the trial null must remain.
 """
 
 
@@ -353,7 +405,7 @@ def build_extraction_prompt(
     re-proposed on the next document.
     """
     agrochem_guidance = (
-        _AGROCHEM_GUIDANCE
+        _MULTI_ARM_GUIDANCE + "\n" + _AGROCHEM_GUIDANCE
         if schema.get("schema_label", schema.get("label")) == "agrochem-v2"
         else ""
     )
@@ -373,12 +425,11 @@ from the document chunk below, strictly following the ontology schema.
    of entities you emitted — never by array index, never by an invented id;
    qualifiers is an object containing only qualifiers declared for its type.
    If the relation type declares a "polarity" qualifier, always set it:
-   "supports" when the chunk asserts the relation, "refutes" when it
-   explicitly denies it, "no_effect" when it reports testing it and finding
-   no significant effect. A null result is still a finding: extract it with
-   "no_effect" instead of dropping it or recording it as "supports".
+   apply the polarity precedence below to that assertion, not to another arm.
 5. Only extract facts stated in the chunk. Do not use outside knowledge.
 6. If nothing is extractable, return {{"entities": [], "relations": []}}.
+
+{_POLARITY_GUIDANCE}
 
 {agrochem_guidance}
 
