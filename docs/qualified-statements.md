@@ -64,6 +64,19 @@ Measured absence of resistant isolates in a sampled cohort is `no_effect`;
 without an explicit contradiction of a stated or expected claim about that
 cohort, it is not `refutes`.
 
+### IS-1 human review, 2026-09-28
+
+Automatic extraction must pass the unchanged G1/G2/G4 gates and G3 polarity
+accuracy (at least 0.80) and no_effect-to-supports flip rate (at most 0.15).
+No_effect/refutes recall remains a diagnostic, not an automatic-extraction gate.
+Reviewers close missing measured-null claims from uncited source sentences
+flagged by `missed_null_candidates`, then propose source-cited statements for
+separate human approval. IS-1 requires at least 0.90 pooled reviewable
+coverage on the adjudicated human gold; a cited sentence is not flagged again
+even when its extracted statement misses a different treatment arm. The
+trial-6 measurement and its failed coverage gate are in
+`evidence/is1-human-review-2026-09-28.md`; earlier FAILED trials remain FAILED.
+
 ### Value normalization, reviewed 2026-09-27 (todo 30)
 
 Engineering review against the frozen mapping and trial-4 surfaces, not

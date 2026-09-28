@@ -15,7 +15,10 @@ from ontologylab.polarity_eval import _rate, score_polarity, validate_gold
 from ontologylab.schemas import preset
 
 gold_path = Path(sys.argv[1])
-qualified = gold_path.name in ("gold-aligned-qualified.json", "gold-qualified-normalized.json")
+qualified = gold_path.name in (
+    "gold-aligned-qualified.json", "gold-qualified-normalized.json",
+    "gold-adjudicated-qualified.json",
+)
 claim_types = {
     relation["name"] for relation in preset("agrochem-v2")["relation_types"]
     if "polarity" in relation["qualifiers"]
