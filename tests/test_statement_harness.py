@@ -10,7 +10,12 @@ import pytest
 
 from ontologylab.engines import EngineError
 from ontologylab.extractor import Chunk, parse_and_validate_extraction
+from ontologylab.kgstore import KGStore
 from ontologylab.schemas import preset
+from ontologylab.statement_eval import (
+    AdjudicatedGold, Span, SplitManifest, SplitViolation, Statement,
+    freeze_split, score_statements,
+)
 from ontologylab.statement_harness import (
     HarnessBudget, PROMPT_VERSION, run_statement_harness,
 )
@@ -26,12 +31,12 @@ def qualified_store(store):
     return store
 
 
-def document(store, text):
+def document(store, text, doi="10.5555/statement-harness"):
     doc, created = store.insert_document(
         source_kind="upload", source_uri="file:///harness.txt",
         title="harness", raw_text=text,
         content_hash=sha256(text.encode("utf-8")).hexdigest(),
-        doi="10.5555/statement-harness",
+        doi=doi,
     )
     assert created
     return doc.id
@@ -283,3 +288,124 @@ def test_strict_parser_never_moves_wrong_entity_span():
     assert strict.rejections[0]["reason"] == "ungrounded_source_span"
     assert legacy.entities[0].source_span is not None
     assert legacy.entities[0].source_span.start == 6
+
+
+HELD_OUT_DOI = "10.5555/eh-hash-held-out"
+HELD_OUT_TEXT = (
+    "Results\nAgentA did not reduce cover whereas AgentB reduced cover "
+    "relative to untreated on day 7."
+)
+
+
+def _two_arm_script(unit):
+    arm = next(slot["quote"] for slot in unit["slots"] if slot["role"] == "arm")
+    return [proposal(
+        unit, arm, "did not reduce" if arm == "AgentA" else "reduced",
+        comparator="untreated", time="day 7",
+    )]
+
+
+def _held_out_gold(paper):
+    def quoted(quote):
+        start = paper.text.index(quote)
+        return Span(start, start + len(quote), quote)
+
+    atoms = (
+        ("comparison_context_qualifier", "untreated"),
+        ("observation_time_qualifier", "day 7"),
+    )
+    return (
+        Statement(
+            "gold-a", paper.doi, "gold-a", "AgentA", "controls", "cover",
+            "no_effect", atoms, atoms, quoted("AgentA"), quoted("did not reduce cover"),
+        ),
+        Statement(
+            "gold-b", paper.doi, "gold-b", "AgentB", "controls", "cover",
+            "supports", atoms, atoms, quoted("AgentB"), quoted("reduced cover"),
+        ),
+    )
+
+
+def _freeze_run(run, gold):
+    hashes = run.hashes + (
+        ("gold", gold.gold_sha256),
+        ("source-selection", sha256(b"source-selection").hexdigest()),
+        ("scorer", sha256(b"scorer").hexdigest()),
+    )
+    return freeze_split(
+        SplitManifest(tuple((paper, "test") for paper in run.papers), hashes),
+        current_gold_ids=set(),
+    )
+
+
+def _agrochem_store(path, *, entity_types=None):
+    store = KGStore.open(path)
+    schema = preset("agrochem-v2")
+    store.install_schema(
+        label=schema["label"], description=schema["description"],
+        entity_types=entity_types or schema["entity_types"],
+        relation_types=schema["relation_types"],
+    )
+    return store
+
+
+def test_held_out_two_arm_run_scores_then_prompt_byte_refuses(
+    qualified_store, tmp_path, monkeypatch,
+):
+    doc_id = document(qualified_store, HELD_OUT_TEXT, doi=HELD_OUT_DOI)
+    first = run_statement_harness(
+        qualified_store, [doc_id], ScriptedEngine(_two_arm_script), budget=2,
+    )
+    paper = first.papers[0]
+    gold = AdjudicatedGold(
+        _held_out_gold(paper), (paper,), sha256(b"held-out-two-arm").hexdigest(),
+    )
+    lock = _freeze_run(first, gold)
+
+    score = score_statements(first, gold, lock)
+
+    assert (score.statements.tp, score.statements.fp, score.statements.fn) == (2, 0, 0)
+
+    monkeypatch.setattr(
+        "ontologylab.statement_harness.PROMPT_VERSION", PROMPT_VERSION[:-1] + "0",
+    )
+    second_store = _agrochem_store(tmp_path / "prompt-byte.sqlite")
+    try:
+        second_id = document(second_store, HELD_OUT_TEXT, doi=HELD_OUT_DOI)
+        second = run_statement_harness(
+            second_store, [second_id], ScriptedEngine(_two_arm_script), budget=2,
+        )
+        with pytest.raises(SplitViolation, match="artifact hash"):
+            score_statements(second, gold, lock)
+    finally:
+        second_store.close()
+
+
+def test_held_out_two_arm_changed_schema_refuses(qualified_store, tmp_path):
+    doc_id = document(qualified_store, HELD_OUT_TEXT, doi=HELD_OUT_DOI)
+    first = run_statement_harness(
+        qualified_store, [doc_id], ScriptedEngine(_two_arm_script), budget=2,
+    )
+    paper = first.papers[0]
+    gold = AdjudicatedGold(
+        _held_out_gold(paper), (paper,), sha256(b"held-out-schema").hexdigest(),
+    )
+    lock = _freeze_run(first, gold)
+    score = score_statements(first, gold, lock)
+    assert (score.statements.tp, score.statements.fp, score.statements.fn) == (2, 0, 0)
+
+    schema = preset("agrochem-v2")
+    entities = [dict(row) for row in schema["entity_types"]]
+    entities[0]["description"] = entities[0]["description"][:-1] + (
+        "X" if entities[0]["description"][-1] != "X" else "Y"
+    )
+    second_store = _agrochem_store(tmp_path / "schema-byte.sqlite", entity_types=entities)
+    try:
+        second_id = document(second_store, HELD_OUT_TEXT, doi=HELD_OUT_DOI)
+        second = run_statement_harness(
+            second_store, [second_id], ScriptedEngine(_two_arm_script), budget=2,
+        )
+        with pytest.raises(SplitViolation, match="artifact hash"):
+            score_statements(second, gold, lock)
+    finally:
+        second_store.close()

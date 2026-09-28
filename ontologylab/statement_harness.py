@@ -18,9 +18,11 @@ from ontologylab.models import Engine, ProposedEntity, ProposedRelation
 from ontologylab.statement_candidates import CUE_VERSION, detect_candidates
 from ontologylab.statement_eval import HarnessRun as EvaluationRun
 from ontologylab.statement_eval import Paper, Span, Statement
+from ontologylab.statement_qualifiers import QUALIFIER_VOCABULARIES
 from ontologylab.statement_units import (
     RULES_VERSION, SectionSpan, SourceUnit, enumerate_units,
 )
+from ontologylab.unit_normalization import UNIT_TABLE
 
 PROMPT_VERSION: Final = "statement-harness-v1"
 MAX_STATEMENTS: Final = 8
@@ -328,8 +330,19 @@ def run_statement_harness(
     hashes = tuple(
         (name, sha256(value.encode("utf-8")).hexdigest())
         for name, value in (
-            ("rules", RULES_VERSION), ("cue", CUE_VERSION),
-            ("prompt", PROMPT_VERSION), ("schema", json.dumps(schema, sort_keys=True)),
+            ("rules", RULES_VERSION),
+            ("cue", CUE_VERSION),
+            ("prompt", PROMPT_VERSION),
+            ("schema", json.dumps(schema, sort_keys=True)),
+            ("qualifier", json.dumps(QUALIFIER_VOCABULARIES, sort_keys=True)),
+            ("normalization", json.dumps(
+                {
+                    key: [unit.code, unit.dimension, unit.factor]
+                    for key, unit in UNIT_TABLE.items()
+                },
+                sort_keys=True,
+            )),
+            ("completion", "completion:off"),
         )
     )
     return HarnessRun(
