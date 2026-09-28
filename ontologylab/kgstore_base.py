@@ -485,6 +485,30 @@ CREATE TABLE IF NOT EXISTS annotations (
 CREATE INDEX IF NOT EXISTS idx_annotations_status ON annotations (status);
 CREATE INDEX IF NOT EXISTS idx_annotations_node ON annotations (node_id);
 
+-- One immutable receipt per human HTTP command, never an adjudicated gold row.
+CREATE TABLE IF NOT EXISTS statement_review_events (
+    id                   TEXT PRIMARY KEY,
+    version              INTEGER NOT NULL,
+    created_ts           REAL NOT NULL,
+    action               TEXT NOT NULL,
+    actor                TEXT NOT NULL,
+    reason               TEXT,
+    item_ids_json        TEXT NOT NULL,
+    before_json          TEXT NOT NULL,
+    after_json           TEXT NOT NULL,
+    source_doc_ids_json  TEXT NOT NULL,
+    source_hashes_json   TEXT NOT NULL,
+    split_assignment     TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS statement_review_events_no_update
+BEFORE UPDATE ON statement_review_events BEGIN
+    SELECT RAISE(ABORT, 'review events are append-only');
+END;
+CREATE TRIGGER IF NOT EXISTS statement_review_events_no_delete
+BEFORE DELETE ON statement_review_events BEGIN
+    SELECT RAISE(ABORT, 'review events are append-only');
+END;
+
 CREATE VIEW IF NOT EXISTS pending_review AS
 SELECT 'node' AS kind, id, entity_type AS type_name, name AS label,
        confidence, source_doc_id, created_ts

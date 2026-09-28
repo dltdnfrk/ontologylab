@@ -39,6 +39,7 @@ class DocumentsMixin:
         source: str = "",
         evidence_grade: str = "",
         doi: str | None = None,
+        commit: bool = True,
     ) -> tuple[Document, bool]:
         """Insert a document (deduped by DOI, then content hash).
 
@@ -160,7 +161,8 @@ class DocumentsMixin:
             filename=title or source_uri or doc.id,
             created_ts=doc.fetched_ts,
         )
-        self.conn.commit()
+        if commit:
+            self._commit()
         return doc, True
 
     @staticmethod

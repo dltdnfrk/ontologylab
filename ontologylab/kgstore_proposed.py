@@ -271,7 +271,7 @@ class ProposedMixin:
             )
 
         if commit:
-            self.conn.commit()
+            self._commit()
         stats["id_map"] = id_map
         return stats
 
@@ -282,6 +282,7 @@ class ProposedMixin:
         *,
         curator: str,
         note: str = "",
+        commit: bool = True,
     ) -> dict[str, Any]:
         """Record a person's interpretation (Question, Scenario, ...) as
         ``proposed`` rows with ``origin='curated'``.
@@ -322,15 +323,22 @@ class ProposedMixin:
             title=note or "curated interpretation",
             raw_text=payload,
             content_hash="sha256:" + hashlib.sha256(payload.encode()).hexdigest(),
+            commit=commit,
         )
-        return self.insert_proposed(
-            entity_rows,
-            relation_rows,
-            source_doc_id=document.id,
-            extractor_engine="curation",
-            extractor_model=curator,
-            origin="curated",
-        ) | {"document_id": document.id}
+        try:
+            return self.insert_proposed(
+                entity_rows,
+                relation_rows,
+                source_doc_id=document.id,
+                extractor_engine="curation",
+                extractor_model=curator,
+                origin="curated",
+                commit=commit,
+            ) | {"document_id": document.id, "document_created": _created}
+        except Exception:
+            if not commit and _created:
+                (self.db_path.parent / document.raw_text_path).unlink()
+            raise
 
     def _resolve_node(
         self, sv_id: int, entity_type: str, name: str

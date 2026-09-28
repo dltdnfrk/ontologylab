@@ -14,7 +14,7 @@ import json
 import logging
 import sqlite3
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -133,6 +133,7 @@ from ontologylab.research_spec import (
     ResearchOrigin,
 )
 from ontologylab.searchquery import DEFAULT_SEARCH_QUERIES
+from ontologylab.statement_feedback import ReviewEvent, review_snapshot
 from ontologylab.server import entity_actions
 from ontologylab.server import settings as settings_mod
 from ontologylab.server.dependencies import AppDependencies, AppDependency
@@ -210,6 +211,34 @@ def _open_store(deps: AppDependencies) -> KGStore:
     # Creates an empty store on first open, so the review UI boots cleanly
     # even before any collect job has run.
     return KGStore.open(kg_db_path(deps.data_dir))
+
+def _review_command(
+    store: KGStore, action: str, actor: str, reason: str | None,
+    item_ids: tuple[str, ...], command: Callable[[], dict[str, Any]],
+) -> dict[str, Any]:
+    """Commit one human command and its before/after receipt together."""
+    with store.atomic():
+        before = review_snapshot(store.conn, item_ids)
+        result = command()
+        affected = tuple(
+            item_id
+            for key in ("approved_ids", "rejected_ids", "reopened_ids", "approved")
+            for item_id in result.get(key, ())
+        )
+        ids = tuple(dict.fromkeys((*item_ids, *affected)))
+        after = review_snapshot(store.conn, ids)
+        snapshots = (*before, *after)
+        store.record_review_event(ReviewEvent(
+            action=action, actor=actor, reason=reason, item_ids=ids,
+            before=before, after=after,
+            source_doc_ids=tuple(dict.fromkeys(
+                row["source_doc_id"] for row in snapshots if row["source_doc_id"]
+            )),
+            source_hashes=tuple(dict.fromkeys(
+                row["source_hash"] for row in snapshots if row["source_hash"]
+            )),
+        ))
+        return result
 
 
 # ---------------------------------------------------------------------------
@@ -737,7 +766,10 @@ def bulk_approve_proposals(
     """
     store = _open_store(deps)
     try:
-        result = store.approve_many(body.ids, by=body.by, note=body.note)
+        result = _review_command(
+            store, "bulk_approve", body.by, body.note, tuple(body.ids),
+            lambda: store.approve_many(body.ids, by=body.by, note=body.note),
+        )
         return {"ok": True, **result}
     except KGStoreError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -749,8 +781,11 @@ def bulk_approve_proposals(
 def approve_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
     store = _open_store(deps)
     try:
-        result = store.approve(
-            body.id, by=body.by, note=body.note, cascade=body.cascade
+        result = _review_command(
+            store, "approve", body.by, body.note, (body.id,),
+            lambda: store.approve(
+                body.id, by=body.by, note=body.note, cascade=body.cascade,
+            ),
         )
         return {"ok": True, **result}
     except (EndpointNotVerified, InvalidTransition, GroundingPreflightError) as exc:
@@ -768,7 +803,10 @@ def invalidate_edge(deps: AppDependency, edge_id: str, body: InvalidateAction) -
     """W13: mark a verified edge as no-longer-current (kept as history)."""
     store = _open_store(deps)
     try:
-        result = store.invalidate_edge(edge_id, by=body.by, reason=body.note)
+        result = _review_command(
+            store, "invalidate", body.by, body.note, (edge_id,),
+            lambda: store.invalidate_edge(edge_id, by=body.by, reason=body.note),
+        )
         return {"ok": True, **result}
     except UnknownItem as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -782,7 +820,10 @@ def invalidate_edge(deps: AppDependency, edge_id: str, body: InvalidateAction) -
 def reject_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
     store = _open_store(deps)
     try:
-        result = store.reject(body.id, by=body.by, note=body.note)
+        result = _review_command(
+            store, "reject", body.by, body.note, (body.id,),
+            lambda: store.reject(body.id, by=body.by, note=body.note),
+        )
         return {"ok": True, **result}
     except (InvalidTransition, GroundingPreflightError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -798,7 +839,10 @@ def reject_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]
 def quarantine_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
     store = _open_store(deps)
     try:
-        result = store.quarantine(body.id, by=body.by, note=body.note)
+        result = _review_command(
+            store, "quarantine", body.by, body.note, (body.id,),
+            lambda: store.quarantine(body.id, by=body.by, note=body.note),
+        )
         return {"ok": True, **result}
     except (InvalidTransition, GroundingPreflightError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -814,7 +858,10 @@ def quarantine_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, 
 def retract_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
     store = _open_store(deps)
     try:
-        result = store.retract_review(body.id, by=body.by, note=body.note)
+        result = _review_command(
+            store, "retract", body.by, body.note, (body.id,),
+            lambda: store.retract_review(body.id, by=body.by, note=body.note),
+        )
         return {"ok": True, **result}
     except (InvalidTransition, GroundingPreflightError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -830,7 +877,10 @@ def retract_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any
 def compensate_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
     store = _open_store(deps)
     try:
-        result = store.compensate_review(body.id, by=body.by, note=body.note)
+        result = _review_command(
+            store, "compensate", body.by, body.note, (body.id,),
+            lambda: store.compensate_review(body.id, by=body.by, note=body.note),
+        )
         return {"ok": True, **result}
     except (InvalidTransition, GroundingPreflightError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -850,8 +900,9 @@ def approve_proposal_with_waiver(
 
     store = _open_store(deps)
     try:
-        result = store.approve_with_grounding_waiver(
-            WaiverRequest(
+        result = _review_command(
+            store, "approve_with_waiver", body.by, body.reason, (body.id,),
+            lambda: store.approve_with_grounding_waiver(WaiverRequest(
                 item_id=body.id,
                 actor=body.by,
                 reason=body.reason,
@@ -859,7 +910,7 @@ def approve_proposal_with_waiver(
                 citation_ids=tuple(body.citation_ids),
                 scoped_defects=tuple(body.scoped_defects),
                 cascade=body.cascade,
-            )
+            )),
         )
         return {"ok": True, **result}
     except (InvalidTransition, GroundingPreflightError) as exc:
@@ -881,7 +932,10 @@ def reopen_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]
     """
     store = _open_store(deps)
     try:
-        result = store.reopen(body.id, by=body.by, note=body.note)
+        result = _review_command(
+            store, "reopen", body.by, body.note, (body.id,),
+            lambda: store.reopen(body.id, by=body.by, note=body.note),
+        )
         return {"ok": True, **result}
     except UnknownItem as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1082,9 +1136,32 @@ def create_interpretation(
         )
     store = _open_store(deps)
     try:
-        stats = store.insert_curated(
-            entities, relations, curator=body.curator, note=body.note,
-        )
+        stats = None
+        try:
+            with store.atomic():
+                stats = store.insert_curated(
+                    entities, relations, curator=body.curator, note=body.note,
+                    commit=False,
+                )
+                ids = (
+                    stats["document_id"],
+                    *stats["id_map"].values(),
+                    *(relation.id for relation in relations),
+                )
+                after = review_snapshot(store.conn, ids)
+                store.record_review_event(ReviewEvent(
+                    action="create_interpretation", actor=body.curator,
+                    reason=body.note, item_ids=tuple(dict.fromkeys(ids)),
+                    before=(), after=after,
+                    source_doc_ids=(stats["document_id"],),
+                    source_hashes=tuple(dict.fromkeys(
+                        row["source_hash"] for row in after if row["source_hash"]
+                    )),
+                ))
+        except Exception:
+            if stats is not None and stats["document_created"]:
+                (store.db_path.parent / "documents" / stats["document_id"] / "raw.txt").unlink()
+            raise
     except KGStoreError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     finally:
@@ -1131,6 +1208,7 @@ def create_curated_statement(
             source_span=span,
         )
         with store.atomic():
+            before = review_snapshot(store.conn, (doc_id,))
             stats = store.insert_proposed(
                 entities, [relation], source_doc_id=doc_id,
                 extractor_engine="curation", extractor_model=body.curator,
@@ -1140,6 +1218,17 @@ def create_curated_statement(
                 raise HTTPException(
                     status_code=409, detail="statement already exists; review the existing row",
                 )
+            ids = (doc_id, *stats["id_map"].values(), relation.id)
+            after = review_snapshot(store.conn, ids)
+            store.record_review_event(ReviewEvent(
+                action="create_statement", actor=body.curator,
+                item_ids=tuple(dict.fromkeys(ids)),
+                before=before, after=after,
+                source_doc_ids=(doc_id,),
+                source_hashes=tuple(dict.fromkeys(
+                    row["source_hash"] for row in after if row["source_hash"]
+                )),
+            ))
         return {"ok": True, "edge_id": relation.id,
                 "status": "proposed", "origin": "curated",
                 "nodes_new": stats["nodes_new"], "edges_new": stats["edges_new"]}
@@ -1862,8 +1951,12 @@ def merge_candidate_merge(deps: AppDependency, candidate_id: str, body: MergeAct
                 status_code=409,
                 detail=f"candidate already decided ({candidate['status']})",
             )
-        report = store.merge_nodes(
-            body.target_id, body.source_id, by=body.by, note=body.note
+        report = _review_command(
+            store, "merge", body.by, body.note,
+            (candidate_id, body.target_id, body.source_id),
+            lambda: store.merge_nodes(
+                body.target_id, body.source_id, by=body.by, note=body.note,
+            ),
         )
         return {"ok": True, **report}
     except UnknownItem as exc:
@@ -1878,8 +1971,11 @@ def merge_candidate_merge(deps: AppDependency, candidate_id: str, body: MergeAct
 def merge_candidate_dismiss(deps: AppDependency, candidate_id: str, body: MergeDismiss) -> dict[str, Any]:
     store = _open_store(deps)
     try:
-        result = store.dismiss_merge_candidate(
-            candidate_id, by=body.by, note=body.note
+        result = _review_command(
+            store, "dismiss_merge", body.by, body.note, (candidate_id,),
+            lambda: store.dismiss_merge_candidate(
+                candidate_id, by=body.by, note=body.note,
+            ),
         )
         return {"ok": True, **result}
     except UnknownItem as exc:
