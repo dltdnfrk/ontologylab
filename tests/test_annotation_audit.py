@@ -305,9 +305,14 @@ def test_gold_changes_are_only_explicit_adjudicated_source_scope():
 def test_blind_vocabulary_is_exactly_the_existing_schema():
     # Given: the frozen vocabulary received by annotators.
     vocabulary = json.loads((GOLD / "annotation-vocabulary.json").read_text())
-    # When / Then: machine-consumed values equal the product's existing vocabulary.
+    # When / Then: machine-consumed values equal the product's vocabulary at
+    # annotation time. The statement harness later added exactly two keys.
     schema = preset("agrochem-v2")
-    assert set(vocabulary["qualifier_keys"]) == set(AGROCHEM_STATEMENT_QUALIFIERS)
+    added_after_annotation = {"comparison_context_qualifier", "observation_time_qualifier"}
+    assert added_after_annotation <= set(AGROCHEM_STATEMENT_QUALIFIERS)
+    assert set(vocabulary["qualifier_keys"]) == (
+        set(AGROCHEM_STATEMENT_QUALIFIERS) - added_after_annotation
+    )
     assert set(vocabulary["claim_relations"]) == {
         item["name"] for item in schema["relation_types"] if "polarity" in item["qualifiers"]
     }
