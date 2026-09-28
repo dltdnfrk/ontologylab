@@ -8,7 +8,7 @@ from ontologylab.models import ProposedEntity, ProposedRelation, SourceSpan
 from ontologylab.schemas import preset
 
 
-def test_candidate_spans_preserve_unicode_and_exclude_cited_sentences(tmp_path) -> None:
+def test_candidate_spans_preserve_unicode_and_show_cited_arms(tmp_path) -> None:
     # Given two source sentences with the same cue, and one cited null edge.
     text = "D. suzukii was ineffective in the field — 1 × 106.\nSpinosad did not reduce oviposition."
     with KGStore.open(tmp_path / "kg.sqlite") as store:
@@ -33,13 +33,21 @@ def test_candidate_spans_preserve_unicode_and_exclude_cited_sentences(tmp_path) 
         # When the detector examines document-local citations.
         result = missed_null_candidates(store, [doc])
 
-    # Then the uncited sentence alone has exact Python character coordinates.
-    assert [(c.start, c.end, c.text, c.cue) for c in result] == [
-        (0, text.index("\n"), text[:text.index("\n")], "ineffective"),
+    # Then both sentences remain reviewable; the already cited arm is visible.
+    assert [(c.start, c.end, c.text, c.cue, c.status) for c in result] == [
+        (0, text.index("\n"), text[:text.index("\n")],
+         "ineffective", "unextracted"),
+        (text.index("Spinosad"), len(text), text[text.index("Spinosad"):],
+         "did not reduce", "partially_extracted"),
+    ]
+    assert result[0].existing_statements == ()
+    assert [(item.edge_id, item.subject, item.polarity)
+            for item in result[1].existing_statements] == [
+        ("edge", "Spinosad", "no_effect")
     ]
 
 
-def test_citation_for_another_document_does_not_suppress_candidate(tmp_path) -> None:
+def test_citation_for_another_document_does_not_change_its_status(tmp_path) -> None:
     # Given the same measured-null sentence in two documents, cite only one.
     with KGStore.open(tmp_path / "kg.sqlite") as store:
         store.install_schema(**preset("agrochem-v2"))
@@ -65,10 +73,13 @@ def test_citation_for_another_document_does_not_suppress_candidate(tmp_path) -> 
         # When both documents are scanned.
         candidates = missed_null_candidates(store, docs)
 
-    # Then only the second source is still reviewable.
-    assert [(c.document_id, c.cue) for c in candidates] == [
-        (docs[1].id, "no resistant isolate")
+    # Then both remain reviewable, but only the cited source shows the edge.
+    assert [(c.document_id, c.cue, c.status) for c in candidates] == [
+        (docs[0].id, "no resistant isolate", "partially_extracted"),
+        (docs[1].id, "no resistant isolate", "unextracted"),
     ]
+    assert candidates[0].existing_statements[0].edge_id == "r"
+    assert candidates[1].existing_statements == ()
 
 
 def test_zero_percent_in_a_published_style_outcome_is_reviewable(tmp_path) -> None:

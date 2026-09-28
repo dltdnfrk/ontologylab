@@ -6,13 +6,23 @@
       "size": 847173
     },
     {
+      "path": "assets/index-FQwMvdZS.css",
+      "sha256": "d79987cf35b82250f8f4d4f75e60539df40d04fe89cc548a3c1893fcd0d8c7e4",
+      "size": 41600
+    },
+    {
       "path": "assets/index-K9oNKvgj.css",
       "sha256": "fdac5e77f6b388713b5be3fa7319a5401d72a5de468c06ab33694567c7b41c48",
       "size": 41402
     },
     {
+      "path": "assets/index-uhAfpA2S.js",
+      "sha256": "7d1c10141179afb7ab68bc4d140b3107f300e76d612c09d38359f4a8c98ecdd2",
+      "size": 854912
+    },
+    {
       "path": "index.html",
-      "sha256": "0f24091a529b9b597561339e84eae09bfef7e3915d12608f761a0a50a71b304f",
+      "sha256": "c31b9b0a5a72f848dd00e0d9ba542c3efe69af4b090dd161ff093039c796f6ca",
       "size": 619
     }
   ],

@@ -589,6 +589,29 @@ def get_calibration(deps: AppDependency) -> dict[str, Any]:
         store.close()
 
 
+@router.get("/review/missed-null")
+def list_missed_null(deps: AppDependency) -> dict[str, Any]:
+    """Show both uncited null sentences and cited ones needing arm review."""
+    from dataclasses import asdict
+
+    from ontologylab.missed_null import missed_null_candidates
+
+    store = _open_store(deps)
+    try:
+        documents = store.list_documents()
+        grouped = {doc.id: [] for doc in documents}
+        for candidate in missed_null_candidates(store, documents):
+            grouped[candidate.document_id].append(asdict(candidate))
+        rows = [
+            {"id": doc.id, "title": doc.title or doc.source_uri,
+             "candidates": grouped[doc.id]}
+            for doc in documents if grouped[doc.id]
+        ]
+        return {"documents": rows, "count": sum(len(row["candidates"]) for row in rows)}
+    finally:
+        store.close()
+
+
 @router.get("/proposals")
 def list_proposals(deps: AppDependency,
     kind: str | None = Query(None, description="node | edge"),

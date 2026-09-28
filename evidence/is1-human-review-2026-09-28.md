@@ -1,8 +1,36 @@
 # IS-1 human-review trial-6 measurement (2026-09-28)
 
-**FAILED: pooled reviewable coverage is 34/51 = 66.67%, below the unchanged
-90% acceptance bar.** This does not establish IS-1. The earlier FAILED
-model trials and their results remain unchanged.
+**Amended contract PASSED: pooled reviewable coverage is 51/51 = 100%, above
+the unchanged 90% acceptance bar.** The first contract measured 34/51 and
+FAILED; both outcomes are retained below. Earlier FAILED model trials and
+their results remain unchanged.
+
+The plan owner amended the candidate contract after finding that a sentence
+with multiple measured-null arms disappeared when any one null statement
+cited it. The detector now presents every sentence with a published-source
+cue. Those without a null citation are `unextracted`; those with one or more
+are `partially_extracted`, with the cited statement IDs, subjects, relations,
+objects, polarities, qualifiers, origins, statuses and citation spans listed
+for the reviewer. A cited arm no longer conceals its missing neighbors.
+
+| Trial | Gold null rows | Extracted | Flagged rows | Reviewable | Sentences to read | Unextracted | Partially extracted | Sentences not in gold |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| r1 | 17 | 0 | 17 | 17/17 | 51 | 28 | 23 | 40 |
+| r2 | 17 | 3 | 17 | 17/17 | 51 | 33 | 18 | 40 |
+| r3 | 17 | 4 | 17 | 17/17 | 51 | 29 | 22 | 40 |
+| **Pooled** | **51** | **7** | **51** | **51/51** | **153** | **90** | **63** | **120** |
+
+The status counts are sentence counts, not gold-row counts; one sentence can
+contain several gold arms. Cues were not derived from gold polarity labels.
+The same five copied source texts, adjudicated gold and three immutable
+trial-6 stores were reused; G1/G2/G3/G4 precision numbers below are
+unchanged. The row-by-row machine output is reproducible with
+`evidence/is1_review_score.py` and is recorded in the JSON companion.
+
+## First contract, preserved: FAILED
+
+**FAILED: pooled reviewable coverage was 34/51 = 66.67%, below the unchanged
+90% acceptance bar.** This first contract alone did not establish IS-1.
 
 The three retained trial-6 databases were opened with
 `KGStore.open(..., read_only=True, immutable=True)`. The adjudicated gold JSON
@@ -11,9 +39,9 @@ and its five `sources/full/*.txt` files were copied as regular files under
 Each gold null span was converted from gold UTF-8 byte offsets to store
 character offsets and checked against the exact stored substring. The
 qualified matcher uses the store's recorded alias resolution, core triple,
-polarity and gold-specified qualifier subset. A source sentence is offered for
-review only when it has a measured-null cue and no current no_effect/refutes
-edge citation overlapping that sentence. Coverage counts a gold row once
+polarity and gold-specified qualifier subset. Under the first contract, a
+source sentence was offered for review only when it had a measured-null cue
+and no current no_effect/refutes edge citation overlapping it. Coverage counts a gold row once
 when its assertion was extracted with the right polarity and qualified
 identity **or** overlaps a candidate sentence. No model/provider calls ran.
 

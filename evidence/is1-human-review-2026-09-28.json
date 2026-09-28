@@ -5,6 +5,31 @@
   "gold_no_effect_per_run": 17,
   "gold_refutes_per_run": 0,
   "coverage_threshold": 0.9,
+  "amendment_reason": "One cited null arm must not hide missing arms in the same measured-null sentence.",
+  "amended_contract": {
+    "coverage_outcome": "PASS",
+    "per_run": [
+      {"run": "r1", "gold_rows": 17, "extracted": 0, "flagged_rows": 17,
+       "reviewable": 17, "coverage": 1.0, "review_burden": 51,
+       "candidate_status_counts": {"unextracted": 28, "partially_extracted": 23},
+       "flagged_sentences_not_in_gold": 40, "uncovered_source_rows": []},
+      {"run": "r2", "gold_rows": 17, "extracted": 3, "flagged_rows": 17,
+       "reviewable": 17, "coverage": 1.0, "review_burden": 51,
+       "candidate_status_counts": {"unextracted": 33, "partially_extracted": 18},
+       "flagged_sentences_not_in_gold": 40, "uncovered_source_rows": []},
+      {"run": "r3", "gold_rows": 17, "extracted": 4, "flagged_rows": 17,
+       "reviewable": 17, "coverage": 1.0, "review_burden": 51,
+       "candidate_status_counts": {"unextracted": 29, "partially_extracted": 22},
+       "flagged_sentences_not_in_gold": 40, "uncovered_source_rows": []}
+    ],
+    "pooled": {
+      "gold_rows": 51, "extracted": 7, "flagged_rows": 51,
+      "reviewable": 51, "coverage": 1.0, "review_burden": 153,
+      "candidate_status_counts": {"unextracted": 90, "partially_extracted": 63},
+      "flagged_sentences_not_in_gold": 120
+    }
+  },
+  "first_contract": {
   "coverage_outcome": "FAILED",
   "per_run": [
     {
@@ -53,6 +78,8 @@
     "review_burden": 90,
     "flagged_sentences_not_in_gold": 74,
     "uncovered_with_null_citation_overlap": 17
+  },
+  "reason_for_failure": "All 17 uncovered gold-row instances had a cue but were suppressed by a null citation on the same multi-arm sentence."
   },
   "precision_gates": {
     "G1": {"numerator": 63, "denominator": 63, "threshold": 0.95, "passed": true},

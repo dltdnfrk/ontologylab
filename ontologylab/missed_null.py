@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import re
-from typing import Iterable
+from typing import Iterable, Literal
 
 from ontologylab.kgstore import KGStore
 from ontologylab.models import Document
@@ -33,12 +33,28 @@ _SENTENCE_END = re.compile(r"\n+|[.!?](?=[ \t]+[A-Z0-9])")
 
 
 @dataclass(frozen=True, slots=True)
+class CitedNullStatement:
+    edge_id: str
+    subject: str
+    relation_type: str
+    object: str
+    polarity: str
+    qualifiers: dict[str, str]
+    status: str
+    origin: str
+    start: int
+    end: int
+
+
+@dataclass(frozen=True, slots=True)
 class MissedNullCandidate:
     document_id: str
     start: int
     end: int
     text: str
     cue: str
+    status: Literal["unextracted", "partially_extracted"]
+    existing_statements: tuple[CitedNullStatement, ...]
 
 
 def _sentences(text: str) -> Iterable[tuple[int, int, str]]:
@@ -61,30 +77,49 @@ def _sentences(text: str) -> Iterable[tuple[int, int, str]]:
 def missed_null_candidates(
     store: KGStore, documents: Iterable[Document] | None = None,
 ) -> list[MissedNullCandidate]:
-    """Return uncited measured-null sentences, in document and source order.
+    """Return measured-null sentences, in document and source order.
 
-    Citation coordinates, not edge primary spans, matter: an existing edge can
-    have multiple document-local citations after statement-identity merging.
+    A cited sentence still needs review: one extracted null arm does not
+    establish that the other arms in that sentence were extracted. Citation
+    coordinates, not primary edge spans, account for merged mentions.
     """
-    cited: dict[str, list[tuple[int, int]]] = {}
+    cited: dict[str, list[CitedNullStatement]] = {}
     for row in store.conn.execute(
-        "SELECT c.source_doc_id, c.source_span FROM citations c "
+        "SELECT c.source_doc_id, c.source_span, e.id AS edge_id, "
+        "s.name AS subject, e.relation_type, d.name AS object, "
+        "e.qualifiers_json, e.status, e.origin FROM citations c "
         "JOIN edges e ON e.id = c.item_id "
+        "JOIN nodes s ON s.id = e.src_node_id "
+        "JOIN nodes d ON d.id = e.dst_node_id "
         "WHERE c.kind = 'edge' AND e.status IN ('proposed','verified') "
         "AND e.invalidated_ts IS NULL "
         "AND json_extract(e.qualifiers_json, '$.polarity') IN ('no_effect','refutes') "
-        "AND c.source_span IS NOT NULL"
+        "AND c.source_span IS NOT NULL ORDER BY c.rowid, e.id"
     ):
         span = json.loads(row["source_span"])
-        cited.setdefault(row["source_doc_id"], []).append((span["start"], span["end"]))
+        qualifiers = json.loads(row["qualifiers_json"])
+        cited.setdefault(row["source_doc_id"], []).append(CitedNullStatement(
+            edge_id=row["edge_id"], subject=row["subject"],
+            relation_type=row["relation_type"], object=row["object"],
+            polarity=qualifiers["polarity"], qualifiers=qualifiers,
+            status=row["status"], origin=row["origin"],
+            start=span["start"], end=span["end"],
+        ))
 
     candidates: list[MissedNullCandidate] = []
     for document in documents if documents is not None else store.list_documents():
         text = store.document_raw_text(document.id)
         for start, end, sentence in _sentences(text):
-            if any(a < end and start < b for a, b in cited.get(document.id, ())):
-                continue
             cue = next((name for name, pattern in _CUES if pattern.search(sentence)), None)
             if cue is not None:
-                candidates.append(MissedNullCandidate(document.id, start, end, sentence, cue))
+                existing = {
+                    item.edge_id: item
+                    for item in cited.get(document.id, ())
+                    if item.start < end and start < item.end
+                }
+                candidates.append(MissedNullCandidate(
+                    document.id, start, end, sentence, cue,
+                    "partially_extracted" if existing else "unextracted",
+                    tuple(existing.values()),
+                ))
     return candidates

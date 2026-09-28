@@ -96,6 +96,11 @@ def measure(gold_path: Path, directories: list[Path]) -> dict:
                     "source_row": row["source_row"], "pmcid": row["pmcid"],
                     "document_id": doc.id, "extracted": extracted,
                     "flagged": flagged, "reviewable": extracted or flagged,
+                    "candidate_statuses": sorted({
+                        candidate.status for candidate in candidates
+                        if candidate.document_id == doc.id
+                        and candidate.start < end and start < candidate.end
+                    }),
                     "cue_in_sentence": next(
                         (name for name, pattern in _CUES if pattern.search(sentence)), None
                     ),
@@ -122,6 +127,9 @@ def measure(gold_path: Path, directories: list[Path]) -> dict:
                 "reviewable": sum(row["reviewable"] for row in outcomes),
                 "coverage": sum(row["reviewable"] for row in outcomes) / len(outcomes),
                 "review_burden": len(candidates),
+                "candidate_status_counts": dict(Counter(
+                    candidate.status for candidate in candidates
+                )),
                 "flagged_sentences_not_in_gold": non_gold,
                 "qualified_polarity_accuracy": qualified["polarity_accuracy"],
                 "qualified_flip_rate": qualified["supports_when_gold_no_effect_flip_rate"],
@@ -135,6 +143,9 @@ def measure(gold_path: Path, directories: list[Path]) -> dict:
     return {
         "gold": str(gold_path), "runs": reports,
         "pooled": {**totals, "coverage": totals["reviewable"] / totals["gold_rows"],
+                   "candidate_status_counts": dict(sum((
+                       Counter(report["candidate_status_counts"]) for report in reports
+                   ), Counter())),
                    "passed": totals["reviewable"] / totals["gold_rows"] >= 0.90},
     }
 
