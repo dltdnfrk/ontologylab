@@ -40,6 +40,10 @@ FROZEN_ARTIFACTS: Final = frozenset({
     "gold", "source-selection", "rules", "prompt", "schema",
     "cue", "qualifier", "completion", "normalization", "scorer",
 })
+RUN_ARTIFACTS: Final = frozenset({
+    "rules", "cue", "prompt", "schema",
+    "qualifier", "normalization", "completion",
+})
 
 
 class SplitViolation(ValueError):
@@ -286,7 +290,10 @@ def score_statements(
     if not run.complete or not gold.exhaustive:
         raise SplitViolation("incomplete run or non-exhaustive human gold")
     frozen = dict(lock.hashes)
-    if dict(run.hashes) != frozen or gold.gold_sha256 != frozen.get("gold"):
+    recorded = dict(run.hashes)
+    if (len(recorded) != len(run.hashes) or set(recorded) != RUN_ARTIFACTS
+            or any(recorded[key] != frozen.get(key) for key in RUN_ARTIFACTS)
+            or gold.gold_sha256 != frozen.get("gold")):
         raise SplitViolation("artifact hash changed after split freeze/test look")
     for papers in (run.papers, gold.papers):
         if {_identity(p) for p in papers} != set(locked):

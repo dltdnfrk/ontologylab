@@ -9,7 +9,7 @@ import pytest
 
 from ontologylab.statement_eval import (
     AdjudicatedGold, HarnessRun, Paper, Span, SplitLock, SplitManifest, SplitViolation,
-    Statement, freeze_split, score_statements, wilson_slice,
+    Statement, RUN_ARTIFACTS, freeze_split, score_statements, wilson_slice,
 )
 
 TEXT = "µ A reduced X; B did not reduce X. A reduced X again."
@@ -20,6 +20,9 @@ HASHES = tuple(
         "gold", "source-selection", "rules", "prompt", "schema",
         "cue", "qualifier", "completion", "normalization", "scorer",
     )
+)
+RUN_HASHES = tuple(
+    (name, digest) for name, digest in HASHES if name in RUN_ARTIFACTS
 )
 
 
@@ -55,7 +58,7 @@ def inventory(
         current_gold_ids=set(),
     )
     return (
-        HarnessRun(predictions, (source,), HASHES, store_edges=store_edges),
+        HarnessRun(predictions, (source,), RUN_HASHES, store_edges=store_edges),
         AdjudicatedGold(expected, (source,), HASHES[0][1]),
         lock,
     )
@@ -164,12 +167,37 @@ def test_changed_hash_after_first_test_look_invalidates_score() -> None:
     run, gold, lock = inventory((), ())
     changed = replace(run, hashes=tuple(
         (name, "0" * 64 if name == "prompt" else digest)
-        for name, digest in HASHES
+        for name, digest in RUN_HASHES
     ))
 
     # When/Then: there is no score.
     with pytest.raises(SplitViolation, match="artifact hash"):
         score_statements(changed, gold, lock)
+
+
+def test_mismatched_run_owned_hash_raises() -> None:
+    # Given: a run-owned schema digest does not match the frozen lock.
+    run, gold, lock = inventory((), ())
+    changed = replace(run, hashes=tuple(
+        (name, "0" * 64 if name == "schema" else digest)
+        for name, digest in run.hashes
+    ))
+
+    # When/Then: scoring refuses the mismatched run artifact.
+    with pytest.raises(SplitViolation, match="artifact hash"):
+        score_statements(changed, gold, lock)
+
+
+def test_missing_run_artifact_raises() -> None:
+    # Given: the run omits a required run-owned hash.
+    run, gold, lock = inventory((), ())
+    missing = replace(run, hashes=tuple(
+        (name, digest) for name, digest in run.hashes if name != "schema"
+    ))
+
+    # When/Then: scoring refuses the incomplete run map.
+    with pytest.raises(SplitViolation, match="artifact hash"):
+        score_statements(missing, gold, lock)
 
 
 def test_unicode_character_offsets_and_quote_integrity() -> None:
