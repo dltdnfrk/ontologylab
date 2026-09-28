@@ -203,6 +203,30 @@ def test_wrong_arm_span_is_not_relocated(qualified_store):
     assert (run.rejections[0][1] == "wrong_arm_or_result")
 
 
+@pytest.mark.parametrize("wrong_quote", ["xgentA", "AgentB"])
+def test_in_window_quote_must_match_its_offsets(qualified_store, wrong_quote):
+    text = "Results\nAgentA did not reduce cover whereas AgentB reduced cover."
+    doc_id = document(qualified_store, text)
+
+    def wrong_arm(unit):
+        arm = next(slot for slot in unit["slots"] if slot["role"] == "arm")
+        if arm["quote"] != "AgentA":
+            return []
+        item = proposal(unit, arm["quote"], "reduced cover")
+        item["arm"] = {
+            "quote": wrong_quote, "start": arm["start"], "end": arm["end"],
+        }
+        return [item]
+
+    run = run_statement_harness(
+        qualified_store, [doc_id], ScriptedEngine(wrong_arm), budget=2,
+    )
+
+    assert run.receipts == ()
+    assert run.rejections[0][1] == "arm_quote_mismatch"
+    assert qualified_store.conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0] == 0
+
+
 def test_budget_cap_lists_every_unprocessed_unit(qualified_store):
     text = "Results\nAgentA reduced cover. AgentB reduced cover. AgentC reduced cover."
     doc_id = document(qualified_store, text)
