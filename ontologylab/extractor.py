@@ -497,6 +497,42 @@ from the document chunk below, strictly following the ontology schema.
 {CHUNK_MARKER_CLOSE}"""
 
 
+def build_statement_prompt(
+    schema: dict[str, Any], unit: Any, *, output_contract: dict[str, Any],
+    text: str, cues: tuple[Any, ...] = (),
+) -> str:
+    """Request zero or more grounded statements for exactly one source unit."""
+    start = min((span[0] for span in unit.context_spans), default=unit.sentence_start)
+    window = text[start:unit.sentence_end]
+    return (
+        "Extract only claims explicitly assigned to this unit. Return one JSON object "
+        "with a statements array (empty is valid). Every mention has exact quote, "
+        "start and end character offsets relative to the window. Do not repair "
+        "offsets or infer missing scope. Source quote must contain the assigned "
+        "arm and result; an antecedent may use only recorded context.\n"
+        + _schema_block(schema) + "\n"
+        + _POLARITY_GUIDANCE + "\n"
+        + "<statement-contract>\n" + _prompt_data_json(output_contract)
+        + "\n</statement-contract>\n<statement-unit>\n"
+        + _prompt_data_json({
+            "unit_id": unit.unit_id, "kind": unit.kind,
+            "window_start": start, "window": window,
+            "sentence_start": unit.sentence_start - start,
+            "sentence_end": unit.sentence_end - start,
+            "arm_anchor": unit.arm_anchor, "result_anchor": unit.result_anchor,
+            "slots": [
+                {"role": slot.role, "quote": slot.quote, "start": slot.start - start,
+                 "end": slot.end - start} for slot in unit.slots
+            ],
+            "cues": [
+                {"kind": cue.kind.value, "start": cue.start - start,
+                 "end": cue.end - start, "scope_start": cue.scope_start - start,
+                 "scope_end": cue.scope_end - start} for cue in cues
+            ],
+        }) + "\n</statement-unit>"
+    )
+
+
 def needs_statement_completion(schema: dict[str, Any], result: ExtractionResult) -> bool:
     """Trigger by declared relation type or explicit population/study scope."""
     agrochem = schema.get("schema_label", schema.get("label")) == "agrochem-v2"
@@ -743,6 +779,7 @@ def _validate_relation_qualifiers(
 def parse_and_validate_extraction(
     raw_text: str, schema: dict[str, Any], chunk: Chunk, *,
     require_source_spans: bool = False,
+    no_relocation: bool = False,
 ) -> ExtractionResult:
     """Parse raw model text into schema-valid, document-rebased proposals.
 
@@ -774,7 +811,7 @@ def parse_and_validate_extraction(
     by_key: dict[tuple[str, str], ProposedEntity] = {}
 
     for i, raw_ent in enumerate(payload.get("entities") or []):
-        if require_source_spans and (
+        if (require_source_spans or no_relocation) and (
             not isinstance(raw_ent, dict)
             or _validate_span(raw_ent.get("source_span"), chunk_len, strict=True) is None
         ):
@@ -802,6 +839,12 @@ def parse_and_validate_extraction(
         # re-locate; unfindable names are dropped, never stored fabricated.
         span = _validate_span(raw_ent.get("source_span"), chunk_len)
         if span is None or not _span_cites(chunk.text, span, name):
+            if no_relocation:
+                rejections.append({
+                    "kind": "entity", "index": i, "reason": "ungrounded_source_span",
+                    "type": "SourceSpanRejected",
+                })
+                continue
             relocated = _locate(chunk.text, name)
             if relocated is None:
                 warnings.append(
@@ -919,6 +962,12 @@ def parse_and_validate_extraction(
         hit = by_key.get(key)
         if hit is not None:
             return hit
+        if no_relocation:
+            rejections.append({
+                "kind": "relation", "index": rel_index,
+                "reason": "unemitted_endpoint", "type": "ParseValidationRejected",
+            })
+            return None
         # relation names an entity the model didn't emit: mint a flagged
         # placeholder of the declared type so the edge is never dangling.
         span = _locate(chunk.text, ref_name)
@@ -958,7 +1007,7 @@ def parse_and_validate_extraction(
 
     relations: list[ProposedRelation] = []
     for i, raw_rel in enumerate(payload.get("relations") or []):
-        if require_source_spans and (
+        if (require_source_spans or no_relocation) and (
             not isinstance(raw_rel, dict)
             or _validate_span(raw_rel.get("source_span"), chunk_len, strict=True) is None
         ):
@@ -1020,7 +1069,7 @@ def parse_and_validate_extraction(
                     start=chunk.char_offset + span.start,
                     end=chunk.char_offset + span.end,
                 )
-        if require_source_spans and doc_span is None:
+        if (require_source_spans or no_relocation) and doc_span is None:
             rejections.append({
                 "kind": "relation", "index": i, "reason": "ungrounded_source_span",
                 "type": "SourceSpanRejected",
