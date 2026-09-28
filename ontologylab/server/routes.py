@@ -133,7 +133,11 @@ from ontologylab.research_spec import (
     ResearchOrigin,
 )
 from ontologylab.searchquery import DEFAULT_SEARCH_QUERIES
-from ontologylab.statement_feedback import ReviewEvent, review_snapshot
+from ontologylab.statement_feedback import (
+    ReviewEvent,
+    existing_curated_ids,
+    review_snapshot,
+)
 from ontologylab.server import entity_actions
 from ontologylab.server import settings as settings_mod
 from ontologylab.server.dependencies import AppDependencies, AppDependency
@@ -1139,23 +1143,31 @@ def create_interpretation(
         stats = None
         try:
             with store.atomic():
+                existing_ids = existing_curated_ids(store.conn, entities, relations)
+                before = review_snapshot(store.conn, existing_ids)
                 stats = store.insert_curated(
                     entities, relations, curator=body.curator, note=body.note,
                     commit=False,
                 )
                 ids = (
+                    *existing_ids,
                     stats["document_id"],
                     *stats["id_map"].values(),
                     *(relation.id for relation in relations),
                 )
                 after = review_snapshot(store.conn, ids)
+                snapshots = (*before, *after)
                 store.record_review_event(ReviewEvent(
                     action="create_interpretation", actor=body.curator,
                     reason=body.note, item_ids=tuple(dict.fromkeys(ids)),
-                    before=(), after=after,
-                    source_doc_ids=(stats["document_id"],),
+                    before=before, after=after,
+                    source_doc_ids=tuple(dict.fromkeys(
+                        row["source_doc_id"] for row in snapshots
+                        if row["source_doc_id"]
+                    )),
                     source_hashes=tuple(dict.fromkeys(
-                        row["source_hash"] for row in after if row["source_hash"]
+                        row["source_hash"] for row in snapshots
+                        if row["source_hash"]
                     )),
                 ))
         except Exception:
@@ -1208,7 +1220,10 @@ def create_curated_statement(
             source_span=span,
         )
         with store.atomic():
-            before = review_snapshot(store.conn, (doc_id,))
+            existing_ids = existing_curated_ids(
+                store.conn, entities, [relation],
+            )
+            before = review_snapshot(store.conn, (doc_id, *existing_ids))
             stats = store.insert_proposed(
                 entities, [relation], source_doc_id=doc_id,
                 extractor_engine="curation", extractor_model=body.curator,
@@ -1218,15 +1233,20 @@ def create_curated_statement(
                 raise HTTPException(
                     status_code=409, detail="statement already exists; review the existing row",
                 )
-            ids = (doc_id, *stats["id_map"].values(), relation.id)
+            ids = (doc_id, *existing_ids, *stats["id_map"].values(), relation.id)
             after = review_snapshot(store.conn, ids)
+            snapshots = (*before, *after)
             store.record_review_event(ReviewEvent(
                 action="create_statement", actor=body.curator,
                 item_ids=tuple(dict.fromkeys(ids)),
                 before=before, after=after,
-                source_doc_ids=(doc_id,),
+                source_doc_ids=tuple(dict.fromkeys(
+                    row["source_doc_id"] for row in snapshots
+                    if row["source_doc_id"]
+                )),
                 source_hashes=tuple(dict.fromkeys(
-                    row["source_hash"] for row in after if row["source_hash"]
+                    row["source_hash"] for row in snapshots
+                    if row["source_hash"]
                 )),
             ))
         return {"ok": True, "edge_id": relation.id,

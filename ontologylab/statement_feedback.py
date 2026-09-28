@@ -7,6 +7,19 @@ import sqlite3
 import time
 import uuid
 from dataclasses import dataclass
+from collections.abc import Sequence
+
+from ontologylab.kgstore_base import (
+    EDGE_POLARITY_SQL,
+    EDGE_QUALIFIERS_SQL,
+    edge_polarity,
+    normalize_name,
+)
+from ontologylab.models import ProposedEntity, ProposedRelation
+from ontologylab.statement_qualifiers import (
+    canonical_qualifiers,
+    normalize_statement_qualifiers,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +33,61 @@ class ReviewEvent:
     source_hashes: tuple[str, ...]
     reason: str | None = None
     split_assignment: str = "unassigned"
+
+
+def existing_curated_ids(
+    conn: sqlite3.Connection,
+    entities: Sequence[ProposedEntity],
+    relations: Sequence[ProposedRelation],
+) -> tuple[str, ...]:
+    """Find existing rows an insertion will resolve or cite, without writing."""
+    schema = conn.execute(
+        "SELECT id, label FROM schema_version WHERE is_active = 1 "
+        "ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    resolved: dict[str, str] = {}
+    affected: list[str] = []
+    for entity in entities:
+        key = normalize_name(entity.name)
+        row = conn.execute(
+            "SELECT id FROM nodes WHERE schema_version_id = ? AND entity_type = ? "
+            "AND normalized_name = ? AND status IN ('proposed','verified')",
+            (schema["id"], entity.entity_type, key),
+        ).fetchone()
+        if row is None:
+            aliases = conn.execute(
+                "SELECT n.id FROM node_aliases a JOIN nodes n ON n.id = a.node_id "
+                "WHERE a.normalized_alias = ? AND n.schema_version_id = ? "
+                "AND n.entity_type = ? AND n.status IN ('proposed','verified')",
+                (key, schema["id"], entity.entity_type),
+            ).fetchall()
+            row = aliases[0] if len(aliases) == 1 else None
+        if row is not None:
+            resolved[entity.id] = row["id"]
+            affected.append(row["id"])
+
+    for relation in relations:
+        src = resolved.get(relation.src_entity_id)
+        dst = resolved.get(relation.dst_entity_id)
+        if src is None or dst is None:
+            continue
+        qualifiers = (
+            normalize_statement_qualifiers(relation.qualifiers)
+            if schema["label"] == "agrochem-v2" else relation.qualifiers
+        )
+        row = conn.execute(
+            "SELECT id FROM edges WHERE schema_version_id = ? AND "
+            "relation_type = ? AND src_node_id = ? AND dst_node_id = ? AND "
+            f"{EDGE_POLARITY_SQL} = ? AND {EDGE_QUALIFIERS_SQL} = ? AND "
+            "status IN ('proposed','verified') AND invalidated_ts IS NULL",
+            (
+                schema["id"], relation.relation_type, src, dst,
+                edge_polarity(qualifiers), canonical_qualifiers(qualifiers),
+            ),
+        ).fetchone()
+        if row is not None:
+            affected.append(row["id"])
+    return tuple(dict.fromkeys(affected))
 
 
 def review_snapshot(
@@ -62,7 +130,7 @@ def review_snapshot(
                 ).fetchone()
                 if source_doc_id else None
             )
-            snapshot.append({
+            item = {
                 "kind": kind,
                 "id": item_id,
                 "status": row["status"] if kind != "document" else None,
@@ -75,7 +143,12 @@ def review_snapshot(
                     str(row["invalidated_ts"]) if row["invalidated_ts"] is not None
                     else None
                 ) if kind == "edge" else None,
-            })
+            }
+            if kind == "node":
+                item["aliases_json"] = row["aliases_json"]
+            if kind in ("node", "edge"):
+                item["properties_json"] = row["properties_json"]
+            snapshot.append(item)
             break
     return tuple(snapshot)
 
