@@ -61,13 +61,14 @@ def test_task11_policy_covers_every_authoritative_path_class() -> None:
     # the two old hashed files rather than changing their count. Qualified
     # statements added ontologylab/statement_qualifiers.py,
     # ontologylab/qualified_extraction.py, and ontologylab/qualified_polarity_eval.py.
+    # The row 40 rebuild added ontologylab/missed_null.py.
     assert (
         len(audit.declared),
         len(audit.authoritative),
         len(audit.task10_authoritative),
         len(audit.missing),
         len(audit.generated_violations),
-    ) == (100, 366, 27, 0, 0)
+    ) == (100, 367, 27, 0, 0)
     assert not audit.generated_violations
     assert covered("ontologylab/storage-compatibility.json", audit.declared)
     assert not any(

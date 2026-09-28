@@ -27,9 +27,7 @@ from ontologylab.server.app import create_app
 # /static/index.html is intentionally retained as a directly served asset.
 _PINNED_ASSETS: tuple[tuple[str, int, str], ...] = (
     ("index.html", 619, "c31b9b0a5a72f848dd00e0d9ba542c3efe69af4b090dd161ff093039c796f6ca"),
-    ("assets/index-Cn4u6FJs.js", 847173, "cb24ea985f53a7bc10936bf99f89f10475cda137179722365b738c28a84dcb6b"),
     ("assets/index-FQwMvdZS.css", 41600, "d79987cf35b82250f8f4d4f75e60539df40d04fe89cc548a3c1893fcd0d8c7e4"),
-    ("assets/index-K9oNKvgj.css", 41402, "fdac5e77f6b388713b5be3fa7319a5401d72a5de468c06ab33694567c7b41c48"),
     ("assets/index-uhAfpA2S.js", 854912, "7d1c10141179afb7ab68bc4d140b3107f300e76d612c09d38359f4a8c98ecdd2"),
 )
 
