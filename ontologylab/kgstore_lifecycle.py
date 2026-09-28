@@ -64,6 +64,11 @@ class LifecycleMixin:
         finally:
             self._tx_depth -= 1
 
+    def _commit(self) -> None:
+        """Preserve standalone writes without ending an outer command transaction."""
+        if self._tx_depth == 0:
+            self.conn.commit()
+
     def _vec_available(self) -> bool:
         """Whether sqlite-vec is loaded on this connection (probed once).
 
