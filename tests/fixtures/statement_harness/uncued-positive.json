@@ -1,0 +1,31 @@
+{
+  "id": "uncued-positive",
+  "case": "uncued_positive",
+  "rules_version": "units-v1",
+  "text": "Mesotrione reduced P. annua density relative to untreated plots.",
+  "section_spans": [
+    {
+      "section": "results",
+      "start": 0,
+      "end": 64
+    }
+  ],
+  "rationale": "Assigned arms: Mesotrione\nCues: none\nMesotrione is supports because it reduced density. The sentence has no negation cue and remains an eligible positive arm.",
+  "expected_slots": [
+    {
+      "quote": "Mesotrione",
+      "start": 0,
+      "end": 10,
+      "role": "arm",
+      "arm": "Mesotrione",
+      "polarity": "supports"
+    },
+    {
+      "quote": "reduced P. annua density",
+      "start": 11,
+      "end": 35,
+      "role": "result",
+      "arm": "Mesotrione"
+    }
+  ]
+}

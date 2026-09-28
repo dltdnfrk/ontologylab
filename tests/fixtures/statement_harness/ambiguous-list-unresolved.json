@@ -1,0 +1,22 @@
+{
+  "id": "ambiguous-list-unresolved",
+  "case": "ambiguous_list_unresolved",
+  "rules_version": "units-v1",
+  "text": "Glyphosate, mesotrione and pinoxaden were associated with lower or unchanged P. annua density.",
+  "section_spans": [
+    {
+      "section": "results",
+      "start": 0,
+      "end": 94
+    }
+  ],
+  "rationale": "Assigned arms: none\nList members unresolved: Glyphosate; mesotrione; pinoxaden\nGlyphosate, mesotrione and pinoxaden are one list. The sentence does not assign an outcome to each, so the list stays one unresolved container and must not become three arms.",
+  "expected_slots": [
+    {
+      "quote": "Glyphosate, mesotrione and pinoxaden were associated with lower or unchanged P. annua density.",
+      "start": 0,
+      "end": 94,
+      "role": "unresolved"
+    }
+  ]
+}

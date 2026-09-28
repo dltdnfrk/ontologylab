@@ -1,0 +1,52 @@
+{
+  "id": "whereas-mixed",
+  "case": "whereas_mixed",
+  "rules_version": "units-v1",
+  "text": "Glyphosate did not reduce P. annua biomass, whereas mesotrione reduced P. annua biomass.",
+  "section_spans": [
+    {
+      "section": "results",
+      "start": 0,
+      "end": 88
+    }
+  ],
+  "rationale": "Assigned arms: Glyphosate; mesotrione\nWhereas members: Glyphosate; mesotrione\nGlyphosate is no_effect because the sentence says it did not reduce biomass. Mesotrione is supports because the sentence says it reduced biomass.",
+  "expected_slots": [
+    {
+      "quote": "Glyphosate",
+      "start": 0,
+      "end": 10,
+      "role": "arm",
+      "arm": "Glyphosate",
+      "polarity": "no_effect"
+    },
+    {
+      "quote": "did not reduce P. annua biomass",
+      "start": 11,
+      "end": 42,
+      "role": "result",
+      "arm": "Glyphosate"
+    },
+    {
+      "quote": "whereas",
+      "start": 44,
+      "end": 51,
+      "role": "contrast"
+    },
+    {
+      "quote": "mesotrione",
+      "start": 52,
+      "end": 62,
+      "role": "arm",
+      "arm": "mesotrione",
+      "polarity": "supports"
+    },
+    {
+      "quote": "reduced P. annua biomass",
+      "start": 63,
+      "end": 87,
+      "role": "result",
+      "arm": "mesotrione"
+    }
+  ]
+}

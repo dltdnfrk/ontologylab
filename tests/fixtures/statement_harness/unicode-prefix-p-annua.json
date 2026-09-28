@@ -1,0 +1,37 @@
+{
+  "id": "unicode-prefix-p-annua",
+  "case": "unicode_prefix_p_annua",
+  "rules_version": "units-v1",
+  "text": "µ-labeled P. annua plots lost cover after mesotrione relative to untreated plots.",
+  "section_spans": [
+    {
+      "section": "results",
+      "start": 0,
+      "end": 81
+    }
+  ],
+  "rationale": "Assigned arms: mesotrione\nUnicode prefix: µ\nProtected abbreviation: P. annua\nThe leading U+00B5 is a multibyte prefix, so character offsets and UTF-8 byte offsets diverge. P. annua is one protected span and must not be split after P. Mesotrione is supports because the plots lost cover after it. Untreated plots are the comparator, not a second arm.",
+  "expected_slots": [
+    {
+      "quote": "P. annua",
+      "start": 10,
+      "end": 18,
+      "role": "protected_abbreviation"
+    },
+    {
+      "quote": "lost cover",
+      "start": 25,
+      "end": 35,
+      "role": "result",
+      "arm": "mesotrione"
+    },
+    {
+      "quote": "mesotrione",
+      "start": 42,
+      "end": 52,
+      "role": "arm",
+      "arm": "mesotrione",
+      "polarity": "supports"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "id": "pseudo-cue",
+  "case": "pseudo_cue",
+  "rules_version": "units-v1",
+  "text": "Mesotrione was not only persistent but reduced P. annua density relative to untreated plots.",
+  "section_spans": [
+    {
+      "section": "results",
+      "start": 0,
+      "end": 92
+    }
+  ],
+  "rationale": "Assigned arms: Mesotrione\nPseudo-cue: not only\nMesotrione is supports because it reduced density. The words not only are a pseudo-cue and do not create a no_effect arm.",
+  "expected_slots": [
+    {
+      "quote": "Mesotrione",
+      "start": 0,
+      "end": 10,
+      "role": "arm",
+      "arm": "Mesotrione",
+      "polarity": "supports"
+    },
+    {
+      "quote": "not only",
+      "start": 15,
+      "end": 23,
+      "role": "pseudo_cue"
+    },
+    {
+      "quote": "reduced P. annua density",
+      "start": 39,
+      "end": 63,
+      "role": "result",
+      "arm": "Mesotrione"
+    }
+  ]
+}
