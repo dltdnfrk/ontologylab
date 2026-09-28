@@ -1,0 +1,43 @@
+{
+  "schema": "agrochem-v2",
+  "format_version": 2,
+  "description": "Invented two-document fixture for statement-units development report tests. Not quotations from the development papers.",
+  "papers": [
+    {
+      "pmcid": "PMC90000001",
+      "doi": "10.0000/fixture.uncued-positive",
+      "source": "sources/full/PMC90000001.txt"
+    },
+    {
+      "pmcid": "PMC90000002",
+      "doi": "10.0000/fixture.measured-null",
+      "source": "sources/full/PMC90000002.txt"
+    }
+  ],
+  "relations": [
+    {
+      "pmcid": "PMC90000001",
+      "src": "mesotrione",
+      "relation": "controls",
+      "dst": "p annua",
+      "polarity": "supports",
+      "span": {
+        "start": 53,
+        "end": 117,
+        "quote": "Mesotrione reduced P. annua density relative to untreated plots."
+      }
+    },
+    {
+      "pmcid": "PMC90000002",
+      "src": "fenoxaprop",
+      "relation": "controls",
+      "dst": "p annua",
+      "polarity": "no_effect",
+      "span": {
+        "start": 80,
+        "end": 151,
+        "quote": "Fenoxaprop did not reduce P. annua biomass relative to untreated plots."
+      }
+    }
+  ]
+}
