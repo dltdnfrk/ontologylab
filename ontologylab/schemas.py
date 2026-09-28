@@ -444,6 +444,14 @@ AGROCHEM_STATEMENT_QUALIFIERS: dict[str, dict[str, Any]] = {
         "study_context": "Project-local: experimental setting and named trial or assay.",
         "dose": "Project-local: stated dose or rate including units or reference rate.",
         "application_timing": "Project-local: treatment timing, such as pre-emergence.",
+        "comparison_context_qualifier": (
+            "Project-local: stated comparison, such as A versus untreated. "
+            "An absent comparison is not filled in."
+        ),
+        "observation_time_qualifier": (
+            "Project-local: stated observation time, such as day 7. "
+            "An absent time is not filled in."
+        ),
     }.items()
 }
 

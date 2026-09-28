@@ -65,6 +65,20 @@ QUALIFIER_VOCABULARIES = {
     },
 }
 
+# Exact reviewed spellings only. A phrase such as "A vs untreated" is not the
+# role token "untreated": reducing it would merge distinct comparison arms.
+# Day counts are not aliases of each other. An unstated axis stays absent.
+_ATTESTED_SCOPE = {
+    "comparison_context_qualifier": {
+        "untreated_control": ("untreated", "untreated control", "no treatment"),
+        "reference": ("reference", "reference product"),
+    },
+    "observation_time_qualifier": {
+        "pre_treatment": ("pre-treatment", "pretreatment", "pre treatment"),
+        "post_treatment": ("post-treatment", "posttreatment", "post treatment"),
+    },
+}
+
 _HYPHENS = str.maketrans({char: "-" for char in "\u2010\u2011\u2012\u2013\u2212"})
 
 
@@ -117,6 +131,15 @@ def normalize_statement_value(key: str, value: str) -> str:
                 setting = _vocabulary_value(vocabulary, match[1])
                 if setting in ("bioassay", "crop_trial", "field_trial"):
                     return f"{setting}:{match[2]}"
+        return f"other:{text}"
+    attested = _ATTESTED_SCOPE.get(key)
+    if attested is not None:
+        if text.startswith("other:"):
+            return text
+        spelling = text.translate(_HYPHENS)
+        for canonical, aliases in attested.items():
+            if spelling == canonical or spelling in aliases:
+                return canonical
         return f"other:{text}"
     return text
 
