@@ -669,6 +669,20 @@ class InterpretationCreate(BaseModel):
     relations: list[CuratedRelation] = Field(default_factory=list, max_length=500)
 
 
+class CuratedStatementCreate(BaseModel):
+    """One source-cited statement authored by a reviewer, not an approval."""
+
+    curator: str = Field(min_length=1, max_length=200)
+    start: int = Field(ge=0)
+    end: int = Field(gt=0)
+    text: str = Field(min_length=1)
+    subject: CuratedEntity
+    relation_type: str = Field(min_length=1, max_length=200)
+    object: CuratedEntity
+    polarity: Literal["supports", "no_effect", "refutes"]
+    qualifiers: dict[str, Any] = Field(default_factory=dict)
+
+
 class SchemaInstall(BaseModel):
     """Install an ontology: either a bundled preset, or one written out.
 
