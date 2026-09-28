@@ -411,3 +411,44 @@ def test_section_past_the_text_is_rejected() -> None:
     with pytest.raises(UnitContractError) as caught:
         units_for(text, (SectionSpan("results", 0, 9),))
     assert caught.value.code == "section_bounds"
+
+
+def test_coordinated_clauses_with_their_own_verbs_keep_each_arm() -> None:
+    text = "Mesotrione reduced weed density and Glyphosate increased yield."
+    assert len(text) == 63
+    assert text[0:10] == "Mesotrione"
+    assert text[11:31] == "reduced weed density"
+    assert text[36:46] == "Glyphosate"
+    assert text[47:62] == "increased yield"
+    units = units_for(text, (SectionSpan("results", 0, 63),))
+    explicit = [unit for unit in units if unit.kind == "explicit"]
+    assert [unit.arm_anchor for unit in explicit] == ["0:10", "36:46"]
+    assert [unit.result_anchor for unit in explicit] == ["11:31", "47:62"]
+    slots = [project(slot) for unit in units for slot in unit.slots]
+    assert sorted(slots) == sorted([
+        ("arm", "Mesotrione", 0, 10, "Mesotrione", "supports"),
+        ("result", "reduced weed density", 11, 31, "Mesotrione"),
+        ("arm", "Glyphosate", 36, 46, "Glyphosate", "supports"),
+        ("result", "increased yield", 47, 62, "Glyphosate"),
+    ])
+    digest = document_sha256(text)
+    for unit in explicit:
+        assert (unit.assertion_start, unit.assertion_end) == (0, 63)
+        identity = f"{digest}|{RULES_VERSION}|0:63|{unit.arm_anchor}|{unit.result_anchor}"
+        assert unit.unit_id == hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+def test_shared_verb_list_stays_unresolved() -> None:
+    text = "Mesotrione and Glyphosate reduced weed density."
+    assert len(text) == 47
+    units = units_for(text, (SectionSpan("results", 0, 47),))
+    assert [unit.kind for unit in units] == ["unresolved"]
+    unit = units[0]
+    assert unit.arm_anchor == ""
+    assert unit.result_anchor == ""
+    assert len(unit.slots) == 1
+    slot = unit.slots[0]
+    assert slot.role == "unresolved"
+    assert slot.quote == "Mesotrione and Glyphosate reduced weed density."
+    assert slot.start == 0
+    assert slot.end == 47

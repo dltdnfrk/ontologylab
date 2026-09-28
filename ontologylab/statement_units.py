@@ -21,7 +21,12 @@ _ELIGIBLE: Final = frozenset({"results", "discussion", "conclusion"})
 _LABELS: Final = _ELIGIBLE | {"methods", "section_unresolved"}
 _FUNCTION_WORDS: Final = frozenset({
     "the", "a", "an", "these", "those", "was", "were", "after", "and", "or",
+    "reduced", "reduce", "left", "lost", "increased", "did", "may", "might", "could",
 })
+_ENDPOINT_WORD: Final = (
+    r"(?!relative\b|and\b|or\b|whereas\b|however\b|respectively\b|"
+    r"after\b|to\b|but\b|than\b|untreated\b|plots\b)[a-z]+"
+)
 _SUPPORTS_TOKENS: Final = ("reduced", "lost cover", "increased")
 _NULL_TOKENS: Final = ("did not", "unchanged", "not significantly", "ineffective")
 _PRONOUNS: Final = frozenset({"It", "They", "This", "These"})
@@ -47,12 +52,12 @@ _DOSE: Final = re.compile(
     r"(?:/[A-Za-z]+)?(?:\s+a\.i\./[A-Za-z]+)?",
 )
 _RESULT: Final = re.compile(
-    r"did not reduce(?:\s+[A-Z]\.\s+[a-z]+)?(?:\s+[a-z]+)?"
-    r"|left\s+[a-z]+\s+unchanged"
-    r"|lost cover"
-    r"|reduced(?:\s+[A-Z]\.\s+[a-z]+)?(?:\s+[a-z]+)?"
-    r"|reduce(?:\s+[A-Z]\.\s+[a-z]+)?(?:\s+[a-z]+)?"
-    r"|increased(?:\s+[a-z]+)?",
+    rf"did not reduce(?:\s+[A-Z]\.\s+[a-z]+)?(?:\s+{_ENDPOINT_WORD}){{0,2}}"
+    rf"|left\s+[a-z]+\s+unchanged"
+    rf"|lost cover"
+    rf"|reduced(?:\s+[A-Z]\.\s+[a-z]+)?(?:\s+{_ENDPOINT_WORD}){{0,2}}"
+    rf"|reduce(?:\s+[A-Z]\.\s+[a-z]+)?(?:\s+{_ENDPOINT_WORD}){{0,2}}"
+    rf"|increased(?:\s+{_ENDPOINT_WORD}){{0,2}}",
 )
 _OUTCOME_START: Final = re.compile(
     r"\b(?:did not reduce|reduced|reduce|left|lost|increased)\b",
@@ -413,6 +418,9 @@ def _classify(sentence: str) -> _Decision:
         return _Explicit(parsed)
     if _coordinated_subject(sentence):
         return _Unresolved()
+    parsed = _parse_and_clauses(sentence)
+    if parsed is not None:
+        return _Explicit(parsed)
     assignment = _parse_single(sentence)
     if assignment is None:
         return _Plain()
@@ -488,6 +496,34 @@ def _parse_contrast(sentence: str) -> tuple[_Assignment, ...] | None:
         cursor = local + len(clause)
         if not clause.strip():
             return None
+        assignment = _parse_single(clause)
+        if assignment is None:
+            return None
+        assignments.append(_Assignment(
+            local + assignment.arm_start,
+            local + assignment.arm_end,
+            local + assignment.result_start,
+            local + assignment.result_end,
+            assignment.polarity,
+        ))
+    if len(assignments) < 2:
+        return None
+    return tuple(assignments)
+
+
+def _parse_and_clauses(sentence: str) -> tuple[_Assignment, ...] | None:
+    if re.search(r"\band\b", sentence, re.IGNORECASE) is None:
+        return None
+    parts = re.split(r"\band\b", sentence, flags=re.IGNORECASE)
+    if len(parts) < 2:
+        return None
+    assignments: list[_Assignment] = []
+    cursor = 0
+    for clause in parts:
+        local = sentence.find(clause, cursor)
+        if local < 0 or not clause.strip():
+            return None
+        cursor = local + len(clause)
         assignment = _parse_single(clause)
         if assignment is None:
             return None
