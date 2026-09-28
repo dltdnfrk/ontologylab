@@ -29,7 +29,7 @@ jobs:
         with:
           enable-cache: false
       - name: Install locked test environment without credentials
-        run: uv sync --frozen --extra test
+        run: uv sync --frozen --extra test --extra server
       - name: Candidate contract and workflow gates
         run: >-
           uv run --frozen pytest -v

@@ -32,15 +32,16 @@ _AT_FDCWD: Final = -2
 _RENAME_SWAP: Final = 0x00000002
 _JOURNAL_NAME: Final = ".OntologyLab.app.activation.json"
 _LIBC: Final = ctypes.CDLL(None, use_errno=True)
-_RENAMEATX_NP = _LIBC.renameatx_np
-_RENAMEATX_NP.argtypes = (
-    ctypes.c_int,
-    ctypes.c_char_p,
-    ctypes.c_int,
-    ctypes.c_char_p,
-    ctypes.c_uint,
-)
-_RENAMEATX_NP.restype = ctypes.c_int
+_RENAMEATX_NP = getattr(_LIBC, "renameatx_np", None)
+if _RENAMEATX_NP is not None:
+    _RENAMEATX_NP.argtypes = (
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    )
+    _RENAMEATX_NP.restype = ctypes.c_int
 
 
 def sha256_file(path: Path) -> str:
@@ -138,6 +139,8 @@ def require_atomic_exchange(destination: Path) -> None:
 
 def atomic_exchange(left: Path, right: Path) -> None:
     """Swap two same-volume paths in one macOS renameatx_np transaction."""
+    if _RENAMEATX_NP is None:
+        raise DeploymentRefused("atomic_exchange_unsupported")
     result = _RENAMEATX_NP(
         _AT_FDCWD,
         os.fsencode(left),
