@@ -36,6 +36,8 @@ REQUIRED_ASSETS: tuple[str, ...] = (
     "index.html",
     "assets/index-K9oNKvgj.css",
     "assets/index-Cn4u6FJs.js",
+    "assets/index-FQwMvdZS.css",
+    "assets/index-uhAfpA2S.js",
     "manifest.json",
 )
 _READY_DEADLINE_S = 30.0

@@ -148,6 +148,7 @@ from ontologylab.server.schemas import (
     CollectRequest,
     CostSummary,
     CriticRunRequest,
+    CuratedStatementCreate,
     EngineInfo,
     ExtractRequest,
     GroundingWaiverAction,
@@ -584,6 +585,29 @@ def get_calibration(deps: AppDependency) -> dict[str, Any]:
     store = _open_store(deps)
     try:
         return calibration_report(store)
+    finally:
+        store.close()
+
+
+@router.get("/review/missed-null")
+def list_missed_null(deps: AppDependency) -> dict[str, Any]:
+    """Show both uncited null sentences and cited ones needing arm review."""
+    from dataclasses import asdict
+
+    from ontologylab.missed_null import missed_null_candidates
+
+    store = _open_store(deps)
+    try:
+        documents = store.list_documents()
+        grouped = {doc.id: [] for doc in documents}
+        for candidate in missed_null_candidates(store, documents):
+            grouped[candidate.document_id].append(asdict(candidate))
+        rows = [
+            {"id": doc.id, "title": doc.title or doc.source_uri,
+             "candidates": grouped[doc.id]}
+            for doc in documents if grouped[doc.id]
+        ]
+        return {"documents": rows, "count": sum(len(row["candidates"]) for row in rows)}
     finally:
         store.close()
 
@@ -1073,6 +1097,56 @@ def create_interpretation(
         "nodes_merged": stats["nodes_merged"],
         "edges_new": stats["edges_new"],
     }
+
+
+@router.post("/documents/{doc_id}/statements")
+def create_curated_statement(
+    deps: AppDependency, doc_id: str, body: CuratedStatementCreate,
+) -> dict[str, Any]:
+    """Propose a human-authored statement citing exact existing source text."""
+    import uuid
+
+    from ontologylab.models import ProposedEntity, ProposedRelation, SourceSpan
+
+    store = _open_store(deps)
+    try:
+        source = store.document_raw_text(doc_id)
+        if body.end <= body.start or source[body.start:body.end] != body.text:
+            raise HTTPException(status_code=422, detail="span is not an exact document substring")
+        if not body.curator.strip():
+            raise HTTPException(status_code=422, detail="curator must not be blank")
+        span = SourceSpan(body.start, body.end)
+        entities = [
+            ProposedEntity(
+                id=uuid.uuid4().hex, entity_type=item.entity_type,
+                name=item.name, aliases=list(item.aliases),
+                properties=dict(item.properties), source_span=span,
+            )
+            for item in (body.subject, body.object)
+        ]
+        relation = ProposedRelation(
+            id=uuid.uuid4().hex, relation_type=body.relation_type,
+            src_entity_id=entities[0].id, dst_entity_id=entities[1].id,
+            qualifiers={**body.qualifiers, "polarity": body.polarity},
+            source_span=span,
+        )
+        with store.atomic():
+            stats = store.insert_proposed(
+                entities, [relation], source_doc_id=doc_id,
+                extractor_engine="curation", extractor_model=body.curator,
+                origin="curated", commit=False,
+            )
+            if stats["edges_new"] != 1:
+                raise HTTPException(
+                    status_code=409, detail="statement already exists; review the existing row",
+                )
+        return {"ok": True, "edge_id": relation.id,
+                "status": "proposed", "origin": "curated",
+                "nodes_new": stats["nodes_new"], "edges_new": stats["edges_new"]}
+    except KGStoreError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        store.close()
 
 
 @router.post("/schema")
