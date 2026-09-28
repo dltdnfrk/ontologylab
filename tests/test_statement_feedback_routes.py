@@ -132,6 +132,135 @@ def test_interpretation_http_command_has_one_event_and_stays_proposed(surface) -
         ).fetchone()[0] == 1
 
 
+def test_interpretation_snapshots_existing_node_before_alias_merge(surface) -> None:
+    client, data_dir, _doc_id = surface
+    # Given an extracted node with no aliases, reused by a curated command.
+    response = client.post("/api/interpretations", json={
+        "curator": "reviewer",
+        "entities": [{
+            "name": "A", "entity_type": "ActiveIngredient",
+            "aliases": ["Alternate A"],
+        }],
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()["nodes_merged"] == 1
+
+    # Then the event preserves the original node row, not its post-merge alias.
+    with KGStore.open(data_dir / "kg.sqlite", read_only=True, immutable=False) as store:
+        event = store.conn.execute(
+            "SELECT before_json, after_json FROM statement_review_events"
+        ).fetchone()
+        before = {row["id"]: row for row in json.loads(event["before_json"])}
+        after = {row["id"]: row for row in json.loads(event["after_json"])}
+        assert before["review-a"]["aliases_json"] == "[]"
+        assert json.loads(after["review-a"]["aliases_json"]) == ["Alternate A"]
+        assert before["review-a"]["source_hash"] == "sha256:feedback-source"
+
+
+def test_interpretation_snapshots_node_resolved_by_alias(surface) -> None:
+    client, data_dir, _doc_id = surface
+    first = client.post("/api/interpretations", json={
+        "curator": "reviewer",
+        "entities": [{
+            "name": "A", "entity_type": "ActiveIngredient",
+            "aliases": ["Known A"],
+        }],
+    })
+    assert first.status_code == 200, first.text
+
+    second = client.post("/api/interpretations", json={
+        "curator": "reviewer",
+        "entities": [{
+            "name": "Known A", "entity_type": "ActiveIngredient",
+            "aliases": ["Another A"],
+        }],
+    })
+    assert second.status_code == 200, second.text
+    assert second.json()["nodes_merged"] == 1
+    with KGStore.open(data_dir / "kg.sqlite", read_only=True, immutable=False) as store:
+        events = store.conn.execute(
+            "SELECT before_json, after_json FROM statement_review_events "
+            "ORDER BY created_ts"
+        ).fetchall()
+        before = {row["id"]: row for row in json.loads(events[1]["before_json"])}
+        after = {row["id"]: row for row in json.loads(events[1]["after_json"])}
+        assert json.loads(before["review-a"]["aliases_json"]) == ["Known A"]
+        assert json.loads(after["review-a"]["aliases_json"]) == [
+            "Known A", "Another A"
+        ]
+
+
+def test_statement_snapshots_existing_node_before_alias_merge(surface) -> None:
+    client, data_dir, doc_id = surface
+    with KGStore.open(data_dir / "kg.sqlite") as store:
+        store.insert_proposed(
+            [ProposedEntity(
+                id="existing-spinosad", entity_type="ActiveIngredient",
+                name="Spinosad",
+            )],
+            [], source_doc_id=doc_id, extractor_engine="mock",
+        )
+
+    response = client.post(
+        f"/api/documents/{doc_id}/statements",
+        json=_statement() | {
+            "subject": {
+                "name": "Spinosad", "entity_type": "ActiveIngredient",
+                "aliases": ["Spinosad Alias"],
+            },
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["nodes_new"] == 1
+    with KGStore.open(data_dir / "kg.sqlite", read_only=True, immutable=False) as store:
+        event = store.conn.execute(
+            "SELECT before_json, after_json FROM statement_review_events"
+        ).fetchone()
+        before = {row["id"]: row for row in json.loads(event["before_json"])}
+        after = {row["id"]: row for row in json.loads(event["after_json"])}
+        assert before["existing-spinosad"]["aliases_json"] == "[]"
+        assert json.loads(after["existing-spinosad"]["aliases_json"]) == [
+            "Spinosad Alias"
+        ]
+
+
+def test_interpretation_snapshots_existing_edge_before_citation_merge(surface) -> None:
+    client, data_dir, _doc_id = surface
+    command = {
+        "curator": "reviewer",
+        "entities": [
+            {"name": "Spinosad", "entity_type": "ActiveIngredient"},
+            {"name": "Drosophila suzukii", "entity_type": "Pest"},
+        ],
+        "relations": [{
+            "relation_type": "controls", "src": 0, "dst": 1,
+            "qualifiers": {"polarity": "no_effect"},
+        }],
+    }
+    first = client.post("/api/interpretations", json=command)
+    assert first.status_code == 200, first.text
+    with KGStore.open(data_dir / "kg.sqlite", read_only=True, immutable=False) as store:
+        edge_id = store.conn.execute("SELECT id FROM edges").fetchone()["id"]
+
+    second = client.post(
+        "/api/interpretations", json=command | {"note": "second citation"},
+    )
+    assert second.status_code == 200, second.text
+    assert second.json()["edges_new"] == 0
+    with KGStore.open(data_dir / "kg.sqlite", read_only=True, immutable=False) as store:
+        event = store.conn.execute(
+            "SELECT before_json FROM statement_review_events "
+            "WHERE action='create_interpretation' ORDER BY created_ts DESC LIMIT 1"
+        ).fetchone()
+        before = {row["id"]: row for row in json.loads(event["before_json"])}
+        assert before[edge_id]["kind"] == "edge"
+        assert before[edge_id]["status"] == "proposed"
+        assert store.conn.execute(
+            "SELECT count(*) FROM citations WHERE kind='edge' AND item_id=?",
+            (edge_id,),
+        ).fetchone()[0] == 2
+
+
 @pytest.mark.parametrize("command", ("approve", "statement", "interpretation"))
 def test_failed_event_rolls_back_http_command(surface, monkeypatch, command) -> None:
     client, data_dir, doc_id = surface
