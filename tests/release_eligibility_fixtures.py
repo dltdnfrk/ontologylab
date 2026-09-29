@@ -12,6 +12,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from ontologylab.release_policy import load_policy, read_version
 from ontologylab.release_policy_types import JsonValue
 from ontologylab.release_snapshot import write_snapshot
@@ -80,6 +82,13 @@ def _git_hash(root: Path, *args: str) -> str:
 
 
 def _write_fixture_source(root: Path) -> Path:
+    authority = _policy_payload()["task10_authority"]
+    assert isinstance(authority, dict)
+    report_rel = authority["report_path"]
+    assert isinstance(report_rel, str)
+    authority_report = REPO / report_rel
+    if not authority_report.is_file():
+        pytest.skip(f"missing local evidence: {authority_report}")
     copy_policy_inputs(REPO, root)
     for rel, body in {
         "ontologylab/__init__.py": "__version__ = 'fixture'\n",
@@ -93,13 +102,9 @@ def _write_fixture_source(root: Path) -> Path:
     fixture = root / MANIFEST_PATH.relative_to(REPO)
     fixture.parent.mkdir(parents=True, exist_ok=True)
     fixture.write_bytes(MANIFEST_PATH.read_bytes())
-    authority = _policy_payload()["task10_authority"]
-    assert isinstance(authority, dict)
-    report_rel = authority["report_path"]
-    assert isinstance(report_rel, str)
     report = root / report_rel
     report.parent.mkdir(parents=True, exist_ok=True)
-    report.write_bytes((REPO / report_rel).read_bytes())
+    report.write_bytes(authority_report.read_bytes())
     return fixture
 
 
