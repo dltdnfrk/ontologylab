@@ -9,6 +9,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
+import tempfile
 from pathlib import Path
 
 from ontologylab.kgstore import KGStore
@@ -19,8 +21,13 @@ from ontologylab.schemas import preset
 def build_fixture(data_dir: Path) -> tuple[int, int]:
     """Build five synthetic documents using only public store write methods."""
     target = data_dir.resolve()
-    if not target.is_relative_to(Path("/private/tmp")):
-        raise ValueError("synthetic fixture must be under /private/tmp")
+    scratch = (
+        Path("/private/tmp")
+        if sys.platform == "darwin"
+        else Path(tempfile.gettempdir()).resolve()
+    )
+    if not target.is_relative_to(scratch):
+        raise ValueError(f"synthetic fixture must be under {scratch}")
     if (target / "kg.sqlite").exists():
         raise ValueError("synthetic fixture requires a fresh data directory")
     entities = [
