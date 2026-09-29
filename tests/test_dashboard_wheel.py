@@ -21,7 +21,10 @@ def test_fresh_wheel_contains_and_verifies_every_dashboard_asset(tmp_path: Path)
     )
 
     build = subprocess.run(
-        ["uv", "build", "--offline", "--wheel", "--out-dir", str(tmp_path / "dist"), str(source)],
+        [
+            "uv", "build", *(["--offline"] if sys.platform == "darwin" else []),
+            "--wheel", "--out-dir", str(tmp_path / "dist"), str(source),
+        ],
         cwd=root, capture_output=True, text=True, timeout=120, check=False,
     )
 
