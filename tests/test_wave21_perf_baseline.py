@@ -245,6 +245,10 @@ def test_existing_operation_benchmark_respects_shadow_batch_bound(
     }
 
 
+@pytest.mark.skipif(
+    not TARGET_MIGRATION_RECEIPT_PATH.is_file(),
+    reason=f"missing local evidence: {TARGET_MIGRATION_RECEIPT_PATH}",
+)
 def test_target_migration_contract_requires_measured_receipt() -> None:
     receipt = validate_target_migration_receipt(
         load_target_migration_receipt(TARGET_MIGRATION_RECEIPT_PATH)

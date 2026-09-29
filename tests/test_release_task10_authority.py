@@ -20,7 +20,16 @@ from tests.test_release_policy import (
     _write_json,
 )
 
+TASK10_REPORT = (
+    REPO
+    / ".omo/evidence/mac-desktop-deployment-roadmap/task-10"
+    / "verifier-st_01a061f5-20260902T115339Z/AdversarialVerify.json"
+)
 
+
+@pytest.mark.skipif(
+    not TASK10_REPORT.is_file(), reason=f"missing local evidence: {TASK10_REPORT}"
+)
 def test_checked_in_eligibility_binds_confirmed_task10_verifier() -> None:
     # Given: the canonical eligibility and independently confirmed Task10 report.
     policy = _policy_payload()

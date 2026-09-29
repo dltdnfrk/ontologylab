@@ -30,6 +30,15 @@ from tests.macos_candidate_source_policy_support import (
 )
 from tests.macos_candidate_test_support import source_fixture
 
+TASK11_MASTER = (
+    ROOT
+    / ".omo/evidence/mac-desktop-deployment-roadmap/task-11"
+    / "task-11-mac-desktop-deployment-roadmap.json"
+)
+needs_task11_master = pytest.mark.skipif(
+    not TASK11_MASTER.is_file(), reason=f"missing local evidence: {TASK11_MASTER}"
+)
+
 
 def test_candidate_refusal_survives_context_manager_chaining() -> None:
     @contextmanager
@@ -63,6 +72,7 @@ def test_source_inventory_ignores_untracked_files_under_declared_directory(
     ) == {"ontologylab/tracked.py", "ontologylab/declared.txt"}
 
 
+@needs_task11_master
 def test_task11_policy_covers_every_authoritative_path_class() -> None:
     # Given all Task 11 naming classes, build inputs, local imports, gates, and master files.
     audit = task11_policy_coverage()
@@ -92,6 +102,7 @@ def test_task11_policy_covers_every_authoritative_path_class() -> None:
     )
 
 
+@needs_task11_master
 def test_task10_master_and_internal_deployment_classes_are_policy_covered() -> None:
     # Given Task 10 master hashes plus module and invoked-entrypoint naming classes.
     audit = task11_policy_coverage()
@@ -163,6 +174,7 @@ def test_snapshot_excludes_swiftpm_build_products_but_keeps_package_sources(
     )
 
 
+@needs_task11_master
 def test_new_matching_task10_source_requires_policy_declaration(
     tmp_path: Path,
 ) -> None:
@@ -178,6 +190,7 @@ def test_new_matching_task10_source_requires_policy_declaration(
     assert not covered("scripts/internal_deployment_future.py", declared)
 
 
+@needs_task11_master
 def test_new_matching_candidate_module_requires_policy_declaration(
     tmp_path: Path,
 ) -> None:
