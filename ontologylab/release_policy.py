@@ -44,7 +44,7 @@ from ontologylab.release_task10_authority import parse_task10_policy
 _FIXTURE_PATH: Final = "tests/fixtures/wave21/perf-v1.json"
 _PROTOCOL_PATH: Final = "release/ingestion-performance-protocol.json"
 _REQUIRED_INPUTS: Final = frozenset(
-    {VERSION_FILE, LOCK_PATH, POLICY_PATH, "ontologylab", "web", "launcher"}
+    {VERSION_FILE, LOCK_PATH, POLICY_PATH, "ontologylab", "launcher"}
     | {"release/licenses", _FIXTURE_PATH, _PROTOCOL_PATH}
 )
 _REQUIRED_ROLES: Final = frozenset(
