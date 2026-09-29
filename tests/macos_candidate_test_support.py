@@ -5,6 +5,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from ontologylab.release_policy import load_policy, read_version
 from ontologylab.release_snapshot import write_snapshot
 from release import candidate_build as candidate
@@ -19,6 +21,10 @@ __all__ = ("add_license_fixture", "add_storage_matrix")
 
 
 def source_fixture(tmp_path: Path) -> Path:
+    policy = load_policy(ROOT)
+    authority_report = ROOT / policy.task10_authority.report_path
+    if not authority_report.is_file():
+        pytest.skip(f"missing local evidence: {authority_report}")
     root = tmp_path / "source"
     copy_policy_inputs(ROOT, root)
     subprocess.run(
@@ -26,10 +32,9 @@ def source_fixture(tmp_path: Path) -> Path:
         check=True,
         capture_output=True,
     )
-    policy = load_policy(root)
     report = root / policy.task10_authority.report_path
     report.parent.mkdir(parents=True, exist_ok=True)
-    report.write_bytes((ROOT / policy.task10_authority.report_path).read_bytes())
+    report.write_bytes(authority_report.read_bytes())
     write_snapshot(root, policy, read_version(root, policy))
     return root
 
