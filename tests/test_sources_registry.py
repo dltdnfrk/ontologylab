@@ -525,6 +525,10 @@ def test_keychain_write_never_places_secret_in_argv(monkeypatch, tmp_path) -> No
         return subprocess.CompletedProcess(argv, 0, '{"ok":true}', "")
 
     monkeypatch.setattr(keychain, "keychain_available", lambda: True)
+    monkeypatch.setattr(
+        keychain.shutil, "which",
+        lambda name: "/usr/bin/security" if name == "/usr/bin/security" else None,
+    )
     monkeypatch.setattr(keychain.subprocess, "run", _run)
     monkeypatch.setattr(keychain, "read_key", lambda _acct: ARGV_CANARY)
     monkeypatch.setattr(keychain, "_read_native", lambda _acct: ARGV_CANARY)
@@ -598,6 +602,10 @@ def test_a_replacement_never_modifies_an_existing_item(
     monkeypatch.setenv("ONTOLOGYLAB_KEYCHAIN_HELPER", str(helper))
     calls = []
     monkeypatch.setattr(keychain, "keychain_available", lambda: True)
+    monkeypatch.setattr(
+        keychain.shutil, "which",
+        lambda name: "/usr/bin/security" if name == "/usr/bin/security" else None,
+    )
     monkeypatch.setattr(
         keychain.subprocess, "run",
         lambda argv, **k: calls.append(list(argv))
