@@ -33,7 +33,7 @@ class PackV2ClosureCode(StrEnum):
     TAMPERED_RECEIPT = "tampered_receipt"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class PackV2ClosureRefused(Exception):
     code: PackV2ClosureCode
     member: str

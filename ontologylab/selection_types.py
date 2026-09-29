@@ -69,7 +69,7 @@ class SelectionRefusalCode(StrEnum):
     MISSING_BINDING = "missing_binding"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class SelectionRefused(Exception):
     code: SelectionRefusalCode
     work_id: str
@@ -79,7 +79,7 @@ class SelectionRefused(Exception):
         return f"{self.code}: {self.message}"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class SelectionInventoryError(Exception):
     message: str
 

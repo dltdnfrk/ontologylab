@@ -20,7 +20,7 @@ class AuthorityError(Exception):
     """Base class for typed authority conflicts."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class IdentifierOwnedConflict(AuthorityError):
     """The (scheme, normalized_value) pair already has an accepted owner."""
 
@@ -35,7 +35,7 @@ class IdentifierOwnedConflict(AuthorityError):
         )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class SecondDoiAttachConflict(AuthorityError):
     """A Work already has an active accepted DOI; a second one is refused."""
 

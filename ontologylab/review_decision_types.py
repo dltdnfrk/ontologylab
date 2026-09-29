@@ -39,7 +39,7 @@ class ReviewRefusalCode(StrEnum):
     CONFLICT = "conflict"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class ReviewRefused(Exception):
     code: ReviewRefusalCode
     message: str

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from contextlib import contextmanager
 from enum import StrEnum, unique
 from pathlib import Path
 from typing import assert_never
@@ -28,6 +29,18 @@ from tests.macos_candidate_source_policy_support import (
     task11_policy_coverage,
 )
 from tests.macos_candidate_test_support import source_fixture
+
+
+def test_candidate_refusal_survives_context_manager_chaining() -> None:
+    @contextmanager
+    def boundary():
+        yield
+
+    with pytest.raises(CandidateRefused) as raised:
+        with boundary():
+            raise CandidateRefused("source_closure_missing", "web")
+    assert raised.value.member == "source_closure_missing"
+    assert raised.value.detail == "web"
 
 
 def test_source_inventory_ignores_untracked_files_under_declared_directory(

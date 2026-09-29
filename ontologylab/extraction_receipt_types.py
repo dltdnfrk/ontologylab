@@ -26,7 +26,7 @@ class ExtractionReceiptRefusalCode(StrEnum):
     UNKNOWN_REPRESENTATION = "unknown_representation"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class ExtractionReceiptRefused(Exception):
     code: ExtractionReceiptRefusalCode
     message: str

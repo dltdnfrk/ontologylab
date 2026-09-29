@@ -50,7 +50,7 @@ class H1RefusalCode(StrEnum):
     SOURCE_OVERLAP = "source_overlap"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class H1SourceRefused(MigrationError):
     code: H1RefusalCode
     message: str
@@ -59,7 +59,7 @@ class H1SourceRefused(MigrationError):
         return f"{self.code}: {self.message}"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class H1Interruption(MigrationError):
     """A failpoint aborted after the current anchor was checkpointed."""
 

@@ -20,7 +20,7 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:12]}"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class RedirectAlreadyActive(AuthorityError):
     """The source Work already has an active merge; compensate it first."""
 
@@ -35,7 +35,7 @@ class RedirectAlreadyActive(AuthorityError):
         )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class RedirectCycleError(AuthorityError):
     """The redirect would create a cycle in the active projection."""
 

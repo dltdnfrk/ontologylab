@@ -96,7 +96,7 @@ class ReleasePolicyCode(StrEnum):
     TASK10_AUTHORITY_UNCONFIRMED = "task10_authority_unconfirmed"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class ReleasePolicyRefused(Exception):
     """Typed refusal: a machine code plus the member that caused it."""
 

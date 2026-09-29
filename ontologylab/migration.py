@@ -37,7 +37,7 @@ class MigrationError(Exception):
     """Base class for typed migration failures."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class SnapshotSourceMissing(MigrationError):
     """The source store path does not exist."""
 
@@ -47,7 +47,7 @@ class SnapshotSourceMissing(MigrationError):
         return f"snapshot source missing: {self.source_path}"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class SnapshotTargetMissing(MigrationError):
     """The caller-owned target directory does not exist."""
 
@@ -57,7 +57,7 @@ class SnapshotTargetMissing(MigrationError):
         return f"snapshot target directory missing: {self.target_dir}"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class SnapshotFailed(MigrationError):
     """The SQLite backup-API copy failed."""
 
@@ -69,7 +69,7 @@ class SnapshotFailed(MigrationError):
         return f"snapshot failed: {self.reason}"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class SourceFingerprintRequired(MigrationError):
     """A ledger write arrived without a source fingerprint."""
 
@@ -79,7 +79,7 @@ class SourceFingerprintRequired(MigrationError):
         return f"migration requires a non-empty {self.field}"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class WritesFenced(MigrationError):
     """An armed writer fence refused a v2 authority mutation."""
 

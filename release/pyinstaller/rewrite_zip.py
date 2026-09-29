@@ -11,7 +11,7 @@ from typing import Final
 _ZIP_TIMESTAMP: Final = (1980, 1, 1, 0, 0, 0)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class ZipRewriteError(Exception):
     member: str
     detail: str

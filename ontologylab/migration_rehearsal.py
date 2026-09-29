@@ -35,7 +35,7 @@ _SP_ROW = "rehearsal_row"
 _VOLATILE_COLUMNS = frozenset({"created_ts", "updated_ts"})
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class InterruptionInjected(MigrationError):
     """A rehearsal failpoint aborted the current row."""
 

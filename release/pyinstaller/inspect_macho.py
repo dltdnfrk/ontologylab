@@ -20,7 +20,7 @@ _MAGICS: Final = {
 _ALLOWED_ABSOLUTE: Final = ("/System/Library/", "/usr/lib/")
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class MachOInspectionError(Exception):
     member: str
     detail: str

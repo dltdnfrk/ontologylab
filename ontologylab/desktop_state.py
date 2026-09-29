@@ -13,7 +13,7 @@ from ontologylab.paths import ROOT, icloud_sync_reason
 _DIRECTORY_MODE: Final = 0o700
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class DesktopStateRefused(Exception):
     member: str
 

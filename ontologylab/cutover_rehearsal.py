@@ -52,7 +52,7 @@ class CutoverCode(StrEnum):
     AUTHORIZATION_REQUIRED = "authorization_required"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class CutoverRefused(Exception):
     code: CutoverCode
     detail: str

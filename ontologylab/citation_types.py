@@ -31,7 +31,7 @@ class CitationRefusalCode(StrEnum):
     AMBIGUOUS = "ambiguous"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class CitationRefused(Exception):
     code: CitationRefusalCode
     message: str

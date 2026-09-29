@@ -29,7 +29,7 @@ _V2_RECEIPT_TABLES: Final = frozenset({
 })
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class PackedV2ClosureRefused(Exception):
     member: str
 

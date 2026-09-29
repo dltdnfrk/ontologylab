@@ -34,7 +34,7 @@ class GroundedReviewRefusalCode(StrEnum):
     CONFLICT = "conflict"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class GroundedReviewRefused(Exception):
     code: GroundedReviewRefusalCode
     message: str

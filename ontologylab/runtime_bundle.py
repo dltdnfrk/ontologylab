@@ -24,7 +24,7 @@ _FORBIDDEN: Final = (
 )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class RuntimePreflightError(Exception):
     """A typed refusal raised before any bundled surface starts."""
 
