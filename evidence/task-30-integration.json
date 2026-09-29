@@ -1,0 +1,108 @@
+{
+  "task": 30,
+  "scope": "Integration repair after gate rejection; supersedes the standalone 249-test readiness claim, not the frozen trial-four measurement.",
+  "work_root": "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w9-t30",
+  "merged_branch": "docs/prompt-audit-2026-09",
+  "merged_head": "3847c730a52aaac77f519a1658d9e9456628a6b4",
+  "merge_commit": "777802133bc823567b07600b461458927f9b1f92",
+  "repair_commit": "59428d19bc5390559fc91ae5d624d2f38722f830",
+  "snapshot_commit": "4ef7b13fb6596bcbdcb4e4396b482467aae9a432",
+  "reproduction": {
+    "failed": 12,
+    "passed": 34,
+    "exit": 1,
+    "log": "/private/tmp/t30-integration-red.log",
+    "sha256": "a9fe6a1b4101a163a4c263089911aa921e3842bc2b3615ba50d88cbc05e31888"
+  },
+  "repair": {
+    "version_assertion_sites": 4,
+    "prompt_version": "extract-v8",
+    "explicit_normalized_expected_values": 8,
+    "raw_scripted_inputs_preserved": true,
+    "production_normalizer_used_for_expectations": false,
+    "all_separation_assertions_retained": true,
+    "additional_assertion": "Persisted edge row count equals scripted relation count.",
+    "production_changes_in_repair": 0
+  },
+  "focused": {
+    "passed": 46,
+    "exit": 0,
+    "log": "/private/tmp/t30-integration-focused.log"
+  },
+  "union": {
+    "command": "cd /Users/hyunjun/Documents/MUNI/ontologylab-wt/w9-t30 && base=/private/tmp/t30-integration-union-$RANDOM-$RANDOM; test ! -e \"$base\" || exit 90; printf 'BASETEMP=%s\n' \"$base\"; uv run --all-extras pytest --basetemp=\"$base\" tests/test_statement_qualifier_*.py tests/test_polarity_eval.py tests/test_polarity_fulltext.py tests/test_extraction_null_guidance.py tests/test_agrochem_v2_schema.py tests/test_extractor.py tests/test_run_extraction.py tests/test_claims_contract.py tests/test_mcp_claims.py tests/test_carry_forward.py tests/test_unit_normalization.py tests/test_macos_candidate_source_closure.py tests/test_engine_transport_retry.py tests/test_engine_json_retry.py tests/test_fulltext_run_budget.py tests/test_jobs_request_count.py tests/test_extract_scope_preservation.py > /private/tmp/t30-integration-union.log 2>&1; echo EXIT=$?",
+    "basetemp": "/private/tmp/t30-integration-union-27770-10711",
+    "foreground": true,
+    "passed": 351,
+    "failed": 0,
+    "warnings": 8,
+    "seconds": 11.48,
+    "exit": 0,
+    "log": "/private/tmp/t30-integration-union.log",
+    "sha256": "5655e7c4db6ea6dc9dd6311e3fa0268fa0f124ce0523249f5d45a9b1cc149344"
+  },
+  "product_status": {
+    "command": "uv run --all-extras python -P scripts/check_product_status.py --root . --document docs/PRODUCT_SPEC.md",
+    "exit": 0,
+    "canonical_pytest_nodes": 13,
+    "statuses": 4,
+    "paths": 9,
+    "log": "/private/tmp/t30-integration-product-status.log",
+    "sha256": "543a898e585595aa171eb645f8c558632a44c3c778113cfaa989b4362592b331",
+    "output": "EVIDENCE: 13 canonical pytest nodes passed\nPASS: 4 statuses, 9 paths"
+  },
+  "snapshot": {
+    "sha256": "d7b417204c09c76d15575a7452df9c7c064c7cdef3f32d199ab34ba20bfefbe2",
+    "files": 386,
+    "generated_by": "release_snapshot.hash_tree and _manifest_payload, identical to write_snapshot serialization; applied via apply_patch.",
+    "verified_by": "read_manifest + diff_manifest(hash_tree) + verify_manifest_identity",
+    "closure": {
+      "declared": 100,
+      "authoritative": 366,
+      "task10_authoritative": 27,
+      "missing": 0,
+      "generated_violations": 0,
+      "pin_changed": false
+    },
+    "new_product_modules": 0,
+    "extra_snapshot_inputs": [
+      "ontologylab/connectors/AGENTS.md",
+      "ontologylab/server/AGENTS.md"
+    ],
+    "note": "The existing generator includes these supplied ignored instructions in the physical source inventory. No source policy changes or release eligibility receipt reissue."
+  },
+  "release_receipts_untouched": true,
+  "protected_release_json_sha256": {
+    "release/ingestion-performance-protocol.json": "d15c3fb7fda321e5ee04e32088b09ea3e19b9dd22793647b85fde438affaa9c8",
+    "release/licenses/sqlite-vec/0.1.9/provenance.json": "a759a8a13360e53fdbb25309bb7d76b1227695e8e00ee10c12e3b4984ec05b6b",
+    "release/mcp-config.json": "1bfdd2c1d50464ebe6361c8313bfcb9ec5778b3e89679118e899c1d3aa425235",
+    "release/release-policy.json": "1d676d2fdbcc0b23a2898ac827750b53b72dab75adabd1cc0b0f60fcd256a450",
+    "release/runtime-build.json": "c8bb14d8378f92799afe247650648a134fe63be01af7cd53bac315dd93e69ad0"
+  },
+  "diagnostics": "Both edited Python test files have no LSP errors. git diff --check passes. JSON Biome unavailable; generated snapshot is parsed and compared through its production verifier.",
+  "prior_measurement": {
+    "receipt": "evidence/task-30-qualifier-normalization.json",
+    "qualified_before": "11/102",
+    "qualified_after": "23/102",
+    "negative_before": "0/51",
+    "negative_after": "6/51",
+    "new_model_trial": false,
+    "reused_frozen_receipt": true,
+    "thresholds_unchanged": true
+  },
+  "temp_paths": [
+    "/private/tmp/t30-integration-red.log",
+    "/private/tmp/t30-integration-focused.log",
+    "/private/tmp/t30-integration-union.log",
+    "/private/tmp/t30-integration-product-status.log",
+    "/private/tmp/t30-integration-red-11468-17100",
+    "/private/tmp/t30-integration-focused-5748-23571",
+    "/private/tmp/t30-integration-union-27770-10711"
+  ],
+  "boundaries": {
+    "history_rewritten": false,
+    "model_calls": 0,
+    "live_state_touched": false,
+    "deletion_commands": 0
+  }
+}

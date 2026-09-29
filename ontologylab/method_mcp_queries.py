@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Mapping, TypedDict
+from typing import Any, Mapping
+
+try:  # pydantic (FastMCP schema generation) needs this variant on py<3.12
+    from typing_extensions import TypedDict
+except ImportError:  # pragma: no cover
+    from typing import TypedDict
 
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\Z")
 _POINTER = re.compile(r"(?:/(?:[^~/\x00-\x1f]|~[01])*)+\Z")

@@ -1,0 +1,16 @@
+{
+  "gold.json": "c899bc553773f2ee4986d0d808165c7791ad7e5cd9c8ba8ff7a9187458a55203",
+  "gold-fulltext.json": "cf7ea33f227540f201f2142eb7fa640bf08a1edf3cb039528c3b4828796f4f23",
+  "gold-qualified.json": "04601aa947fc465013eb77f2d4b10dde277c32990151ca267f8e572956836295",
+  "gold-aligned.json": "ddec4dc1478ddd34c9e7d170ab556094c757739fdd074c216c1b5e6c4dba6d5e",
+  "gold-aligned-qualified.json": "e452fc84003f719666f969383e61cbb29b0c7e94e88ff4fa36a1f7ea3f2aaaa8",
+  "alignment.json": "ca8e5d0669405ab7bc9a090629c7501cc8111c798829ad080ad3a3c2eca0f58e",
+  "qualify_gold.py": "f1247753a37176f71cb6904739637d1dd40f891888fd9c21699b7acb207e7410",
+  "qualified-mapping.json": "0cc618356dd343ac56ef6a86c8f76a812bd38b832a15ce8082f9e94650d80b08",
+  "sources/full/manifest.json": "d401471c8ded781e928cb64cb42d4c4013425944d2aed4feed078a2a9e81559c",
+  "sources/full/PMC11298438.txt": "4fe0e19bc80d2cb3f388deebc38f02f20e5e1d1392db60fd50d1fbfd4ab385d9",
+  "sources/full/PMC12713700.txt": "9a876e8c7db10ed125a803962ba53e5371d9793f7371cdf35d2cf0ae3b1e99d9",
+  "sources/full/PMC12632097.txt": "427633460b64db0d1a455098ea4f6eb21b91b0bab2f8ea5a36ec29ace7321490",
+  "sources/full/PMC12546283.txt": "be7923ca6e58a248ff2cb1476cfd719dd513a3c3df152e7ab821fe02ea90c099",
+  "sources/full/PMC12563837.txt": "8d45778ceeb648ff318a7a0e6d1112f836e4da13cca76739e89acf300e96ed80"
+}

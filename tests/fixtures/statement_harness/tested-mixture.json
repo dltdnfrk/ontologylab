@@ -1,0 +1,31 @@
+{
+  "id": "tested-mixture",
+  "case": "tested_mixture",
+  "rules_version": "units-v1",
+  "text": "The tank mixture of mesotrione plus atrazine reduced P. annua density relative to untreated plots.",
+  "section_spans": [
+    {
+      "section": "results",
+      "start": 0,
+      "end": 98
+    }
+  ],
+  "rationale": "Assigned arms: tank mixture of mesotrione plus atrazine\nNot arms: mesotrione; atrazine\nThe tank mixture of mesotrione plus atrazine is one treatment and is supports. Mesotrione and atrazine are ingredients, not arms.",
+  "expected_slots": [
+    {
+      "quote": "tank mixture of mesotrione plus atrazine",
+      "start": 4,
+      "end": 44,
+      "role": "arm",
+      "arm": "tank mixture of mesotrione plus atrazine",
+      "polarity": "supports"
+    },
+    {
+      "quote": "reduced P. annua density",
+      "start": 45,
+      "end": 69,
+      "role": "result",
+      "arm": "tank mixture of mesotrione plus atrazine"
+    }
+  ]
+}

@@ -98,7 +98,7 @@ class IngestionResult:
         return self.document_count - self.created_count
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class _ReceiptRejected(Exception):
     status: str
 

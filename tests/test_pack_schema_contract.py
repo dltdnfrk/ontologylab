@@ -1,10 +1,9 @@
 """P0-D: multi-schema pack consumer contract.
 
-A pack preserves verified facts extracted under EVERY schema version the
-working store has held: proposals judged against v1 stay valid (and keep
-pointing at v1) when v2 is installed and activated before the pack is
-built. For a consumer to interpret such a pack without guessing, the
-contract is:
+An explicitly multi-version pack preserves facts judged against v1 after
+v2 is installed and activated. New packs default to the active version,
+but historical and explicitly selected multi-version packs keep this
+consumer contract:
 
 - the manifest names every schema version whose verified facts the pack
   ships (``included_schema_version_ids``);
@@ -49,13 +48,14 @@ V2_SCHEMA: dict[str, Any] = {
 }
 
 
-def _build_pack(kg: Path, packs: Path, name: str):
+def _build_pack(kg: Path, packs: Path, name: str, *, schema_version_ids=None):
     return build_pack(
         kg,
         packs,
         name=name,
         allow_incomplete_extraction=True,
         incomplete_extraction_intent="synthetic multi-schema fixture",
+        schema_version_ids=schema_version_ids,
     )
 
 
@@ -95,7 +95,7 @@ def two_schema_pack(tmp_path: Path):
     )
     store.bulk_approve(by="tester")
     store.close()
-    manifest = _build_pack(kg, packs, "multi")
+    manifest = _build_pack(kg, packs, "multi", schema_version_ids=(v1, v2))
     return kg, packs, manifest, v1, v2
 
 

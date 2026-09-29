@@ -1,0 +1,67 @@
+{
+  "id": "respectively-three-arm",
+  "case": "respectively_three_arm",
+  "rules_version": "units-v1",
+  "text": "Pinoxaden, pyroxsulam and mesotrione reduced density, left density unchanged and reduced biomass, respectively.",
+  "section_spans": [
+    {
+      "section": "results",
+      "start": 0,
+      "end": 111
+    }
+  ],
+  "rationale": "Assigned arms: Pinoxaden; pyroxsulam; mesotrione\nRespectively members: Pinoxaden; pyroxsulam; mesotrione\nPinoxaden is supports because it reduced density. Pyroxsulam is no_effect because it left density unchanged. Mesotrione is supports because it reduced biomass. Respectively assigns those three outcomes in that order.",
+  "expected_slots": [
+    {
+      "quote": "Pinoxaden",
+      "start": 0,
+      "end": 9,
+      "role": "arm",
+      "arm": "Pinoxaden",
+      "polarity": "supports"
+    },
+    {
+      "quote": "pyroxsulam",
+      "start": 11,
+      "end": 21,
+      "role": "arm",
+      "arm": "pyroxsulam",
+      "polarity": "no_effect"
+    },
+    {
+      "quote": "mesotrione",
+      "start": 26,
+      "end": 36,
+      "role": "arm",
+      "arm": "mesotrione",
+      "polarity": "supports"
+    },
+    {
+      "quote": "reduced density",
+      "start": 37,
+      "end": 52,
+      "role": "result",
+      "arm": "Pinoxaden"
+    },
+    {
+      "quote": "left density unchanged",
+      "start": 54,
+      "end": 76,
+      "role": "result",
+      "arm": "pyroxsulam"
+    },
+    {
+      "quote": "reduced biomass",
+      "start": 81,
+      "end": 96,
+      "role": "result",
+      "arm": "mesotrione"
+    },
+    {
+      "quote": "respectively",
+      "start": 98,
+      "end": 110,
+      "role": "contrast"
+    }
+  ]
+}

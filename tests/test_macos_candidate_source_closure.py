@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from contextlib import contextmanager
 from enum import StrEnum, unique
 from pathlib import Path
 from typing import assert_never
@@ -20,6 +21,7 @@ from release.candidate_source_closure import (
 from release.candidate_types import CandidateRefused
 from tests.macos_candidate_source_policy_support import (
     ROOT,
+    _source_files,
     covered,
     matching_authoritative_tests,
     matching_candidate_modules,
@@ -28,20 +30,69 @@ from tests.macos_candidate_source_policy_support import (
 )
 from tests.macos_candidate_test_support import source_fixture
 
+TASK11_MASTER = (
+    ROOT
+    / ".omo/evidence/mac-desktop-deployment-roadmap/task-11"
+    / "task-11-mac-desktop-deployment-roadmap.json"
+)
+needs_task11_master = pytest.mark.skipif(
+    not TASK11_MASTER.is_file(), reason=f"missing local evidence: {TASK11_MASTER}"
+)
 
+
+def test_candidate_refusal_survives_context_manager_chaining() -> None:
+    @contextmanager
+    def boundary():
+        yield
+
+    with pytest.raises(CandidateRefused) as raised:
+        with boundary():
+            raise CandidateRefused("source_closure_missing", "web")
+    assert raised.value.member == "source_closure_missing"
+    assert raised.value.detail == "web"
+
+
+def test_source_inventory_ignores_untracked_files_under_declared_directory(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "repo"
+    source = root / "ontologylab"
+    source.mkdir(parents=True)
+    (source / "tracked.py").write_text("TRACKED = True\n", encoding="utf-8")
+    (source / "declared.txt").write_text("declared input\n", encoding="utf-8")
+    (source / "AGENTS.md").write_text("local guidance\n", encoding="utf-8")
+    subprocess.run(("git", "-C", str(root), "init", "-q"), check=True)
+    subprocess.run(
+        ("git", "-C", str(root), "add", "ontologylab/tracked.py"), check=True
+    )
+
+    assert _source_files(root, "ontologylab") == {"ontologylab/tracked.py"}
+    assert _source_files(
+        root, "ontologylab", frozenset({"ontologylab", "ontologylab/declared.txt"})
+    ) == {"ontologylab/tracked.py", "ontologylab/declared.txt"}
+
+
+@needs_task11_master
 def test_task11_policy_covers_every_authoritative_path_class() -> None:
     # Given all Task 11 naming classes, build inputs, local imports, gates, and master files.
     audit = task11_policy_coverage()
 
     # When policy coverage is evaluated, then every exact file is safely declared.
     assert not audit.missing, sorted(audit.missing)
+    # The completion wave added carry_forward, extraction_eligibility,
+    # polarity_eval, and species_abbreviation. Qualified
+    # statements added ontologylab/statement_qualifiers.py,
+    # ontologylab/qualified_extraction.py, and ontologylab/qualified_polarity_eval.py.
+    # The row 40 rebuild added ontologylab/missed_null.py.
+    # The statement harness added statement_candidates, statement_eval,
+    # statement_feedback, statement_harness, and statement_units.
     assert (
         len(audit.declared),
         len(audit.authoritative),
         len(audit.task10_authoritative),
         len(audit.missing),
         len(audit.generated_violations),
-    ) == (102, 350, 27, 0, 0)
+    ) == (99, 372, 27, 0, 0)
     assert not audit.generated_violations
     assert covered("ontologylab/storage-compatibility.json", audit.declared)
     assert not any(
@@ -51,6 +102,7 @@ def test_task11_policy_covers_every_authoritative_path_class() -> None:
     )
 
 
+@needs_task11_master
 def test_task10_master_and_internal_deployment_classes_are_policy_covered() -> None:
     # Given Task 10 master hashes plus module and invoked-entrypoint naming classes.
     audit = task11_policy_coverage()
@@ -122,6 +174,7 @@ def test_snapshot_excludes_swiftpm_build_products_but_keeps_package_sources(
     )
 
 
+@needs_task11_master
 def test_new_matching_task10_source_requires_policy_declaration(
     tmp_path: Path,
 ) -> None:
@@ -137,6 +190,7 @@ def test_new_matching_task10_source_requires_policy_declaration(
     assert not covered("scripts/internal_deployment_future.py", declared)
 
 
+@needs_task11_master
 def test_new_matching_candidate_module_requires_policy_declaration(
     tmp_path: Path,
 ) -> None:

@@ -32,6 +32,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -93,6 +94,9 @@ type Proposal = {
   doc_source: string;
   evidence_grade: string;
   excerpt: string;
+  /** Edge qualifiers as stored; `polarity` says whether the claim supports,
+   *  refutes, or reports no effect. Absent on nodes. */
+  qualifiers?: Record<string, unknown>;
   /** Present only on rows from /proposals/decided. */
   status?: "verified" | "rejected";
   verified_ts?: number | null;
@@ -164,6 +168,43 @@ type Calibration = {
   available: boolean;
   raw: { ece: number | null; n: number; bins: CalibrationBin[] };
   curve: { boundaries: number[]; values: number[] } | null;
+};
+
+type CitedNullStatement = {
+  edge_id: string;
+  subject: string;
+  relation_type: string;
+  object: string;
+  polarity: string;
+  qualifiers: Record<string, string>;
+  status: string;
+  origin: string;
+  start: number;
+  end: number;
+};
+
+type NullCandidate = {
+  document_id: string;
+  start: number;
+  end: number;
+  text: string;
+  cue: string;
+  status: "unextracted" | "partially_extracted";
+  existing_statements: CitedNullStatement[];
+};
+
+type CandidateDocument = {
+  id: string;
+  title: string;
+  candidates: NullCandidate[];
+};
+
+type NullCandidates = { documents: CandidateDocument[]; count: number };
+type SchemaTypes = {
+  active: {
+    entity_types: { name: string }[];
+    relation_types: { name: string }[];
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -684,6 +725,244 @@ function ErrorSurface({
   );
 }
 
+function MissedNullReview({
+  onCreated,
+}: {
+  onCreated: (documentId: string, edgeId: string) => Promise<void>;
+}) {
+  const [documents, setDocuments] = useState<CandidateDocument[]>([]);
+  const [entityTypes, setEntityTypes] = useState<string[]>([]);
+  const [relationTypes, setRelationTypes] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [failure, setFailure] = useState<Failure | null>(null);
+  const [selected, setSelected] = useState<NullCandidate | null>(null);
+  const [subject, setSubject] = useState("");
+  const [subjectType, setSubjectType] = useState("");
+  const [relation, setRelation] = useState("");
+  const [objectName, setObjectName] = useState("");
+  const [objectType, setObjectType] = useState("");
+  const [polarity, setPolarity] = useState<"no_effect" | "refutes" | "supports">("no_effect");
+  const [qualifierText, setQualifierText] = useState("{}");
+  const [curator, setCurator] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveFailure, setSaveFailure] = useState<Failure | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setFailure(null);
+    try {
+      const [candidatePage, schema] = await Promise.all([
+        get<NullCandidates>("/review/missed-null"),
+        get<SchemaTypes>("/schema"),
+      ]);
+      setDocuments(candidatePage.documents);
+      setEntityTypes(schema.active.entity_types.map((item) => item.name));
+      setRelationTypes(schema.active.relation_types.map((item) => item.name));
+    } catch (err) {
+      setFailure(asFailure(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected) return;
+    setSaving(true);
+    setSaveFailure(null);
+    try {
+      const parsed: unknown = JSON.parse(qualifierText);
+      if (
+        parsed === null || typeof parsed !== "object" || Array.isArray(parsed)
+        || !Object.values(parsed).every((value) => typeof value === "string")
+      ) {
+        setSaveFailure({
+          sentence: "한정자를 저장하지 못했습니다.",
+          detail: "한정자는 문자열 값만 가진 JSON 객체여야 합니다.",
+          retryLabel: "다시 시도",
+        });
+        return;
+      }
+      const result = await post<{ edge_id: string }>(
+        `/documents/${encodeURIComponent(selected.document_id)}/statements`,
+        {
+          curator,
+          start: selected.start,
+          end: selected.end,
+          text: selected.text,
+          subject: { name: subject, entity_type: subjectType },
+          relation_type: relation,
+          object: { name: objectName, entity_type: objectType },
+          polarity,
+          qualifiers: parsed,
+        }
+      );
+      await onCreated(selected.document_id, result.edge_id);
+      setSelected(null);
+      setSubject("");
+      setObjectName("");
+      setQualifierText("{}");
+      await refresh();
+    } catch (err) {
+      setSaveFailure(asFailure(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>측정된 무효 결과 검토</CardTitle>
+        <CardDescription>
+          근거 문장을 확인하고 빠진 치료군만 제안합니다. 이미 추출된 주장도 함께 표시합니다.
+          새 제안은 승인 전까지 대기 상태입니다.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {failure ? <ErrorSurface failure={failure} onRetry={() => void refresh()} retrying={loading} /> : null}
+        {loading ? <Skeleton className="h-20 w-full" /> : null}
+        {!loading && !failure && documents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">검토할 측정 무효 문장이 없습니다.</p>
+        ) : null}
+        {!loading && !failure ? documents.map((document) => (
+          <section key={document.id} className="space-y-2" aria-label={`${document.title} 무효 문장`}>
+            <h3 className="break-words text-sm font-medium">
+              {document.title} <span className="text-muted-foreground">
+                ({NUM.format(document.candidates.length)})
+              </span>
+            </h3>
+            <ul className="space-y-2">
+              {document.candidates.map((candidate) => (
+                <li key={`${candidate.start}:${candidate.end}`}
+                  className="min-w-0 rounded-md border bg-muted/30 p-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <Badge variant="outline">
+                      {candidate.status === "partially_extracted" ? "일부 추출" : "미추출"}
+                    </Badge>
+                    <span>단서: {candidate.cue}</span>
+                    <span>문자 {candidate.start}–{candidate.end}</span>
+                  </div>
+                  <p className="mt-2 break-words text-sm leading-relaxed">{candidate.text}</p>
+                  {candidate.existing_statements.length > 0 ? (
+                    <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                      <p>이미 기록된 주장 — 빠진 치료군을 확인해 주세요.</p>
+                      <ul className="space-y-1">
+                        {candidate.existing_statements.map((statement) => (
+                          <li key={statement.edge_id} className="break-words">
+                            {statement.subject} → {statement.relation_type} → {statement.object}
+                            {" · "}{statement.polarity} · {statement.status}
+                            {" · "}{JSON.stringify(statement.qualifiers)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  <Button size="sm" variant="outline" className="mt-3"
+                    onClick={() => { setSelected(candidate); setSaveFailure(null); }}>
+                    문장으로 제안
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )) : null}
+        {selected ? (
+          <form className="space-y-3 rounded-md border bg-background p-4"
+            onSubmit={(event) => void submit(event)}>
+            <h3 className="text-sm font-medium">문장 근거로 주장 제안</h3>
+            <p className="break-words text-sm text-muted-foreground">{selected.text}</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label htmlFor="null-subject" className="space-y-1 text-sm">
+                <span>주어 이름</span>
+                <Input id="null-subject" required value={subject}
+                  onChange={(event) => setSubject(event.target.value)} />
+              </label>
+              <label htmlFor="null-subject-type" className="space-y-1 text-sm">
+                <span>주어 유형</span>
+                <select id="null-subject-type" required value={subjectType}
+                  onChange={(event) => setSubjectType(event.target.value)}
+                  className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+                  <option value="">유형 선택</option>
+                  {entityTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                </select>
+              </label>
+              <label htmlFor="null-relation" className="space-y-1 text-sm">
+                <span>관계 유형</span>
+                <select id="null-relation" required value={relation}
+                  onChange={(event) => setRelation(event.target.value)}
+                  className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+                  <option value="">관계 선택</option>
+                  {relationTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                </select>
+              </label>
+              <label htmlFor="null-polarity" className="space-y-1 text-sm">
+                <span>극성</span>
+                <select id="null-polarity" value={polarity}
+                  onChange={(event) => setPolarity(
+                    event.target.value as "no_effect" | "refutes" | "supports"
+                  )}
+                  className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+                  <option value="no_effect">no_effect</option>
+                  <option value="refutes">refutes</option>
+                  <option value="supports">supports</option>
+                </select>
+              </label>
+              <label htmlFor="null-object" className="space-y-1 text-sm">
+                <span>목적어 이름</span>
+                <Input id="null-object" required value={objectName}
+                  onChange={(event) => setObjectName(event.target.value)} />
+              </label>
+              <label htmlFor="null-object-type" className="space-y-1 text-sm">
+                <span>목적어 유형</span>
+                <select id="null-object-type" required value={objectType}
+                  onChange={(event) => setObjectType(event.target.value)}
+                  className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+                  <option value="">유형 선택</option>
+                  {entityTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                </select>
+              </label>
+              <label htmlFor="null-curator" className="space-y-1 text-sm">
+                <span>검토자</span>
+                <Input id="null-curator" required value={curator}
+                  onChange={(event) => setCurator(event.target.value)} />
+              </label>
+              <label htmlFor="null-qualifiers" className="space-y-1 text-sm">
+                <span>한정자 (JSON 객체)</span>
+                <Textarea id="null-qualifiers" value={qualifierText}
+                  onChange={(event) => setQualifierText(event.target.value)}
+                  aria-describedby="null-qualifier-help" />
+              </label>
+            </div>
+            <p id="null-qualifier-help" className="text-xs text-muted-foreground">
+              예: {`{"study_context":"field_trial"}`} · 허용된 한정자만 저장됩니다.
+            </p>
+            {saveFailure ? (
+              <Alert variant="destructive" role="alert">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>{saveFailure.sentence}</AlertTitle>
+                <AlertDescription className="break-words">{saveFailure.detail}</AlertDescription>
+              </Alert>
+            ) : null}
+            <div className="flex gap-2">
+              <Button type="submit" disabled={saving}>
+                {saving ? "저장 중…" : "대기 큐에 제안"}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setSelected(null)}>
+                취소
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // One queue row. The same cells serve the pending queue and the session
 // history; only the status view and the action control differ.
@@ -817,6 +1096,7 @@ function ProposalListItem({
               <Badge variant="outline" className="px-1 py-0 font-mono text-[10px]">
                 {item.type_name}
               </Badge>
+              <PolarityBadge item={item} compact />
               <span className="font-mono tabular-nums">{percent(item.confidence)}</span>
               {item.critic_disagreement || belowLine ? (
                 <AlertTriangle className="h-3 w-3 text-warn-text" aria-label="비평 경고" />
@@ -830,6 +1110,51 @@ function ProposalListItem({
         </button>
       </div>
     </li>
+  );
+}
+
+// A claim's polarity decides what approving it means, so the reviewer sees it
+// next to the relation type rather than buried in a qualifier dump.
+const POLARITY_LABEL: Record<string, { text: string; variant: "success" | "error" | "warning" }> = {
+  supports: { text: "지지", variant: "success" },
+  refutes: { text: "반박", variant: "error" },
+  no_effect: { text: "효과 없음", variant: "warning" },
+};
+
+function qualifierText(value: unknown): string {
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+function PolarityBadge({ item, compact }: { item: Proposal; compact?: boolean }) {
+  const raw = item.qualifiers?.polarity;
+  if (typeof raw !== "string" || raw === "") return null;
+  const known = POLARITY_LABEL[raw];
+  return (
+    <Badge
+      variant={known?.variant ?? "outline"}
+      className={cn(compact ? "px-1 py-0 text-[10px]" : "text-xs")}
+      aria-label={`극성: ${known?.text ?? raw}`}
+    >
+      {known?.text ?? raw}
+    </Badge>
+  );
+}
+
+function QualifierList({ item }: { item: Proposal }) {
+  const entries = Object.entries(item.qualifiers ?? {});
+  if (entries.length === 0) return null;
+  return (
+    <section className="space-y-1.5">
+      <FieldCaption>수식어</FieldCaption>
+      <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-xs">
+        {entries.map(([key, value]) => (
+          <div key={key} className="contents">
+            <dt className="font-mono text-muted-foreground">{key}</dt>
+            <dd className="break-words">{qualifierText(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
@@ -871,6 +1196,7 @@ function ProposalDetail({
               <Badge variant="outline" className="font-mono">
                 {item.type_name}
               </Badge>
+              <PolarityBadge item={item} />
               <CopyableId value={item.id} label="항목 ID" />
               <RelativeTime ts={item.created_ts} className="text-xs text-muted-foreground" />
             </div>
@@ -894,6 +1220,8 @@ function ProposalDetail({
           </p>
         </section>
       ) : null}
+
+      <QualifierList item={item} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <section className="space-y-1.5">
@@ -1043,6 +1371,26 @@ export default function ReviewPage() {
     } finally {
       setLoadingMore(false);
     }
+  }
+
+  async function showCuratedProposal(documentId: string, edgeId: string) {
+    let page = await get<ProposalPage>(
+      `/proposals?kind=edge&source_doc_id=${encodeURIComponent(documentId)}&limit=100`
+    );
+    let proposed = page.items.find((item) => item.id === edgeId);
+    while (!proposed && page.has_more && page.next_cursor) {
+      page = await get<ProposalPage>(
+        `/proposals?kind=edge&source_doc_id=${encodeURIComponent(documentId)}`
+        + `&limit=100&cursor=${encodeURIComponent(page.next_cursor)}`
+      );
+      proposed = page.items.find((item) => item.id === edgeId);
+    }
+    if (!proposed) throw new Error("저장한 제안이 대기 큐에 없습니다. 새로고침해 주세요.");
+    setItems((prev) => [proposed, ...prev.filter((item) => item.id !== edgeId)]);
+    setCounts(page.counts);
+    setFilter("pending");
+    setFocusedIdx(0);
+    setReceipt(`대기 큐에 제안했습니다 — ${proposed.label}`);
   }
 
   const loadDecided = useCallback(async (decision: Decision) => {
@@ -1371,6 +1719,9 @@ export default function ReviewPage() {
         </TabsList>
 
         <TabsContent value="queue">
+          <div className="mb-4">
+            <MissedNullReview onCreated={showCuratedProposal} />
+          </div>
           <Card>
             <CardHeader className="flex-row items-start gap-3 space-y-0">
               <SectionIcon icon={filter === "pending" ? Inbox : STATUS_VIEW[filter].icon} />

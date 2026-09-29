@@ -1,0 +1,915 @@
+{
+  "task": 33,
+  "kind": "offline diagnostic; no model calls or changed predictions",
+  "input": "evidence/polarity-trial-5-2026-09-27-edges.json",
+  "input_sha256": "488e549ed6fb341634c780ea6bbea2b632cf5ec7b2a657880b8e7c0bc7148d66",
+  "baseline_commit": "b69a3d27dcdf3dd87d005a82aa7bc2b29dcbad2c",
+  "before_gold": {
+    "primary": "gold-qualified.json",
+    "legacy": "gold-fulltext.json"
+  },
+  "after_gold": {
+    "primary": "gold-aligned-qualified.json",
+    "legacy": "gold-aligned.json"
+  },
+  "thresholds": {
+    "polarity_accuracy_min": 0.8,
+    "negative_null_recall_min": 0.7,
+    "null_flip_max": 0.15
+  },
+  "limitation": "Definition alignment and exact normalization rescore a known failed corpus; this is not an independent holdout or evidence of extraction improvement. G1/G2/G4 were not rerun; persisted predictions and trial receipts are unchanged.",
+  "before": {
+    "primary": {
+      "counts": {
+        "gold_relations": 102,
+        "matched_relations": 20,
+        "matched_predictions": 20
+      },
+      "pooled": {
+        "polarity_accuracy": {
+          "value": 0.9,
+          "numerator": 18,
+          "denominator": 20,
+          "ci95": {
+            "low": 0.75,
+            "high": 1
+          }
+        },
+        "recall_no_effect": {
+          "value": 0.16666666666666666,
+          "numerator": 6,
+          "denominator": 36,
+          "ci95": {
+            "low": 0.0556,
+            "high": 0.2778
+          }
+        },
+        "recall_refutes": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 15,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "recall_no_effect_refutes": {
+          "value": 0.11764705882352941,
+          "numerator": 6,
+          "denominator": 51,
+          "ci95": {
+            "low": 0.0392,
+            "high": 0.1961
+          }
+        },
+        "supports_when_gold_no_effect_flip_rate": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 6,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        }
+      },
+      "G3": "FAIL",
+      "runs": [
+        {
+          "run": 1,
+          "counts": {
+            "conflicting_matched_relations": 0,
+            "found_four_tuples": 197,
+            "gold_relations": 34,
+            "matched_predictions": 6,
+            "matched_relations": 6,
+            "missing_relations": 28,
+            "spurious_four_tuples": 191
+          },
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 1
+            },
+            "denominator": 6,
+            "numerator": 6,
+            "value": 1
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.4167,
+              "low": 0
+            },
+            "denominator": 12,
+            "numerator": 2,
+            "value": 0.16666666666666666
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.2941,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 2,
+            "value": 0.11764705882352941
+          },
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 2,
+            "numerator": 0,
+            "value": 0
+          }
+        },
+        {
+          "run": 2,
+          "counts": {
+            "conflicting_matched_relations": 0,
+            "found_four_tuples": 205,
+            "gold_relations": 34,
+            "matched_predictions": 7,
+            "matched_relations": 7,
+            "missing_relations": 27,
+            "spurious_four_tuples": 199
+          },
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 0.5714
+            },
+            "denominator": 7,
+            "numerator": 6,
+            "value": 0.8571428571428571
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.4167,
+              "low": 0
+            },
+            "denominator": 12,
+            "numerator": 2,
+            "value": 0.16666666666666666
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.2941,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 2,
+            "value": 0.11764705882352941
+          },
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 2,
+            "numerator": 0,
+            "value": 0
+          }
+        },
+        {
+          "run": 3,
+          "counts": {
+            "conflicting_matched_relations": 0,
+            "found_four_tuples": 207,
+            "gold_relations": 34,
+            "matched_predictions": 7,
+            "matched_relations": 7,
+            "missing_relations": 27,
+            "spurious_four_tuples": 201
+          },
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 0.5714
+            },
+            "denominator": 7,
+            "numerator": 6,
+            "value": 0.8571428571428571
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.4167,
+              "low": 0
+            },
+            "denominator": 12,
+            "numerator": 2,
+            "value": 0.16666666666666666
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.2941,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 2,
+            "value": 0.11764705882352941
+          },
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 2,
+            "numerator": 0,
+            "value": 0
+          }
+        }
+      ]
+    },
+    "legacy": {
+      "counts": {
+        "gold_relations": 102,
+        "matched_relations": 44,
+        "matched_predictions": 48
+      },
+      "pooled": {
+        "polarity_accuracy": {
+          "value": 0.8125,
+          "numerator": 39,
+          "denominator": 48,
+          "ci95": {
+            "low": 0.6875,
+            "high": 0.9167
+          }
+        },
+        "recall_no_effect": {
+          "value": 0.3333333333333333,
+          "numerator": 12,
+          "denominator": 36,
+          "ci95": {
+            "low": 0.1944,
+            "high": 0.5
+          }
+        },
+        "recall_refutes": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 15,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        },
+        "recall_no_effect_refutes": {
+          "value": 0.23529411764705882,
+          "numerator": 12,
+          "denominator": 51,
+          "ci95": {
+            "low": 0.1176,
+            "high": 0.3529
+          }
+        },
+        "supports_when_gold_no_effect_flip_rate": {
+          "value": 0.3333333333333333,
+          "numerator": 4,
+          "denominator": 12,
+          "ci95": {
+            "low": 0.0833,
+            "high": 0.5833
+          }
+        }
+      },
+      "G3": "FAIL",
+      "runs": [
+        {
+          "run": 1,
+          "counts": {
+            "conflicting_matched_relations": 1,
+            "found_four_tuples": 177,
+            "gold_relations": 34,
+            "matched_predictions": 15,
+            "matched_relations": 14,
+            "missing_relations": 20,
+            "spurious_four_tuples": 164
+          },
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 0.6667
+            },
+            "denominator": 15,
+            "numerator": 13,
+            "value": 0.8666666666666667
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.5833,
+              "low": 0.0833
+            },
+            "denominator": 12,
+            "numerator": 4,
+            "value": 0.3333333333333333
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.4706,
+              "low": 0.0588
+            },
+            "denominator": 17,
+            "numerator": 4,
+            "value": 0.23529411764705882
+          },
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0.75,
+              "low": 0
+            },
+            "denominator": 4,
+            "numerator": 1,
+            "value": 0.25
+          }
+        },
+        {
+          "run": 2,
+          "counts": {
+            "conflicting_matched_relations": 1,
+            "found_four_tuples": 178,
+            "gold_relations": 34,
+            "matched_predictions": 16,
+            "matched_relations": 15,
+            "missing_relations": 19,
+            "spurious_four_tuples": 165
+          },
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 0.625
+            },
+            "denominator": 16,
+            "numerator": 13,
+            "value": 0.8125
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.5833,
+              "low": 0.0833
+            },
+            "denominator": 12,
+            "numerator": 4,
+            "value": 0.3333333333333333
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.4706,
+              "low": 0.0588
+            },
+            "denominator": 17,
+            "numerator": 4,
+            "value": 0.23529411764705882
+          },
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0.75,
+              "low": 0
+            },
+            "denominator": 4,
+            "numerator": 1,
+            "value": 0.25
+          }
+        },
+        {
+          "run": 3,
+          "counts": {
+            "conflicting_matched_relations": 2,
+            "found_four_tuples": 178,
+            "gold_relations": 34,
+            "matched_predictions": 17,
+            "matched_relations": 15,
+            "missing_relations": 19,
+            "spurious_four_tuples": 165
+          },
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 0.9412,
+              "low": 0.5294
+            },
+            "denominator": 17,
+            "numerator": 13,
+            "value": 0.7647058823529411
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.5833,
+              "low": 0.0833
+            },
+            "denominator": 12,
+            "numerator": 4,
+            "value": 0.3333333333333333
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.4706,
+              "low": 0.0588
+            },
+            "denominator": 17,
+            "numerator": 4,
+            "value": 0.23529411764705882
+          },
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 1,
+              "low": 0
+            },
+            "denominator": 4,
+            "numerator": 2,
+            "value": 0.5
+          }
+        }
+      ]
+    }
+  },
+  "after": {
+    "primary": {
+      "counts": {
+        "gold_relations": 102,
+        "matched_relations": 24,
+        "matched_predictions": 24
+      },
+      "pooled": {
+        "polarity_accuracy": {
+          "value": 1,
+          "numerator": 24,
+          "denominator": 24,
+          "ci95": {
+            "low": 1,
+            "high": 1
+          }
+        },
+        "recall_no_effect": {
+          "value": 0.23529411764705882,
+          "numerator": 12,
+          "denominator": 51,
+          "ci95": {
+            "low": 0.1176,
+            "high": 0.3529
+          }
+        },
+        "recall_refutes": {
+          "value": null,
+          "numerator": 0,
+          "denominator": 0,
+          "ci95": null
+        },
+        "recall_no_effect_refutes": {
+          "value": 0.23529411764705882,
+          "numerator": 12,
+          "denominator": 51,
+          "ci95": {
+            "low": 0.1176,
+            "high": 0.3529
+          }
+        },
+        "supports_when_gold_no_effect_flip_rate": {
+          "value": 0,
+          "numerator": 0,
+          "denominator": 12,
+          "ci95": {
+            "low": 0,
+            "high": 0
+          }
+        }
+      },
+      "G3": "FAIL",
+      "runs": [
+        {
+          "run": 1,
+          "counts": {
+            "conflicting_matched_relations": 0,
+            "found_four_tuples": 197,
+            "gold_relations": 34,
+            "matched_predictions": 6,
+            "matched_relations": 6,
+            "missing_relations": 28,
+            "spurious_four_tuples": 191
+          },
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 1
+            },
+            "denominator": 6,
+            "numerator": 6,
+            "value": 1
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.2941,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 2,
+            "value": 0.11764705882352941
+          },
+          "recall_refutes": {
+            "ci95": null,
+            "denominator": 0,
+            "numerator": 0,
+            "value": null
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.2941,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 2,
+            "value": 0.11764705882352941
+          },
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 2,
+            "numerator": 0,
+            "value": 0
+          }
+        },
+        {
+          "run": 2,
+          "counts": {
+            "conflicting_matched_relations": 0,
+            "found_four_tuples": 205,
+            "gold_relations": 34,
+            "matched_predictions": 9,
+            "matched_relations": 9,
+            "missing_relations": 25,
+            "spurious_four_tuples": 196
+          },
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 1
+            },
+            "denominator": 9,
+            "numerator": 9,
+            "value": 1
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.5294,
+              "low": 0.1176
+            },
+            "denominator": 17,
+            "numerator": 5,
+            "value": 0.29411764705882354
+          },
+          "recall_refutes": {
+            "ci95": null,
+            "denominator": 0,
+            "numerator": 0,
+            "value": null
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.5294,
+              "low": 0.1176
+            },
+            "denominator": 17,
+            "numerator": 5,
+            "value": 0.29411764705882354
+          },
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          }
+        },
+        {
+          "run": 3,
+          "counts": {
+            "conflicting_matched_relations": 0,
+            "found_four_tuples": 207,
+            "gold_relations": 34,
+            "matched_predictions": 9,
+            "matched_relations": 9,
+            "missing_relations": 25,
+            "spurious_four_tuples": 198
+          },
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 1
+            },
+            "denominator": 9,
+            "numerator": 9,
+            "value": 1
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.5294,
+              "low": 0.1176
+            },
+            "denominator": 17,
+            "numerator": 5,
+            "value": 0.29411764705882354
+          },
+          "recall_refutes": {
+            "ci95": null,
+            "denominator": 0,
+            "numerator": 0,
+            "value": null
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.5294,
+              "low": 0.1176
+            },
+            "denominator": 17,
+            "numerator": 5,
+            "value": 0.29411764705882354
+          },
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          }
+        }
+      ]
+    },
+    "legacy": {
+      "counts": {
+        "gold_relations": 102,
+        "matched_relations": 44,
+        "matched_predictions": 48
+      },
+      "pooled": {
+        "polarity_accuracy": {
+          "value": 0.9166666666666666,
+          "numerator": 44,
+          "denominator": 48,
+          "ci95": {
+            "low": 0.8333,
+            "high": 0.9792
+          }
+        },
+        "recall_no_effect": {
+          "value": 0.3333333333333333,
+          "numerator": 17,
+          "denominator": 51,
+          "ci95": {
+            "low": 0.1961,
+            "high": 0.451
+          }
+        },
+        "recall_refutes": {
+          "value": null,
+          "numerator": 0,
+          "denominator": 0,
+          "ci95": null
+        },
+        "recall_no_effect_refutes": {
+          "value": 0.3333333333333333,
+          "numerator": 17,
+          "denominator": 51,
+          "ci95": {
+            "low": 0.1961,
+            "high": 0.451
+          }
+        },
+        "supports_when_gold_no_effect_flip_rate": {
+          "value": 0.23529411764705882,
+          "numerator": 4,
+          "denominator": 17,
+          "ci95": {
+            "low": 0.0588,
+            "high": 0.4706
+          }
+        }
+      },
+      "G3": "FAIL",
+      "runs": [
+        {
+          "run": 1,
+          "counts": {
+            "conflicting_matched_relations": 1,
+            "found_four_tuples": 177,
+            "gold_relations": 34,
+            "matched_predictions": 15,
+            "matched_relations": 14,
+            "missing_relations": 20,
+            "spurious_four_tuples": 163
+          },
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 0.8
+            },
+            "denominator": 15,
+            "numerator": 14,
+            "value": 0.9333333333333333
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.5294,
+              "low": 0.1176
+            },
+            "denominator": 17,
+            "numerator": 5,
+            "value": 0.29411764705882354
+          },
+          "recall_refutes": {
+            "ci95": null,
+            "denominator": 0,
+            "numerator": 0,
+            "value": null
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.5294,
+              "low": 0.1176
+            },
+            "denominator": 17,
+            "numerator": 5,
+            "value": 0.29411764705882354
+          },
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0.6,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 1,
+            "value": 0.2
+          }
+        },
+        {
+          "run": 2,
+          "counts": {
+            "conflicting_matched_relations": 1,
+            "found_four_tuples": 178,
+            "gold_relations": 34,
+            "matched_predictions": 16,
+            "matched_relations": 15,
+            "missing_relations": 19,
+            "spurious_four_tuples": 163
+          },
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 0.8125
+            },
+            "denominator": 16,
+            "numerator": 15,
+            "value": 0.9375
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.5882,
+              "low": 0.1176
+            },
+            "denominator": 17,
+            "numerator": 6,
+            "value": 0.35294117647058826
+          },
+          "recall_refutes": {
+            "ci95": null,
+            "denominator": 0,
+            "numerator": 0,
+            "value": null
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.5882,
+              "low": 0.1176
+            },
+            "denominator": 17,
+            "numerator": 6,
+            "value": 0.35294117647058826
+          },
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0.5,
+              "low": 0
+            },
+            "denominator": 6,
+            "numerator": 1,
+            "value": 0.16666666666666666
+          }
+        },
+        {
+          "run": 3,
+          "counts": {
+            "conflicting_matched_relations": 2,
+            "found_four_tuples": 178,
+            "gold_relations": 34,
+            "matched_predictions": 17,
+            "matched_relations": 15,
+            "missing_relations": 19,
+            "spurious_four_tuples": 163
+          },
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 0.7059
+            },
+            "denominator": 17,
+            "numerator": 15,
+            "value": 0.8823529411764706
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.5882,
+              "low": 0.1176
+            },
+            "denominator": 17,
+            "numerator": 6,
+            "value": 0.35294117647058826
+          },
+          "recall_refutes": {
+            "ci95": null,
+            "denominator": 0,
+            "numerator": 0,
+            "value": null
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.5882,
+              "low": 0.1176
+            },
+            "denominator": 17,
+            "numerator": 6,
+            "value": 0.35294117647058826
+          },
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0.6667,
+              "low": 0
+            },
+            "denominator": 6,
+            "numerator": 2,
+            "value": 0.3333333333333333
+          }
+        }
+      ]
+    }
+  },
+  "alignment_version": "polarity-alignment-2026-09-27-v2",
+  "adjudication": "Rows 29-31 are measured absence of resistant isolates, not contradictions. All five original refutes labels are now no_effect; refutes recall is undefined (0/0), not zero."
+}

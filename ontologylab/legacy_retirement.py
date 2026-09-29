@@ -54,7 +54,7 @@ class RetirementReceipt:
         }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class LegacyRetirementError(Exception):
     """Typed refusal that never includes command output or credentials."""
 

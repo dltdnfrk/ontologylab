@@ -33,7 +33,7 @@ class PackV2ClosureCode(StrEnum):
     TAMPERED_RECEIPT = "tampered_receipt"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class PackV2ClosureRefused(Exception):
     code: PackV2ClosureCode
     member: str
@@ -67,7 +67,11 @@ _SHIPPED_DOCS: Final = (
     "SELECT source_doc_id FROM nodes WHERE status = 'verified' "
     "UNION SELECT source_doc_id FROM edges "
     "WHERE status = 'verified' AND invalidated_ts IS NULL "
-    "UNION SELECT source_doc_id FROM citations)"
+    "UNION SELECT c.source_doc_id FROM citations c WHERE "
+    "(c.kind = 'node' AND c.item_id IN ("
+    "SELECT id FROM nodes WHERE status = 'verified')) OR "
+    "(c.kind = 'edge' AND c.item_id IN ("
+    "SELECT id FROM edges WHERE status = 'verified' AND invalidated_ts IS NULL)))"
 )
 _CITE_GAP: Final = (
     "SELECT n.id FROM nodes n WHERE n.status = 'verified' AND NOT EXISTS ("
@@ -140,6 +144,7 @@ def collect_v2_closure(
     *,
     evidence_mode: EvidenceMode,
     source_root: Path,
+    schema_version_ids: tuple[int, ...],
 ) -> PackV2Closure:
     from ontologylab.pack_readiness import authorize_publication
     from ontologylab.pack_receipt_seal import seal_receipt_inventory
@@ -212,7 +217,17 @@ def collect_v2_closure(
         raise PackV2ClosureRefused(PackV2ClosureCode.MISSING_RECEIPT, "review_decision")
     if conn.execute(_POLICY_GAP).fetchone() is not None:
         raise PackV2ClosureRefused(PackV2ClosureCode.MISSING_RECEIPT, "policy")
-    _seal_citations(conn, citations)
+    _seal_citations(conn, citations, schema_version_ids=schema_version_ids)
+    # Review rows are selected by their scoped facts, but can also name a run.
+    # Refuse an out-of-closure dependency rather than publishing a dangling
+    # review or silently dropping a claimed closure member during the copy.
+    for (run_id,) in conn.execute(
+        "SELECT run_receipt_id FROM grounded_review_decisions "
+        "WHERE receipt_id IN (SELECT value FROM json_each(?))",
+        (json.dumps(reviews),),
+    ):
+        if run_id is not None and run_id not in runs:
+            raise PackV2ClosureRefused(PackV2ClosureCode.DANGLING_MEMBER, "review_decision")
     excerpts, sources, rep_hashes, excerpt_hashes = _source_members(
         conn, evidence_mode, representations, citations, source_root,
     )
@@ -295,9 +310,31 @@ def install_v2_pack_schema(conn: sqlite3.Connection) -> None:
     )
 
 
-def copy_v2_tables(pack_conn: sqlite3.Connection, closure: PackV2Closure) -> None:
+def copy_v2_tables(
+    pack_conn: sqlite3.Connection,
+    closure: PackV2Closure,
+    *,
+    schema_version_ids: tuple[int, ...],
+) -> None:
+    receipt_scope = {
+        "extraction_run_receipts": "schema_version_id IN (SELECT id FROM main.schema_version)",
+        "extraction_chunk_receipts": (
+            "run_receipt_id IN (SELECT receipt_id FROM main.extraction_run_receipts)"
+        ),
+        "citation_receipts": (
+            "run_receipt_id IN (SELECT receipt_id FROM main.extraction_run_receipts) "
+            "AND chunk_receipt_id IN (SELECT receipt_id FROM main.extraction_chunk_receipts)"
+        ),
+        "grounded_review_decisions": (
+            "(run_receipt_id IS NULL OR run_receipt_id IN "
+            "(SELECT receipt_id FROM main.extraction_run_receipts))"
+        ),
+    }
     for table, key, member in _V2_ID_TABLES:
-        _insert_claimed(pack_conn, table, key, closure.members[member])
+        _insert_claimed(
+            pack_conn, table, key, closure.members[member],
+            scope=receipt_scope.get(table, "1"),
+        )
     works = closure.members["work"]
     observations = closure.members["observation"]
     identifiers = closure.members["identifier"]
@@ -311,7 +348,12 @@ def copy_v2_tables(pack_conn: sqlite3.Connection, closure: PackV2Closure) -> Non
     _insert_where(
         pack_conn, "v2_migration_ledger", "generation = ?", (str(closure.generation),),
     )
-    _insert_claimed(pack_conn, "extraction_runs", "document_id", representations)
+    _insert_where(
+        pack_conn, "extraction_runs",
+        "document_id IN (SELECT value FROM json_each(?)) "
+        "AND schema_version_id IN (SELECT value FROM json_each(?))",
+        (json.dumps(representations), json.dumps(schema_version_ids)),
+    )
     pack_conn.execute(
         "INSERT INTO main.extraction_chunks ("
         + _columns(pack_conn, "extraction_chunks")
@@ -552,7 +594,12 @@ def _scoped_provenance(
     return tuple(kept)
 
 
-def _seal_citations(conn: sqlite3.Connection, citations: tuple[str, ...]) -> None:
+def _seal_citations(
+    conn: sqlite3.Connection,
+    citations: tuple[str, ...],
+    *,
+    schema_version_ids: tuple[int, ...],
+) -> None:
     if not citations:
         raise PackV2ClosureRefused(PackV2ClosureCode.MISSING_RECEIPT, "citation")
     placeholders = ",".join("?" * len(citations))
@@ -567,7 +614,8 @@ def _seal_citations(conn: sqlite3.Connection, citations: tuple[str, ...]) -> Non
         if content_hash_for(selected.encode("utf-8")) != str(row["selected_text_hash"]):
             raise PackV2ClosureRefused(PackV2ClosureCode.EVIDENCE_HASH_MISMATCH, "citation")
         run = conn.execute(
-            "SELECT representation_id FROM extraction_run_receipts WHERE receipt_id = ?",
+            "SELECT representation_id, schema_version_id FROM extraction_run_receipts "
+            "WHERE receipt_id = ?",
             (row["run_receipt_id"],),
         ).fetchone()
         chunk = conn.execute(
@@ -576,6 +624,8 @@ def _seal_citations(conn: sqlite3.Connection, citations: tuple[str, ...]) -> Non
         ).fetchone()
         if run is None or chunk is None:
             raise PackV2ClosureRefused(PackV2ClosureCode.MISSING_RECEIPT, "run")
+        if run["schema_version_id"] not in schema_version_ids:
+            raise PackV2ClosureRefused(PackV2ClosureCode.DANGLING_MEMBER, "run")
         if str(run["representation_id"]) != str(row["representation_id"]):
             raise PackV2ClosureRefused(PackV2ClosureCode.TAMPERED_RECEIPT, "citation")
         if str(chunk["run_receipt_id"]) != str(row["run_receipt_id"]):
@@ -646,6 +696,7 @@ def _columns(conn: sqlite3.Connection, table: str) -> str:
 
 def _insert_claimed(
     conn: sqlite3.Connection, table: str, key: str, ids: tuple[str, ...],
+    *, scope: str = "1",
 ) -> None:
     if not ids:
         return
@@ -653,7 +704,7 @@ def _insert_claimed(
     placeholders = ",".join("?" * len(ids))
     conn.execute(
         f"INSERT INTO main.{table} ({columns}) SELECT {columns} FROM live.{table} "
-        f"WHERE {key} IN ({placeholders})",
+        f"WHERE {key} IN ({placeholders}) AND {scope}",
         ids,
     )
 

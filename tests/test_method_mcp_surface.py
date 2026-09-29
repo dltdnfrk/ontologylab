@@ -199,7 +199,7 @@ def test_fastmcp_surface_is_exactly_additive(tmp_path: Path) -> None:
         session.close()
     assert second == first
     tools, templates = second
-    assert len(tools) == 15
+    assert len(tools) == 18
     assert METHOD_TOOLS <= tools
     assert tools.isdisjoint(FORBIDDEN)
     assert not {

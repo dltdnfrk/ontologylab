@@ -1,0 +1,787 @@
+{
+  "schema": "agrochem-v2",
+  "format_version": 2,
+  "description": "Complete JATS bodies for the frozen polarity challenge set. Triples, polarity, contexts and quotes are unchanged; only source metadata and byte offsets are remapped.",
+  "annotation_policy": "A measured absence of a significant effect, including measured ineffectiveness, is no_effect; refutes is reserved for explicit contradiction of a stated or expected claim.",
+  "offset_convention": "Zero-based half-open UTF-8 bytes. body_* refers to production jats_to_text applied to an article containing ONLY the original JATS body. Each source contains the complete converted body plus one LF, without abstract or references.",
+  "papers": [
+    {
+      "pmcid": "PMC12632097",
+      "doi": "10.1186/s12866-025-04356-y",
+      "title": "The control of mushroom pathogen Lecanicillium fungicola with fungicides and Bacillus-based biocontrol treatments during crop trial studies",
+      "authors": [
+        "Clarke Joy",
+        "Fitzpatrick David A",
+        "Kavanagh Kevin",
+        "Grogan Helen"
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "retrieved_at": "2026-09-26",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12632097/fullTextXML",
+      "source": "sources/full/PMC12632097.txt",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS as data; wrap its body in article, convert without truncation, append one LF. Connector-default exclusions apply; no abstract or references.",
+      "jats_sha256": "3045592f72efcefbb64d5e259c25f697ddd04c5b0fbca5ff59846b99c649c857",
+      "body_sha256": "c5675eb22a2f6ff0184b48943da3a13f07632f3570f4bf304be01cdde41da6b2",
+      "body_bytes": 51371,
+      "source_sha256": "427633460b64db0d1a455098ea4f6eb21b91b0bab2f8ea5a36ec29ace7321490",
+      "source_bytes": 51372,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 51371,
+          "stored_start": 0,
+          "stored_end": 51371,
+          "sha256": "c5675eb22a2f6ff0184b48943da3a13f07632f3570f4bf304be01cdde41da6b2"
+        }
+      ]
+    },
+    {
+      "pmcid": "PMC12546283",
+      "doi": "10.1007/s10340-025-01925-y",
+      "title": "Phagostimulant bait sprays improve control of spotted wing drosophila (Drosophila suzukii) in soft fruit",
+      "authors": [
+        "Noble Ralph",
+        "Walker Adam",
+        "Deakin Greg",
+        "Dobrovin-Pennington Andreja",
+        "Shaw Bethan",
+        "Hemer Sebastian",
+        "Fountain Michelle T"
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "retrieved_at": "2026-09-26",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12546283/fullTextXML",
+      "source": "sources/full/PMC12546283.txt",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS as data; wrap its body in article, convert without truncation, append one LF. Connector-default exclusions apply; no abstract or references.",
+      "jats_sha256": "16ff4dab7ce3798724d67aac411e20028b62a2736831e8bd141c41ce3e8125e1",
+      "body_sha256": "a29859b798c694ebc0e926fbfcc99f9a796b09199cc1c80063b660d1cdaa6913",
+      "body_bytes": 37710,
+      "source_sha256": "be7923ca6e58a248ff2cb1476cfd719dd513a3c3df152e7ab821fe02ea90c099",
+      "source_bytes": 37711,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 37710,
+          "stored_start": 0,
+          "stored_end": 37710,
+          "sha256": "a29859b798c694ebc0e926fbfcc99f9a796b09199cc1c80063b660d1cdaa6913"
+        }
+      ]
+    },
+    {
+      "pmcid": "PMC12563837",
+      "doi": "10.3390/genes16101169",
+      "title": "Blackgrass (Alopecurus myosuroides Huds.) Multiple Resistance to ACCase- and ALS-Inhibitors and Its Competition with Winter Wheat",
+      "authors": [
+        "Papapanagiotou Aristeidis P",
+        "Vasilakoglou Ioannis",
+        "Alvanou Maria V",
+        "Giantsis Ioannis A",
+        "Madesis Panagiotis",
+        "Eleftherohorinos Ilias G"
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "retrieved_at": "2026-09-26",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12563837/fullTextXML",
+      "source": "sources/full/PMC12563837.txt",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS as data; wrap its body in article, convert without truncation, append one LF. Connector-default exclusions apply; no abstract or references.",
+      "jats_sha256": "8bc8709e6aba7d630e526ccf7b02064bc5fe1eaa57d4b8c5169dd7e27505d54a",
+      "body_sha256": "f392892b126209bc8f27a3414a465dff2909a4a2d103fa3d62efdbe5c1c3d290",
+      "body_bytes": 46172,
+      "source_sha256": "8d45778ceeb648ff318a7a0e6d1112f836e4da13cca76739e89acf300e96ed80",
+      "source_bytes": 46173,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 46172,
+          "stored_start": 0,
+          "stored_end": 46172,
+          "sha256": "f392892b126209bc8f27a3414a465dff2909a4a2d103fa3d62efdbe5c1c3d290"
+        }
+      ]
+    },
+    {
+      "pmcid": "PMC12713700",
+      "doi": "10.1002/ps.70214",
+      "title": "Poa annua becomes the first weed to evolve resistance to indaziflam applied preemergence and early‐postemergence",
+      "authors": [
+        "Miranda Joshua WA",
+        "Gaines Todd A",
+        "Moretti Marcelo L"
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "retrieved_at": "2026-09-26",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12713700/fullTextXML",
+      "source": "sources/full/PMC12713700.txt",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS as data; wrap its body in article, convert without truncation, append one LF. Connector-default exclusions apply; no abstract or references.",
+      "jats_sha256": "c84d9f674d85a176e5ed249423353ffaca59b6ec19f1bb3520f08785e159c38b",
+      "body_sha256": "0711748332287c18e2d4e04825eb9895ea2e49605781fefae3e4761328b12b3d",
+      "body_bytes": 46527,
+      "source_sha256": "9a876e8c7db10ed125a803962ba53e5371d9793f7371cdf35d2cf0ae3b1e99d9",
+      "source_bytes": 46528,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 46527,
+          "stored_start": 0,
+          "stored_end": 46527,
+          "sha256": "0711748332287c18e2d4e04825eb9895ea2e49605781fefae3e4761328b12b3d"
+        }
+      ]
+    },
+    {
+      "pmcid": "PMC11298438",
+      "doi": "10.3389/fmicb.2024.1425392",
+      "title": "Fungicide resistance in Botrytis cinerea and identification of Botrytis species associated with blueberry in Michigan",
+      "authors": [
+        "Abbey Joel A.",
+        "Alzohairy Safa A.",
+        "Neugebauer Kerri A.",
+        "Hatlen Ross J.",
+        "Miles Timothy D."
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "retrieved_at": "2026-09-26",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11298438/fullTextXML",
+      "source": "sources/full/PMC11298438.txt",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS as data; wrap its body in article, convert without truncation, append one LF. Connector-default exclusions apply; no abstract or references.",
+      "jats_sha256": "85b18254b9f9a6cd9883030de7ec858f0cb91584aed2322107693ce798d980c9",
+      "body_sha256": "7ef2fb530fc84edcfc212bc8d396e53080f546bd89e20badf620906e5e52894c",
+      "body_bytes": 39834,
+      "source_sha256": "4fe0e19bc80d2cb3f388deebc38f02f20e5e1d1392db60fd50d1fbfd4ab385d9",
+      "source_bytes": 39835,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 39834,
+          "stored_start": 0,
+          "stored_end": 39834,
+          "sha256": "7ef2fb530fc84edcfc212bc8d396e53080f546bd89e20badf620906e5e52894c"
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "src": "prochloraz",
+      "relation": "inhibits",
+      "dst": "Lecanicillium fungicola isolate 620",
+      "polarity": "supports",
+      "pmcid": "PMC12632097",
+      "context": "In vitro growth; isolate identity from article title and Results.",
+      "span": {
+        "start": 21912,
+        "end": 21980,
+        "quote": "Prochloraz was very effective at reducing the growth of isolate 620."
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reducing",
+        "object_form_or_variant_qualifier": "isolate 620"
+      },
+      "char_start": 21346,
+      "char_end": 21414,
+      "annotation_decision": "R01",
+      "qualifiers": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reducing",
+        "object_form_or_variant_qualifier": "isolate 620"
+      }
+    },
+    {
+      "src": "metrafenone",
+      "relation": "inhibits",
+      "dst": "Lecanicillium fungicola isolate 620",
+      "polarity": "supports",
+      "pmcid": "PMC12632097",
+      "context": "In vitro growth, not crop-trial disease control.",
+      "span": {
+        "start": 22269,
+        "end": 22410,
+        "quote": "Metrafenone also significantly reduced the growth of isolate 620 but growth was less severely affected compared to prochloraz treated flasks."
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reduced",
+        "object_form_or_variant_qualifier": "isolate 620",
+        "study_context": "flasks"
+      },
+      "char_start": 21691,
+      "char_end": 21832,
+      "annotation_decision": "R02",
+      "qualifiers": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reduced",
+        "object_form_or_variant_qualifier": "isolate 620",
+        "study_context": "flasks"
+      }
+    },
+    {
+      "src": "prochloraz",
+      "relation": "inhibits",
+      "dst": "Lecanicillium fungicola isolate 1722",
+      "polarity": "supports",
+      "pmcid": "PMC12632097",
+      "context": "In vitro growth.",
+      "span": {
+        "start": 23205,
+        "end": 23307,
+        "quote": "Prochloraz significantly reduced the growth of isolate 1722 in flask cultures, similar to isolate 620."
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reduced",
+        "object_form_or_variant_qualifier": "isolate 1722",
+        "study_context": "flask cultures"
+      },
+      "char_start": 22604,
+      "char_end": 22706,
+      "annotation_decision": "R03",
+      "qualifiers": {
+        "object_aspect_qualifier": "growth",
+        "object_direction_qualifier": "reduced",
+        "object_form_or_variant_qualifier": "isolate 1722",
+        "study_context": "flask cultures"
+      }
+    },
+    {
+      "src": "prochloraz",
+      "relation": "controls",
+      "dst": "dry bubble disease",
+      "polarity": "no_effect",
+      "pmcid": "PMC12632097",
+      "context": "Crop trial 1; bubble development versus untreated control, not lower-pressure trials. B. velezensis and Kos expanded from the body and article title.",
+      "span": {
+        "start": 37696,
+        "end": 37921,
+        "quote": "In crop trial 1, there was no significant difference between the bubble development in the untreated control plots and prochloraz, B. velezensis QST 713 or Kos treated plots inoculated at a rate of 1 × 106 conidia m−2."
+      }
+    },
+    {
+      "src": "Bacillus velezensis QST 713",
+      "relation": "controls",
+      "dst": "dry bubble disease",
+      "polarity": "no_effect",
+      "pmcid": "PMC12632097",
+      "context": "Crop trial 1; bubble development versus untreated control, not lower-pressure trials. B. velezensis and Kos expanded from the body and article title.",
+      "span": {
+        "start": 37696,
+        "end": 37921,
+        "quote": "In crop trial 1, there was no significant difference between the bubble development in the untreated control plots and prochloraz, B. velezensis QST 713 or Kos treated plots inoculated at a rate of 1 × 106 conidia m−2."
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "bubble development",
+        "study_context": "crop trial 1",
+        "subject_form_or_variant_qualifier": "QST 713"
+      },
+      "char_start": 36630,
+      "char_end": 36848,
+      "annotation_decision": "R04",
+      "qualifiers": {
+        "object_aspect_qualifier": "bubble development",
+        "study_context": "crop trial 1",
+        "subject_form_or_variant_qualifier": "QST 713"
+      }
+    },
+    {
+      "src": "Bacillus velezensis Kos",
+      "relation": "controls",
+      "dst": "dry bubble disease",
+      "polarity": "no_effect",
+      "pmcid": "PMC12632097",
+      "context": "Crop trial 1; bubble development versus untreated control, not lower-pressure trials. B. velezensis and Kos expanded from the body and article title.",
+      "span": {
+        "start": 37696,
+        "end": 37921,
+        "quote": "In crop trial 1, there was no significant difference between the bubble development in the untreated control plots and prochloraz, B. velezensis QST 713 or Kos treated plots inoculated at a rate of 1 × 106 conidia m−2."
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "bubble development",
+        "study_context": "crop trial 1",
+        "subject_form_or_variant_qualifier": "Kos"
+      },
+      "char_start": 36630,
+      "char_end": 36848,
+      "annotation_decision": "R04",
+      "qualifiers": {
+        "object_aspect_qualifier": "bubble development",
+        "study_context": "crop trial 1",
+        "subject_form_or_variant_qualifier": "Kos"
+      }
+    },
+    {
+      "src": "cyantraniliprole",
+      "relation": "inhibits",
+      "dst": "Drosophila suzukii oviposition",
+      "polarity": "no_effect",
+      "pmcid": "PMC12546283",
+      "context": "Bioassay 2; dilute insecticide alone, oviposition endpoint (not mortality). D. suzukii expanded from title.",
+      "span": {
+        "start": 24161,
+        "end": 24362,
+        "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b)."
+      }
+    },
+    {
+      "src": "spinosad",
+      "relation": "inhibits",
+      "dst": "Drosophila suzukii oviposition",
+      "polarity": "no_effect",
+      "pmcid": "PMC12546283",
+      "context": "Bioassay 2; dilute insecticide alone, oviposition endpoint (not mortality). D. suzukii expanded from title.",
+      "span": {
+        "start": 24161,
+        "end": 24362,
+        "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b)."
+      }
+    },
+    {
+      "src": "lambda-cyhalothrin",
+      "relation": "inhibits",
+      "dst": "Drosophila suzukii oviposition",
+      "polarity": "supports",
+      "pmcid": "PMC12546283",
+      "context": "Bioassay 2; dilute insecticide alone, oviposition endpoint.",
+      "span": {
+        "start": 24161,
+        "end": 24362,
+        "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b)."
+      }
+    },
+    {
+      "src": "deltamethrin",
+      "relation": "inhibits",
+      "dst": "Drosophila suzukii oviposition",
+      "polarity": "supports",
+      "pmcid": "PMC12546283",
+      "context": "Bioassay 2; dilute insecticide alone, oviposition endpoint.",
+      "span": {
+        "start": 24161,
+        "end": 24362,
+        "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b)."
+      }
+    },
+    {
+      "src": "deltamethrin + PB",
+      "relation": "controls",
+      "dst": "Drosophila suzukii",
+      "polarity": "no_effect",
+      "pmcid": "PMC12546283",
+      "context": "Field bait sprays, explicitly ineffective; not jar bioassays. PB denotes phagostimulant bait.",
+      "span": {
+        "start": 33159,
+        "end": 33246,
+        "quote": "However, we found that deltamethrin + PB bait sprays were ineffective in the field."
+      }
+    },
+    {
+      "src": "PB",
+      "relation": "controls",
+      "dst": "Drosophila suzukii",
+      "polarity": "no_effect",
+      "pmcid": "PMC12546283",
+      "context": "Bioassay 1; PB alone versus water control; mortality endpoint.",
+      "span": {
+        "start": 21918,
+        "end": 21986,
+        "quote": "Cyantraniliprole or PB alone did not significantly affect mortality."
+      }
+    },
+    {
+      "src": "cyantraniliprole + PB",
+      "relation": "controls",
+      "dst": "Drosophila suzukii",
+      "polarity": "supports",
+      "pmcid": "PMC12546283",
+      "context": "Bioassay 1; combined treatment versus water control, mortality endpoint.",
+      "span": {
+        "start": 21742,
+        "end": 21917,
+        "quote": "At all time points after the start of the bioassay, mortality was higher in the cyantraniliprole + PB treatment than in the water control (t270 = 4.85; p < 0.001)."
+      }
+    },
+    {
+      "src": "clodinafop-propargyl",
+      "relation": "controls",
+      "dst": "R blackgrass population",
+      "polarity": "no_effect",
+      "pmcid": "PMC12563837",
+      "context": "Resistant population, recommended 1x rate: measured 0% control; not the higher rates.",
+      "span": {
+        "start": 24273,
+        "end": 24489,
+        "quote": "In contrast, the application of the 1×, 2×, 4×, and 8× rates of clodinafop-propargyl or fenoxaprop-P-ethyl resulted in 0%, 4%, 15% and 62% or 0%, 0%, 14%, and 27% control of the R population, respectively, (a,b)."
+      }
+    },
+    {
+      "src": "fenoxaprop-P-ethyl",
+      "relation": "controls",
+      "dst": "R blackgrass population",
+      "polarity": "no_effect",
+      "pmcid": "PMC12563837",
+      "context": "Resistant population, recommended 1x rate: measured 0% control; not the higher rates.",
+      "span": {
+        "start": 24273,
+        "end": 24489,
+        "quote": "In contrast, the application of the 1×, 2×, 4×, and 8× rates of clodinafop-propargyl or fenoxaprop-P-ethyl resulted in 0%, 4%, 15% and 62% or 0%, 0%, 14%, and 27% control of the R population, respectively, (a,b)."
+      }
+    },
+    {
+      "src": "pinoxaden",
+      "relation": "controls",
+      "dst": "R blackgrass population",
+      "polarity": "no_effect",
+      "pmcid": "PMC12563837",
+      "context": "Resistant population, recommended 1x rate: measured 0% fresh-weight reduction.",
+      "span": {
+        "start": 24490,
+        "end": 24655,
+        "quote": "In addition, the application of pinoxaden at field label rates of 1×, 2×, 4×, and 8× resulted in 0%, 48%, 83%, and 89% fresh weight reduction, respectively, (c)."
+      }
+    },
+    {
+      "src": "PBO",
+      "relation": "controls",
+      "dst": "R blackgrass population",
+      "polarity": "no_effect",
+      "pmcid": "PMC12563837",
+      "context": "Piperonyl butoxide alone versus untreated control, not the combinations.",
+      "span": {
+        "start": 29239,
+        "end": 29547,
+        "quote": "The fresh weight of the R blackgrass plants treated only with PBO did not differ from that of the untreated (control) plants, while the application of PBO two hours before the herbicide treatments considerably increased the herbicidal effect of ACCase- and ALS-inhibitors against the R blackgrass population."
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "fresh weight",
+        "population_context_qualifier": "R blackgrass plants treated only with PBO"
+      },
+      "char_start": 29028,
+      "char_end": 29336,
+      "annotation_decision": "R05",
+      "qualifiers": {
+        "object_aspect_qualifier": "fresh weight",
+        "population_context_qualifier": "R blackgrass plants treated only with PBO"
+      }
+    },
+    {
+      "src": "prosulfocarb",
+      "relation": "controls",
+      "dst": "R blackgrass population",
+      "polarity": "supports",
+      "pmcid": "PMC12563837",
+      "context": "Resistant blackgrass; pre-emergence; mixture remains a single treatment.",
+      "span": {
+        "start": 27082,
+        "end": 27316,
+        "quote": "The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations."
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence",
+        "dose": "half their recommended field label rate",
+        "object_aspect_qualifier": "fresh weight",
+        "object_direction_qualifier": "reduction",
+        "population_context_qualifier": "R"
+      },
+      "char_start": 26875,
+      "char_end": 27107,
+      "annotation_decision": "E07",
+      "qualifiers": {
+        "application_timing": "pre-emergence",
+        "dose": "half their recommended field label rate",
+        "object_aspect_qualifier": "fresh weight",
+        "object_direction_qualifier": "reduction",
+        "population_context_qualifier": "R"
+      }
+    },
+    {
+      "src": "chlorotoluron + diflufenican",
+      "relation": "controls",
+      "dst": "R blackgrass population",
+      "polarity": "supports",
+      "pmcid": "PMC12563837",
+      "context": "Resistant blackgrass; pre-emergence; mixture remains a single treatment.",
+      "span": {
+        "start": 27082,
+        "end": 27316,
+        "quote": "The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations."
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence",
+        "dose": "half their recommended field label rate",
+        "object_aspect_qualifier": "fresh weight",
+        "object_direction_qualifier": "reduction",
+        "population_context_qualifier": "R"
+      },
+      "char_start": 26875,
+      "char_end": 27107,
+      "annotation_decision": "E07",
+      "qualifiers": {
+        "application_timing": "pre-emergence",
+        "dose": "half their recommended field label rate",
+        "object_aspect_qualifier": "fresh weight",
+        "object_direction_qualifier": "reduction",
+        "population_context_qualifier": "R"
+      }
+    },
+    {
+      "src": "R blackgrass population",
+      "relation": "damages",
+      "dst": "winter wheat",
+      "polarity": "supports",
+      "pmcid": "PMC12563837",
+      "context": "Competition reduces winter wheat growth; R is the resistant population, not a gene.",
+      "span": {
+        "start": 31412,
+        "end": 31680,
+        "quote": "More specifically, the fresh weight (a) and tiller number (b) produced by winter wheat plants significantly decreased with increasing density of the R and S blackgrass populations, whereas significant differences between populations were observed only in fresh weight."
+      }
+    },
+    {
+      "src": "indaziflam",
+      "relation": "controls",
+      "dst": "Poa annua",
+      "polarity": "no_effect",
+      "pmcid": "PMC12713700",
+      "context": "Field postemergence treatment, not the effective preemergence treatment; measured null versus untreated.",
+      "span": {
+        "start": 33716,
+        "end": 33974,
+        "quote": "In contrast, indaziflam applied postemergence (95 or 190 g ha−1) exhibited inconsistent control, with control values ranging from near 0% to 90%, and was not statistically different from the non‐treated control or treatment with glufosinate (Fig. )."
+      }
+    },
+    {
+      "src": "glufosinate",
+      "relation": "controls",
+      "dst": "Poa annua",
+      "polarity": "no_effect",
+      "pmcid": "PMC12713700",
+      "context": "Field outcome statistically similar to untreated; new emergence explains failure.",
+      "span": {
+        "start": 33975,
+        "end": 34130,
+        "quote": "Glufosinate (1680 g a.i. ha−1) was also ineffective, with control statistically similar to the non‐treated control because of new P. annua emergence."
+      },
+      "qualifier_quotes": {
+        "dose": "1680 g a.i. ha−1",
+        "causal_mechanism_qualifier": "new P. annua emergence"
+      },
+      "char_start": 32583,
+      "char_end": 32732,
+      "annotation_decision": "E09",
+      "qualifiers": {
+        "dose": "1680 g a.i. ha−1",
+        "causal_mechanism_qualifier": "new P. annua emergence"
+      }
+    },
+    {
+      "src": "fluridone",
+      "relation": "controls",
+      "dst": "Poa annua",
+      "polarity": "no_effect",
+      "pmcid": "PMC12713700",
+      "context": "Glasshouse preemergence, resistant accessions izr-1, izr-2, izr-5 and izr-8. Explicit ineffective claim, not a statistical-null statement.",
+      "span": {
+        "start": 32170,
+        "end": 32313,
+        "quote": "Fluridone applied preemergence was ineffective across several accessions, with izr‐1, izr‐2, izr‐5, and izr‐8 showing > 50% survival."
+      }
+    },
+    {
+      "src": "rimsulfuron",
+      "relation": "controls",
+      "dst": "Poa annua",
+      "polarity": "supports",
+      "pmcid": "PMC12713700",
+      "context": "Glasshouse postemergence, indaziflam-resistant accessions.",
+      "span": {
+        "start": 31965,
+        "end": 32080,
+        "quote": "In contrast, rimsulfuron and glyphosate remained effective, with all resistant accessions showing < 13% survival."
+      }
+    },
+    {
+      "src": "glyphosate",
+      "relation": "controls",
+      "dst": "Poa annua",
+      "polarity": "supports",
+      "pmcid": "PMC12713700",
+      "context": "Glasshouse postemergence, indaziflam-resistant accessions.",
+      "span": {
+        "start": 31965,
+        "end": 32080,
+        "quote": "In contrast, rimsulfuron and glyphosate remained effective, with all resistant accessions showing < 13% survival."
+      }
+    },
+    {
+      "src": "napropamide",
+      "relation": "controls",
+      "dst": "Poa annua",
+      "polarity": "supports",
+      "pmcid": "PMC12713700",
+      "context": "Glasshouse preemergence, indaziflam-resistant accessions.",
+      "span": {
+        "start": 32440,
+        "end": 32553,
+        "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival."
+      }
+    },
+    {
+      "src": "dichlobenil",
+      "relation": "controls",
+      "dst": "Poa annua",
+      "polarity": "supports",
+      "pmcid": "PMC12713700",
+      "context": "Glasshouse preemergence, indaziflam-resistant accessions.",
+      "span": {
+        "start": 32440,
+        "end": 32553,
+        "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival."
+      }
+    },
+    {
+      "src": "pyroxasulfone",
+      "relation": "controls",
+      "dst": "Poa annua",
+      "polarity": "supports",
+      "pmcid": "PMC12713700",
+      "context": "Glasshouse preemergence, indaziflam-resistant accessions.",
+      "span": {
+        "start": 32440,
+        "end": 32553,
+        "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival."
+      }
+    },
+    {
+      "src": "Botrytis cinerea",
+      "relation": "resistant_to",
+      "dst": "fludioxonil",
+      "polarity": "no_effect",
+      "pmcid": "PMC11298438",
+      "context": "Michigan 2020 sampled isolates only; explicitly no resistant isolates, not a claim about all populations or years.",
+      "span": {
+        "start": 16877,
+        "end": 16981,
+        "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations."
+      },
+      "qualifier_quotes": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
+      },
+      "char_start": 16680,
+      "char_end": 16784,
+      "annotation_decision": "R08",
+      "qualifiers": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
+      }
+    },
+    {
+      "src": "Botrytis cinerea",
+      "relation": "resistant_to",
+      "dst": "fenhexamid",
+      "polarity": "no_effect",
+      "pmcid": "PMC11298438",
+      "context": "Michigan 2020 sampled isolates only; explicitly no resistant isolates, not a claim about all populations or years.",
+      "span": {
+        "start": 16877,
+        "end": 16981,
+        "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations."
+      },
+      "qualifier_quotes": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
+      },
+      "char_start": 16680,
+      "char_end": 16784,
+      "annotation_decision": "R08",
+      "qualifiers": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
+      }
+    },
+    {
+      "src": "Botrytis cinerea",
+      "relation": "resistant_to",
+      "dst": "iprodione",
+      "polarity": "no_effect",
+      "pmcid": "PMC11298438",
+      "context": "Michigan 2020 sampled isolates only; explicitly no resistant isolates, not a claim about all populations or years.",
+      "span": {
+        "start": 16877,
+        "end": 16981,
+        "quote": "In 2020, no resistant isolate was observed for fludioxonil, fenhexamid, and iprodione at both locations."
+      },
+      "qualifier_quotes": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
+      },
+      "char_start": 16680,
+      "char_end": 16784,
+      "annotation_decision": "R08",
+      "qualifiers": {
+        "study_context": "2020",
+        "population_context_qualifier": "both locations"
+      }
+    },
+    {
+      "src": "Botrytis cinerea",
+      "relation": "resistant_to",
+      "dst": "pyraclostrobin",
+      "polarity": "supports",
+      "pmcid": "PMC11298438",
+      "context": "Michigan sampled populations, shared multi-fungicide resistance phenotypes in 2019, 2020 and 2022.",
+      "span": {
+        "start": 17552,
+        "end": 17757,
+        "quote": "Only two phenotypes (MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil and MFR to pyraclostrobin, boscalid, and thiabendazole) were commonly observed in B. cinerea populations in all 3 years."
+      }
+    },
+    {
+      "src": "Botrytis cinerea",
+      "relation": "resistant_to",
+      "dst": "boscalid",
+      "polarity": "supports",
+      "pmcid": "PMC11298438",
+      "context": "Michigan sampled populations, shared multi-fungicide resistance phenotypes in 2019, 2020 and 2022.",
+      "span": {
+        "start": 17552,
+        "end": 17757,
+        "quote": "Only two phenotypes (MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil and MFR to pyraclostrobin, boscalid, and thiabendazole) were commonly observed in B. cinerea populations in all 3 years."
+      }
+    },
+    {
+      "src": "Botrytis cinerea",
+      "relation": "resistant_to",
+      "dst": "thiabendazole",
+      "polarity": "supports",
+      "pmcid": "PMC11298438",
+      "context": "Michigan sampled populations, shared multi-fungicide resistance phenotypes in 2019, 2020 and 2022.",
+      "span": {
+        "start": 17552,
+        "end": 17757,
+        "quote": "Only two phenotypes (MFR to pyraclostrobin, boscalid, thiabendazole and cyprodinil and MFR to pyraclostrobin, boscalid, and thiabendazole) were commonly observed in B. cinerea populations in all 3 years."
+      }
+    }
+  ],
+  "alignment_version": "polarity-alignment-2026-09-27-v2",
+  "alignment_source": "alignment.json",
+  "annotation_version": "blinded-annotation-audit-v2",
+  "annotation_review": "Blinded model adjudication; not a new human expert review.",
+  "adjudication_source": "annotations/reference-adjudication.json",
+  "reference_review_source": "annotations/reference-review.json"
+}

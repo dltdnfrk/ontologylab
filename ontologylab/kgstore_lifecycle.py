@@ -8,12 +8,14 @@ from __future__ import annotations
 
 from pathlib import Path
 import contextlib
+import json
 import sqlite3
 import time
 from typing import Any
 
 from ontologylab import ontology_schema as default_schema
 from ontologylab.storage_compatibility import require_writer_compatible
+from ontologylab.statement_qualifiers import canonical_qualifiers
 
 from ontologylab.kgstore_base import (
     KGStoreError,
@@ -61,6 +63,11 @@ class LifecycleMixin:
                 yield
         finally:
             self._tx_depth -= 1
+
+    def _commit(self) -> None:
+        """Preserve standalone writes without ending an outer command transaction."""
+        if self._tx_depth == 0:
+            self.conn.commit()
 
     def _vec_available(self) -> bool:
         """Whether sqlite-vec is loaded on this connection (probed once).
@@ -237,6 +244,9 @@ class LifecycleMixin:
         never migrated: query paths degrade instead (see _edge_current_sql
         / _table_exists).
         """
+        from ontologylab.carry_forward import _SCHEMA as carry_forward_schema
+
+        _execute_sql_script(conn, carry_forward_schema)
         # Documents predate `doi` / `source` / `evidence_grade`; an existing store
         # has rows without them. They read back as "" and normalize to
         # `unknown`, which is the honest answer for a document collected
@@ -297,6 +307,11 @@ class LifecycleMixin:
             conn.execute(
                 "ALTER TABLE entity_type ADD COLUMN parent_name TEXT"
             )
+        if "extractable" not in entity_type_columns:
+            conn.execute(
+                "ALTER TABLE entity_type ADD COLUMN extractable INTEGER "
+                "NOT NULL DEFAULT 1"
+            )
         relation_type_columns = {
             row["name"]
             for row in conn.execute("PRAGMA table_info(relation_type)")
@@ -306,11 +321,26 @@ class LifecycleMixin:
                 "ALTER TABLE relation_type ADD COLUMN qualifiers_json "
                 "TEXT NOT NULL DEFAULT '{}'"
             )
+        if "extractable" not in relation_type_columns:
+            conn.execute(
+                "ALTER TABLE relation_type ADD COLUMN extractable INTEGER "
+                "NOT NULL DEFAULT 1"
+            )
         node_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(nodes)")
         }
         if "decode_params" not in node_columns:
             conn.execute("ALTER TABLE nodes ADD COLUMN decode_params TEXT")
+        # Claim layer O-4: every row records how it came to exist. Every row
+        # written before this column existed came from insert_proposed, so
+        # 'extracted' is the factual backfill, not a guess.
+        for table, columns in (("nodes", node_columns), ("edges", edge_columns)):
+            if "origin" not in columns:
+                conn.execute(
+                    f"ALTER TABLE {table} ADD COLUMN origin TEXT NOT NULL "
+                    "DEFAULT 'extracted' "
+                    "CHECK (origin IN ('extracted','inferred','curated'))"
+                )
         citation_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(citations)")
         }
@@ -319,6 +349,8 @@ class LifecycleMixin:
             "extractor_model",
             "prompt_version",
             "decode_params",
+            # No backfill: old mixed-pass runs cannot be attributed honestly.
+            "extraction_passes",
         ):
             if column not in citation_columns:
                 conn.execute(f"ALTER TABLE citations ADD COLUMN {column} TEXT")
@@ -327,17 +359,32 @@ class LifecycleMixin:
             conn.execute(
                 "UPDATE edges SET valid_from = created_ts WHERE valid_from IS NULL"
             )
-        # The dedup index predicate gained "invalidated_ts IS NULL" in W13;
-        # IF NOT EXISTS keeps an old-predicate index alive, so rebuild it.
+        # Add a portable materialized scope key; preserve every existing edge
+        # id and raw qualifier JSON. No schema-version switch is needed.
+        if "qualifiers_key" not in {
+            row["name"] for row in conn.execute("PRAGMA table_info(edges)")
+        }:
+            conn.execute(
+                "ALTER TABLE edges ADD COLUMN qualifiers_key TEXT NOT NULL DEFAULT '{}'"
+            )
+            for edge in conn.execute("SELECT id, qualifiers_json FROM edges").fetchall():
+                conn.execute(
+                    "UPDATE edges SET qualifiers_key = ? WHERE id = ?",
+                    (canonical_qualifiers(json.loads(edge["qualifiers_json"])), edge["id"]),
+                )
+        # Replace only the derived index, never rows. Its previous triple /
+        # polarity uniqueness would otherwise forbid qualified statements.
         index_sql_row = conn.execute(
             "SELECT sql FROM sqlite_master WHERE name = 'idx_edges_dedup'"
         ).fetchone()
-        if index_sql_row and "invalidated_ts" not in (index_sql_row["sql"] or ""):
-            conn.execute("DROP INDEX idx_edges_dedup")
+        index_sql = (index_sql_row["sql"] or "") if index_sql_row else ""
+        if not all(key in index_sql for key in ("invalidated_ts", "polarity", "qualifiers_key")):
+            conn.execute("DROP INDEX IF EXISTS idx_edges_dedup")
             conn.execute(
                 "CREATE UNIQUE INDEX idx_edges_dedup "
                 "ON edges (schema_version_id, relation_type, src_node_id, "
-                "dst_node_id) "
+                "dst_node_id, "
+                "COALESCE(json_extract(qualifiers_json, '$.polarity'), ''), qualifiers_key) "
                 "WHERE status IN ('proposed','verified') "
                 "AND invalidated_ts IS NULL"
             )

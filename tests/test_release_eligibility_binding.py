@@ -172,6 +172,6 @@ def test_exact_dirty_snapshot_refuses_tracked_and_untracked_later_drift(
 
     untracked = bound_go_root(tmp_path / "untracked")
     check(untracked)
-    (untracked / "web" / "later.js").write_text("// later\n")
+    (untracked / "launcher" / "later.js").write_text("// later\n")
     with pytest.raises(ReleasePolicyRefused):
         check(untracked)

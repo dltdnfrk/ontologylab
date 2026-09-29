@@ -6,16 +6,21 @@ via ontologylab.kgstore. No behavior change intended.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import time
 from typing import Any, Iterable, Optional
 
 from ontologylab.models import ProposedEntity, ProposedRelation
+from ontologylab.statement_qualifiers import canonical_qualifiers, normalize_statement_qualifiers
 
 from ontologylab.kgstore_base import (
+    EDGE_POLARITY_SQL,
+    EDGE_QUALIFIERS_SQL,
     KGStoreError,
     SchemaValidationError,
+    edge_polarity,
     normalize_name,
 )
 
@@ -36,6 +41,8 @@ class ProposedMixin:
         prompt_version: str | None = None,
         decode_params: dict[str, Any] | None = None,
         commit: bool = True,
+        origin: str = "extracted",
+        proposal_passes: dict[str, set[str]] | None = None,
     ) -> dict[str, Any]:
         """Insert extraction output as ``proposed`` rows, resolving entities.
 
@@ -47,10 +54,23 @@ class ProposedMixin:
         instead of a second edge. Returns per-batch stats.
         """
         self._assert_writable()
+        if origin not in ("extracted", "inferred", "curated"):
+            raise KGStoreError(f"unknown origin {origin!r}")
         sv_id = self.active_schema_version()["id"]
         entity_rows = list(entities)
         relation_rows = list(relations)
+        pass_json: dict[str, str] = {}
+        if proposal_passes is not None:
+            for proposal in [*entity_rows, *relation_rows]:
+                passes = proposal_passes.get(proposal.id, set())
+                if not passes or not passes <= {"first", "completion"}:
+                    raise KGStoreError(f"invalid extraction passes for {proposal.id}")
+                pass_json[proposal.id] = json.dumps(
+                    [name for name in ("first", "completion") if name in passes],
+                    separators=(",", ":"),
+                )
         schema = self._schema_definition(sv_id)
+        raw_qualifiers: dict[str, dict[str, str]] = {}
         entity_types: dict[str, str] = {}
         for ent in entity_rows:
             if ent.synthesized:
@@ -81,6 +101,14 @@ class ProposedMixin:
                 qualifiers=rel.qualifiers,
                 schema=schema,
             )
+        # Validate the entire batch before normalization or graph writes.
+        # Update the proposal too: citation binding uses this same scope.
+        if schema["label"] == "agrochem-v2":
+            for rel in relation_rows:
+                normalized = normalize_statement_qualifiers(rel.qualifiers)
+                if normalized != rel.qualifiers:
+                    raw_qualifiers[rel.id] = dict(rel.qualifiers)
+                    rel.qualifiers = normalized
         now = time.time()
         # Canonical JSON (keys sorted, no spaces): one setting must store as
         # one string regardless of the caller's dict order, or scoping a
@@ -113,8 +141,8 @@ class ProposedMixin:
                     "(id, schema_version_id, entity_type, name, normalized_name, "
                     " aliases_json, properties_json, status, confidence, "
                     " source_doc_id, source_span, extractor_engine, extractor_model, "
-                    " prompt_version, created_ts, decode_params) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " prompt_version, created_ts, decode_params, origin) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         node_id,
                         sv_id,
@@ -131,6 +159,7 @@ class ProposedMixin:
                         prompt_version,
                         now,
                         decode_json,
+                        origin,
                     ),
                 )
                 for alias in ent.aliases:
@@ -167,6 +196,7 @@ class ProposedMixin:
                 extractor_model,
                 prompt_version,
                 decode_json,
+                pass_json.get(ent.id),
             )
 
         for rel in relation_rows:
@@ -178,12 +208,16 @@ class ProposedMixin:
                     f"relation {rel.id} references unknown entity id {exc}"
                 ) from exc
             span_json = rel.source_span.as_json() if rel.source_span else None
+            qualifier_key = canonical_qualifiers(rel.qualifiers)
             cur = self.conn.execute(
                 "SELECT id FROM edges WHERE schema_version_id = ? AND "
                 "relation_type = ? AND src_node_id = ? AND dst_node_id = ? AND "
+                f"{EDGE_POLARITY_SQL} = ? AND "
+                f"{EDGE_QUALIFIERS_SQL} = ? AND "
                 "status IN ('proposed','verified') AND "
                 f"{self._edge_current_sql()}",
-                (sv_id, rel.relation_type, src, dst),
+                (sv_id, rel.relation_type, src, dst, edge_polarity(rel.qualifiers),
+                 qualifier_key),
             )
             dup = cur.fetchone()
             if dup is not None:
@@ -194,18 +228,22 @@ class ProposedMixin:
                 self.conn.execute(
                     "INSERT INTO edges "
                     "(id, schema_version_id, relation_type, src_node_id, dst_node_id, "
-                    " properties_json, qualifiers_json, status, confidence, "
+                    " properties_json, qualifiers_json, qualifiers_key, status, confidence, "
                     " source_doc_id, source_span, extractor_engine, extractor_model, "
-                    " prompt_version, created_ts, valid_from, decode_params) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " prompt_version, created_ts, valid_from, decode_params, origin) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         edge_id,
                         sv_id,
                         rel.relation_type,
                         src,
                         dst,
-                        json.dumps(rel.properties),
+                        json.dumps(
+                            {"raw_qualifiers": raw_qualifiers[rel.id]}
+                            if rel.id in raw_qualifiers else rel.properties
+                        ),
                         json.dumps(rel.qualifiers),
+                        qualifier_key,
                         rel.confidence,
                         source_doc_id,
                         span_json,
@@ -215,6 +253,7 @@ class ProposedMixin:
                         now,
                         now,  # valid_from: assertion time defaults to ingestion
                         decode_json,
+                        origin,
                     ),
                 )
                 stats["edges_new"] += 1
@@ -228,12 +267,78 @@ class ProposedMixin:
                 extractor_model,
                 prompt_version,
                 decode_json,
+                pass_json.get(rel.id),
             )
 
         if commit:
-            self.conn.commit()
+            self._commit()
         stats["id_map"] = id_map
         return stats
+
+    def insert_curated(
+        self,
+        entities: Iterable[ProposedEntity],
+        relations: Iterable[ProposedRelation],
+        *,
+        curator: str,
+        note: str = "",
+        commit: bool = True,
+    ) -> dict[str, Any]:
+        """Record a person's interpretation (Question, Scenario, ...) as
+        ``proposed`` rows with ``origin='curated'``.
+
+        Same validators, resolution and dedup as extraction: a curator names
+        existing facts by name and they resolve to the extracted nodes, so an
+        overlay links to evidence instead of duplicating it. The submitted
+        payload itself is stored as a ``curation`` document, which is what
+        every curated row cites: it is the actual source of the claim.
+        Nothing here is verified; approval stays a separate human step.
+        """
+        entity_rows = list(entities)
+        relation_rows = list(relations)
+        if not curator.strip():
+            raise KGStoreError("a curated interpretation needs a curator")
+        if not entity_rows:
+            raise KGStoreError("a curated interpretation needs at least one entity")
+        payload = json.dumps(
+            {
+                "curator": curator,
+                "note": note,
+                "entities": [
+                    {"name": e.name, "entity_type": e.entity_type,
+                     "aliases": e.aliases, "properties": e.properties}
+                    for e in entity_rows
+                ],
+                "relations": [
+                    {"relation_type": r.relation_type, "src": r.src_entity_id,
+                     "dst": r.dst_entity_id, "qualifiers": r.qualifiers}
+                    for r in relation_rows
+                ],
+            },
+            ensure_ascii=False, sort_keys=True,
+        )
+        document, _created = self.insert_document(
+            source_kind="curation",
+            source_uri=f"curation:{curator}",
+            title=note or "curated interpretation",
+            raw_text=payload,
+            content_hash="sha256:" + hashlib.sha256(payload.encode()).hexdigest(),
+            commit=commit,
+        )
+        try:
+            return self.insert_proposed(
+                entity_rows,
+                relation_rows,
+                source_doc_id=document.id,
+                extractor_engine="curation",
+                extractor_model=curator,
+                origin="curated",
+                commit=commit,
+            ) | {"document_id": document.id, "document_created": _created}
+        except Exception:
+            if not commit and _created:
+                (self.db_path.parent / document.raw_text_path).unlink()
+            raise
 
     def _resolve_node(
         self, sv_id: int, entity_type: str, name: str
@@ -321,12 +426,13 @@ class ProposedMixin:
         extractor_model: str | None,
         prompt_version: str | None,
         decode_params: str | None,
+        extraction_passes: str | None = None,
     ) -> None:
         self.conn.execute(
             "INSERT INTO citations "
             "(kind, item_id, source_doc_id, source_span, created_ts, "
-            "extractor_engine, extractor_model, prompt_version, decode_params) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "extractor_engine, extractor_model, prompt_version, decode_params, extraction_passes) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 kind,
                 item_id,
@@ -337,12 +443,13 @@ class ProposedMixin:
                 extractor_model,
                 prompt_version,
                 decode_params,
+                extraction_passes,
             ),
         )
 
     def citations(self, kind: str, item_id: str) -> list[dict[str, Any]]:
         cur = self.conn.execute(
-            "SELECT source_doc_id, source_span, created_ts FROM citations "
+            "SELECT * FROM citations "
             "WHERE kind = ? AND item_id = ? ORDER BY created_ts ASC",
             (kind, item_id),
         )
@@ -350,6 +457,10 @@ class ProposedMixin:
             {
                 "source_doc_id": r["source_doc_id"],
                 "source_span": json.loads(r["source_span"]) if r["source_span"] else None,
+                "extraction_passes": (
+                    json.loads(r["extraction_passes"])
+                    if "extraction_passes" in r.keys() and r["extraction_passes"] else None
+                ),
             }
             for r in cur.fetchall()
         ]

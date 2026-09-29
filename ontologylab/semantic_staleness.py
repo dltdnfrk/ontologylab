@@ -14,7 +14,7 @@ import sqlite3
 from typing import Any
 
 BASELINE_VERSION = 1
-FINGERPRINT_ALGORITHM = "sha256-canonical-json-v1"
+FINGERPRINT_ALGORITHM = "sha256-canonical-json-v2"
 
 
 def _json(value: str | None, default: Any) -> Any:
@@ -52,7 +52,8 @@ def fact_baseline(conn: sqlite3.Connection) -> dict[str, Any]:
     names: dict[str, str] = {}
     for row in conn.execute(
         "SELECT id, entity_type, name, aliases_json, properties_json, confidence, "
-        "source_doc_id, source_span FROM nodes WHERE status='verified' ORDER BY id"
+        "source_doc_id, source_span, origin FROM nodes WHERE status='verified' "
+        "ORDER BY id"
     ):
         item_id, name = row[0], row[2]
         names[item_id] = name
@@ -64,6 +65,7 @@ def fact_baseline(conn: sqlite3.Connection) -> dict[str, Any]:
             "confidence": row[5],
             "source_doc_id": row[6],
             "source_span": _json(row[7], None),
+            "origin": row[8],
             "citations": citations.get(("node", item_id), []),
         }
         nodes[item_id] = {"fingerprint": _fingerprint(material), "label": name}
@@ -71,7 +73,8 @@ def fact_baseline(conn: sqlite3.Connection) -> dict[str, Any]:
     edges: dict[str, dict[str, str]] = {}
     for row in conn.execute(
         "SELECT e.id, e.relation_type, e.src_node_id, e.dst_node_id, "
-        "e.properties_json, e.confidence, e.source_doc_id, e.source_span "
+        "e.properties_json, e.confidence, e.source_doc_id, e.source_span, "
+        "e.qualifiers_json, e.origin "
         "FROM edges e "
         "JOIN nodes s ON s.id=e.src_node_id AND s.status='verified' "
         "JOIN nodes d ON d.id=e.dst_node_id AND d.status='verified' "
@@ -86,6 +89,10 @@ def fact_baseline(conn: sqlite3.Connection) -> dict[str, Any]:
             "confidence": row[5],
             "source_doc_id": row[6],
             "source_span": _json(row[7], None),
+            # v2: polarity lives in qualifiers, and a curated fact is not the
+            # same claim as an extracted one; both are semantic changes.
+            "qualifiers": _json(row[8], {}),
+            "origin": row[9],
             "citations": citations.get(("edge", item_id), []),
         }
         label = (

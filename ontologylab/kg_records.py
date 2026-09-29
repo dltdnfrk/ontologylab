@@ -21,6 +21,8 @@ def node_dict(row: sqlite3.Row) -> dict[str, Any]:
         "confidence": row["confidence"],
         "source_doc_id": row["source_doc_id"],
         "source_span": json.loads(row["source_span"]) if row["source_span"] else None,
+        # Packs built before the origin column only ever held extracted rows.
+        "origin": row["origin"] if "origin" in row.keys() else "extracted",
     }
 
 
@@ -45,6 +47,7 @@ def edge_dict(row: sqlite3.Row) -> dict[str, Any]:
         "invalidated_ts": (
             row["invalidated_ts"] if "invalidated_ts" in keys else None
         ),
+        "origin": row["origin"] if "origin" in keys else "extracted",
     }
 
 

@@ -58,7 +58,7 @@ EVIDENCE_CONTRACT: Final = {
     ),
 }
 TEST_EVIDENCE_DIGESTS: Final = {
-    "tests/test_staleness.py::test_manifest_carries_basis_and_the_default_policy": "187ae53741bb61b723e528c0fed5974c67934271bbf23d17d54c09d2e2cbd2fd",
+    "tests/test_staleness.py::test_manifest_carries_basis_and_the_default_policy": "5b7d64bf28630f28b6024d48b7f2543d48f73aefd8d43a605261ccc1385c6534",
     "tests/test_staleness.py::test_count_cancellation_still_reports_semantic_staleness": "490117e7b1ed4ab83eb3e7b9fea014e292dd30a51a51c2efbbee77d41507949d",
     "tests/test_staleness.py::test_same_stable_id_material_change_is_replacement": "d39412c6b53cea442505fcc85e1953b313dd4a564f23cf9a5cf4b94cf03c60c3",
     "tests/test_staleness.py::test_pending_count_is_computed_live_against_the_store": "c879c14e71112fdc9eaa365aa134215fc3d7ede2aff53063d14f5c37ac9669ea",
@@ -70,7 +70,7 @@ TEST_EVIDENCE_DIGESTS: Final = {
     "tests/test_cas_normalization.py::test_alias_resolution_cache_authority_and_moa_follow_canonical_cas": "5426ba3764035bda5cc22050c74b7353eff60ac47a08fb42bef8288a826afb9d",
     "tests/test_cas_normalization.py::test_unknown_active_is_flagged_without_moa_and_model_cas_is_dropped": "5f4919c76a1300590de379f4e46f0fa34624a25ba0d5abbdb23de1f4748a8547",
     "tests/test_mcp_two_tier.py::test_get_entity_full_record": "d88dc1a163345101f58ab9615f923c69e5998b8a899dbaf041bccb327774b7a6",
-    "tests/test_mcp_two_tier.py::test_fastmcp_exposes_two_tier_surface": "a1f65598e837a9db80a1e5f4c3933df9180930dfb53164fd7ba564f48d2436f3",
+    "tests/test_mcp_two_tier.py::test_fastmcp_exposes_two_tier_surface": "ad2b4889a27313c4ae7f5f08e157eea0717026dc46334c0cfff70bb43afa2bb0",
 }
 _UNSIGNED: Final = -1
 SWEEP_DIGEST: Final = "66eacf5b9d57b4687d7f0b378871ea6885ad79fd68b4e9718e3dc8b06df7045f"
@@ -93,10 +93,10 @@ EVIDENCE_MODULE_DIGESTS: Final = {
     "tests/factories.py": "b2ee5b19a316920e95b775be055d2e015617cfdc11f2c6effb5b9a4840411d89",
     "tests/test_agrochem_schema.py": "f1131a56975b6c85f5e809292f074e3aa2a1b015e386ef9db0e6f0de7b9ab7ca",
     "tests/test_cas_normalization.py": "ce2748cf82aed53f3fe18a8b4d48485d8c84facf408005939546cd6837aa4951",
-    "tests/test_mcp_two_tier.py": "237c95e8c5da48e1a19f4d6cf3a2e07f494469e0a18b5d357a49073aa675acc6",
+    "tests/test_mcp_two_tier.py": "c22fd262739c7dc46515124c13d30f06e371e519d49f95a4f3fec6e9da2140ee",
     "tests/test_normalization.py": "32b89a8c35aa47fc632a4932d64e46eac548492411a5a26248eb5d61ba7ce260",
     "tests/test_registry.py": "ddfb3ef255f72f4717fbf487c1c3af1c3ac6f001cd77666e10f38c387b81c4ba",
-    "tests/test_staleness.py": "4718c614d0f5df94fc20a20ad8cade9e11622978179c0c17a684a94f2a853adf",
+    "tests/test_staleness.py": "332806c3786ffd5499c02337ab92228095e51b55af6ac26842c5603fd9d053c2",
 }
 EVIDENCE_EXECUTOR_PROGRAM: Final = """
 import ast

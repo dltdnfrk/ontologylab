@@ -11,7 +11,7 @@ from tests.conftest import drop_test_session
 @pytest.mark.parametrize(
     "path",
     ["/", "/sources", "/review", "/packs", "/artifacts", "/mcp",
-     "/merge", "/communities", "/graph", "/engines", "/settings"],
+     "/merge", "/communities", "/graph", "/claims", "/engines", "/settings"],
 )
 def test_dashboard_deep_link_bootstraps_the_app_and_local_session(
     tmp_path: Path, path: str,

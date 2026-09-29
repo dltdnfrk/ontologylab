@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import threading
 import time
 
@@ -11,6 +12,36 @@ from starlette.testclient import TestClient as _StarletteTestClient
 
 from ontologylab.kgstore import KGStore
 from tests.factories import make_entity, make_relation
+
+macos_only = pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="requires macOS codesign, Swift supervisor, Keychain, or installer tools",
+)
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Mark only native deployment modules; portable candidate tests still run."""
+    for item in items:
+        name = item.path.name
+        if name.startswith(
+            ("test_internal_deployment", "test_storage_supervisor")
+        ) or name in {
+            "test_macos_candidate_task12_finalize.py",
+            "test_macos_candidate_task12_publication.py",
+            "test_macos_launcher.py",
+            "test_macos_supervisor.py",
+        }:
+            item.add_marker(macos_only)
+        elif name == "test_macos_candidate_verifier_repairs.py" and (
+            item.name.split("[", 1)[0]
+            == "test_supervisor_missing_storage_matrix_refuses_before_backend"
+        ):
+            item.add_marker(macos_only)
+        elif name == "test_keychain_helper.py" and (
+            item.name.split("[", 1)[0]
+            == "test_migration_deletes_legacy_only_after_verified_native_write"
+        ):
+            item.add_marker(macos_only)
 
 # Test-only default credential. Production has no SESSION_OPTIONAL switch;
 # existing TestClient callers pick up the process token minted by create_app.

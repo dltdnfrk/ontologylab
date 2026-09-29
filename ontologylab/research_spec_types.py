@@ -65,7 +65,7 @@ class InteractionDecision(StrEnum):
     ABSTAIN = "abstain"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class ResearchSpecParseError(Exception):
     path: str
     code: str

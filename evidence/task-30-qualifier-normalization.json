@@ -1,0 +1,4987 @@
+{
+  "task": 30,
+  "base_commit": "9a27c9d",
+  "implementation_commit": "97c67af30855b41f000030f05faa191648dfae5f",
+  "worktree": "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w9-t30",
+  "branch": "completion/w9-t30",
+  "understood_as": "Normalize agrochem qualifier representations without inventing missing scope, changing findings or modifying frozen trial inputs; replay trial four offline, not a new extraction trial.",
+  "prompt_version": "extract-v8",
+  "vocabulary": {
+    "source": "ontologylab/statement_qualifiers.py:QUALIFIER_VOCABULARIES",
+    "documentation": "docs/qualified-statements.md",
+    "groups": [
+      "study_context",
+      "aspect",
+      "application_timing",
+      "direction",
+      "life_stage",
+      "form_or_variant_kind"
+    ],
+    "unknown": "other:<raw>",
+    "free_text": "population and strain/variant names use normalize_name; dose uses exact unit_normalization conversion with basis retained; unsupported dose text retains punctuation",
+    "raw_provenance": "edges.properties_json.raw_qualifiers, platform-owned, first insertion only"
+  },
+  "input_sha256": {
+    "evidence/polarity-trial-4-2026-09-27-edges.json": "b47e296c5629261741f7364bd30bb9028dc08b941d2e9ab3c3f863e39390cc9b",
+    "tests/gold/agrochem-polarity/gold-fulltext.json": "cf7ea33f227540f201f2142eb7fa640bf08a1edf3cb039528c3b4828796f4f23",
+    "tests/gold/agrochem-polarity/qualified-mapping.json": "0cc618356dd343ac56ef6a86c8f76a812bd38b832a15ce8082f9e94650d80b08",
+    "tests/gold/agrochem-polarity/gold-qualified.json": "04601aa947fc465013eb77f2d4b10dde277c32990151ca267f8e572956836295"
+  },
+  "gold": {
+    "regenerated": true,
+    "rows": 34,
+    "spans_verified": 34,
+    "reversible": true,
+    "source_findings_unchanged": true
+  },
+  "offline_rescore": {
+    "before": {
+      "matched": 11,
+      "gold": 102,
+      "negative_correct": 0,
+      "negative_gold": 51,
+      "accuracy_correct": 11,
+      "accuracy_total": 11
+    },
+    "after": {
+      "matched": 23,
+      "gold": 102,
+      "negative_correct": 6,
+      "negative_gold": 51,
+      "accuracy_correct": 21,
+      "accuracy_total": 23
+    },
+    "recovered_scope_rows": [
+      {
+        "run": 1,
+        "recovered_rows": [
+          7,
+          8,
+          9,
+          10,
+          11,
+          22
+        ]
+      },
+      {
+        "run": 2,
+        "recovered_rows": [
+          7,
+          8,
+          9,
+          10
+        ]
+      },
+      {
+        "run": 3,
+        "recovered_rows": [
+          11,
+          22
+        ]
+      }
+    ],
+    "legacy_results_identical": true,
+    "thresholds_changed": false,
+    "interpretation": "Diagnostic only. Twelve additional scope matches include two wrong-polarity matches (row 11 in runs 1 and 3). Six additional correct negative/null matches; G3 remains unmet. No model calls or recall claim for extract-v8. Vocabulary was engineering-reviewed on this same corpus, not an independent holdout or scientific adjudication.",
+    "before_runs": [
+      {
+        "legacy": {
+          "bootstrap": {
+            "confidence": 0.95,
+            "limitation": "Within-paper dependence is not modeled.",
+            "resamples": 2000,
+            "seed": 7,
+            "unit": "individual outcome"
+          },
+          "confusion_matrix": {
+            "no_effect": {
+              "no_effect": 2,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 2
+            },
+            "omitted": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "refutes": {
+              "no_effect": 2,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "supports": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 8
+            }
+          },
+          "counts": {
+            "conflicting_matched_relations": 1,
+            "found_four_tuples": 179,
+            "gold_relations": 34,
+            "matched_predictions": 14,
+            "matched_relations": 13,
+            "missing_relations": 21,
+            "spurious_four_tuples": 169
+          },
+          "four_tuple_f1": 0.09389671361502347,
+          "four_tuple_f1_ci95": {
+            "high": 0.1461,
+            "low": 0.0481
+          },
+          "labels": [
+            "supports",
+            "refutes",
+            "no_effect",
+            "omitted"
+          ],
+          "missing_triples": [
+            [
+              "prochloraz",
+              "inhibits",
+              "lecanicilliumfungicolaisolate620"
+            ],
+            [
+              "metrafenone",
+              "inhibits",
+              "lecanicilliumfungicolaisolate620"
+            ],
+            [
+              "prochloraz",
+              "inhibits",
+              "lecanicilliumfungicolaisolate1722"
+            ],
+            [
+              "bacillusvelezensisqst713",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensiskos",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "cyantraniliprole",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "spinosad",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "lambdacyhalothrin",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "deltamethrin",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "pb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "cyantraniliprolepb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "clodinafoppropargyl",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "fenoxaproppethyl",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "pinoxaden",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "pbo",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "prosulfocarb",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "chlorotolurondiflufenican",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "rblackgrasspopulation",
+              "damages",
+              "winterwheat"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fludioxonil"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fenhexamid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "iprodione"
+            ]
+          ],
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 0.9286,
+              "low": 0.5
+            },
+            "denominator": 14,
+            "numerator": 10,
+            "value": 0.7142857142857143
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.4167,
+              "low": 0
+            },
+            "denominator": 12,
+            "numerator": 2,
+            "value": 0.16666666666666666
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.2941,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 2,
+            "value": 0.11764705882352941
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "scope": "All current proposed/verified edges; use one trial stream per store.",
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 1,
+              "low": 0
+            },
+            "denominator": 3,
+            "numerator": 2,
+            "value": 0.6666666666666666
+          }
+        },
+        "primary": {
+          "bootstrap": {
+            "confidence": 0.95,
+            "limitation": "Within-paper dependence is not modeled.",
+            "resamples": 2000,
+            "seed": 7,
+            "unit": "individual outcome"
+          },
+          "confusion_matrix": {
+            "no_effect": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "omitted": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "refutes": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "supports": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 3
+            }
+          },
+          "counts": {
+            "conflicting_matched_relations": 0,
+            "found_four_tuples": 199,
+            "gold_relations": 34,
+            "matched_predictions": 3,
+            "matched_relations": 3,
+            "missing_relations": 31,
+            "spurious_four_tuples": 196
+          },
+          "four_tuple_f1": 0.02575107296137339,
+          "four_tuple_f1_ci95": {
+            "high": 0.0591,
+            "low": 0
+          },
+          "labels": [
+            "supports",
+            "refutes",
+            "no_effect",
+            "omitted"
+          ],
+          "matching_mode": "qualified",
+          "missing_statements": [
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble development",
+                "study_context": "crop trial 1"
+              },
+              "triple": [
+                "prochloraz",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble development",
+                "study_context": "crop trial 1",
+                "subject_form_or_variant_qualifier": "QST 713"
+              },
+              "triple": [
+                "bacillusvelezensis",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble development",
+                "study_context": "crop trial 1",
+                "subject_form_or_variant_qualifier": "Kos"
+              },
+              "triple": [
+                "bacillusvelezensis",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay 2"
+              },
+              "triple": [
+                "cyantraniliprole",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay 2"
+              },
+              "triple": [
+                "spinosad",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay 2"
+              },
+              "triple": [
+                "lambdacyhalothrin",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay 2"
+              },
+              "triple": [
+                "deltamethrin",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "study_context": "field trial"
+              },
+              "triple": [
+                "deltamethrinpb",
+                "controls",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "mortality",
+                "study_context": "bioassay 1"
+              },
+              "triple": [
+                "pb",
+                "controls",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "object_aspect_qualifier": "mortality",
+                "study_context": "bioassay 1"
+              },
+              "triple": [
+                "cyantraniliprolepb",
+                "controls",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "clodinafoppropargyl",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "fenoxaproppethyl",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "pinoxaden",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "fresh weight",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "pbo",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "dose": "half recommended field label rate",
+                "object_aspect_qualifier": "fresh weight",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "prosulfocarb",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "dose": "half recommended field label rate",
+                "object_aspect_qualifier": "fresh weight",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "chlorotolurondiflufenican",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "object_aspect_qualifier": "fresh weight and tiller number",
+                "population_context_qualifier": "R population",
+                "study_context": "competition experiment"
+              },
+              "triple": [
+                "blackgrass",
+                "damages",
+                "winterwheat"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "application_timing": "post-emergence",
+                "dose": "95 or 190 g/ha",
+                "study_context": "field trial"
+              },
+              "triple": [
+                "indaziflam",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1680 g a.i./ha",
+                "study_context": "field trial"
+              },
+              "triple": [
+                "glufosinate",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "population_context_qualifier": "izr-1, izr-2, izr-5 and izr-8",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "fluridone",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "post-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "rimsulfuron",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "post-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "glyphosate",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "napropamide",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "dichlobenil",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "pyroxasulfone",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2020 sampled isolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "fludioxonil"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2020 sampled isolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "fenhexamid"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2020 sampled isolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "iprodione"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "pyraclostrobin"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "boscalid"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "thiabendazole"
+              ]
+            }
+          ],
+          "missing_triples": [
+            [
+              "prochloraz",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensis",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensis",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "cyantraniliprole",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "spinosad",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "lambdacyhalothrin",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "deltamethrin",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "deltamethrinpb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "pb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "cyantraniliprolepb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "clodinafoppropargyl",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "fenoxaproppethyl",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "pinoxaden",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "pbo",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "prosulfocarb",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "chlorotolurondiflufenican",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "blackgrass",
+              "damages",
+              "winterwheat"
+            ],
+            [
+              "indaziflam",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "glufosinate",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "fluridone",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "rimsulfuron",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "glyphosate",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "napropamide",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "dichlobenil",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "pyroxasulfone",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fludioxonil"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fenhexamid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "iprodione"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "pyraclostrobin"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "boscalid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "thiabendazole"
+            ]
+          ],
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 1
+            },
+            "denominator": 3,
+            "numerator": 3,
+            "value": 1
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 12,
+            "numerator": 0,
+            "value": 0
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 0,
+            "value": 0
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "scope": "All current proposed/verified edges; use one trial stream per store.",
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": null,
+            "denominator": 0,
+            "numerator": 0,
+            "value": null
+          }
+        },
+        "run": 1
+      },
+      {
+        "legacy": {
+          "bootstrap": {
+            "confidence": 0.95,
+            "limitation": "Within-paper dependence is not modeled.",
+            "resamples": 2000,
+            "seed": 7,
+            "unit": "individual outcome"
+          },
+          "confusion_matrix": {
+            "no_effect": {
+              "no_effect": 3,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 2
+            },
+            "omitted": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "refutes": {
+              "no_effect": 1,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "supports": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 9
+            }
+          },
+          "counts": {
+            "conflicting_matched_relations": 2,
+            "found_four_tuples": 199,
+            "gold_relations": 34,
+            "matched_predictions": 15,
+            "matched_relations": 13,
+            "missing_relations": 21,
+            "spurious_four_tuples": 187
+          },
+          "four_tuple_f1": 0.10300429184549356,
+          "four_tuple_f1_ci95": {
+            "high": 0.1583,
+            "low": 0.0529
+          },
+          "labels": [
+            "supports",
+            "refutes",
+            "no_effect",
+            "omitted"
+          ],
+          "missing_triples": [
+            [
+              "prochloraz",
+              "inhibits",
+              "lecanicilliumfungicolaisolate620"
+            ],
+            [
+              "metrafenone",
+              "inhibits",
+              "lecanicilliumfungicolaisolate620"
+            ],
+            [
+              "prochloraz",
+              "inhibits",
+              "lecanicilliumfungicolaisolate1722"
+            ],
+            [
+              "bacillusvelezensisqst713",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensiskos",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "cyantraniliprole",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "spinosad",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "lambdacyhalothrin",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "deltamethrin",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "deltamethrinpb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "pb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "clodinafoppropargyl",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "fenoxaproppethyl",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "pinoxaden",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "pbo",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "prosulfocarb",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "chlorotolurondiflufenican",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "rblackgrasspopulation",
+              "damages",
+              "winterwheat"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fludioxonil"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fenhexamid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "iprodione"
+            ]
+          ],
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 0.6
+            },
+            "denominator": 15,
+            "numerator": 12,
+            "value": 0.8
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.5,
+              "low": 0
+            },
+            "denominator": 12,
+            "numerator": 3,
+            "value": 0.25
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.4118,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 3,
+            "value": 0.17647058823529413
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "scope": "All current proposed/verified edges; use one trial stream per store.",
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 1,
+              "low": 0
+            },
+            "denominator": 3,
+            "numerator": 2,
+            "value": 0.6666666666666666
+          }
+        },
+        "primary": {
+          "bootstrap": {
+            "confidence": 0.95,
+            "limitation": "Within-paper dependence is not modeled.",
+            "resamples": 2000,
+            "seed": 7,
+            "unit": "individual outcome"
+          },
+          "confusion_matrix": {
+            "no_effect": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "omitted": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "refutes": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "supports": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 4
+            }
+          },
+          "counts": {
+            "conflicting_matched_relations": 0,
+            "found_four_tuples": 216,
+            "gold_relations": 34,
+            "matched_predictions": 4,
+            "matched_relations": 4,
+            "missing_relations": 30,
+            "spurious_four_tuples": 212
+          },
+          "four_tuple_f1": 0.032,
+          "four_tuple_f1_ci95": {
+            "high": 0.063,
+            "low": 0.0081
+          },
+          "labels": [
+            "supports",
+            "refutes",
+            "no_effect",
+            "omitted"
+          ],
+          "matching_mode": "qualified",
+          "missing_statements": [
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble development",
+                "study_context": "crop trial 1"
+              },
+              "triple": [
+                "prochloraz",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble development",
+                "study_context": "crop trial 1",
+                "subject_form_or_variant_qualifier": "QST 713"
+              },
+              "triple": [
+                "bacillusvelezensis",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble development",
+                "study_context": "crop trial 1",
+                "subject_form_or_variant_qualifier": "Kos"
+              },
+              "triple": [
+                "bacillusvelezensis",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay 2"
+              },
+              "triple": [
+                "cyantraniliprole",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay 2"
+              },
+              "triple": [
+                "spinosad",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay 2"
+              },
+              "triple": [
+                "lambdacyhalothrin",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay 2"
+              },
+              "triple": [
+                "deltamethrin",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "study_context": "field trial"
+              },
+              "triple": [
+                "deltamethrinpb",
+                "controls",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "mortality",
+                "study_context": "bioassay 1"
+              },
+              "triple": [
+                "pb",
+                "controls",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "clodinafoppropargyl",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "fenoxaproppethyl",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "pinoxaden",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "fresh weight",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "pbo",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "dose": "half recommended field label rate",
+                "object_aspect_qualifier": "fresh weight",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "prosulfocarb",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "dose": "half recommended field label rate",
+                "object_aspect_qualifier": "fresh weight",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "chlorotolurondiflufenican",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "object_aspect_qualifier": "fresh weight and tiller number",
+                "population_context_qualifier": "R population",
+                "study_context": "competition experiment"
+              },
+              "triple": [
+                "blackgrass",
+                "damages",
+                "winterwheat"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "application_timing": "post-emergence",
+                "dose": "95 or 190 g/ha",
+                "study_context": "field trial"
+              },
+              "triple": [
+                "indaziflam",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1680 g a.i./ha",
+                "study_context": "field trial"
+              },
+              "triple": [
+                "glufosinate",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "population_context_qualifier": "izr-1, izr-2, izr-5 and izr-8",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "fluridone",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "post-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "rimsulfuron",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "post-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "glyphosate",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "napropamide",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "dichlobenil",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "pyroxasulfone",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2020 sampled isolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "fludioxonil"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2020 sampled isolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "fenhexamid"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2020 sampled isolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "iprodione"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "pyraclostrobin"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "boscalid"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "thiabendazole"
+              ]
+            }
+          ],
+          "missing_triples": [
+            [
+              "prochloraz",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensis",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensis",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "cyantraniliprole",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "spinosad",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "lambdacyhalothrin",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "deltamethrin",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "deltamethrinpb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "pb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "clodinafoppropargyl",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "fenoxaproppethyl",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "pinoxaden",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "pbo",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "prosulfocarb",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "chlorotolurondiflufenican",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "blackgrass",
+              "damages",
+              "winterwheat"
+            ],
+            [
+              "indaziflam",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "glufosinate",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "fluridone",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "rimsulfuron",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "glyphosate",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "napropamide",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "dichlobenil",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "pyroxasulfone",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fludioxonil"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fenhexamid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "iprodione"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "pyraclostrobin"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "boscalid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "thiabendazole"
+            ]
+          ],
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 1
+            },
+            "denominator": 4,
+            "numerator": 4,
+            "value": 1
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 12,
+            "numerator": 0,
+            "value": 0
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 0,
+            "value": 0
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "scope": "All current proposed/verified edges; use one trial stream per store.",
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": null,
+            "denominator": 0,
+            "numerator": 0,
+            "value": null
+          }
+        },
+        "run": 2
+      },
+      {
+        "legacy": {
+          "bootstrap": {
+            "confidence": 0.95,
+            "limitation": "Within-paper dependence is not modeled.",
+            "resamples": 2000,
+            "seed": 7,
+            "unit": "individual outcome"
+          },
+          "confusion_matrix": {
+            "no_effect": {
+              "no_effect": 4,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 1
+            },
+            "omitted": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "refutes": {
+              "no_effect": 2,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 1
+            },
+            "supports": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 9
+            }
+          },
+          "counts": {
+            "conflicting_matched_relations": 1,
+            "found_four_tuples": 153,
+            "gold_relations": 34,
+            "matched_predictions": 17,
+            "matched_relations": 16,
+            "missing_relations": 18,
+            "spurious_four_tuples": 140
+          },
+          "four_tuple_f1": 0.13903743315508021,
+          "four_tuple_f1_ci95": {
+            "high": 0.2062,
+            "low": 0.0773
+          },
+          "labels": [
+            "supports",
+            "refutes",
+            "no_effect",
+            "omitted"
+          ],
+          "missing_triples": [
+            [
+              "prochloraz",
+              "inhibits",
+              "lecanicilliumfungicolaisolate620"
+            ],
+            [
+              "metrafenone",
+              "inhibits",
+              "lecanicilliumfungicolaisolate620"
+            ],
+            [
+              "prochloraz",
+              "inhibits",
+              "lecanicilliumfungicolaisolate1722"
+            ],
+            [
+              "bacillusvelezensisqst713",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensiskos",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "cyantraniliprole",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "spinosad",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "lambdacyhalothrin",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "deltamethrin",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "clodinafoppropargyl",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "fenoxaproppethyl",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "pinoxaden",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "pbo",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "prosulfocarb",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "chlorotolurondiflufenican",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "rblackgrasspopulation",
+              "damages",
+              "winterwheat"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fludioxonil"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fenhexamid"
+            ]
+          ],
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 0.9412,
+              "low": 0.5882
+            },
+            "denominator": 17,
+            "numerator": 13,
+            "value": 0.7647058823529411
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.5833,
+              "low": 0.0833
+            },
+            "denominator": 12,
+            "numerator": 4,
+            "value": 0.3333333333333333
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.4706,
+              "low": 0.0588
+            },
+            "denominator": 17,
+            "numerator": 4,
+            "value": 0.23529411764705882
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "scope": "All current proposed/verified edges; use one trial stream per store.",
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0.75,
+              "low": 0
+            },
+            "denominator": 4,
+            "numerator": 1,
+            "value": 0.25
+          }
+        },
+        "primary": {
+          "bootstrap": {
+            "confidence": 0.95,
+            "limitation": "Within-paper dependence is not modeled.",
+            "resamples": 2000,
+            "seed": 7,
+            "unit": "individual outcome"
+          },
+          "confusion_matrix": {
+            "no_effect": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "omitted": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "refutes": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "supports": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 4
+            }
+          },
+          "counts": {
+            "conflicting_matched_relations": 0,
+            "found_four_tuples": 178,
+            "gold_relations": 34,
+            "matched_predictions": 4,
+            "matched_relations": 4,
+            "missing_relations": 30,
+            "spurious_four_tuples": 174
+          },
+          "four_tuple_f1": 0.03773584905660377,
+          "four_tuple_f1_ci95": {
+            "high": 0.0741,
+            "low": 0.0096
+          },
+          "labels": [
+            "supports",
+            "refutes",
+            "no_effect",
+            "omitted"
+          ],
+          "matching_mode": "qualified",
+          "missing_statements": [
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble development",
+                "study_context": "crop trial 1"
+              },
+              "triple": [
+                "prochloraz",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble development",
+                "study_context": "crop trial 1",
+                "subject_form_or_variant_qualifier": "QST 713"
+              },
+              "triple": [
+                "bacillusvelezensis",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble development",
+                "study_context": "crop trial 1",
+                "subject_form_or_variant_qualifier": "Kos"
+              },
+              "triple": [
+                "bacillusvelezensis",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay 2"
+              },
+              "triple": [
+                "cyantraniliprole",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay 2"
+              },
+              "triple": [
+                "spinosad",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay 2"
+              },
+              "triple": [
+                "lambdacyhalothrin",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay 2"
+              },
+              "triple": [
+                "deltamethrin",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "study_context": "field trial"
+              },
+              "triple": [
+                "deltamethrinpb",
+                "controls",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "mortality",
+                "study_context": "bioassay 1"
+              },
+              "triple": [
+                "pb",
+                "controls",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "clodinafoppropargyl",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "fenoxaproppethyl",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "pinoxaden",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "fresh weight",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "pbo",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "dose": "half recommended field label rate",
+                "object_aspect_qualifier": "fresh weight",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "prosulfocarb",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "dose": "half recommended field label rate",
+                "object_aspect_qualifier": "fresh weight",
+                "population_context_qualifier": "R population"
+              },
+              "triple": [
+                "chlorotolurondiflufenican",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "object_aspect_qualifier": "fresh weight and tiller number",
+                "population_context_qualifier": "R population",
+                "study_context": "competition experiment"
+              },
+              "triple": [
+                "blackgrass",
+                "damages",
+                "winterwheat"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "application_timing": "post-emergence",
+                "dose": "95 or 190 g/ha",
+                "study_context": "field trial"
+              },
+              "triple": [
+                "indaziflam",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1680 g a.i./ha",
+                "study_context": "field trial"
+              },
+              "triple": [
+                "glufosinate",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "population_context_qualifier": "izr-1, izr-2, izr-5 and izr-8",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "fluridone",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "post-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "rimsulfuron",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "post-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "glyphosate",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "napropamide",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "dichlobenil",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre-emergence",
+                "population_context_qualifier": "indaziflam-resistant accessions",
+                "study_context": "glasshouse"
+              },
+              "triple": [
+                "pyroxasulfone",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2020 sampled isolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "fludioxonil"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2020 sampled isolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "fenhexamid"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2020 sampled isolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "iprodione"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "pyraclostrobin"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "boscalid"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "Michigan 2019, 2020 and 2022 sampled populations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "thiabendazole"
+              ]
+            }
+          ],
+          "missing_triples": [
+            [
+              "prochloraz",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensis",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensis",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "cyantraniliprole",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "spinosad",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "lambdacyhalothrin",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "deltamethrin",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "deltamethrinpb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "pb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "clodinafoppropargyl",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "fenoxaproppethyl",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "pinoxaden",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "pbo",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "prosulfocarb",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "chlorotolurondiflufenican",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "blackgrass",
+              "damages",
+              "winterwheat"
+            ],
+            [
+              "indaziflam",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "glufosinate",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "fluridone",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "rimsulfuron",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "glyphosate",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "napropamide",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "dichlobenil",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "pyroxasulfone",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fludioxonil"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fenhexamid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "iprodione"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "pyraclostrobin"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "boscalid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "thiabendazole"
+            ]
+          ],
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 1
+            },
+            "denominator": 4,
+            "numerator": 4,
+            "value": 1
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 12,
+            "numerator": 0,
+            "value": 0
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 0,
+            "value": 0
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "scope": "All current proposed/verified edges; use one trial stream per store.",
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": null,
+            "denominator": 0,
+            "numerator": 0,
+            "value": null
+          }
+        },
+        "run": 3
+      }
+    ],
+    "after_runs": [
+      {
+        "legacy": {
+          "bootstrap": {
+            "confidence": 0.95,
+            "limitation": "Within-paper dependence is not modeled.",
+            "resamples": 2000,
+            "seed": 7,
+            "unit": "individual outcome"
+          },
+          "confusion_matrix": {
+            "no_effect": {
+              "no_effect": 2,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 2
+            },
+            "omitted": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "refutes": {
+              "no_effect": 2,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "supports": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 8
+            }
+          },
+          "counts": {
+            "conflicting_matched_relations": 1,
+            "found_four_tuples": 179,
+            "gold_relations": 34,
+            "matched_predictions": 14,
+            "matched_relations": 13,
+            "missing_relations": 21,
+            "spurious_four_tuples": 169
+          },
+          "four_tuple_f1": 0.09389671361502347,
+          "four_tuple_f1_ci95": {
+            "high": 0.1461,
+            "low": 0.0481
+          },
+          "labels": [
+            "supports",
+            "refutes",
+            "no_effect",
+            "omitted"
+          ],
+          "missing_triples": [
+            [
+              "prochloraz",
+              "inhibits",
+              "lecanicilliumfungicolaisolate620"
+            ],
+            [
+              "metrafenone",
+              "inhibits",
+              "lecanicilliumfungicolaisolate620"
+            ],
+            [
+              "prochloraz",
+              "inhibits",
+              "lecanicilliumfungicolaisolate1722"
+            ],
+            [
+              "bacillusvelezensisqst713",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensiskos",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "cyantraniliprole",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "spinosad",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "lambdacyhalothrin",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "deltamethrin",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "pb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "cyantraniliprolepb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "clodinafoppropargyl",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "fenoxaproppethyl",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "pinoxaden",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "pbo",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "prosulfocarb",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "chlorotolurondiflufenican",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "rblackgrasspopulation",
+              "damages",
+              "winterwheat"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fludioxonil"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fenhexamid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "iprodione"
+            ]
+          ],
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 0.9286,
+              "low": 0.5
+            },
+            "denominator": 14,
+            "numerator": 10,
+            "value": 0.7142857142857143
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.4167,
+              "low": 0
+            },
+            "denominator": 12,
+            "numerator": 2,
+            "value": 0.16666666666666666
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.2941,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 2,
+            "value": 0.11764705882352941
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "scope": "All current proposed/verified edges; use one trial stream per store.",
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 1,
+              "low": 0
+            },
+            "denominator": 3,
+            "numerator": 2,
+            "value": 0.6666666666666666
+          }
+        },
+        "primary": {
+          "bootstrap": {
+            "confidence": 0.95,
+            "limitation": "Within-paper dependence is not modeled.",
+            "resamples": 2000,
+            "seed": 7,
+            "unit": "individual outcome"
+          },
+          "confusion_matrix": {
+            "no_effect": {
+              "no_effect": 3,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "omitted": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "refutes": {
+              "no_effect": 1,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "supports": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 5
+            }
+          },
+          "counts": {
+            "conflicting_matched_relations": 0,
+            "found_four_tuples": 199,
+            "gold_relations": 34,
+            "matched_predictions": 9,
+            "matched_relations": 9,
+            "missing_relations": 25,
+            "spurious_four_tuples": 191
+          },
+          "four_tuple_f1": 0.06866952789699571,
+          "four_tuple_f1_ci95": {
+            "high": 0.1172,
+            "low": 0.0263
+          },
+          "labels": [
+            "supports",
+            "refutes",
+            "no_effect",
+            "omitted"
+          ],
+          "matching_mode": "qualified",
+          "missing_statements": [
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble_development",
+                "study_context": "crop_trial:1"
+              },
+              "triple": [
+                "prochloraz",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble_development",
+                "study_context": "crop_trial:1",
+                "subject_form_or_variant_qualifier": "other:qst713"
+              },
+              "triple": [
+                "bacillusvelezensis",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble_development",
+                "study_context": "crop_trial:1",
+                "subject_form_or_variant_qualifier": "other:kos"
+              },
+              "triple": [
+                "bacillusvelezensis",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "mortality",
+                "study_context": "bioassay:1"
+              },
+              "triple": [
+                "pb",
+                "controls",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "object_aspect_qualifier": "mortality",
+                "study_context": "bioassay:1"
+              },
+              "triple": [
+                "cyantraniliprolepb",
+                "controls",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "clodinafoppropargyl",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "fenoxaproppethyl",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "pinoxaden",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "fresh_weight",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "pbo",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "dose": "half recommended field label rate",
+                "object_aspect_qualifier": "fresh_weight",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "prosulfocarb",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "dose": "half recommended field label rate",
+                "object_aspect_qualifier": "fresh_weight",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "chlorotolurondiflufenican",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "object_aspect_qualifier": "fresh_weight_and_tiller_number",
+                "population_context_qualifier": "rpopulation",
+                "study_context": "other:competition experiment"
+              },
+              "triple": [
+                "blackgrass",
+                "damages",
+                "winterwheat"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "application_timing": "post_emergence",
+                "dose": "0.095 or 0.19 kg/ha",
+                "study_context": "field_trial"
+              },
+              "triple": [
+                "indaziflam",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "population_context_qualifier": "izr1izr2izr5andizr8",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "fluridone",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "post_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "rimsulfuron",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "post_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "glyphosate",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "napropamide",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "dichlobenil",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "pyroxasulfone",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "michigan2020sampledisolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "fludioxonil"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "michigan2020sampledisolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "fenhexamid"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "michigan2020sampledisolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "iprodione"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "michigan20192020and2022sampledpopulations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "pyraclostrobin"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "michigan20192020and2022sampledpopulations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "boscalid"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "michigan20192020and2022sampledpopulations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "thiabendazole"
+              ]
+            }
+          ],
+          "missing_triples": [
+            [
+              "prochloraz",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensis",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensis",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "pb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "cyantraniliprolepb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "clodinafoppropargyl",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "fenoxaproppethyl",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "pinoxaden",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "pbo",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "prosulfocarb",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "chlorotolurondiflufenican",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "blackgrass",
+              "damages",
+              "winterwheat"
+            ],
+            [
+              "indaziflam",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "fluridone",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "rimsulfuron",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "glyphosate",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "napropamide",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "dichlobenil",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "pyroxasulfone",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fludioxonil"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fenhexamid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "iprodione"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "pyraclostrobin"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "boscalid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "thiabendazole"
+            ]
+          ],
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 0.6667
+            },
+            "denominator": 9,
+            "numerator": 8,
+            "value": 0.8888888888888888
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.5,
+              "low": 0
+            },
+            "denominator": 12,
+            "numerator": 3,
+            "value": 0.25
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.3529,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 3,
+            "value": 0.17647058823529413
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "scope": "All current proposed/verified edges; use one trial stream per store.",
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 3,
+            "numerator": 0,
+            "value": 0
+          }
+        },
+        "run": 1
+      },
+      {
+        "legacy": {
+          "bootstrap": {
+            "confidence": 0.95,
+            "limitation": "Within-paper dependence is not modeled.",
+            "resamples": 2000,
+            "seed": 7,
+            "unit": "individual outcome"
+          },
+          "confusion_matrix": {
+            "no_effect": {
+              "no_effect": 3,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 2
+            },
+            "omitted": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "refutes": {
+              "no_effect": 1,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "supports": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 9
+            }
+          },
+          "counts": {
+            "conflicting_matched_relations": 2,
+            "found_four_tuples": 199,
+            "gold_relations": 34,
+            "matched_predictions": 15,
+            "matched_relations": 13,
+            "missing_relations": 21,
+            "spurious_four_tuples": 187
+          },
+          "four_tuple_f1": 0.10300429184549356,
+          "four_tuple_f1_ci95": {
+            "high": 0.1583,
+            "low": 0.0529
+          },
+          "labels": [
+            "supports",
+            "refutes",
+            "no_effect",
+            "omitted"
+          ],
+          "missing_triples": [
+            [
+              "prochloraz",
+              "inhibits",
+              "lecanicilliumfungicolaisolate620"
+            ],
+            [
+              "metrafenone",
+              "inhibits",
+              "lecanicilliumfungicolaisolate620"
+            ],
+            [
+              "prochloraz",
+              "inhibits",
+              "lecanicilliumfungicolaisolate1722"
+            ],
+            [
+              "bacillusvelezensisqst713",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensiskos",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "cyantraniliprole",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "spinosad",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "lambdacyhalothrin",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "deltamethrin",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "deltamethrinpb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "pb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "clodinafoppropargyl",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "fenoxaproppethyl",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "pinoxaden",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "pbo",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "prosulfocarb",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "chlorotolurondiflufenican",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "rblackgrasspopulation",
+              "damages",
+              "winterwheat"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fludioxonil"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fenhexamid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "iprodione"
+            ]
+          ],
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 0.6
+            },
+            "denominator": 15,
+            "numerator": 12,
+            "value": 0.8
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.5,
+              "low": 0
+            },
+            "denominator": 12,
+            "numerator": 3,
+            "value": 0.25
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.4118,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 3,
+            "value": 0.17647058823529413
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "scope": "All current proposed/verified edges; use one trial stream per store.",
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 1,
+              "low": 0
+            },
+            "denominator": 3,
+            "numerator": 2,
+            "value": 0.6666666666666666
+          }
+        },
+        "primary": {
+          "bootstrap": {
+            "confidence": 0.95,
+            "limitation": "Within-paper dependence is not modeled.",
+            "resamples": 2000,
+            "seed": 7,
+            "unit": "individual outcome"
+          },
+          "confusion_matrix": {
+            "no_effect": {
+              "no_effect": 2,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "omitted": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "refutes": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "supports": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 6
+            }
+          },
+          "counts": {
+            "conflicting_matched_relations": 0,
+            "found_four_tuples": 216,
+            "gold_relations": 34,
+            "matched_predictions": 8,
+            "matched_relations": 8,
+            "missing_relations": 26,
+            "spurious_four_tuples": 208
+          },
+          "four_tuple_f1": 0.064,
+          "four_tuple_f1_ci95": {
+            "high": 0.1094,
+            "low": 0.0245
+          },
+          "labels": [
+            "supports",
+            "refutes",
+            "no_effect",
+            "omitted"
+          ],
+          "matching_mode": "qualified",
+          "missing_statements": [
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble_development",
+                "study_context": "crop_trial:1"
+              },
+              "triple": [
+                "prochloraz",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble_development",
+                "study_context": "crop_trial:1",
+                "subject_form_or_variant_qualifier": "other:qst713"
+              },
+              "triple": [
+                "bacillusvelezensis",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble_development",
+                "study_context": "crop_trial:1",
+                "subject_form_or_variant_qualifier": "other:kos"
+              },
+              "triple": [
+                "bacillusvelezensis",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "study_context": "field_trial"
+              },
+              "triple": [
+                "deltamethrinpb",
+                "controls",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "mortality",
+                "study_context": "bioassay:1"
+              },
+              "triple": [
+                "pb",
+                "controls",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "clodinafoppropargyl",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "fenoxaproppethyl",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "pinoxaden",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "fresh_weight",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "pbo",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "dose": "half recommended field label rate",
+                "object_aspect_qualifier": "fresh_weight",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "prosulfocarb",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "dose": "half recommended field label rate",
+                "object_aspect_qualifier": "fresh_weight",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "chlorotolurondiflufenican",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "object_aspect_qualifier": "fresh_weight_and_tiller_number",
+                "population_context_qualifier": "rpopulation",
+                "study_context": "other:competition experiment"
+              },
+              "triple": [
+                "blackgrass",
+                "damages",
+                "winterwheat"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "application_timing": "post_emergence",
+                "dose": "0.095 or 0.19 kg/ha",
+                "study_context": "field_trial"
+              },
+              "triple": [
+                "indaziflam",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1.68 kg/ha a.i.",
+                "study_context": "field_trial"
+              },
+              "triple": [
+                "glufosinate",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "population_context_qualifier": "izr1izr2izr5andizr8",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "fluridone",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "post_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "rimsulfuron",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "post_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "glyphosate",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "napropamide",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "dichlobenil",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "pyroxasulfone",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "michigan2020sampledisolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "fludioxonil"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "michigan2020sampledisolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "fenhexamid"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "michigan2020sampledisolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "iprodione"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "michigan20192020and2022sampledpopulations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "pyraclostrobin"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "michigan20192020and2022sampledpopulations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "boscalid"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "michigan20192020and2022sampledpopulations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "thiabendazole"
+              ]
+            }
+          ],
+          "missing_triples": [
+            [
+              "prochloraz",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensis",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensis",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "deltamethrinpb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "pb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "clodinafoppropargyl",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "fenoxaproppethyl",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "pinoxaden",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "pbo",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "prosulfocarb",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "chlorotolurondiflufenican",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "blackgrass",
+              "damages",
+              "winterwheat"
+            ],
+            [
+              "indaziflam",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "glufosinate",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "fluridone",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "rimsulfuron",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "glyphosate",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "napropamide",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "dichlobenil",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "pyroxasulfone",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fludioxonil"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fenhexamid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "iprodione"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "pyraclostrobin"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "boscalid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "thiabendazole"
+            ]
+          ],
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 1
+            },
+            "denominator": 8,
+            "numerator": 8,
+            "value": 1
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.4167,
+              "low": 0
+            },
+            "denominator": 12,
+            "numerator": 2,
+            "value": 0.16666666666666666
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.2941,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 2,
+            "value": 0.11764705882352941
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "scope": "All current proposed/verified edges; use one trial stream per store.",
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 2,
+            "numerator": 0,
+            "value": 0
+          }
+        },
+        "run": 2
+      },
+      {
+        "legacy": {
+          "bootstrap": {
+            "confidence": 0.95,
+            "limitation": "Within-paper dependence is not modeled.",
+            "resamples": 2000,
+            "seed": 7,
+            "unit": "individual outcome"
+          },
+          "confusion_matrix": {
+            "no_effect": {
+              "no_effect": 4,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 1
+            },
+            "omitted": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "refutes": {
+              "no_effect": 2,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 1
+            },
+            "supports": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 9
+            }
+          },
+          "counts": {
+            "conflicting_matched_relations": 1,
+            "found_four_tuples": 153,
+            "gold_relations": 34,
+            "matched_predictions": 17,
+            "matched_relations": 16,
+            "missing_relations": 18,
+            "spurious_four_tuples": 140
+          },
+          "four_tuple_f1": 0.13903743315508021,
+          "four_tuple_f1_ci95": {
+            "high": 0.2062,
+            "low": 0.0773
+          },
+          "labels": [
+            "supports",
+            "refutes",
+            "no_effect",
+            "omitted"
+          ],
+          "missing_triples": [
+            [
+              "prochloraz",
+              "inhibits",
+              "lecanicilliumfungicolaisolate620"
+            ],
+            [
+              "metrafenone",
+              "inhibits",
+              "lecanicilliumfungicolaisolate620"
+            ],
+            [
+              "prochloraz",
+              "inhibits",
+              "lecanicilliumfungicolaisolate1722"
+            ],
+            [
+              "bacillusvelezensisqst713",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensiskos",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "cyantraniliprole",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "spinosad",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "lambdacyhalothrin",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "deltamethrin",
+              "inhibits",
+              "drosophilasuzukiioviposition"
+            ],
+            [
+              "clodinafoppropargyl",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "fenoxaproppethyl",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "pinoxaden",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "pbo",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "prosulfocarb",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "chlorotolurondiflufenican",
+              "controls",
+              "rblackgrasspopulation"
+            ],
+            [
+              "rblackgrasspopulation",
+              "damages",
+              "winterwheat"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fludioxonil"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fenhexamid"
+            ]
+          ],
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 0.9412,
+              "low": 0.5882
+            },
+            "denominator": 17,
+            "numerator": 13,
+            "value": 0.7647058823529411
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.5833,
+              "low": 0.0833
+            },
+            "denominator": 12,
+            "numerator": 4,
+            "value": 0.3333333333333333
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.4706,
+              "low": 0.0588
+            },
+            "denominator": 17,
+            "numerator": 4,
+            "value": 0.23529411764705882
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "scope": "All current proposed/verified edges; use one trial stream per store.",
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0.75,
+              "low": 0
+            },
+            "denominator": 4,
+            "numerator": 1,
+            "value": 0.25
+          }
+        },
+        "primary": {
+          "bootstrap": {
+            "confidence": 0.95,
+            "limitation": "Within-paper dependence is not modeled.",
+            "resamples": 2000,
+            "seed": 7,
+            "unit": "individual outcome"
+          },
+          "confusion_matrix": {
+            "no_effect": {
+              "no_effect": 1,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "omitted": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "refutes": {
+              "no_effect": 1,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 0
+            },
+            "supports": {
+              "no_effect": 0,
+              "omitted": 0,
+              "refutes": 0,
+              "supports": 4
+            }
+          },
+          "counts": {
+            "conflicting_matched_relations": 0,
+            "found_four_tuples": 178,
+            "gold_relations": 34,
+            "matched_predictions": 6,
+            "matched_relations": 6,
+            "missing_relations": 28,
+            "spurious_four_tuples": 173
+          },
+          "four_tuple_f1": 0.04716981132075472,
+          "four_tuple_f1_ci95": {
+            "high": 0.0922,
+            "low": 0.0096
+          },
+          "labels": [
+            "supports",
+            "refutes",
+            "no_effect",
+            "omitted"
+          ],
+          "matching_mode": "qualified",
+          "missing_statements": [
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble_development",
+                "study_context": "crop_trial:1"
+              },
+              "triple": [
+                "prochloraz",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble_development",
+                "study_context": "crop_trial:1",
+                "subject_form_or_variant_qualifier": "other:qst713"
+              },
+              "triple": [
+                "bacillusvelezensis",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "bubble_development",
+                "study_context": "crop_trial:1",
+                "subject_form_or_variant_qualifier": "other:kos"
+              },
+              "triple": [
+                "bacillusvelezensis",
+                "controls",
+                "drybubbledisease"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay:2"
+              },
+              "triple": [
+                "cyantraniliprole",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay:2"
+              },
+              "triple": [
+                "spinosad",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay:2"
+              },
+              "triple": [
+                "lambdacyhalothrin",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "dose": "dilute",
+                "object_aspect_qualifier": "oviposition",
+                "study_context": "bioassay:2"
+              },
+              "triple": [
+                "deltamethrin",
+                "inhibits",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "mortality",
+                "study_context": "bioassay:1"
+              },
+              "triple": [
+                "pb",
+                "controls",
+                "drosophilasuzukii"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "clodinafoppropargyl",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "fenoxaproppethyl",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "dose": "1x recommended rate",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "pinoxaden",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "object_aspect_qualifier": "fresh_weight",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "pbo",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "dose": "half recommended field label rate",
+                "object_aspect_qualifier": "fresh_weight",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "prosulfocarb",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "dose": "half recommended field label rate",
+                "object_aspect_qualifier": "fresh_weight",
+                "population_context_qualifier": "rpopulation"
+              },
+              "triple": [
+                "chlorotolurondiflufenican",
+                "controls",
+                "blackgrass"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "object_aspect_qualifier": "fresh_weight_and_tiller_number",
+                "population_context_qualifier": "rpopulation",
+                "study_context": "other:competition experiment"
+              },
+              "triple": [
+                "blackgrass",
+                "damages",
+                "winterwheat"
+              ]
+            },
+            {
+              "polarity": "no_effect",
+              "qualifiers": {
+                "application_timing": "post_emergence",
+                "dose": "0.095 or 0.19 kg/ha",
+                "study_context": "field_trial"
+              },
+              "triple": [
+                "indaziflam",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "population_context_qualifier": "izr1izr2izr5andizr8",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "fluridone",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "post_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "rimsulfuron",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "post_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "glyphosate",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "napropamide",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "dichlobenil",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "application_timing": "pre_emergence",
+                "population_context_qualifier": "indaziflamresistantaccessions",
+                "study_context": "greenhouse"
+              },
+              "triple": [
+                "pyroxasulfone",
+                "controls",
+                "poaannua"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "michigan2020sampledisolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "fludioxonil"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "michigan2020sampledisolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "fenhexamid"
+              ]
+            },
+            {
+              "polarity": "refutes",
+              "qualifiers": {
+                "population_context_qualifier": "michigan2020sampledisolates"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "iprodione"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "michigan20192020and2022sampledpopulations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "pyraclostrobin"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "michigan20192020and2022sampledpopulations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "boscalid"
+              ]
+            },
+            {
+              "polarity": "supports",
+              "qualifiers": {
+                "population_context_qualifier": "michigan20192020and2022sampledpopulations"
+              },
+              "triple": [
+                "botrytiscinerea",
+                "resistant_to",
+                "thiabendazole"
+              ]
+            }
+          ],
+          "missing_triples": [
+            [
+              "prochloraz",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensis",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "bacillusvelezensis",
+              "controls",
+              "drybubbledisease"
+            ],
+            [
+              "cyantraniliprole",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "spinosad",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "lambdacyhalothrin",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "deltamethrin",
+              "inhibits",
+              "drosophilasuzukii"
+            ],
+            [
+              "pb",
+              "controls",
+              "drosophilasuzukii"
+            ],
+            [
+              "clodinafoppropargyl",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "fenoxaproppethyl",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "pinoxaden",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "pbo",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "prosulfocarb",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "chlorotolurondiflufenican",
+              "controls",
+              "blackgrass"
+            ],
+            [
+              "blackgrass",
+              "damages",
+              "winterwheat"
+            ],
+            [
+              "indaziflam",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "fluridone",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "rimsulfuron",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "glyphosate",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "napropamide",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "dichlobenil",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "pyroxasulfone",
+              "controls",
+              "poaannua"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fludioxonil"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "fenhexamid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "iprodione"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "pyraclostrobin"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "boscalid"
+            ],
+            [
+              "botrytiscinerea",
+              "resistant_to",
+              "thiabendazole"
+            ]
+          ],
+          "polarity_accuracy": {
+            "ci95": {
+              "high": 1,
+              "low": 0.5
+            },
+            "denominator": 6,
+            "numerator": 5,
+            "value": 0.8333333333333334
+          },
+          "recall_no_effect": {
+            "ci95": {
+              "high": 0.25,
+              "low": 0
+            },
+            "denominator": 12,
+            "numerator": 1,
+            "value": 0.08333333333333333
+          },
+          "recall_no_effect_refutes": {
+            "ci95": {
+              "high": 0.1765,
+              "low": 0
+            },
+            "denominator": 17,
+            "numerator": 1,
+            "value": 0.058823529411764705
+          },
+          "recall_refutes": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 5,
+            "numerator": 0,
+            "value": 0
+          },
+          "scope": "All current proposed/verified edges; use one trial stream per store.",
+          "supports_when_gold_no_effect_flip_rate": {
+            "ci95": {
+              "high": 0,
+              "low": 0
+            },
+            "denominator": 1,
+            "numerator": 0,
+            "value": 0
+          }
+        },
+        "run": 3
+      }
+    ]
+  },
+  "tests": {
+    "exit": 0,
+    "passed": 249,
+    "warnings": 8,
+    "seconds": 10.12,
+    "basetemp": "/private/tmp/t30-1845-565",
+    "command": "uv run --all-extras pytest --basetemp=/private/tmp/t30-1845-565 tests/test_statement_qualifier_*.py tests/test_polarity_eval.py tests/test_polarity_fulltext.py tests/test_extraction_null_guidance.py tests/test_agrochem_v2_schema.py tests/test_extractor.py tests/test_run_extraction.py tests/test_claims_contract.py tests/test_mcp_claims.py tests/test_carry_forward.py tests/test_unit_normalization.py tests/test_macos_candidate_source_closure.py",
+    "log_sha256": "eccfea415aaef0c38948903ac478a194b5ebc4b6fff1db8c6498eb441868f5e0",
+    "notes": "First run found 2 merge validation failures from raw provenance; fixed stored-row validation and added carry-forward/model-property regression coverage before passing. Eight dependency warnings concern Pydantic lifespan/schema definitions."
+  },
+  "mutations": [
+    {
+      "name": "remove explicit synonym aliases",
+      "exit": 1,
+      "failed": 13,
+      "passed": 14,
+      "command": "import ontologylab.statement_qualifiers as m; import ontologylab.unit_normalization as u; m.QUALIFIER_VOCABULARIES={group:dict.fromkeys(values, ()) for group,values in m.QUALIFIER_VOCABULARIES.items()}; u.DOSE_SYNONYMS.clear(); import pytest; raise SystemExit(pytest.main(['--basetemp=/private/tmp/t30-mutant-synonyms-b27f6ac6','tests/test_statement_qualifier_normalization.py::test_explicit_synonyms_and_units_are_idempotent']))",
+      "log": "/private/tmp/t30-mutant-synonyms.log",
+      "sha256": "1cf9257207f821c93af75135c8495f45c6bdbe91402590bc50f2594810cdd6a1"
+    },
+    {
+      "name": "store",
+      "exit": 1,
+      "failed": 1,
+      "command": "import ontologylab.kgstore_proposed as m; m.normalize_statement_qualifiers=lambda q:dict(q); import pytest; raise SystemExit(pytest.main(['--basetemp=/private/tmp/t30-mutant-store-0980fbea','tests/test_statement_qualifier_normalization.py::test_store_normalizes_and_keeps_original_surface']))",
+      "log": "/private/tmp/t30-mutant-store.log"
+    },
+    {
+      "name": "scorer",
+      "exit": 1,
+      "failed": 1,
+      "command": "import ontologylab.qualified_polarity_eval as m; from ontologylab.statement_qualifiers import normalize_qualifier_value; m.normalize_statement_value=lambda k,v:normalize_qualifier_value(v); import pytest; raise SystemExit(pytest.main(['--basetemp=/private/tmp/t30-mutant-scorer-2f801a47','tests/test_statement_qualifier_normalization.py::test_scorer_normalizes_both_raw_sides_without_store_help']))",
+      "log": "/private/tmp/t30-mutant-scorer.log"
+    }
+  ],
+  "compatibility": {
+    "existing_store_opens": true,
+    "existing_edge_bytes_and_ids_unchanged": true,
+    "legacy_insert_dedup_id_preserved": true,
+    "other_ontologies_unchanged": true,
+    "citation_merge_pack_mcp_carry_forward_tests_pass": true,
+    "no_added_product_modules": true,
+    "source_closure_tests_pass": true,
+    "release_snapshot_regenerated": false,
+    "release_snapshot_reason": "No product modules added; existing source closure remains 366 authoritative paths. No release authority claimed."
+  },
+  "build": {
+    "command": "uv build",
+    "exit": 0,
+    "isolated_wheel_import": true,
+    "notes": "Existing setuptools license-table deprecation and web.assets package-discovery warnings; wheel includes web assets."
+  },
+  "diagnostics": {
+    "direct_basedpyright": "0 errors, 0 warnings, 0 notes on normalization, dose, both scorers and variant recovery",
+    "lsp": "Changed helper/test files clean. Store mixins retain unresolved cross-mixin member diagnostics. Worktree LSP reported duplicate PolarityGold identity; direct worktree basedpyright is clean. JSON Biome server absent; JSON parsed and generator equality checked.",
+    "diff_check_exit": 0
+  },
+  "boundaries": {
+    "model_calls": 0,
+    "live_server_touched": false,
+    "application_support_touched": false,
+    "deletion_commands": 0
+  },
+  "temp_paths": [
+    "/private/tmp/t30.log",
+    "/private/tmp/t30-before.json",
+    "/private/tmp/t30-after.json",
+    "/private/tmp/t30-build.log",
+    "/private/tmp/t30-types.log",
+    "/private/tmp/t30-mutant-synonyms.log",
+    "/private/tmp/t30-mutant-store.log",
+    "/private/tmp/t30-mutant-scorer.log",
+    "/private/tmp/t30-11541-3729",
+    "/private/tmp/t30-31437-13523",
+    "/private/tmp/t30-1845-565",
+    "/private/tmp/t30-mutant-synonyms-99bef665",
+    "/private/tmp/t30-mutant-store-0980fbea",
+    "/private/tmp/t30-mutant-scorer-2f801a47",
+    "/private/tmp/t30-mutant-synonyms-b27f6ac6",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w9-t30/dist",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w9-t30/build",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w9-t30/.venv"
+  ]
+}

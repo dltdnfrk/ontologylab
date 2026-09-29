@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Literal, TypedDict
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class CandidateRefused(Exception):
     """Stable machine-readable candidate refusal."""
 

@@ -7,6 +7,7 @@ ontologylab.kgstore facade can share them without circular imports.
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -29,6 +30,27 @@ VEC_SHORTLIST_FACTOR = 8
 VEC_SHORTLIST_MIN_MARGIN = 64
 
 
+def extraction_passes(
+    conn: sqlite3.Connection, kind: str, item_id: str,
+) -> list[str] | None:
+    """Known producing passes across citations; NULL means unrecorded.
+
+    Old immutable packs have no column and must remain readable without DDL.
+    A known set is not a claim that older, untagged mentions came from it.
+    """
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(citations)")}
+    if "extraction_passes" not in columns:
+        return None
+    seen: set[str] = set()
+    for row in conn.execute(
+        "SELECT extraction_passes FROM citations WHERE kind = ? AND item_id = ?",
+        (kind, item_id),
+    ):
+        if row[0] is not None:
+            seen.update(json.loads(row[0]))
+    return [name for name in ("first", "completion") if name in seen] or None
+
+
 def _execute_sql_script(conn: sqlite3.Connection, script: str) -> None:
     """Execute a SQL script without sqlite3.executescript's implicit commit."""
     statement = ""
@@ -47,6 +69,25 @@ class KGStoreError(Exception):
 
 class SchemaValidationError(KGStoreError):
     """Raised when a graph write does not conform to its row's ontology."""
+
+
+@dataclass(slots=True)
+class UnknownQualifierError(SchemaValidationError):
+    """An undeclared qualifier is refused, never silently discarded.
+
+    Exception metadata must remain mutable: contextlib assigns __traceback__
+    when propagating this refusal through a transaction context manager.
+    """
+
+    qualifier: str
+    relation_type: str
+    schema_version_id: int
+
+    def __str__(self) -> str:
+        return (
+            f"undeclared qualifier {self.qualifier!r} for relation type "
+            f"{self.relation_type!r} in schema {self.schema_version_id}"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,6 +240,10 @@ CREATE TABLE IF NOT EXISTS entity_type (
     -- NULL = top-level. Names, not ids, so a schema document stays
     -- self-contained and order-independent at install time.
     parent_name       TEXT,
+    -- 0 = interpretation-overlay type (Question, Scenario, ...): written by
+    -- people through insert_curated, never offered to or accepted from the
+    -- extractor.
+    extractable       INTEGER NOT NULL DEFAULT 1,
     UNIQUE (schema_version_id, name)
 );
 
@@ -211,6 +256,7 @@ CREATE TABLE IF NOT EXISTS relation_type (
     range_type        TEXT NOT NULL,
     directed          INTEGER NOT NULL DEFAULT 1,
     qualifiers_json   TEXT NOT NULL DEFAULT '{}',
+    extractable       INTEGER NOT NULL DEFAULT 1,
     UNIQUE (schema_version_id, name)
 );
 
@@ -255,7 +301,9 @@ CREATE TABLE IF NOT EXISTS nodes (
 
     embedding         BLOB,
     embedding_model   TEXT,
-    decode_params     TEXT
+    decode_params     TEXT,
+    origin            TEXT NOT NULL DEFAULT 'extracted'
+                          CHECK (origin IN ('extracted','inferred','curated'))
 );
 -- (decode_params on nodes/edges: the sampling parameters the producing run
 -- selected, as canonical JSON with sorted keys; NULL when the engine has no
@@ -288,6 +336,7 @@ CREATE TABLE IF NOT EXISTS edges (
     dst_node_id       TEXT NOT NULL REFERENCES nodes(id),
     properties_json   TEXT NOT NULL DEFAULT '{}',
     qualifiers_json   TEXT NOT NULL DEFAULT '{}',
+    qualifiers_key    TEXT NOT NULL DEFAULT '{}',
 
     status            TEXT NOT NULL DEFAULT 'proposed'
                           CHECK (status IN ('proposed','verified','rejected')),
@@ -305,7 +354,9 @@ CREATE TABLE IF NOT EXISTS edges (
     invalidated_ts        REAL,
     invalidated_by        TEXT,
     invalidation_reason   TEXT,
-    decode_params         TEXT
+    decode_params         TEXT,
+    origin                TEXT NOT NULL DEFAULT 'extracted'
+                              CHECK (origin IN ('extracted','inferred','curated'))
 );
 -- (The last four edge columns are W13 bitemporal: event-time vs ingestion-
 -- time, and invalidation INSTEAD of deletion — a contradicted fact stays
@@ -316,10 +367,10 @@ CREATE INDEX IF NOT EXISTS idx_edges_dst_status ON edges (dst_node_id, status);
 CREATE INDEX IF NOT EXISTS idx_edges_type       ON edges (relation_type, status);
 -- Dedup covers CURRENT rows only: an invalidated edge frees its triple key,
 -- so a later re-assertion becomes a fresh proposed row coexisting with the
--- invalidated one (bitemporal history, no unique-key collision).
-CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_dedup
-    ON edges (schema_version_id, relation_type, src_node_id, dst_node_id)
-    WHERE status IN ('proposed','verified') AND invalidated_ts IS NULL;
+-- invalidated one (bitemporal history, no unique-key collision). The index
+-- (idx_edges_dedup) is created by KGStore._migrate, not here: it keys on
+-- qualifiers_json polarity, and a pre-qualifier store gains that column
+-- only during migration.
 
 -- Multi-source citations: every mention of a fact (including the first, and
 -- every resolution-merge afterwards) appends one row here. The inline
@@ -333,7 +384,8 @@ CREATE TABLE IF NOT EXISTS citations (
     extractor_engine TEXT,
     extractor_model  TEXT,
     prompt_version   TEXT,
-    decode_params    TEXT
+    decode_params    TEXT,
+    extraction_passes TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_citations_item ON citations (kind, item_id);
 
@@ -433,6 +485,30 @@ CREATE TABLE IF NOT EXISTS annotations (
 CREATE INDEX IF NOT EXISTS idx_annotations_status ON annotations (status);
 CREATE INDEX IF NOT EXISTS idx_annotations_node ON annotations (node_id);
 
+-- One immutable receipt per human HTTP command, never an adjudicated gold row.
+CREATE TABLE IF NOT EXISTS statement_review_events (
+    id                   TEXT PRIMARY KEY,
+    version              INTEGER NOT NULL,
+    created_ts           REAL NOT NULL,
+    action               TEXT NOT NULL,
+    actor                TEXT NOT NULL,
+    reason               TEXT,
+    item_ids_json        TEXT NOT NULL,
+    before_json          TEXT NOT NULL,
+    after_json           TEXT NOT NULL,
+    source_doc_ids_json  TEXT NOT NULL,
+    source_hashes_json   TEXT NOT NULL,
+    split_assignment     TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS statement_review_events_no_update
+BEFORE UPDATE ON statement_review_events BEGIN
+    SELECT RAISE(ABORT, 'review events are append-only');
+END;
+CREATE TRIGGER IF NOT EXISTS statement_review_events_no_delete
+BEFORE DELETE ON statement_review_events BEGIN
+    SELECT RAISE(ABORT, 'review events are append-only');
+END;
+
 CREATE VIEW IF NOT EXISTS pending_review AS
 SELECT 'node' AS kind, id, entity_type AS type_name, name AS label,
        confidence, source_doc_id, created_ts
@@ -515,12 +591,23 @@ CREATE TABLE IF NOT EXISTS entity_enrichments (
 );
 """
 
+# Claim identity beyond the triple: a 'no_effect' finding is a different claim
+# from a 'supports' one on the same (relation, src, dst), never a citation of
+# it. Absent polarity maps to '' so every pre-polarity row keeps its identity.
+EDGE_POLARITY_SQL = "COALESCE(json_extract(qualifiers_json, '$.polarity'), '')"
+EDGE_QUALIFIERS_SQL = "qualifiers_key"
+
+
+def edge_polarity(qualifiers: dict[str, Any] | None) -> str:
+    value = (qualifiers or {}).get("polarity")
+    return value if isinstance(value, str) else ""
+
 _NODE_COLUMNS = (
     "id, schema_version_id, entity_type, name, normalized_name, aliases_json, "
     "properties_json, status, confidence, source_doc_id, source_span, "
     "extractor_engine, extractor_model, prompt_version, created_ts, "
     "verified_ts, verified_by, review_note, embedding, embedding_model, "
-    "decode_params"
+    "decode_params, origin"
 )
 
 

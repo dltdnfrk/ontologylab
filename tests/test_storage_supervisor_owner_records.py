@@ -186,17 +186,27 @@ def test_fake_arbitrary_instance_record_refuses_without_counting_as_proof(
     assert open_arguments(result.stdout) == []
 
 
-def test_valid_but_stale_instance_record_refuses(tmp_path: Path) -> None:
+def test_stale_instance_record_is_replaced_on_launch(tmp_path: Path) -> None:
     app = build_supervisor(tmp_path / "stale-record")
     _older(app)
-    state = _capture_owner_record(app)
-    _write_owner_record(app, state)
+    stale = _capture_owner_record(app)
+    _write_owner_record(app, stale)
 
-    result = run(app, "real")
+    with managed_process(launch(app, "hold")) as process:
+        read_event(process, "OPEN:")
+        replaced = OwnerRecordFixture.model_validate_json(
+            (app.state_root / "instance.json").read_bytes(),
+            strict=True,
+        )
+        assert replaced.supervisor_pid == process.pid
+        assert replaced.supervisor_pid != stale.supervisor_pid
+        assert replaced.child_pid != stale.child_pid
+        assert replaced.nonce != stale.nonce
+        assert replaced.backend_fingerprint != stale.backend_fingerprint
+        os.kill(replaced.child_pid, 0)
+        _stdout, stderr = stop(process)
 
-    assert result.returncode != 0
-    assert "stale_owner_record" in result.stderr
-    assert open_arguments(result.stdout) == []
+    assert process.returncode == 0, stderr
 
 
 def test_reused_pid_fingerprint_mismatch_refuses_without_signal(

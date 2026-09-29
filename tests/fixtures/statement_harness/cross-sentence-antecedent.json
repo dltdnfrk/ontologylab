@@ -1,0 +1,55 @@
+{
+  "id": "cross-sentence-antecedent",
+  "case": "cross_sentence_antecedent",
+  "rules_version": "units-v1",
+  "text": "Mesotrione was sprayed at 0.1 kg/ha. It reduced P. annua density relative to untreated plots.",
+  "section_spans": [
+    {
+      "section": "results",
+      "start": 0,
+      "end": 93
+    }
+  ],
+  "rationale": "Assigned arms: It\nAntecedent: Mesotrione\nNot borrowed: 0.1 kg/ha\nIt is supports because it reduced density. The antecedent Mesotrione is in the previous sentence and is recorded as context. The dose 0.1 kg/ha stays in that context and is not a qualifier of the asserting sentence.",
+  "expected_slots": [
+    {
+      "quote": "Mesotrione was sprayed at 0.1 kg/ha.",
+      "start": 0,
+      "end": 36,
+      "role": "context"
+    },
+    {
+      "quote": "Mesotrione",
+      "start": 0,
+      "end": 10,
+      "role": "antecedent"
+    },
+    {
+      "quote": "0.1 kg/ha",
+      "start": 26,
+      "end": 35,
+      "role": "dose"
+    },
+    {
+      "quote": "It reduced P. annua density relative to untreated plots.",
+      "start": 37,
+      "end": 93,
+      "role": "asserting_sentence"
+    },
+    {
+      "quote": "It",
+      "start": 37,
+      "end": 39,
+      "role": "arm",
+      "arm": "It",
+      "polarity": "supports"
+    },
+    {
+      "quote": "reduced P. annua density",
+      "start": 40,
+      "end": 64,
+      "role": "result",
+      "arm": "It"
+    }
+  ]
+}

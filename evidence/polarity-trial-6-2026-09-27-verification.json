@@ -1,0 +1,42 @@
+{
+  "closed_store_hashes": {
+    "/private/tmp/ol-polarity6-20260927T125639Z-r1/kg.sqlite": {
+      "bytes": 1376256,
+      "sha256": "d8600f65b9d15de2d2d74c9002e7e682c0693c108f71e347a01f5f228cd10e69"
+    },
+    "/private/tmp/ol-polarity6-20260927T125639Z-r2/kg.sqlite": {
+      "bytes": 1404928,
+      "sha256": "fd1009181c20eb6bd0c678fc8bcc7887609017e2e5afc3ab75a7570e8801cd6b"
+    },
+    "/private/tmp/ol-polarity6-20260927T125639Z-r3/kg.sqlite": {
+      "bytes": 1372160,
+      "sha256": "6535c3d2e6db16aa945fa7e27ea9db580772bd6f8dfb75a7ab43ee21cb74cc4d"
+    }
+  },
+  "ports_closed": [
+    {
+      "connect_ex": 61,
+      "pid_absent": true,
+      "port": 58076
+    },
+    {
+      "connect_ex": 61,
+      "pid_absent": true,
+      "port": 58078
+    },
+    {
+      "connect_ex": 61,
+      "pid_absent": true,
+      "port": 58077
+    }
+  ],
+  "secret_scan": {
+    "all_exit_codes_checked": true,
+    "files": 753,
+    "matches": 0,
+    "method": "grep -a -F -c -f /dev/stdin -- FILE"
+  },
+  "scope": "Scan includes Markdown, numerical report, full export, canonical task artifact, helpers, logs, tests and retained run roots; this scan receipt was emitted afterward.",
+  "report_readback_exact": true,
+  "links_resolve": true
+}

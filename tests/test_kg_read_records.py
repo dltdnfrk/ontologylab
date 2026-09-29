@@ -64,7 +64,7 @@ def test_node_values_and_authority_are_not_reinterpreted(store, status):
         "aliases": ["요청 제한기", "Limiter"],
         "properties": {"limit": 0, "nested": {"active": False}},
         "status": status, "confidence": 0.0, "source_doc_id": "doc-1",
-        "source_span": {"start": 0, "end": 12},
+        "source_span": {"start": 0, "end": 12}, "origin": "extracted",
     }
     assert (store.conn.total_changes, store.conn.in_transaction) == before
 
@@ -85,7 +85,7 @@ def test_edge_endpoints_qualifiers_and_invalidation_are_preserved(store):
         "target_id": "node-b", "properties": {"weight": 2},
         "qualifiers": {"scope": {"tenant": "A"}}, "status": "verified",
         "confidence": 0.0, "source_doc_id": None, "valid_from": 0.0,
-        "invalidated_ts": 27.5,
+        "invalidated_ts": 27.5, "origin": "extracted",
     }
 
 

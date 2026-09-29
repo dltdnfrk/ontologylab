@@ -12,10 +12,10 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # The executable product-status audit puts the matrix at ~21-25 min on
-    # runners. 35 keeps ten minutes of machine-variance headroom without
-    # leaving a hung job unbounded.
-    timeout-minutes: 35
+    # The suite plus the executable product-status audit took 33-35+ min per
+    # job on runners in 2026-09 (4,660 tests). 60 keeps headroom for machine
+    # variance without leaving a hung job unbounded.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -32,6 +32,12 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: pyproject.toml
+
+      # tests/test_installed_wheel.py and tests/test_dashboard_wheel.py build
+      # the real wheel with uv, so the runner needs the uv binary on PATH.
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
 
       - name: Install (core + server + mcp + graph + test extras)
         run: python -m pip install -e ".[server,mcp,graph,test]"
@@ -54,5 +60,5 @@ jobs:
         # so a `scripts/<stdlib-name>.py` is imported before the checker re-execs itself.
         run: python -P scripts/check_product_status.py --root . --document docs/PRODUCT_SPEC.md
 
-      - name: Dashboard JS syntax check
-        run: node --check ontologylab/web/app.js
+      - name: Dashboard asset manifest check
+        run: python -m ontologylab.web_assets check

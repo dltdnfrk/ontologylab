@@ -37,7 +37,7 @@ class ReceiptSealCode(StrEnum):
     MISSING_RECEIPT = "missing_receipt"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class ReceiptSealRefused(Exception):
     code: ReceiptSealCode
     member: str

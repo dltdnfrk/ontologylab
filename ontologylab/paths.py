@@ -26,10 +26,10 @@ DEFAULT_MODEL: str = "claude-fable-5"
 CRITIC_MODEL: str = "claude-haiku-4-5-20251001"
 DEFAULT_SEED: int = 7
 
-# Extraction-job safety defaults (consumed by safety.Caps via a config object).
-# The server layer (schemas.ExtractRequest) and the dashboard's extract form
-# mirror these — change them HERE, not at the call sites.
+# Shared request cap and research wall-clock default. Direct extraction sizes
+# an omitted wall budget from its eligible chunks in run_extract_job.
 DEFAULT_MAX_ENGINE_CALLS: int = 500
+DEFAULT_MAX_TRANSPORT_RETRIES: int = 2
 DEFAULT_TIME_BUDGET_S: float = 7200.0
 
 # Audit-trail actor recorded on approve/reject/merge/invalidate when the

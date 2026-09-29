@@ -1,18 +1,18 @@
 {
   "assets": [
     {
-      "path": "assets/index-DH5tqcb5.css",
-      "sha256": "1809eed3149891bddac93895f851bab8e114d0fb0d96df11d93ca3880fae79ed",
-      "size": 40901
+      "path": "assets/index-FQwMvdZS.css",
+      "sha256": "d79987cf35b82250f8f4d4f75e60539df40d04fe89cc548a3c1893fcd0d8c7e4",
+      "size": 41600
     },
     {
-      "path": "assets/index-DMU57FZO.js",
-      "sha256": "67e283662f416dda881cf29441bc603fd834a9d475d180bb04200d009d48b924",
-      "size": 835645
+      "path": "assets/index-uhAfpA2S.js",
+      "sha256": "7d1c10141179afb7ab68bc4d140b3107f300e76d612c09d38359f4a8c98ecdd2",
+      "size": 854912
     },
     {
       "path": "index.html",
-      "sha256": "dbb36cf1ba588f4bd10952c0ae17bd2662b57be561de24fe6c2fd9e46be29c0d",
+      "sha256": "c31b9b0a5a72f848dd00e0d9ba542c3efe69af4b090dd161ff093039c796f6ca",
       "size": 619
     }
   ],

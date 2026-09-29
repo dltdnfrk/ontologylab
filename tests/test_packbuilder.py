@@ -18,6 +18,7 @@ from ontologylab.packbuilder import (  # noqa: E402
     PackBuildError,
     build_pack,
     list_packs,
+    safe_pack_component,
 )
 
 
@@ -160,3 +161,18 @@ def test_method_selection_failure_leaves_no_visible_pack(
 
     assert list_packs(packs) == []
     assert not list(tmp_path.glob(".packs-*-staging-*"))
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["pack\n", "pack\nx", "pack\t", " pack", "pack/x", "", ".", "..", "\x00"],
+)
+def test_safe_pack_component_refuses_every_unsafe_segment(value: str) -> None:
+    with pytest.raises(PackBuildError, match="invalid pack id"):
+        safe_pack_component(value, kind="pack id")
+
+
+def test_safe_pack_component_returns_a_safe_segment() -> None:
+    assert safe_pack_component("intact-20260926.v1_a", kind="pack id") == (
+        "intact-20260926.v1_a"
+    )

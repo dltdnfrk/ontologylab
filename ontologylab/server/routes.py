@@ -14,7 +14,7 @@ import json
 import logging
 import sqlite3
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -22,6 +22,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import ValidationError
+from starlette.convertors import Convertor, register_url_convertor
 
 from ontologylab import paths
 from ontologylab.chatstore import MAX_TURNS, ChatStore
@@ -83,6 +84,7 @@ from ontologylab.offline_policy import configured_source_ids, passive_source_vie
 from ontologylab.packbuilder import (
     PackBuildError,
     build_pack_release,
+    safe_pack_component,
     scan_packs,
 )
 from ontologylab.paths import (
@@ -90,6 +92,13 @@ from ontologylab.paths import (
     DEFAULT_TIME_BUDGET_S,
     NetworkBlocked,
     kg_db_path,
+)
+from ontologylab.extraction_eligibility import (
+    UNKNOWN_DOCUMENT,
+    best_content_kinds,
+    extraction_eligibilities,
+    refusal_message,
+    refused_extractions,
 )
 from ontologylab.proposals import (
     OntologyProposalError,
@@ -124,6 +133,11 @@ from ontologylab.research_spec import (
     ResearchOrigin,
 )
 from ontologylab.searchquery import DEFAULT_SEARCH_QUERIES
+from ontologylab.statement_feedback import (
+    ReviewEvent,
+    existing_curated_ids,
+    review_snapshot,
+)
 from ontologylab.server import entity_actions
 from ontologylab.server import settings as settings_mod
 from ontologylab.server.dependencies import AppDependencies, AppDependency
@@ -139,6 +153,7 @@ from ontologylab.server.schemas import (
     CollectRequest,
     CostSummary,
     CriticRunRequest,
+    CuratedStatementCreate,
     EngineInfo,
     ExtractRequest,
     GroundingWaiverAction,
@@ -163,6 +178,7 @@ from ontologylab.server.schemas import (
     ResearchRequest,
     ResearchStartInput,
     ResearchSummary,
+    InterpretationCreate,
     SchemaInstall,
     Settings,
     SourceCreate,
@@ -199,6 +215,34 @@ def _open_store(deps: AppDependencies) -> KGStore:
     # Creates an empty store on first open, so the review UI boots cleanly
     # even before any collect job has run.
     return KGStore.open(kg_db_path(deps.data_dir))
+
+def _review_command(
+    store: KGStore, action: str, actor: str, reason: str | None,
+    item_ids: tuple[str, ...], command: Callable[[], dict[str, Any]],
+) -> dict[str, Any]:
+    """Commit one human command and its before/after receipt together."""
+    with store.atomic():
+        before = review_snapshot(store.conn, item_ids)
+        result = command()
+        affected = tuple(
+            item_id
+            for key in ("approved_ids", "rejected_ids", "reopened_ids", "approved")
+            for item_id in result.get(key, ())
+        )
+        ids = tuple(dict.fromkeys((*item_ids, *affected)))
+        after = review_snapshot(store.conn, ids)
+        snapshots = (*before, *after)
+        store.record_review_event(ReviewEvent(
+            action=action, actor=actor, reason=reason, item_ids=ids,
+            before=before, after=after,
+            source_doc_ids=tuple(dict.fromkeys(
+                row["source_doc_id"] for row in snapshots if row["source_doc_id"]
+            )),
+            source_hashes=tuple(dict.fromkeys(
+                row["source_hash"] for row in snapshots if row["source_hash"]
+            )),
+        ))
+        return result
 
 
 # ---------------------------------------------------------------------------
@@ -578,6 +622,29 @@ def get_calibration(deps: AppDependency) -> dict[str, Any]:
         store.close()
 
 
+@router.get("/review/missed-null")
+def list_missed_null(deps: AppDependency) -> dict[str, Any]:
+    """Show both uncited null sentences and cited ones needing arm review."""
+    from dataclasses import asdict
+
+    from ontologylab.missed_null import missed_null_candidates
+
+    store = _open_store(deps)
+    try:
+        documents = store.list_documents()
+        grouped = {doc.id: [] for doc in documents}
+        for candidate in missed_null_candidates(store, documents):
+            grouped[candidate.document_id].append(asdict(candidate))
+        rows = [
+            {"id": doc.id, "title": doc.title or doc.source_uri,
+             "candidates": grouped[doc.id]}
+            for doc in documents if grouped[doc.id]
+        ]
+        return {"documents": rows, "count": sum(len(row["candidates"]) for row in rows)}
+    finally:
+        store.close()
+
+
 @router.get("/proposals")
 def list_proposals(deps: AppDependency,
     kind: str | None = Query(None, description="node | edge"),
@@ -703,7 +770,10 @@ def bulk_approve_proposals(
     """
     store = _open_store(deps)
     try:
-        result = store.approve_many(body.ids, by=body.by, note=body.note)
+        result = _review_command(
+            store, "bulk_approve", body.by, body.note, tuple(body.ids),
+            lambda: store.approve_many(body.ids, by=body.by, note=body.note),
+        )
         return {"ok": True, **result}
     except KGStoreError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -715,8 +785,11 @@ def bulk_approve_proposals(
 def approve_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
     store = _open_store(deps)
     try:
-        result = store.approve(
-            body.id, by=body.by, note=body.note, cascade=body.cascade
+        result = _review_command(
+            store, "approve", body.by, body.note, (body.id,),
+            lambda: store.approve(
+                body.id, by=body.by, note=body.note, cascade=body.cascade,
+            ),
         )
         return {"ok": True, **result}
     except (EndpointNotVerified, InvalidTransition, GroundingPreflightError) as exc:
@@ -734,7 +807,10 @@ def invalidate_edge(deps: AppDependency, edge_id: str, body: InvalidateAction) -
     """W13: mark a verified edge as no-longer-current (kept as history)."""
     store = _open_store(deps)
     try:
-        result = store.invalidate_edge(edge_id, by=body.by, reason=body.note)
+        result = _review_command(
+            store, "invalidate", body.by, body.note, (edge_id,),
+            lambda: store.invalidate_edge(edge_id, by=body.by, reason=body.note),
+        )
         return {"ok": True, **result}
     except UnknownItem as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -748,7 +824,10 @@ def invalidate_edge(deps: AppDependency, edge_id: str, body: InvalidateAction) -
 def reject_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
     store = _open_store(deps)
     try:
-        result = store.reject(body.id, by=body.by, note=body.note)
+        result = _review_command(
+            store, "reject", body.by, body.note, (body.id,),
+            lambda: store.reject(body.id, by=body.by, note=body.note),
+        )
         return {"ok": True, **result}
     except (InvalidTransition, GroundingPreflightError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -764,7 +843,10 @@ def reject_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]
 def quarantine_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
     store = _open_store(deps)
     try:
-        result = store.quarantine(body.id, by=body.by, note=body.note)
+        result = _review_command(
+            store, "quarantine", body.by, body.note, (body.id,),
+            lambda: store.quarantine(body.id, by=body.by, note=body.note),
+        )
         return {"ok": True, **result}
     except (InvalidTransition, GroundingPreflightError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -780,7 +862,10 @@ def quarantine_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, 
 def retract_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
     store = _open_store(deps)
     try:
-        result = store.retract_review(body.id, by=body.by, note=body.note)
+        result = _review_command(
+            store, "retract", body.by, body.note, (body.id,),
+            lambda: store.retract_review(body.id, by=body.by, note=body.note),
+        )
         return {"ok": True, **result}
     except (InvalidTransition, GroundingPreflightError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -796,7 +881,10 @@ def retract_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any
 def compensate_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]:
     store = _open_store(deps)
     try:
-        result = store.compensate_review(body.id, by=body.by, note=body.note)
+        result = _review_command(
+            store, "compensate", body.by, body.note, (body.id,),
+            lambda: store.compensate_review(body.id, by=body.by, note=body.note),
+        )
         return {"ok": True, **result}
     except (InvalidTransition, GroundingPreflightError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -816,8 +904,9 @@ def approve_proposal_with_waiver(
 
     store = _open_store(deps)
     try:
-        result = store.approve_with_grounding_waiver(
-            WaiverRequest(
+        result = _review_command(
+            store, "approve_with_waiver", body.by, body.reason, (body.id,),
+            lambda: store.approve_with_grounding_waiver(WaiverRequest(
                 item_id=body.id,
                 actor=body.by,
                 reason=body.reason,
@@ -825,7 +914,7 @@ def approve_proposal_with_waiver(
                 citation_ids=tuple(body.citation_ids),
                 scoped_defects=tuple(body.scoped_defects),
                 cascade=body.cascade,
-            )
+            )),
         )
         return {"ok": True, **result}
     except (InvalidTransition, GroundingPreflightError) as exc:
@@ -847,7 +936,10 @@ def reopen_proposal(deps: AppDependency, body: ProposalAction) -> dict[str, Any]
     """
     store = _open_store(deps)
     try:
-        result = store.reopen(body.id, by=body.by, note=body.note)
+        result = _review_command(
+            store, "reopen", body.by, body.note, (body.id,),
+            lambda: store.reopen(body.id, by=body.by, note=body.note),
+        )
         return {"ok": True, **result}
     except UnknownItem as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -909,6 +1001,259 @@ def get_schema(deps: AppDependency) -> dict[str, Any]:
                 for name, schema in sorted(PRESETS.items())
             ],
         }
+    finally:
+        store.close()
+
+
+@router.get("/interpretations")
+def list_interpretations(
+    deps: AppDependency,
+    include_proposed: bool = Query(True),
+    limit: int = Query(200, ge=1, le=1000),
+) -> dict[str, Any]:
+    """Curated overlay nodes with the facts they link to, for the panel.
+
+    Every row carries its origin, so the UI can never render a curated
+    interpretation as if it were an extracted claim.
+    """
+    status = "('proposed','verified')" if include_proposed else "('verified')"
+    store = _open_store(deps)
+    try:
+        nodes = [
+            dict(row) for row in store.conn.execute(
+                "SELECT id, entity_type, name, status, properties_json, created_ts "
+                f"FROM nodes WHERE origin = 'curated' AND status IN {status} "
+                "ORDER BY created_ts DESC, id LIMIT ?",
+                (limit,),
+            )
+        ]
+        ids = [node["id"] for node in nodes]
+        links: list[dict[str, Any]] = []
+        if ids:
+            marks = ",".join("?" * len(ids))
+            links = [
+                dict(row) for row in store.conn.execute(
+                    "SELECT e.id, e.relation_type, e.src_node_id, e.dst_node_id, "
+                    "e.status, d.name AS dst_name, d.entity_type AS dst_type, "
+                    "d.origin AS dst_origin, d.status AS dst_status "
+                    "FROM edges e JOIN nodes d ON d.id = e.dst_node_id "
+                    f"WHERE e.src_node_id IN ({marks}) AND e.status IN {status} "
+                    "AND e.invalidated_ts IS NULL ORDER BY e.relation_type, e.id",
+                    ids,
+                )
+            ]
+    finally:
+        store.close()
+    for node in nodes:
+        node["properties"] = json.loads(node.pop("properties_json") or "{}")
+        node["links"] = [link for link in links if link["src_node_id"] == node["id"]]
+    return {"interpretations": nodes, "count": len(nodes)}
+
+
+@router.get("/claims/stages")
+def claim_stages(
+    deps: AppDependency,
+    include_proposed: bool = Query(False),
+) -> dict[str, Any]:
+    """Edge counts per relation, grouped into pipeline stages.
+
+    The layout is read-side only (schemas.STAGE_LAYOUTS). A relation the
+    layout does not name is reported under "other" rather than dropped.
+    """
+    from ontologylab.schemas import STAGE_LAYOUTS
+
+    status = "('proposed','verified')" if include_proposed else "('verified')"
+    store = _open_store(deps)
+    try:
+        rows = store.conn.execute(
+            "SELECT relation_type, "
+            "COALESCE(json_extract(qualifiers_json, '$.polarity'), '') AS polarity, "
+            f"COUNT(*) AS n FROM edges WHERE status IN {status} "
+            "AND invalidated_ts IS NULL GROUP BY 1, 2"
+        ).fetchall()
+    finally:
+        store.close()
+    counts: dict[str, dict[str, int]] = {}
+    for row in rows:
+        counts.setdefault(row["relation_type"], {})[row["polarity"] or "unspecified"] = row["n"]
+    placed: set[str] = set()
+    stages = []
+    for key, label, relations in STAGE_LAYOUTS["agrochem"]:
+        placed.update(relations)
+        stages.append({
+            "key": key, "label": label,
+            "relations": [
+                {"relation_type": name, "polarity": counts.get(name, {}),
+                 "total": sum(counts.get(name, {}).values())}
+                for name in relations
+            ],
+        })
+    other = sorted(set(counts) - placed)
+    stages.append({
+        "key": "other", "label": "기타",
+        "relations": [
+            {"relation_type": name, "polarity": counts[name],
+             "total": sum(counts[name].values())}
+            for name in other
+        ],
+    })
+    for stage in stages:
+        stage["total"] = sum(rel["total"] for rel in stage["relations"])
+    return {"stages": stages, "include_proposed": include_proposed}
+
+
+@router.post("/interpretations")
+def create_interpretation(
+    deps: AppDependency, body: InterpretationCreate
+) -> dict[str, Any]:
+    """Record a curated interpretation as proposed, origin='curated' rows.
+
+    Entities resolve by name against existing facts, so naming an extracted
+    Pathogen links to it rather than duplicating it. Nothing becomes
+    verified here; the rows enter the same human review queue.
+    """
+    import uuid
+
+    from ontologylab.models import ProposedEntity, ProposedRelation
+
+    entities = [
+        ProposedEntity(
+            id=uuid.uuid4().hex, entity_type=e.entity_type, name=e.name,
+            aliases=list(e.aliases), properties=dict(e.properties),
+        )
+        for e in body.entities
+    ]
+    relations = []
+    for index, r in enumerate(body.relations):
+        if r.src >= len(entities) or r.dst >= len(entities):
+            raise HTTPException(
+                status_code=422,
+                detail=f"relations[{index}] references an entity index "
+                f"outside 0..{len(entities) - 1}",
+            )
+        relations.append(
+            ProposedRelation(
+                id=uuid.uuid4().hex, relation_type=r.relation_type,
+                src_entity_id=entities[r.src].id, dst_entity_id=entities[r.dst].id,
+                qualifiers=dict(r.qualifiers),
+            )
+        )
+    store = _open_store(deps)
+    try:
+        stats = None
+        try:
+            with store.atomic():
+                existing_ids = existing_curated_ids(store.conn, entities, relations)
+                before = review_snapshot(store.conn, existing_ids)
+                stats = store.insert_curated(
+                    entities, relations, curator=body.curator, note=body.note,
+                    commit=False,
+                )
+                ids = (
+                    *existing_ids,
+                    stats["document_id"],
+                    *stats["id_map"].values(),
+                    *(relation.id for relation in relations),
+                )
+                after = review_snapshot(store.conn, ids)
+                snapshots = (*before, *after)
+                store.record_review_event(ReviewEvent(
+                    action="create_interpretation", actor=body.curator,
+                    reason=body.note, item_ids=tuple(dict.fromkeys(ids)),
+                    before=before, after=after,
+                    source_doc_ids=tuple(dict.fromkeys(
+                        row["source_doc_id"] for row in snapshots
+                        if row["source_doc_id"]
+                    )),
+                    source_hashes=tuple(dict.fromkeys(
+                        row["source_hash"] for row in snapshots
+                        if row["source_hash"]
+                    )),
+                ))
+        except Exception:
+            if stats is not None and stats["document_created"]:
+                (store.db_path.parent / "documents" / stats["document_id"] / "raw.txt").unlink()
+            raise
+    except KGStoreError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        store.close()
+    return {
+        "ok": True,
+        "document_id": stats["document_id"],
+        "node_ids": [stats["id_map"][e.id] for e in entities],
+        "nodes_new": stats["nodes_new"],
+        "nodes_merged": stats["nodes_merged"],
+        "edges_new": stats["edges_new"],
+    }
+
+
+@router.post("/documents/{doc_id}/statements")
+def create_curated_statement(
+    deps: AppDependency, doc_id: str, body: CuratedStatementCreate,
+) -> dict[str, Any]:
+    """Propose a human-authored statement citing exact existing source text."""
+    import uuid
+
+    from ontologylab.models import ProposedEntity, ProposedRelation, SourceSpan
+
+    store = _open_store(deps)
+    try:
+        source = store.document_raw_text(doc_id)
+        if body.end <= body.start or source[body.start:body.end] != body.text:
+            raise HTTPException(status_code=422, detail="span is not an exact document substring")
+        if not body.curator.strip():
+            raise HTTPException(status_code=422, detail="curator must not be blank")
+        span = SourceSpan(body.start, body.end)
+        entities = [
+            ProposedEntity(
+                id=uuid.uuid4().hex, entity_type=item.entity_type,
+                name=item.name, aliases=list(item.aliases),
+                properties=dict(item.properties), source_span=span,
+            )
+            for item in (body.subject, body.object)
+        ]
+        relation = ProposedRelation(
+            id=uuid.uuid4().hex, relation_type=body.relation_type,
+            src_entity_id=entities[0].id, dst_entity_id=entities[1].id,
+            qualifiers={**body.qualifiers, "polarity": body.polarity},
+            source_span=span,
+        )
+        with store.atomic():
+            existing_ids = existing_curated_ids(
+                store.conn, entities, [relation],
+            )
+            before = review_snapshot(store.conn, (doc_id, *existing_ids))
+            stats = store.insert_proposed(
+                entities, [relation], source_doc_id=doc_id,
+                extractor_engine="curation", extractor_model=body.curator,
+                origin="curated", commit=False,
+            )
+            if stats["edges_new"] != 1:
+                raise HTTPException(
+                    status_code=409, detail="statement already exists; review the existing row",
+                )
+            ids = (doc_id, *existing_ids, *stats["id_map"].values(), relation.id)
+            after = review_snapshot(store.conn, ids)
+            snapshots = (*before, *after)
+            store.record_review_event(ReviewEvent(
+                action="create_statement", actor=body.curator,
+                item_ids=tuple(dict.fromkeys(ids)),
+                before=before, after=after,
+                source_doc_ids=tuple(dict.fromkeys(
+                    row["source_doc_id"] for row in snapshots
+                    if row["source_doc_id"]
+                )),
+                source_hashes=tuple(dict.fromkeys(
+                    row["source_hash"] for row in snapshots
+                    if row["source_hash"]
+                )),
+            ))
+        return {"ok": True, "edge_id": relation.id,
+                "status": "proposed", "origin": "curated",
+                "nodes_new": stats["nodes_new"], "edges_new": stats["edges_new"]}
+    except KGStoreError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     finally:
         store.close()
 
@@ -1626,8 +1971,12 @@ def merge_candidate_merge(deps: AppDependency, candidate_id: str, body: MergeAct
                 status_code=409,
                 detail=f"candidate already decided ({candidate['status']})",
             )
-        report = store.merge_nodes(
-            body.target_id, body.source_id, by=body.by, note=body.note
+        report = _review_command(
+            store, "merge", body.by, body.note,
+            (candidate_id, body.target_id, body.source_id),
+            lambda: store.merge_nodes(
+                body.target_id, body.source_id, by=body.by, note=body.note,
+            ),
         )
         return {"ok": True, **report}
     except UnknownItem as exc:
@@ -1642,8 +1991,11 @@ def merge_candidate_merge(deps: AppDependency, candidate_id: str, body: MergeAct
 def merge_candidate_dismiss(deps: AppDependency, candidate_id: str, body: MergeDismiss) -> dict[str, Any]:
     store = _open_store(deps)
     try:
-        result = store.dismiss_merge_candidate(
-            candidate_id, by=body.by, note=body.note
+        result = _review_command(
+            store, "dismiss_merge", body.by, body.note, (candidate_id,),
+            lambda: store.dismiss_merge_candidate(
+                candidate_id, by=body.by, note=body.note,
+            ),
         )
         return {"ok": True, **result}
     except UnknownItem as exc:
@@ -1990,10 +2342,42 @@ def get_work(deps: AppDependency, work_id: str) -> dict[str, Any]:
         store.close()
 
 
+def _document_extraction_statuses(
+    conn: sqlite3.Connection, schema_version_id: int
+) -> dict[str, str]:
+    """Status of the most recently updated extraction run per document.
+
+    Only runs under ``schema_version_id`` count. The badge answers "has this
+    document been extracted under the ontology the review queue uses now";
+    after an ontology switch a document the new ontology has never seen must
+    read `none`, not the old ontology's `complete`.
+    """
+    statuses: dict[str, str] = {}
+    for row in conn.execute(
+        "SELECT document_id, status FROM extraction_runs "
+        "WHERE schema_version_id = ? "
+        "ORDER BY updated_ts DESC, created_ts DESC, rowid DESC",
+        (schema_version_id,),
+    ):
+        statuses.setdefault(str(row["document_id"]), str(row["status"]))
+    return statuses
+
+
 @router.get("/documents")
 def get_documents(deps: AppDependency) -> dict[str, Any]:
     store = _open_store(deps)
     try:
+        rows = store.list_documents()
+        content_kinds = best_content_kinds(store.conn)
+        extraction_statuses = _document_extraction_statuses(
+            store.conn, int(store.active_schema_version()["id"])
+        )
+        eligibility = {
+            verdict.document_id: verdict
+            for verdict in extraction_eligibilities(
+                store.conn, [doc.id for doc in rows]
+            )
+        }
         documents = [
             {
                 "id": doc.id,
@@ -2004,9 +2388,19 @@ def get_documents(deps: AppDependency) -> dict[str, Any]:
                 "content_hash": doc.content_hash,
                 "doi": doc.doi,
                 "source": doc.source,
+                # Publication type (peer_reviewed/preprint/...): what kind of
+                # record this is, never what text of it the store holds.
                 "evidence_grade": doc.evidence_grade,
+                # What text the store holds (fulltext/abstract/excerpt/
+                # metadata_only); an upload without an Observation reads
+                # metadata_only here yet is extractable below.
+                "content_kind": content_kinds.get(doc.id, "metadata_only"),
+                "extraction_status": extraction_statuses.get(doc.id, "none"),
+                # The same verdict /api/extract and the CLI enforce.
+                "extractable": eligibility[doc.id].eligible,
+                "extract_blocked_reason": eligibility[doc.id].reason or None,
             }
-            for doc in store.list_documents()
+            for doc in rows
         ]
     finally:
         store.close()
@@ -2250,11 +2644,47 @@ def collect_sample(deps: AppDependency) -> dict[str, Any]:
 
 @router.post("/extract", status_code=202)
 def start_extract(deps: AppDependency, body: ExtractRequest) -> dict[str, Any]:
+    """Start an extraction job over explicit documents, or over all of them.
+
+    Named documents are judged here, before a job exists: an abstract-only
+    paper is refused with a typed 422 naming each refused id and its held
+    kind, and an id the store does not have is a 404. The gate reviewer for
+    todo 5 reached `complete` through this route with an abstract-only
+    document; a 202 must never again mean "accepted, will refuse later".
+    The unnamed "every document" path is filtered at the shared
+    `run_extract_job` seam instead, where skipping is reported per run.
+    """
+    if body.doc_ids:
+        store = _open_store(deps)
+        try:
+            refused = refused_extractions(store.conn, body.doc_ids)
+        finally:
+            store.close()
+        if refused:
+            unknown = any(v.code == UNKNOWN_DOCUMENT for v in refused)
+            raise HTTPException(
+                status_code=404 if unknown else 422,
+                detail={
+                    "ok": False,
+                    "error_kind": "unknown_document" if unknown else "not_extractable",
+                    "detail": refusal_message(refused),
+                    "refused": [
+                        {
+                            "doc_id": v.document_id,
+                            "content_kind": v.content_kind,
+                            "reason": v.reason,
+                        }
+                        for v in refused
+                    ],
+                },
+            )
     job = deps.jobs.create(
         engine=body.engine,
         model=body.model,
         doc_ids=body.doc_ids,
         max_engine_calls=body.max_engine_calls,
+        max_transport_retries=body.max_transport_retries,
+        statement_completion=body.statement_completion,
         time_budget=body.time_budget,
         seed=body.seed,
     )
@@ -3079,6 +3509,76 @@ def packs_download_mcpb(deps: AppDependency, pack_id: str) -> Any:
         media_type="application/zip",
         filename=f"{pack_id}.mcpb",
     )
+
+
+class _AnyTextConvertor(Convertor[str]):
+    """Match every string, so the handler is the one that refuses an id.
+
+    Starlette's `path` convertor is `.*`, and `.` does not match a newline:
+    an id carrying a percent-encoded LF never matched the route and fell
+    through the router as a bare 404 before `safe_pack_component` ran (gate
+    review B1). `[\\s\\S]*` has no such gap, so control characters,
+    whitespace, empty segments and encoded separators all reach the typed
+    422 below.
+    """
+
+    regex = r"[\s\S]*"
+
+    def convert(self, value: str) -> str:
+        return value
+
+    def to_string(self, value: str) -> str:
+        return value
+
+
+register_url_convertor("anytext", _AnyTextConvertor())
+
+
+@router.post("/packs/{pack_id:anytext}/verify")
+def packs_verify(deps: AppDependency, pack_id: str) -> dict[str, Any]:
+    """Re-verify one built pack's bytes against its integrity receipt.
+
+    The same verifier MCP runs at load time (`verified_pack_reader`): verify
+    the source bytes, copy them into a temporary serving directory, reverify
+    the copy, open its store read-only, then discard the copy. The pack
+    directory itself is never written — packs are immutable.
+
+    A pack that fails is a 200 with `ok: false` and the typed reason in
+    `problems`: the operator asked "is this pack still intact?", and "no,
+    and here is why" answers that. An unknown id is 404. An id that is not
+    a safe single path segment is 422 before the filesystem is consulted;
+    the `anytext` convertor above exists so that every id, `../x` and a
+    newline included, reaches this check instead of the router's generic
+    404 that says nothing about why.
+    """
+    from ontologylab.verified_pack_reader import (
+        PackIntegrityError,
+        opened_verified_pack,
+    )
+
+    try:
+        safe_pack_component(pack_id, kind="pack id")
+    except PackBuildError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    pack_dir = Path(deps.packs_dir) / pack_id
+    if not pack_dir.is_symlink() and not pack_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"unknown pack {pack_id!r}")
+    try:
+        with opened_verified_pack(pack_dir) as (snapshot, _store):
+            integrity_level = snapshot.integrity_level
+    except PackIntegrityError as exc:
+        return {
+            "ok": False,
+            "pack_id": pack_id,
+            "integrity_level": None,
+            "problems": [str(exc)],
+        }
+    return {
+        "ok": True,
+        "pack_id": pack_id,
+        "integrity_level": integrity_level,
+        "problems": [],
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,37 @@
+{
+  "id": "hedge",
+  "case": "hedge",
+  "rules_version": "units-v1",
+  "text": "Mesotrione may reduce P. annua density relative to untreated plots.",
+  "section_spans": [
+    {
+      "section": "results",
+      "start": 0,
+      "end": 67
+    }
+  ],
+  "rationale": "Assigned arms: Mesotrione\nHedge cue: may\nMesotrione is named, but may is a hedge, so polarity is null rather than supports.",
+  "expected_slots": [
+    {
+      "quote": "Mesotrione",
+      "start": 0,
+      "end": 10,
+      "role": "arm",
+      "arm": "Mesotrione",
+      "polarity": null
+    },
+    {
+      "quote": "may",
+      "start": 11,
+      "end": 14,
+      "role": "hedge"
+    },
+    {
+      "quote": "reduce P. annua density",
+      "start": 15,
+      "end": 38,
+      "role": "result",
+      "arm": "Mesotrione"
+    }
+  ]
+}

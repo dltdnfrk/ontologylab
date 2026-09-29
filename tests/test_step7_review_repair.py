@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import itertools
 from pathlib import Path
 
+import pytest
+
+from ontologylab import ingestion_service
 from ontologylab.citation import list_citation_receipts
 from ontologylab.extraction_receipts import put_extraction_receipts
 from ontologylab.extraction_state import ExtractionRunBinding
@@ -26,7 +30,17 @@ from tests.step7_valid_stale import (
 from tests.test_step7_h1_existing import _linked
 
 
-def test_h1_chunk_family_links_live_not_smaller_stale(tmp_path: Path) -> None:
+def test_h1_chunk_family_links_live_not_smaller_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Receipt ids hash the representation id, which is uuid4 by default. A live
+    # chunk id that happened to sort very low left no smaller stale candidate
+    # among the 400 tried, so the test failed at random. Fix the ids instead.
+    counter = itertools.count(1)
+    monkeypatch.setattr(
+        ingestion_service, "_new_id",
+        lambda prefix: f"{prefix}-{next(counter):012x}",
+    )
     live = tmp_path / "live"
     store, _work, _pub, pmc_id = plant_and_extract(live)
     live_run = str(

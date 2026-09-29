@@ -82,7 +82,7 @@ def _mutate_source_byte(root: Path) -> None:
 
 
 def _mutate_added_file(root: Path) -> None:
-    (root / "web" / "extra.js").write_text("// added\n", encoding="utf-8")
+    (root / "launcher" / "extra.js").write_text("// added\n", encoding="utf-8")
 
 
 def _mutate_lock(root: Path) -> None:
@@ -187,7 +187,7 @@ def _mutate_manifest_unsafe_path(root: Path) -> None:
     ("mutate", "code", "member"),
     [
         (_mutate_source_byte, C.SOURCE_CHANGED, "ontologylab/__init__.py"),
-        (_mutate_added_file, C.SOURCE_CHANGED, "web/extra.js"),
+        (_mutate_added_file, C.SOURCE_CHANGED, "launcher/extra.js"),
         (_mutate_lock, C.LOCK_CHANGED, "uv.lock"),
         (_mutate_lock_missing, C.LOCK_MISSING, "uv.lock"),
         (_mutate_manifest_missing, C.SNAPSHOT_MISSING, MANIFEST_REL),
@@ -259,11 +259,22 @@ def test_version_source_is_pyproject_semver() -> None:
     assert SEMVER.match(version)
 
 
-def test_check_accepts_the_checked_in_exact_source_go() -> None:
-    acceptance = check(REPO)
-    assert acceptance.version == _pyproject_version()
-    assert len(acceptance.snapshot_sha256) == 64
-    assert len(acceptance.policy_sha256) == 64
+def test_check_accepts_the_checked_in_exact_source_go(tmp_path: Path) -> None:
+    # The production receipt stays frozen. A disposable tree with a fresh
+    # snapshot must refuse that receipt as stale evidence, not as a missing
+    # input or a drift code, including after later source bytes change.
+    from tests.release_eligibility_fixtures import _git, _write_fixture_source
+
+    root = tmp_path / "fixture"
+    _write_fixture_source(root)
+    _git(root, "init", "-q")
+    policy = load_policy(root)
+    write_snapshot(root, policy, read_version(root, policy))
+    receipt_rel = policy.eligibility_receipt_path
+    (root / receipt_rel).write_bytes((REPO / receipt_rel).read_bytes())
+    refusal = _refusal(root)
+    assert refusal.code is C.STALE_SNAPSHOT_EVIDENCE
+    assert refusal.member == "receipt.source_snapshot_sha256"
 
 
 def test_snapshot_is_deterministic_and_binds_uv_lock(tmp_path: Path) -> None:

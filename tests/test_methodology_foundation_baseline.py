@@ -31,7 +31,8 @@ CURRENT_BUILD_PACK_SIGNATURE = (
     "allow_incomplete_extraction: 'bool' = False, "
     "incomplete_extraction_intent: 'str | None' = None, "
     "method_release_ids: 'Sequence[str]' = (), "
-    "evidence_mode: 'str | None' = None) -> 'PackManifest'"
+    "evidence_mode: 'str | None' = None, "
+    "schema_version_ids: 'tuple[int, ...] | None' = None) -> 'PackManifest'"
 )
 
 CURRENT_GRAPH_ONLY_PACK_TABLES = set("""annotations artifacts citations
@@ -40,6 +41,7 @@ entity_enrichments entity_type merge_candidates node_aliases nodes nodes_fts
 nodes_fts_config nodes_fts_data nodes_fts_docsize nodes_fts_idx ontology_term
 ontologylab_storage_metadata
 relation_type runs schema_cq schema_version sqlite_sequence sqlite_stat1
+statement_review_events
 term_alias term_xref""".split())
 
 # Every Method/compiled-method table name any later phase may introduce.
@@ -55,7 +57,7 @@ statement_occurrence""".split())
 CURRENT_MCP_TOOLS = set("""entity_lookup find_path get_communities get_entity
 get_schema get_staleness graph_query list_packs load_pack semantic_search
 traverse_relations list_methods get_method trace_method
-list_method_gaps""".split())
+list_method_gaps claims_for find_contradictions compare_claims""".split())
 
 CURRENT_MCP_RESOURCE_TEMPLATES = {
     "pack://{pack_id}/" + suffix
@@ -198,7 +200,7 @@ def test_mcp_surface_pins_fifteen_tools_and_seven_resource_templates(
         session.close()
 
     assert tools == CURRENT_MCP_TOOLS
-    assert len(tools) == 15
+    assert len(tools) == 18
     assert templates == CURRENT_MCP_RESOURCE_TEMPLATES
     assert len(templates) == 7
 

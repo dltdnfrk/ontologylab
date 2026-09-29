@@ -11,6 +11,7 @@ import {
   Package,
   RefreshCw,
   Search,
+  Sparkles,
   TriangleAlert,
 } from "lucide-react";
 
@@ -43,7 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { get } from "@/lib/api";
+import { get, post } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
@@ -61,10 +62,37 @@ type DocumentRow = {
   content_hash: string | null;
   doi: string | null;
   source: string | null;
+  /** Publication type (peer_reviewed/preprint/registration/other/unknown):
+      what kind of record this is. It says nothing about what text we hold. */
   evidence_grade: string | null;
+  /** What text the store holds: fulltext/abstract/excerpt/metadata_only.
+      Display only — an upload without an Observation reads metadata_only
+      here and is still extractable. */
+  content_kind: string | null;
+  /** Latest extraction run under the active ontology, or `none`. */
+  extraction_status: string | null;
+  /** The server's verdict, the same one /api/extract enforces with a 422.
+      This is the only field the 추출 action keys on. */
+  extractable: boolean | null;
+  extract_blocked_reason: string | null;
 };
 
 type DocumentsResponse = { documents: DocumentRow[]; count: number };
+
+/** `GET /api/settings` — only the two fields the row action sends on. */
+type ExtractDefaults = {
+  default_engine?: string;
+  default_model?: string | null;
+};
+
+type ExtractStartResponse = { job_id?: string; status?: string };
+
+type ExtractNotice = {
+  tone: "ok" | "danger";
+  title: string;
+  body: string;
+  detail?: string;
+};
 
 type DocumentItem = {
   kind: "node" | "edge";
@@ -166,6 +194,63 @@ const SEARCH_TIER_KO: Record<string, string> = {
   fts5: "어휘 검색",
   "fts5+vec-rrf": "혼합 검색",
 };
+
+/** `selection_types.ContentKind`. An unknown value renders as itself. */
+const CONTENT_KIND_KO: Record<string, string> = {
+  fulltext: "전문",
+  abstract: "초록",
+  excerpt: "발췌",
+  metadata_only: "메타데이터만",
+};
+
+/** `evidence.GRADES` — publication type. Shown beside the content kind and
+    never read for eligibility: a peer-reviewed paper of which only the
+    abstract was fetched is still not extractable. */
+const GRADE_KO: Record<string, string> = {
+  peer_reviewed: "동료심사",
+  preprint: "프리프린트",
+  registration: "등록 기록",
+  other: "기타",
+  unknown: "등급 미확인",
+};
+
+type BadgeVariant = React.ComponentProps<typeof Badge>["variant"];
+
+/** `extraction_runs.status` plus `none`. Glyph plus text, never color alone. */
+const EXTRACTION_STATUS: Record<
+  string,
+  { label: string; variant: BadgeVariant; glyph: string }
+> = {
+  none: { label: "미추출", variant: "outline", glyph: "–" },
+  pending: { label: "추출 대기", variant: "warning", glyph: "○" },
+  running: { label: "추출 중", variant: "running", glyph: "◌" },
+  complete: { label: "추출 완료", variant: "success", glyph: "✓" },
+  failed: { label: "추출 실패", variant: "error", glyph: "×" },
+  interrupted: { label: "추출 중단", variant: "warning", glyph: "!" },
+  cancelled: { label: "추출 취소", variant: "secondary", glyph: "–" },
+};
+
+const EXTRACT_BLOCKED_NOT_FULLTEXT =
+  "전문(fulltext)이 없는 문서는 추출할 수 없습니다 — 초록만으로는 추출하지 않습니다.";
+const EXTRACT_BLOCKED_NO_SETTINGS =
+  "설정(기본 엔진·모델)을 불러오지 못해 추출을 시작할 수 없습니다.";
+
+/** The server decides (`extractable`); the row only repeats its reason. A
+    missing verdict fails closed. Neither `content_kind` nor `evidence_grade`
+    is consulted here: an upload without an Observation is extractable
+    though its kind reads metadata_only, and a peer-reviewed abstract is not. */
+function extractBlockedReason(
+  row: DocumentRow,
+  defaults: ExtractDefaults | null,
+): string | null {
+  if (row.extractable !== true) {
+    return row.extract_blocked_reason
+      ? `${EXTRACT_BLOCKED_NOT_FULLTEXT} (${row.extract_blocked_reason})`
+      : EXTRACT_BLOCKED_NOT_FULLTEXT;
+  }
+  if (!defaults?.default_engine) return EXTRACT_BLOCKED_NO_SETTINGS;
+  return null;
+}
 
 /** Evidence state is information, so it carries a glyph as well as a hue. */
 const STATUS_TONE: Record<string, { className: string; glyph: string }> = {
@@ -481,6 +566,73 @@ function StatusBadge({ status }: { status: string | null | undefined }) {
   );
 }
 
+/** The three facts a reviewer needs before pressing 추출: what text we hold,
+    what kind of record it is, and whether it has been extracted under the
+    active ontology. Each carries its machine value in `title`. */
+function DocumentBadges({ row }: { row: DocumentRow }) {
+  const kind = String(row.content_kind ?? "");
+  const grade = String(row.evidence_grade ?? "");
+  const status = String(row.extraction_status ?? "none");
+  const view = EXTRACTION_STATUS[status];
+  return (
+    <>
+      <Badge
+        variant={kind === "fulltext" ? "secondary" : "outline"}
+        className={cn("text-label", kind !== "fulltext" && "text-muted-foreground")}
+        title={`내용 종류 · 기계 값: ${kind || "(없음)"}`}
+      >
+        {CONTENT_KIND_KO[kind] ?? (kind || "—")}
+      </Badge>
+      <Badge
+        variant="outline"
+        className="text-label text-muted-foreground"
+        title={`출판 등급 · 기계 값: ${grade || "(없음)"}`}
+      >
+        {GRADE_KO[grade] ?? (grade || GRADE_KO.unknown)}
+      </Badge>
+      <Badge
+        variant={view?.variant ?? "outline"}
+        className={cn("gap-1 text-label", !view && "text-muted-foreground")}
+        title={`추출 상태 · 기계 값: ${status}`}
+      >
+        <span aria-hidden="true">{view?.glyph ?? "○"}</span>
+        {view?.label ?? status}
+      </Badge>
+    </>
+  );
+}
+
+/** A disabled button swallows hover in some browsers, so the reason sits on
+    the wrapper as well as on the button. */
+function ExtractAction({
+  row,
+  defaults,
+  busy,
+  onExtract,
+}: {
+  row: DocumentRow;
+  defaults: ExtractDefaults | null;
+  busy: boolean;
+  onExtract: (row: DocumentRow) => void;
+}) {
+  const blocked = extractBlockedReason(row, defaults);
+  return (
+    <span className="inline-flex" title={blocked ?? undefined}>
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={blocked !== null || busy}
+        title={blocked ?? undefined}
+        aria-label={`${documentTitle(row.title, row.id)} 추출 시작`}
+        onClick={() => onExtract(row)}
+      >
+        <Sparkles />
+        {busy ? "추출 중…" : "추출"}
+      </Button>
+    </span>
+  );
+}
+
 function EmptyState({
   icon: Icon,
   title,
@@ -668,6 +820,13 @@ export default function ArtifactsPage() {
   const [reloading, setReloading] = useState(false);
   const [query, setQuery] = useState("");
 
+  // 행 추출은 설정의 기본 엔진·모델로 보낸다. 설정을 못 읽었으면 버튼을 잠그고
+  // 그 이유를 툴팁으로 말한다 — 조용히 mock으로 떨어지면 결과가 거짓말한다.
+  const [extractDefaults, setExtractDefaults] = useState<ExtractDefaults | null>(null);
+  const [extracting, setExtracting] = useState<Record<string, boolean>>({});
+  const [extractNotice, setExtractNotice] = useState<ExtractNotice | null>(null);
+  const extractRefresh = useRef<number | null>(null);
+
   const [details, setDetails] = useState<Record<string, DocumentDetail>>({});
   const [detailErrors, setDetailErrors] = useState<Record<string, unknown>>({});
   const detailInflight = useRef<Set<string>>(new Set());
@@ -708,6 +867,15 @@ export default function ArtifactsPage() {
     }
   }, []);
 
+  const loadExtractDefaults = useCallback(async () => {
+    try {
+      setExtractDefaults(await get<ExtractDefaults>("/settings"));
+    } catch {
+      // 설정을 못 읽은 상태는 숨기지 않는다: 행 버튼이 잠기고 툴팁이 이유를 말한다.
+      setExtractDefaults(null);
+    }
+  }, []);
+
   const reload = useCallback(async () => {
     setReloading(true);
     detailInflight.current.clear();
@@ -716,13 +884,62 @@ export default function ArtifactsPage() {
     setDetailErrors({});
     setPackDetails({});
     setPackDetailErrors({});
-    await Promise.all([loadDocuments(), loadPacks()]);
+    setExtractNotice(null);
+    await Promise.all([loadDocuments(), loadPacks(), loadExtractDefaults()]);
     setReloading(false);
-  }, [loadDocuments, loadPacks]);
+  }, [loadDocuments, loadPacks, loadExtractDefaults]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(
+    () => () => {
+      if (extractRefresh.current !== null) window.clearTimeout(extractRefresh.current);
+    },
+    [],
+  );
+
+  const extractDocument = useCallback(
+    async (row: DocumentRow) => {
+      const engine = extractDefaults?.default_engine;
+      if (!engine) return;
+      const title = documentTitle(row.title, row.id);
+      setExtracting((current) => ({ ...current, [row.id]: true }));
+      setExtractNotice(null);
+      try {
+        const started = await post<ExtractStartResponse>("/extract", {
+          doc_ids: [row.id],
+          engine,
+          model: extractDefaults?.default_model ?? null,
+        });
+        setExtractNotice({
+          tone: "ok",
+          title: "추출 작업을 시작했습니다.",
+          body: `「${title}」 · 엔진 ${engine} · 작업 ID ${started.job_id ?? "없음"}`,
+        });
+        // 작업은 백그라운드에서 돈다. 상태 배지가 미추출에 머물지 않도록 지금
+        // 한 번, 짧은 실행이 끝났을 무렵 한 번 더 읽는다.
+        await loadDocuments();
+        if (extractRefresh.current !== null) window.clearTimeout(extractRefresh.current);
+        extractRefresh.current = window.setTimeout(() => {
+          extractRefresh.current = null;
+          void loadDocuments();
+        }, 2500);
+      } catch (error) {
+        const typed = classifyFailure(error, "추출 작업을 시작하지 못했습니다.");
+        setExtractNotice({
+          tone: "danger",
+          title: `「${title}」 ${typed.message}`,
+          body: typed.help,
+          detail: typed.detail,
+        });
+      } finally {
+        setExtracting((current) => ({ ...current, [row.id]: false }));
+      }
+    },
+    [extractDefaults, loadDocuments],
+  );
 
   const requestDetail = useCallback((id: string) => {
     if (!id || detailInflight.current.has(id)) return;
@@ -863,6 +1080,41 @@ export default function ArtifactsPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {extractNotice !== null && (
+            <Alert
+              aria-live="polite"
+              className={
+                extractNotice.tone === "ok"
+                  ? "border-ok/40 bg-ok/10"
+                  : "border-destructive/40 bg-destructive/10"
+              }
+            >
+              {extractNotice.tone === "ok" ? (
+                <Sparkles className="h-4 w-4 text-ok" />
+              ) : (
+                <CircleAlert className="h-4 w-4 text-destructive" />
+              )}
+              <AlertTitle
+                className={extractNotice.tone === "ok" ? "text-ok" : "text-destructive"}
+              >
+                {extractNotice.title}
+              </AlertTitle>
+              <AlertDescription className="text-muted-foreground">
+                <p>{extractNotice.body}</p>
+                {extractNotice.detail ? (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-muted-foreground">
+                      기술 세부 정보
+                    </summary>
+                    <pre className="mt-2 overflow-x-auto rounded-md bg-background p-3 font-mono text-xs text-muted-foreground">
+                      {extractNotice.detail}
+                    </pre>
+                  </details>
+                ) : null}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {documentsError !== null ? (
             <ErrorSurface
               error={documentsError}
@@ -886,15 +1138,17 @@ export default function ArtifactsPage() {
                   <TableHead className="hidden w-24 whitespace-nowrap sm:table-cell">
                     개념·관계
                   </TableHead>
-                  <TableHead className="w-24 text-right sm:w-28">작업</TableHead>
+                  {/* 두 동작은 lg 아래에서 세로로 쌓인다 — 열을 넓히면 sm 폭에서
+                      표가 카드 밖으로 밀려 버튼이 잘린다(640px에서 측정). */}
+                  <TableHead className="w-24 text-right sm:w-28 lg:w-44">작업</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {documentsLoading &&
                   Array.from({ length: 5 }, (_unused, index) => (
                     <TableRow key={`doc-skeleton-${index}`}>
-                      <TableCell>
-                        <Skeleton className="h-4 w-64" />
+                      <TableCell className="max-w-0 sm:max-w-none">
+                        <Skeleton className="h-4 w-64 max-w-full" />
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         <Skeleton className="h-4 w-32" />
@@ -914,7 +1168,12 @@ export default function ArtifactsPage() {
                 {!documentsLoading &&
                   filtered.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell className="max-w-48 sm:max-w-96">
+                      {/* 제목은 nowrap(truncate)이라 고정 max-w가 셀의 최소 폭으로
+                          작용한다. 390px의 max-w-48뿐 아니라 sm:max-w-96도 긴
+                          제목에서 640/1024px의 표를 래퍼 밖으로 민다. max-w-0은
+                          제목 열만 남는 폭으로 줄이고 말줄임과 짧은 제목의 열 배치는
+                          그대로 둔다. */}
+                      <TableCell className="max-w-0">
                         <div className="truncate font-medium" title={documentTitle(row.title, row.id)}>
                           {documentTitle(row.title, row.id)}
                         </div>
@@ -923,6 +1182,9 @@ export default function ArtifactsPage() {
                             DOI <span className="font-mono">{row.doi}</span>
                           </div>
                         ) : null}
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          <DocumentBadges row={row} />
+                        </div>
                       </TableCell>
                       <TableCell className="hidden max-w-72 lg:table-cell">
                         <div className="text-sm">
@@ -952,15 +1214,23 @@ export default function ArtifactsPage() {
                         />
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => viewDocument(row)}
-                          aria-label={`${documentTitle(row.title, row.id)} 원문 열기`}
-                        >
-                          <Eye />
-                          원문
-                        </Button>
+                        <div className="flex flex-col items-end gap-1 lg:flex-row lg:justify-end">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => viewDocument(row)}
+                            aria-label={`${documentTitle(row.title, row.id)} 원문 열기`}
+                          >
+                            <Eye />
+                            원문
+                          </Button>
+                          <ExtractAction
+                            row={row}
+                            defaults={extractDefaults}
+                            busy={Boolean(extracting[row.id])}
+                            onExtract={(target) => void extractDocument(target)}
+                          />
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

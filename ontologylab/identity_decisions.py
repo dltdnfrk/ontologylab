@@ -23,7 +23,7 @@ from ontologylab.authority_repo import (
 )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class DecisionInputInvalid(AuthorityError):
     """A decision arrived without the required actor or reason."""
 
@@ -33,7 +33,7 @@ class DecisionInputInvalid(AuthorityError):
         return f"decision requires a non-empty {self.field}"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class UnknownIdentifier(AuthorityError):
     """The referenced work_identifiers row does not exist."""
 
@@ -43,7 +43,7 @@ class UnknownIdentifier(AuthorityError):
         return f"identifier {self.identifier_id!r} not found"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class IdentifierAlreadyRetracted(AuthorityError):
     """Retraction is write-once; the identifier is already retracted."""
 

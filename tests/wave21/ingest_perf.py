@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import platform
+import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -62,7 +64,12 @@ def measure_current_ingest(
 ) -> IngestPerformanceReceipt:
     """Measure create+duplicate through the real bounded ingestion surface."""
     resolved_root = root.resolve()
-    if not resolved_root.is_relative_to(Path("/private/tmp")):
+    scratch = (
+        Path("/private/tmp")
+        if sys.platform == "darwin"
+        else Path(tempfile.gettempdir()).resolve()
+    )
+    if not resolved_root.is_relative_to(scratch):
         raise PerformanceScratchRootError(root=resolved_root)
     documents = deterministic_documents(document_count)
     samples: list[IngestSample] = []

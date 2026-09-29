@@ -1,0 +1,301 @@
+{
+  "version": "targeted-reference-adjudication-v2",
+  "decisions": [
+    {
+      "id": "R01",
+      "accepted": [{"side": "b", "index": 0}],
+      "corrected": [],
+      "rationale": "Consensus: 'reducing the growth' supports inhibition; the agreed species endpoint is inherited, not independently full-text verified."
+    },
+    {
+      "id": "R02",
+      "accepted": [{"side": "b", "index": 0}],
+      "corrected": [],
+      "rationale": "'Significantly reduced' supports inhibition despite the weaker comparative effect; the comparator adds no independent arm, and the agreed species endpoint is inherited without full-text verification."
+    },
+    {
+      "id": "R03",
+      "accepted": [{"side": "b", "index": 0}],
+      "corrected": [],
+      "rationale": "'Significantly reduced the growth' directly asserts one arm; the similarity reference does not independently restate the comparator outcome, and the agreed species endpoint is inherited without full-text verification."
+    },
+    {
+      "id": "R04",
+      "accepted": [{"side": "b", "index": 0}, {"side": "b", "index": 1}, {"side": "b", "index": 2}],
+      "corrected": [],
+      "rationale": "'No significant difference' assigns measured nulls to three arms without a null direction; named biological agents favor ActiveIngredient over an unasserted formulation, and agreed endpoint expansions are inherited without full-text verification. Retain each quoted variant qualifier so normalized endpoints remain distinct."
+    },
+    {
+      "id": "R05",
+      "accepted": [
+        {
+          "side": "a",
+          "index": 0
+        }
+      ],
+      "corrected": [
+        {
+          "src": "PBO",
+          "src_type": "ActiveIngredient",
+          "relation": "synergizes_with",
+          "dst": "ACCase-inhibitors",
+          "dst_type": "MoAGroup",
+          "polarity": "supports",
+          "qualifiers": {
+            "object_aspect_qualifier": "herbicidal effect",
+            "object_direction_qualifier": "increased",
+            "population_context_qualifier": "R blackgrass population",
+            "application_timing": "two hours before"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "herbicidal effect",
+            "object_direction_qualifier": "increased",
+            "population_context_qualifier": "R blackgrass population",
+            "application_timing": "two hours before"
+          }
+        },
+        {
+          "src": "PBO",
+          "src_type": "ActiveIngredient",
+          "relation": "synergizes_with",
+          "dst": "ALS-inhibitors",
+          "dst_type": "MoAGroup",
+          "polarity": "supports",
+          "qualifiers": {
+            "object_aspect_qualifier": "herbicidal effect",
+            "object_direction_qualifier": "increased",
+            "population_context_qualifier": "R blackgrass population",
+            "application_timing": "two hours before"
+          },
+          "qualifier_quotes": {
+            "object_aspect_qualifier": "herbicidal effect",
+            "object_direction_qualifier": "increased",
+            "population_context_qualifier": "R blackgrass population",
+            "application_timing": "two hours before"
+          }
+        }
+      ],
+      "rationale": "The PBO-only plants “did not differ,” while the increased herbicidal effect explicitly qualifies PBO as applied “two hours before” both named inhibitor groups.",
+      "change_rationale": "'Did not differ' supplies the standalone null, while 'increased the herbicidal effect' supports two enhancement arms; treatment context is not a molecular variant, and enhancement does not establish formally quantified synergy."
+    },
+    {
+      "id": "R06",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "The sentence attributes the decrease to “increasing density of the R and S blackgrass populations,” but names no chemical product or active ingredient required by the protocol’s scope."
+    },
+    {
+      "id": "R07",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "The quote says “several accessions” but does not identify them as Poa annua, so neither reviewer’s named weed endpoint is grounded in the supplied sentence."
+    },
+    {
+      "id": "R08",
+      "accepted": [{"side": "b", "index": 0}, {"side": "b", "index": 1}, {"side": "b", "index": 2}],
+      "corrected": [],
+      "rationale": "Consensus: 'no resistant isolate was observed' denotes three measured absence claims, not demonstrated control or refutation; the agreed species endpoint is inherited without full-text verification."
+    },
+    {
+      "id": "R09",
+      "accepted": [
+        {
+          "side": "a",
+          "index": 0
+        },
+        {
+          "side": "a",
+          "index": 1
+        },
+        {
+          "side": "a",
+          "index": 2
+        },
+        {
+          "side": "a",
+          "index": 3
+        },
+        {
+          "side": "a",
+          "index": 4
+        },
+        {
+          "side": "a",
+          "index": 5
+        },
+        {
+          "side": "a",
+          "index": 6
+        }
+      ],
+      "corrected": [],
+      "rationale": "“Two phenotypes” identifies distinct resistance variants, while “B. cinerea populations” supplies their population context and “all 3 years” their study context."
+    },
+    {
+      "id": "E01",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "The sentence names products and 'oviposition' but no pest endpoint."
+    },
+    {
+      "id": "E02",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'Ineffective in the field' does not name the pest being controlled."
+    },
+    {
+      "id": "E03",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'Did not significantly affect mortality' does not identify whose mortality was measured."
+    },
+    {
+      "id": "E04",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'Mortality was higher' does not identify the affected pest."
+    },
+    {
+      "id": "E05",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'The R population' is not identified as blackgrass or another weed in this sentence."
+    },
+    {
+      "id": "E06",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'Fresh weight reduction' does not identify the affected weed."
+    },
+    {
+      "id": "E07",
+      "accepted": [],
+      "corrected": [
+        {
+          "src": "prosulfocarb",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "qualifiers": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "R"
+          },
+          "qualifier_quotes": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "R"
+          }
+        },
+        {
+          "src": "prosulfocarb",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "qualifiers": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "S"
+          },
+          "qualifier_quotes": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "S"
+          }
+        },
+        {
+          "src": "chlorotoluron + diflufenican",
+          "src_type": "Product",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "qualifiers": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "R"
+          },
+          "qualifier_quotes": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "R"
+          }
+        },
+        {
+          "src": "chlorotoluron + diflufenican",
+          "src_type": "Product",
+          "relation": "controls",
+          "dst": "blackgrass",
+          "dst_type": "Weed",
+          "polarity": "supports",
+          "qualifiers": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "S"
+          },
+          "qualifier_quotes": {
+            "application_timing": "pre-emergence",
+            "dose": "half their recommended field label rate",
+            "object_aspect_qualifier": "fresh weight",
+            "population_context_qualifier": "S"
+          }
+        }
+      ],
+      "rationale": "'Either' product provided reduction in 'both R and S blackgrass populations,' requiring four quote-bound arms.",
+      "change_rationale": "'Either' product and 'both R and S' explicitly warrant four positive arms; preserve the formulation intact, add the stated reduction direction, and retain literal blackgrass."
+    },
+    {
+      "id": "E08",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'Inconsistent control' and 'non‐treated control' do not name the weed endpoint."
+    },
+    {
+      "id": "E09",
+      "accepted": [],
+      "corrected": [
+        {
+          "src": "Glufosinate",
+          "src_type": "ActiveIngredient",
+          "relation": "controls",
+          "dst": "P. annua",
+          "dst_type": "Weed",
+          "polarity": "no_effect",
+          "qualifiers": {
+            "dose": "1680 g a.i. ha−1",
+            "causal_mechanism_qualifier": "new P. annua emergence"
+          },
+          "qualifier_quotes": {
+            "dose": "1680 g a.i. ha−1",
+            "causal_mechanism_qualifier": "new P. annua emergence"
+          }
+        }
+      ],
+      "rationale": "'Ineffective' supports a null for the quoted 'P. annua,' without expanding its abbreviation.",
+      "change_rationale": "'Ineffective' establishes no_effect, while 'because of new P. annua emergence' explicitly supplies the reported explanation rather than resistance; the agreed species expansion is inherited without full-text verification."
+    },
+    {
+      "id": "E10",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'All resistant accessions' does not identify the weed whose survival was measured."
+    },
+    {
+      "id": "E11",
+      "accepted": [],
+      "corrected": [],
+      "rationale": "'Greater control' and '< 13% survival' do not identify the affected weed."
+    }
+  ]
+}

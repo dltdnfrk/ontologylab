@@ -34,8 +34,8 @@ SOURCE_ASSET_DIR = ROOT / "ontologylab" / "web"
 # The machine-consumed set the wheel must ship (mirrors the prep map).
 REQUIRED_ASSETS: tuple[str, ...] = (
     "index.html",
-    "assets/index-DH5tqcb5.css",
-    "assets/index-Drg7n-Vl.js",
+    "assets/index-FQwMvdZS.css",
+    "assets/index-uhAfpA2S.js",
     "manifest.json",
 )
 _READY_DEADLINE_S = 30.0
@@ -60,9 +60,10 @@ def _get(url: str, timeout: float = 5.0) -> tuple[int, dict[str, str], bytes]:
 def dist_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Wheel + sdist built into a disposable directory."""
     out = tmp_path_factory.mktemp("dist")
-    _run(
-        ["uv", "build", "--sdist", "--wheel", "--out-dir", str(out)], cwd=ROOT
-    )
+    # Plain `uv build` builds the wheel FROM the sdist, as a release does.
+    # `--sdist --wheel` builds the wheel from the checkout instead, and
+    # setuptools then reuses whatever a stale ignored build/lib holds.
+    _run(["uv", "build", "--out-dir", str(out)], cwd=ROOT)
     return out
 
 

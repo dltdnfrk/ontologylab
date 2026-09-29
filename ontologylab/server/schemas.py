@@ -33,6 +33,7 @@ from ontologylab.paths import (
     DEFAULT_ACTOR,
     DEFAULT_ENGINE,
     DEFAULT_MAX_ENGINE_CALLS,
+    DEFAULT_MAX_TRANSPORT_RETRIES,
     DEFAULT_SEED,
     DEFAULT_TIME_BUDGET_S,
 )
@@ -100,8 +101,11 @@ class ExtractRequest(BaseModel):
     engine: str = OFFLINE_LAUNCH_POLICY.default_engine
     model: str | None = OFFLINE_LAUNCH_POLICY.default_model
     doc_ids: list[str] = Field(default_factory=list)
-    max_engine_calls: int = Field(DEFAULT_MAX_ENGINE_CALLS, ge=1)
-    time_budget: float = Field(DEFAULT_TIME_BUDGET_S, gt=0)
+    max_engine_calls: int = Field(default=DEFAULT_MAX_ENGINE_CALLS, ge=1)
+    max_transport_retries: int = Field(default=DEFAULT_MAX_TRANSPORT_RETRIES, ge=0, le=100)
+    statement_completion: bool = True
+    # Omitted/null sizes the budget from eligible chunks and request timeout.
+    time_budget: float | None = Field(default=None, gt=0)
     seed: int = DEFAULT_SEED
 
 
@@ -488,6 +492,14 @@ class ResearchSummary(BaseModel):
     post_extraction_counts: ResearchPostExtractionCounts | None
 
 
+class ProposalRejectionWarning(BaseModel):
+    """Safe, machine-readable counts; raw validation errors stay on disk."""
+
+    code: Literal["proposals_rejected"]
+    entities_rejected: int
+    relations_rejected: int
+
+
 class JobStatus(BaseModel):
     """Status snapshot of one background extraction job (Extraction Jobs screen)."""
 
@@ -518,6 +530,7 @@ class JobStatus(BaseModel):
     # the job detail renders comes from here. Omitting it from the response
     # model would drop it silently, exactly like `steps` above.
     sources: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[ProposalRejectionWarning] = Field(default_factory=list)
     corpus_available: bool = False
     research_summary: ResearchSummary | None = None
     research_summary_error: str | None = None
@@ -629,6 +642,45 @@ class TermXrefReview(BaseModel):
     change_reason: Optional[str] = None
     replacement_xref_id: Optional[str] = None
     reviewer: str
+
+
+class CuratedEntity(BaseModel):
+    name: str = Field(min_length=1, max_length=500)
+    entity_type: str = Field(min_length=1, max_length=200)
+    aliases: list[str] = Field(default_factory=list, max_length=50)
+    properties: dict[str, Any] = Field(default_factory=dict)
+
+
+class CuratedRelation(BaseModel):
+    relation_type: str = Field(min_length=1, max_length=200)
+    # Indexes into ``entities``: a relation may only join entities named in
+    # the same interpretation, which resolve to existing facts by name.
+    src: int = Field(ge=0)
+    dst: int = Field(ge=0)
+    qualifiers: dict[str, Any] = Field(default_factory=dict)
+
+
+class InterpretationCreate(BaseModel):
+    """A person's interpretation layered over extracted facts."""
+
+    curator: str = Field(min_length=1, max_length=200)
+    note: str = Field(default="", max_length=2000)
+    entities: list[CuratedEntity] = Field(min_length=1, max_length=200)
+    relations: list[CuratedRelation] = Field(default_factory=list, max_length=500)
+
+
+class CuratedStatementCreate(BaseModel):
+    """One source-cited statement authored by a reviewer, not an approval."""
+
+    curator: str = Field(min_length=1, max_length=200)
+    start: int = Field(ge=0)
+    end: int = Field(gt=0)
+    text: str = Field(min_length=1)
+    subject: CuratedEntity
+    relation_type: str = Field(min_length=1, max_length=200)
+    object: CuratedEntity
+    polarity: Literal["supports", "no_effect", "refutes"]
+    qualifiers: dict[str, Any] = Field(default_factory=dict)
 
 
 class SchemaInstall(BaseModel):

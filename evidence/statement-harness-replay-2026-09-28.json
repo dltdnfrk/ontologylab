@@ -1,0 +1,77 @@
+{
+  "banner": "development-only plumbing replay; scripted slot engine; not an accuracy claim",
+  "runs": [
+    {
+      "run": "r1",
+      "store": "/private/tmp/eh-replay-r1/kg.sqlite",
+      "report": {
+        "banner": "development-only plumbing replay; scripted slot engine; not an accuracy claim",
+        "documents": 5,
+        "status": "complete",
+        "calls": 709,
+        "receipts": 27,
+        "harness_edges_written": 26,
+        "harness_edges_verified": 0,
+        "rejection_reasons": {},
+        "unprocessed_units": [],
+        "hash_keys": [
+          "rules",
+          "cue",
+          "prompt",
+          "schema",
+          "qualifier",
+          "normalization",
+          "completion"
+        ]
+      }
+    },
+    {
+      "run": "r2",
+      "store": "/private/tmp/eh-replay-r2/kg.sqlite",
+      "report": {
+        "banner": "development-only plumbing replay; scripted slot engine; not an accuracy claim",
+        "documents": 5,
+        "status": "complete",
+        "calls": 709,
+        "receipts": 27,
+        "harness_edges_written": 26,
+        "harness_edges_verified": 0,
+        "rejection_reasons": {},
+        "unprocessed_units": [],
+        "hash_keys": [
+          "rules",
+          "cue",
+          "prompt",
+          "schema",
+          "qualifier",
+          "normalization",
+          "completion"
+        ]
+      }
+    },
+    {
+      "run": "r3",
+      "store": "/private/tmp/eh-replay-r3/kg.sqlite",
+      "report": {
+        "banner": "development-only plumbing replay; scripted slot engine; not an accuracy claim",
+        "documents": 5,
+        "status": "complete",
+        "calls": 709,
+        "receipts": 27,
+        "harness_edges_written": 26,
+        "harness_edges_verified": 0,
+        "rejection_reasons": {},
+        "unprocessed_units": [],
+        "hash_keys": [
+          "rules",
+          "cue",
+          "prompt",
+          "schema",
+          "qualifier",
+          "normalization",
+          "completion"
+        ]
+      }
+    }
+  ]
+}

@@ -37,6 +37,7 @@ from ontologylab.connectors.paper_api import (
 )
 from ontologylab.engines import EngineError, engine_name_arg, resolve_engine
 from ontologylab.expansion import expand_query
+from ontologylab.extraction_eligibility import refusal_message, refused_extractions
 from ontologylab.extraction_state import recover_running_once
 from ontologylab.extractor import (
     TOTALS_KEYS,
@@ -113,6 +114,13 @@ def cmd_method(args: argparse.Namespace) -> int:
         if command == "extract":
             from ontologylab.method_extract import extract_occurrences
 
+            # The same verdict the graph `extract` command applies, before an
+            # engine is even resolved; extract_occurrences repeats it for
+            # programmatic callers and for --resume.
+            refused = refused_extractions(store.conn, [args.document_id])
+            if refused:
+                print(f"[ontologylab] {refusal_message(refused)}", file=sys.stderr)
+                return 1
             engine = resolve_engine(
                 args.engine, model=args.model,
                 data_dir=Path(args.data_dir),
@@ -552,6 +560,13 @@ def cmd_collect(args: argparse.Namespace) -> int:
 
 async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
     data_dir = Path(args.data_dir)
+    # Named documents are judged before a job directory or run row exists:
+    # the same verdict /api/extract returns as 4xx, printed once, exit 1.
+    if args.doc_ids:
+        refused = refused_extractions(store.conn, args.doc_ids)
+        if refused:
+            print(f"[ontologylab] {refusal_message(refused)}", file=sys.stderr)
+            return 1
     job_dir = paths.new_job_dir(data_dir, "extract")
     kill_switch = KillSwitch(str(job_dir))
     kill_switch.install()
@@ -604,6 +619,8 @@ async def _extract_async(args: argparse.Namespace, store: KGStore) -> int:
         max_engine_calls=args.max_engine_calls,
         time_budget=args.time_budget,
         decode_params=extraction_decode_params(engine),
+        max_transport_retries=args.max_transport_retries,
+        statement_completion=args.statement_completion,
         on_progress=_print,
         on_stats=_accumulate,
         should_abort=lambda: (
@@ -1225,6 +1242,11 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
         summary_method = f"llm:{args.summarize_engine}"
     store = _open_store(args)
     try:
+        schema_version_ids = (
+            tuple(row["id"] for row in store.list_schemas())
+            if args.all_schema_versions
+            else tuple(args.schema_version) if args.schema_version is not None else None
+        )
         manifest = build_pack_release(
             paths.kg_db_path(data_dir),
             args.packs_dir,
@@ -1236,6 +1258,7 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
             incomplete_extraction_intent=args.override_intent,
             method_release_ids=method_release_ids,
             store=store,
+            schema_version_ids=schema_version_ids,
         )
     except (PackBuildError, OSError) as exc:
         print(f"[ontologylab] ERROR: {exc}", file=sys.stderr)
@@ -1243,6 +1266,7 @@ def cmd_build_pack(args: argparse.Namespace) -> int:
     finally:
         store.close()
     print(f"[ontologylab] built pack {manifest.pack_id}")
+    print(f"[ontologylab] included schema versions: {manifest.included_schema_version_ids}")
     print(json.dumps(manifest.counts, indent=2))
     from ontologylab.mcp_server import serve_args
 
@@ -1832,6 +1856,40 @@ def cmd_provider_test(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def cmd_carry_forward(args: argparse.Namespace) -> int:
+    """Carry facts without granting approval, or preview without opening a writer."""
+    from contextlib import closing
+    from dataclasses import asdict
+    from ontologylab.carry_forward import carry_forward
+    from ontologylab.storage_compatibility import require_writer_compatible
+    from ontologylab.storage_types import StorageCompatibilityRefused
+
+    try:
+        db_path = paths.kg_db_path(Path(args.data_dir)).resolve()
+        if not args.dry_run:
+            require_writer_compatible(db_path)
+        # General writable open migrates/rekeys old source rows and projects
+        # outbox events. Carry-forward must preserve them even on refusal.
+        # Open only an existing DB; its one additive ledger DDL is atomic
+        # with the proposals, after validation.
+        mode = "ro" if args.dry_run else "rw"
+        with closing(sqlite3.connect(
+            f"{db_path.as_uri()}?mode={mode}", uri=True, timeout=30.0,
+        )) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys=ON")
+            store = KGStore(conn, db_path, read_only=args.dry_run)
+            result = carry_forward(
+                store, args.from_schema, args.to_schema,
+                operator=args.operator, dry_run=args.dry_run,
+            )
+    except (KGStoreError, StorageCompatibilityRefused, sqlite3.Error, OSError, ValueError) as exc:
+        print(f"[ontologylab] carry-forward refused: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(asdict(result), sort_keys=True))
+    return 0
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ontologylab",
@@ -1842,6 +1900,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
     _add_method_parser(sub)
+
+    p_carry = sub.add_parser("carry-forward", help="Carry verified facts as proposals.")
+    p_carry.add_argument("--from-schema", type=int, required=True)
+    p_carry.add_argument("--to-schema", type=int, required=True)
+    p_carry.add_argument("--data-dir", required=True)
+    p_carry.add_argument("--operator", default=paths.DEFAULT_ACTOR)
+    p_carry.add_argument("--dry-run", action="store_true")
+    p_carry.set_defaults(func=cmd_carry_forward)
 
     p_collect = sub.add_parser("collect", help="Fetch documents into the working KG.")
     p_collect.add_argument("--url", action="append", default=[],
@@ -1903,8 +1969,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     p_extract.add_argument("--max-engine-calls", type=int,
                            default=paths.DEFAULT_MAX_ENGINE_CALLS)
+    p_extract.add_argument(
+        "--max-transport-retries", type=int,
+        choices=range(0, 101), default=paths.DEFAULT_MAX_TRANSPORT_RETRIES,
+        metavar="N", help="Transient retries per chunk (0-100; default: 2).",
+    )
+    p_extract.add_argument(
+        "--statement-completion", action=argparse.BooleanOptionalAction, default=True,
+        help="Complete missing comparison arms and qualifiers (default: enabled).",
+    )
     p_extract.add_argument("--time-budget", type=float,
-                           default=paths.DEFAULT_TIME_BUDGET_S)
+                           default=None,
+                           help="Wall-clock seconds (default: size from eligible "
+                                "chunks and engine request timeout).")
     _add_data_dir(p_extract)
     p_extract.set_defaults(func=cmd_extract)
 
@@ -2111,8 +2188,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
     _add_data_dir(p_merge_dismiss)
     p_merge_dismiss.set_defaults(func=cmd_merge_dismiss)
 
-    p_build = sub.add_parser("build-pack", help="Export verified subgraph as a pack.")
+    p_build = sub.add_parser(
+        "build-pack", aliases=["pack"],
+        help="Export the active schema's verified subgraph as a pack.",
+    )
     p_build.add_argument("--name", required=True)
+    schema_scope = p_build.add_mutually_exclusive_group()
+    schema_scope.add_argument(
+        "--schema-version", type=int, action="append", default=None, metavar="ID",
+        help="Publish exactly these schema version IDs (repeatable; default: active only).",
+    )
+    schema_scope.add_argument(
+        "--all-schema-versions", action="store_true",
+        help="Publish every installed schema version, including historical identities.",
+    )
     p_build.add_argument(
         "--method-release-id",
         action="append",

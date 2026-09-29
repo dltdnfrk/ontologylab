@@ -34,6 +34,9 @@ import re
 import shutil
 import subprocess
 import time
+from collections.abc import Callable
+from email.utils import parsedate_to_datetime
+from http.client import RemoteDisconnected
 from typing import Any, Optional, assert_never
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -76,6 +79,17 @@ class EngineError(Exception):
     """Raised when an engine fails to produce usable output."""
 
 
+MAX_TRANSPORT_BACKOFF_S = 8.0
+
+
+class TransientEngineError(EngineError):
+    """Redacted retryable transport failure; the caller owns spend and retries."""
+
+    def __init__(self, message: str, *, retry_after_s: float = 0.0) -> None:
+        super().__init__(message)
+        self.retry_after_s = retry_after_s
+
+
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -91,12 +105,20 @@ def extract_fenced_block(text: str, lang: str = "json") -> str:
     """Extract the first fenced ``lang`` code block from ``text``.
 
     Falls back to a bare ``` fence if no language-tagged fence is present.
-    Raises EngineError if no non-empty fenced block can be found.
+    For JSON only, accepts a bare object or array when no fence exists.
+    Raises EngineError on empty output or an invalid bare JSON value.
     """
     match = _fence_re(lang).search(text)
     if match is None:
         match = re.compile(r"```\s*\n(.*?)```", re.DOTALL).search(text)
     if match is None:
+        if lang == "json":
+            try:
+                payload = json.loads(text)
+            except json.JSONDecodeError as exc:
+                raise EngineError("engine output was not valid JSON") from exc
+            if isinstance(payload, (dict, list)):
+                return text.strip()
         raise EngineError(f"no fenced {lang} block found in engine output")
     block = match.group(1).strip("\n")
     if not block.strip():
@@ -506,6 +528,7 @@ class MockEngine:
 
     def __init__(self, seed: int = 7) -> None:
         self._seed = seed
+        self._model = "mock"
         self._calls = 0
 
     def name(self) -> str:
@@ -749,17 +772,20 @@ class ApiEngine:
         model: Optional[str] = None,
         timeout_s: float = _DEFAULT_TIMEOUT_S,
         decode_params: Optional[dict[str, Any]] = None,
+        *,
+        clock: Callable[[], float] = time.time,
     ) -> None:
         self._provider = provider
         self._model = model or (provider.models[0] if provider.models else None)
         self._timeout_s = timeout_s
         self._decode_params = validate_decode_params(provider.kind, decode_params)
+        self._clock = clock
 
     def name(self) -> str:
         return f"api:{self._provider.id}"
 
     def _build_request(
-        self, prompt: str, key: str, model: str
+        self, prompt: str, key: str, model: str, *, expects_json: bool = False
     ) -> tuple[str, dict[str, str], dict]:
         """Return (url, headers, body) for the provider's kind."""
         base = self._provider.base_url.rstrip("/")
@@ -786,6 +812,8 @@ class ApiEngine:
             "messages": [{"role": "user", "content": prompt}],
             **self._decode_params,
         }
+        if expects_json:
+            body["response_format"] = {"type": "json_object"}
         return f"{base}/chat/completions", headers, body
 
     def _parse_response(self, response: dict) -> tuple[str, dict]:
@@ -816,7 +844,8 @@ class ApiEngine:
         return text, {k: v for k, v in tokens.items() if v is not None}
 
     async def generate(
-        self, prompt: str, *, model: Optional[str] = None
+        self, prompt: str, *, model: Optional[str] = None,
+        expects_json: bool = False,
     ) -> tuple[str, dict]:
         provider_id = self._provider.id
         key = resolve_api_key(self._provider)
@@ -831,7 +860,9 @@ class ApiEngine:
                 f"provider {provider_id!r}: no model given and the provider "
                 "has no default model — pass --model or add one"
             )
-        url, headers, body = self._build_request(prompt, key, effective_model)
+        url, headers, body = self._build_request(
+            prompt, key, effective_model, expects_json=expects_json
+        )
 
         # Offline mode blocks egress that leaves the machine. A provider that
         # points at loopback (local Ollama / LM Studio) keeps data on-device,
@@ -846,15 +877,39 @@ class ApiEngine:
             )
         except HTTPError as exc:
             # Redacted: status only, never the request headers (which hold the key).
-            raise EngineError(
+            message = (
                 f"provider {provider_id!r}: HTTP {exc.code} from the "
                 f"{self._provider.kind} endpoint"
-            ) from None
+            )
+            if exc.code in {429, 500, 502, 503, 504}:
+                retry_after = exc.headers.get("Retry-After") if exc.headers else None
+                delay = 0.0
+                if retry_after is not None:
+                    try:
+                        delay = float(retry_after)
+                    except ValueError:
+                        try:
+                            delay = parsedate_to_datetime(retry_after).timestamp() - self._clock()
+                        except (ValueError, TypeError, OverflowError):
+                            delay = 0.0
+                if not math.isfinite(delay):
+                    delay = 0.0
+                raise TransientEngineError(
+                    message, retry_after_s=min(MAX_TRANSPORT_BACKOFF_S, max(0.0, delay))
+                ) from None
+            raise EngineError(message) from None
         except (URLError, TimeoutError, OSError) as exc:
-            raise EngineError(
+            message = (
                 f"provider {provider_id!r}: request failed "
                 f"({type(exc).__name__})"
-            ) from None
+            )
+            reason = exc.reason if isinstance(exc, URLError) else exc
+            if isinstance(reason, (
+                RemoteDisconnected, ConnectionResetError, ConnectionAbortedError,
+                TimeoutError,
+            )):
+                raise TransientEngineError(message) from None
+            raise EngineError(message) from None
         except (json.JSONDecodeError, ValueError):
             raise EngineError(
                 f"provider {provider_id!r}: response was not valid JSON"

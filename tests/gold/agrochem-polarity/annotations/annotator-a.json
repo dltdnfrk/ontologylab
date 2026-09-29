@@ -1,0 +1,323 @@
+{
+  "relations": [
+    {
+      "pmcid": "PMC12632097", "src": "prochloraz", "src_type": "ActiveIngredient", "relation": "controls", "dst": "dry bubble disease", "dst_type": "Disease", "polarity": "supports",
+      "quote": "Prochloraz was most effective during the first flush but showed little to no efficacy during flush 2 and 3.",
+      "qualifiers": {"study_context": "first flush"}, "qualifier_quotes": {"study_context": "first flush"},
+      "rationale": "The sentence attributes first-flush efficacy against the investigated dry bubble disease to prochloraz."
+    },
+    {
+      "pmcid": "PMC12632097", "src": "prochloraz", "src_type": "ActiveIngredient", "relation": "controls", "dst": "dry bubble disease", "dst_type": "Disease", "polarity": "no_effect",
+      "quote": "Prochloraz was most effective during the first flush but showed little to no efficacy during flush 2 and 3.",
+      "qualifiers": {"study_context": "flush 2 and 3"}, "qualifier_quotes": {"study_context": "flush 2 and 3"},
+      "rationale": "The sentence reports little to no prochloraz efficacy in the later two flushes."
+    },
+    {
+      "pmcid": "PMC12632097", "src": "metrafenone", "src_type": "ActiveIngredient", "relation": "controls", "dst": "dry bubble", "dst_type": "Disease", "polarity": "supports",
+      "quote": "The fungicide metrafenone preformed the best out of all treatments included in crop trial 2 and 3 with an efficacy value of 96% at the end of the three flushes, demonstrating that the only remaining fungicide for mushroom disease is effective against dry bubble.",
+      "qualifiers": {"study_context": "crop trial 2 and 3"}, "qualifier_quotes": {"study_context": "crop trial 2 and 3"},
+      "rationale": "The sentence explicitly reports metrafenone efficacy against dry bubble in the crop trials."
+    },
+    {
+      "pmcid": "PMC12546283", "src": "cyantraniliprole + PB", "src_type": "Product", "relation": "toxic_to", "dst": "D. suzukii", "dst_type": "Pest", "polarity": "supports",
+      "quote": "At all time points after the start of the bioassay, mortality was higher in the cyantraniliprole + PB treatment than in the water control (t270 = 4.85; p < 0.001).",
+      "qualifiers": {"object_aspect_qualifier": "mortality", "study_context": "bioassay"}, "qualifier_quotes": {"object_aspect_qualifier": "mortality", "study_context": "bioassay"},
+      "rationale": "The combined bait and insecticide treatment increased pest mortality in the bioassay."
+    },
+    {
+      "pmcid": "PMC12546283", "src": "Cyantraniliprole", "src_type": "ActiveIngredient", "relation": "toxic_to", "dst": "D. suzukii", "dst_type": "Pest", "polarity": "no_effect",
+      "quote": "Cyantraniliprole or PB alone did not significantly affect mortality.",
+      "qualifiers": {"object_aspect_qualifier": "mortality"}, "qualifier_quotes": {"object_aspect_qualifier": "mortality"},
+      "rationale": "The sentence measures no significant mortality effect from cyantraniliprole alone."
+    },
+    {
+      "pmcid": "PMC12546283", "src": "cyantraniliprole + PB", "src_type": "Product", "relation": "inhibits", "dst": "D. suzukii", "dst_type": "Pest", "polarity": "supports",
+      "quote": "Oviposition per dish was lower in the cyantraniliprole + PB treatment (17 ± 2.9) than in the water control (30 ± 4.8) but was unaffected by the other treatments (combined mean of other treatments 33 ± 4.3).",
+      "qualifiers": {"object_aspect_qualifier": "Oviposition"}, "qualifier_quotes": {"object_aspect_qualifier": "Oviposition"},
+      "rationale": "The cyantraniliprole and bait combination reduced pest oviposition relative to water."
+    },
+    {
+      "pmcid": "PMC12546283", "src": "cyantraniliprole", "src_type": "ActiveIngredient", "relation": "inhibits", "dst": "D. suzukii", "dst_type": "Pest", "polarity": "no_effect",
+      "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b).",
+      "qualifiers": {"object_aspect_qualifier": "oviposition", "dose": "Dilute doses"}, "qualifier_quotes": {"object_aspect_qualifier": "oviposition", "dose": "Dilute doses"},
+      "rationale": "The named insecticide alone did not reduce oviposition at diluted doses."
+    },
+    {
+      "pmcid": "PMC12546283", "src": "spinosad", "src_type": "ActiveIngredient", "relation": "inhibits", "dst": "D. suzukii", "dst_type": "Pest", "polarity": "no_effect",
+      "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b).",
+      "qualifiers": {"object_aspect_qualifier": "oviposition", "dose": "Dilute doses"}, "qualifier_quotes": {"object_aspect_qualifier": "oviposition", "dose": "Dilute doses"},
+      "rationale": "The named insecticide alone did not reduce oviposition at diluted doses."
+    },
+    {
+      "pmcid": "PMC12546283", "src": "lambda-cyhalothrin", "src_type": "ActiveIngredient", "relation": "inhibits", "dst": "D. suzukii", "dst_type": "Pest", "polarity": "supports",
+      "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b).",
+      "qualifiers": {"object_aspect_qualifier": "oviposition", "dose": "dilute doses"}, "qualifier_quotes": {"object_aspect_qualifier": "oviposition", "dose": "dilute doses"},
+      "rationale": "The sentence reports reduced oviposition with dilute lambda-cyhalothrin."
+    },
+    {
+      "pmcid": "PMC12546283", "src": "deltamethrin", "src_type": "ActiveIngredient", "relation": "inhibits", "dst": "D. suzukii", "dst_type": "Pest", "polarity": "supports",
+      "quote": "Dilute doses of cyantraniliprole and spinosad alone did not reduce oviposition but dilute doses of lambda-cyhalothrin and deltamethrin both reduced oviposition (t30 > 2.05; p < 0.05) (Fig. b).",
+      "qualifiers": {"object_aspect_qualifier": "oviposition", "dose": "dilute doses"}, "qualifier_quotes": {"object_aspect_qualifier": "oviposition", "dose": "dilute doses"},
+      "rationale": "The sentence reports reduced oviposition with dilute deltamethrin."
+    },
+    {
+      "pmcid": "PMC12546283", "src": "deltamethrin + PB", "src_type": "Product", "relation": "controls", "dst": "D. suzukii", "dst_type": "Pest", "polarity": "no_effect",
+      "quote": "However, we found that deltamethrin + PB bait sprays were ineffective in the field.",
+      "qualifiers": {"study_context": "field"}, "qualifier_quotes": {"study_context": "field"},
+      "rationale": "The tested bait combination was explicitly ineffective in the field."
+    },
+    {
+      "pmcid": "PMC12546283", "src": "Deltamethrin in PB droplets", "src_type": "Product", "relation": "toxic_to", "dst": "D. suzukii", "dst_type": "Pest", "polarity": "supports",
+      "quote": "Deltamethrin in PB droplets was effective in increasing mortality and very effective in reducing oviposition in jar bioassays involving a single introduction of flies.",
+      "qualifiers": {"object_aspect_qualifier": "mortality", "study_context": "jar bioassays"}, "qualifier_quotes": {"object_aspect_qualifier": "mortality", "study_context": "jar bioassays"},
+      "rationale": "Deltamethrin in bait droplets increased pest mortality in jar bioassays."
+    },
+    {
+      "pmcid": "PMC12546283", "src": "Deltamethrin in PB droplets", "src_type": "Product", "relation": "inhibits", "dst": "D. suzukii", "dst_type": "Pest", "polarity": "supports",
+      "quote": "Deltamethrin in PB droplets was effective in increasing mortality and very effective in reducing oviposition in jar bioassays involving a single introduction of flies.",
+      "qualifiers": {"object_aspect_qualifier": "oviposition", "study_context": "jar bioassays"}, "qualifier_quotes": {"object_aspect_qualifier": "oviposition", "study_context": "jar bioassays"},
+      "rationale": "The same sentence independently attributes reduced oviposition to baited deltamethrin."
+    },
+    {
+      "pmcid": "PMC12546283", "src": "deltamethrin + PB", "src_type": "Product", "relation": "controls", "dst": "D. suzukii", "dst_type": "Pest", "polarity": "no_effect",
+      "quote": "One week after spraying, the number of emerged adults from fruit samples was not significantly different from the initial samples or between treatments (37.8 ± 3.8 for low rate deltamethrin + PB treatment and 32.9 ± 6.2 for untreated control) (data not shown).",
+      "qualifiers": {"object_aspect_qualifier": "emerged adults", "dose": "low rate"}, "qualifier_quotes": {"object_aspect_qualifier": "emerged adults", "dose": "low rate"},
+      "rationale": "The field comparison measured no significant difference in emerged adults with baited deltamethrin."
+    },
+    {
+      "pmcid": "PMC12546283", "src": "spinosad", "src_type": "ActiveIngredient", "relation": "controls", "dst": "D. suzukii", "dst_type": "Pest", "polarity": "supports",
+      "quote": "The good D. suzukii control efficacy of spinosad, cyantraniliprole and lambda-cyhalothrin in full rate concentrations confirms previous results with these insecticides in laboratory bioassays (Shawer et al. ; Dettler et al. ) and in the field (Shaw et al ; Shawer et al. ).",
+      "qualifiers": {"dose": "full rate concentrations"}, "qualifier_quotes": {"dose": "full rate concentrations"},
+      "rationale": "The sentence assigns good D. suzukii control efficacy to full-rate spinosad."
+    },
+    {
+      "pmcid": "PMC12546283", "src": "cyantraniliprole", "src_type": "ActiveIngredient", "relation": "controls", "dst": "D. suzukii", "dst_type": "Pest", "polarity": "supports",
+      "quote": "The good D. suzukii control efficacy of spinosad, cyantraniliprole and lambda-cyhalothrin in full rate concentrations confirms previous results with these insecticides in laboratory bioassays (Shawer et al. ; Dettler et al. ) and in the field (Shaw et al ; Shawer et al. ).",
+      "qualifiers": {"dose": "full rate concentrations"}, "qualifier_quotes": {"dose": "full rate concentrations"},
+      "rationale": "The sentence assigns good D. suzukii control efficacy to full-rate cyantraniliprole."
+    },
+    {
+      "pmcid": "PMC12546283", "src": "lambda-cyhalothrin", "src_type": "ActiveIngredient", "relation": "controls", "dst": "D. suzukii", "dst_type": "Pest", "polarity": "supports",
+      "quote": "The good D. suzukii control efficacy of spinosad, cyantraniliprole and lambda-cyhalothrin in full rate concentrations confirms previous results with these insecticides in laboratory bioassays (Shawer et al. ; Dettler et al. ) and in the field (Shaw et al ; Shawer et al. ).",
+      "qualifiers": {"dose": "full rate concentrations"}, "qualifier_quotes": {"dose": "full rate concentrations"},
+      "rationale": "The sentence assigns good D. suzukii control efficacy to full-rate lambda-cyhalothrin."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "clodinafop-propargyl", "src_type": "ActiveIngredient", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "no_effect",
+      "quote": "In contrast, the application of the 1×, 2×, 4×, and 8× rates of clodinafop-propargyl or fenoxaprop-P-ethyl resulted in 0%, 4%, 15% and 62% or 0%, 0%, 14%, and 27% control of the R population, respectively, (a,b).",
+      "qualifiers": {"population_context_qualifier": "R population", "dose": "1×"}, "qualifier_quotes": {"population_context_qualifier": "R population", "dose": "1×"},
+      "rationale": "The first explicitly paired rate produced zero control of the resistant population."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "fenoxaprop-P-ethyl", "src_type": "ActiveIngredient", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "no_effect",
+      "quote": "In contrast, the application of the 1×, 2×, 4×, and 8× rates of clodinafop-propargyl or fenoxaprop-P-ethyl resulted in 0%, 4%, 15% and 62% or 0%, 0%, 14%, and 27% control of the R population, respectively, (a,b).",
+      "qualifiers": {"population_context_qualifier": "R population", "dose": "1×"}, "qualifier_quotes": {"population_context_qualifier": "R population", "dose": "1×"},
+      "rationale": "The second explicitly paired rate series likewise produced zero control at the first rate."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "pinoxaden", "src_type": "ActiveIngredient", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "no_effect",
+      "quote": "In addition, the application of pinoxaden at field label rates of 1×, 2×, 4×, and 8× resulted in 0%, 48%, 83%, and 89% fresh weight reduction, respectively, (c).",
+      "qualifiers": {"object_aspect_qualifier": "fresh weight", "dose": "1×"}, "qualifier_quotes": {"object_aspect_qualifier": "fresh weight", "dose": "1×"},
+      "rationale": "Pinoxaden produced zero fresh-weight reduction at the first specified rate."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "cycloxydim", "src_type": "ActiveIngredient", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "supports",
+      "quote": "Furthermore, cycloxydim applied at 1×, 2×, 4×, and 8× rates provided 46%, 83%, 96%, and 100% control, respectively, (d).",
+      "qualifiers": {}, "qualifier_quotes": {},
+      "rationale": "Cycloxydim provided positive control across all reported rates."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "clodinafop-propargyl", "src_type": "ActiveIngredient", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "supports",
+      "quote": "In contrast, the application of the 1×, 2×, 4×, and 8× rates of clodinafop-propargyl or fenoxaprop-P-ethyl resulted in 0%, 4%, 15% and 62% or 0%, 0%, 14%, and 27% control of the R population, respectively, (a,b).",
+      "qualifiers": {"population_context_qualifier": "R population", "dose": "8×"}, "qualifier_quotes": {"population_context_qualifier": "R population", "dose": "8×"},
+      "rationale": "The resistant population had measurable clodinafop control at the highest rate."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "fenoxaprop-P-ethyl", "src_type": "ActiveIngredient", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "supports",
+      "quote": "In contrast, the application of the 1×, 2×, 4×, and 8× rates of clodinafop-propargyl or fenoxaprop-P-ethyl resulted in 0%, 4%, 15% and 62% or 0%, 0%, 14%, and 27% control of the R population, respectively, (a,b).",
+      "qualifiers": {"population_context_qualifier": "R population", "dose": "8×"}, "qualifier_quotes": {"population_context_qualifier": "R population", "dose": "8×"},
+      "rationale": "The resistant population had measurable fenoxaprop control at the highest rate."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "pinoxaden", "src_type": "ActiveIngredient", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "supports",
+      "quote": "In addition, the application of pinoxaden at field label rates of 1×, 2×, 4×, and 8× resulted in 0%, 48%, 83%, and 89% fresh weight reduction, respectively, (c).",
+      "qualifiers": {"object_aspect_qualifier": "fresh weight", "dose": "8×"}, "qualifier_quotes": {"object_aspect_qualifier": "fresh weight", "dose": "8×"},
+      "rationale": "At the highest rate pinoxaden measurably reduced fresh weight."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "clodinafop-propargyl", "src_type": "ActiveIngredient", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "supports",
+      "quote": "More specifically, the application of the 1/8× and 1/4× rates of clodinafop-propargyl, fenoxaprop-P-ethyl, pinoxaden, or cycloxydim resulted in 74% and 96%, 61% and 87%, 75% and 99% or 100% and 100% control, respectively, of the S population.",
+      "qualifiers": {"population_context_qualifier": "S population"}, "qualifier_quotes": {"population_context_qualifier": "S population"},
+      "rationale": "The sentence assigns positive control of the susceptible population to clodinafop."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "fenoxaprop-P-ethyl", "src_type": "ActiveIngredient", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "supports",
+      "quote": "More specifically, the application of the 1/8× and 1/4× rates of clodinafop-propargyl, fenoxaprop-P-ethyl, pinoxaden, or cycloxydim resulted in 74% and 96%, 61% and 87%, 75% and 99% or 100% and 100% control, respectively, of the S population.",
+      "qualifiers": {"population_context_qualifier": "S population"}, "qualifier_quotes": {"population_context_qualifier": "S population"},
+      "rationale": "The sentence assigns positive control of the susceptible population to fenoxaprop."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "pinoxaden", "src_type": "ActiveIngredient", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "supports",
+      "quote": "More specifically, the application of the 1/8× and 1/4× rates of clodinafop-propargyl, fenoxaprop-P-ethyl, pinoxaden, or cycloxydim resulted in 74% and 96%, 61% and 87%, 75% and 99% or 100% and 100% control, respectively, of the S population.",
+      "qualifiers": {"population_context_qualifier": "S population"}, "qualifier_quotes": {"population_context_qualifier": "S population"},
+      "rationale": "The sentence assigns positive control of the susceptible population to pinoxaden."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "cycloxydim", "src_type": "ActiveIngredient", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "supports",
+      "quote": "More specifically, the application of the 1/8× and 1/4× rates of clodinafop-propargyl, fenoxaprop-P-ethyl, pinoxaden, or cycloxydim resulted in 74% and 96%, 61% and 87%, 75% and 99% or 100% and 100% control, respectively, of the S population.",
+      "qualifiers": {"population_context_qualifier": "S population"}, "qualifier_quotes": {"population_context_qualifier": "S population"},
+      "rationale": "The sentence assigns positive control of the susceptible population to cycloxydim."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "mesosulfuron-methyl + iodosulfuron-methyl-sodium", "src_type": "Product", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "supports",
+      "quote": "Similarly, the 1/8× rate of mesosulfuron-methyl + iodosulfuron-methyl-sodium or pyroxsulam resulted in 96% or 100% control, respectively, whereas all other rates provided excellent control (100%).",
+      "qualifiers": {"dose": "1/8×"}, "qualifier_quotes": {"dose": "1/8×"},
+      "rationale": "The intact mixture controlled the susceptible population at the reported rate."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "pyroxsulam", "src_type": "ActiveIngredient", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "supports",
+      "quote": "Similarly, the 1/8× rate of mesosulfuron-methyl + iodosulfuron-methyl-sodium or pyroxsulam resulted in 96% or 100% control, respectively, whereas all other rates provided excellent control (100%).",
+      "qualifiers": {"dose": "1/8×"}, "qualifier_quotes": {"dose": "1/8×"},
+      "rationale": "Pyroxsulam separately produced full control at the stated rate."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "mesosulfuron-methyl + iodosulfuron-methyl-sodium", "src_type": "Product", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "supports",
+      "quote": "The application of 1×, 2×, 4×, and 8× rates of mesosulfuron-methyl + iodosulfuron-methyl-sodium provided 56%, 93%, 99%, and 100%, control of the R blackgrass population, respectively, (e), while the respective control of pyroxsulam was 50% 90%, 95%, and 99% (f).",
+      "qualifiers": {"population_context_qualifier": "R blackgrass population"}, "qualifier_quotes": {"population_context_qualifier": "R blackgrass population"},
+      "rationale": "The combined ingredients are the tested treatment and have positive control values."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "pyroxsulam", "src_type": "ActiveIngredient", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "supports",
+      "quote": "The application of 1×, 2×, 4×, and 8× rates of mesosulfuron-methyl + iodosulfuron-methyl-sodium provided 56%, 93%, 99%, and 100%, control of the R blackgrass population, respectively, (e), while the respective control of pyroxsulam was 50% 90%, 95%, and 99% (f).",
+      "qualifiers": {"population_context_qualifier": "R blackgrass population"}, "qualifier_quotes": {"population_context_qualifier": "R blackgrass population"},
+      "rationale": "The sentence separately reports positive control by pyroxsulam."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "prosulfocarb", "src_type": "ActiveIngredient", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "supports",
+      "quote": "The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations.",
+      "qualifiers": {"application_timing": "pre-emergence", "dose": "half their recommended field label rate", "object_aspect_qualifier": "fresh weight", "population_context_qualifier": "R and S blackgrass populations"}, "qualifier_quotes": {"application_timing": "pre-emergence", "dose": "half their recommended field label rate", "object_aspect_qualifier": "fresh weight", "population_context_qualifier": "R and S blackgrass populations"},
+      "rationale": "Prosulfocarb reduced fresh weight in both explicitly named blackgrass populations."
+    },
+    {
+      "pmcid": "PMC12563837", "src": "chlorotoluron + diflufenican", "src_type": "Product", "relation": "controls", "dst": "blackgrass", "dst_type": "Weed", "polarity": "supports",
+      "quote": "The pre-emergence application of either prosulfocarb or the formulation of chlorotoluron + diflufenican, even at half their recommended field label rate, provided 97–98% fresh weight reduction in both R and S blackgrass populations.",
+      "qualifiers": {"application_timing": "pre-emergence", "dose": "half their recommended field label rate", "object_aspect_qualifier": "fresh weight", "population_context_qualifier": "R and S blackgrass populations"}, "qualifier_quotes": {"application_timing": "pre-emergence", "dose": "half their recommended field label rate", "object_aspect_qualifier": "fresh weight", "population_context_qualifier": "R and S blackgrass populations"},
+      "rationale": "The intact formulation reduced fresh weight in both explicitly named populations."
+    },
+    {
+      "pmcid": "PMC12713700", "src": "indaziflam", "src_type": "ActiveIngredient", "relation": "controls", "dst": "Poa annua", "dst_type": "Weed", "polarity": "supports",
+      "quote": "In terms of P. annua control (Fig. ), indaziflam applied preemergence at 95 and 190 g ha−1 provided > 85% control at 24 weeks after treatment, although with some variability and escapes were observed at the lower rate (Fig. ).",
+      "qualifiers": {"application_timing": "preemergence", "dose": "95 and 190 g ha−1", "study_context": "24 weeks after treatment"}, "qualifier_quotes": {"application_timing": "preemergence", "dose": "95 and 190 g ha−1", "study_context": "24 weeks after treatment"},
+      "rationale": "Preemergence indaziflam provided more than 85 percent control despite escapes."
+    },
+    {
+      "pmcid": "PMC12713700", "src": "indaziflam", "src_type": "ActiveIngredient", "relation": "controls", "dst": "Poa annua", "dst_type": "Weed", "polarity": "no_effect",
+      "quote": "In contrast, indaziflam applied postemergence (95 or 190 g ha−1) exhibited inconsistent control, with control values ranging from near 0% to 90%, and was not statistically different from the non‐treated control or treatment with glufosinate (Fig. ).",
+      "qualifiers": {"application_timing": "postemergence", "dose": "95 or 190 g ha−1"}, "qualifier_quotes": {"application_timing": "postemergence", "dose": "95 or 190 g ha−1"},
+      "rationale": "Postemergence control was statistically indistinguishable from the untreated control."
+    },
+    {
+      "pmcid": "PMC12713700", "src": "Glufosinate", "src_type": "ActiveIngredient", "relation": "controls", "dst": "Poa annua", "dst_type": "Weed", "polarity": "no_effect",
+      "quote": "Glufosinate (1680 g a.i. ha−1) was also ineffective, with control statistically similar to the non‐treated control because of new P. annua emergence.",
+      "qualifiers": {"dose": "1680 g a.i. ha−1"}, "qualifier_quotes": {"dose": "1680 g a.i. ha−1"},
+      "rationale": "Glufosinate was ineffective relative to the untreated control."
+    },
+    {
+      "pmcid": "PMC12713700", "src": "pendimethalin", "src_type": "ActiveIngredient", "relation": "controls", "dst": "Poa annua", "dst_type": "Weed", "polarity": "no_effect",
+      "quote": "Importantly, indaziflam at 190 g ha−1 applied postemergence, pendimethalin, diuron, and fluridone were not statistically different from glufosinate, indicating poor suppression with substantial P. annua survival.",
+      "qualifiers": {}, "qualifier_quotes": {},
+      "rationale": "The sentence assigns poor suppression with substantial survival to pendimethalin."
+    },
+    {
+      "pmcid": "PMC12713700", "src": "diuron", "src_type": "ActiveIngredient", "relation": "controls", "dst": "Poa annua", "dst_type": "Weed", "polarity": "no_effect",
+      "quote": "Importantly, indaziflam at 190 g ha−1 applied postemergence, pendimethalin, diuron, and fluridone were not statistically different from glufosinate, indicating poor suppression with substantial P. annua survival.",
+      "qualifiers": {}, "qualifier_quotes": {},
+      "rationale": "The sentence assigns poor suppression with substantial survival to diuron."
+    },
+    {
+      "pmcid": "PMC12713700", "src": "fluridone", "src_type": "ActiveIngredient", "relation": "controls", "dst": "Poa annua", "dst_type": "Weed", "polarity": "no_effect",
+      "quote": "Importantly, indaziflam at 190 g ha−1 applied postemergence, pendimethalin, diuron, and fluridone were not statistically different from glufosinate, indicating poor suppression with substantial P. annua survival.",
+      "qualifiers": {}, "qualifier_quotes": {},
+      "rationale": "The sentence assigns poor suppression with substantial survival to fluridone."
+    },
+    {
+      "pmcid": "PMC12713700", "src": "rimsulfuron", "src_type": "ActiveIngredient", "relation": "controls", "dst": "Poa annua", "dst_type": "Weed", "polarity": "supports",
+      "quote": "In contrast, rimsulfuron and glyphosate remained effective, with all resistant accessions showing < 13% survival.",
+      "qualifiers": {"population_context_qualifier": "all resistant accessions", "object_aspect_qualifier": "survival"}, "qualifier_quotes": {"population_context_qualifier": "all resistant accessions", "object_aspect_qualifier": "survival"},
+      "rationale": "Rimsulfuron remained effective against the resistant accessions."
+    },
+    {
+      "pmcid": "PMC12713700", "src": "glyphosate", "src_type": "ActiveIngredient", "relation": "controls", "dst": "Poa annua", "dst_type": "Weed", "polarity": "supports",
+      "quote": "In contrast, rimsulfuron and glyphosate remained effective, with all resistant accessions showing < 13% survival.",
+      "qualifiers": {"population_context_qualifier": "all resistant accessions", "object_aspect_qualifier": "survival"}, "qualifier_quotes": {"population_context_qualifier": "all resistant accessions", "object_aspect_qualifier": "survival"},
+      "rationale": "Glyphosate remained effective against the resistant accessions."
+    },
+    {
+      "pmcid": "PMC12713700", "src": "Fluridone", "src_type": "ActiveIngredient", "relation": "controls", "dst": "Poa annua", "dst_type": "Weed", "polarity": "no_effect",
+      "quote": "Fluridone applied preemergence was ineffective across several accessions, with izr‐1, izr‐2, izr‐5, and izr‐8 showing > 50% survival.",
+      "qualifiers": {"application_timing": "preemergence", "population_context_qualifier": "several accessions", "object_aspect_qualifier": "survival"}, "qualifier_quotes": {"application_timing": "preemergence", "population_context_qualifier": "several accessions", "object_aspect_qualifier": "survival"},
+      "rationale": "Preemergence fluridone was explicitly ineffective in several accessions."
+    },
+    {
+      "pmcid": "PMC12713700", "src": "napropamide", "src_type": "ActiveIngredient", "relation": "controls", "dst": "Poa annua", "dst_type": "Weed", "polarity": "supports",
+      "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival.",
+      "qualifiers": {"object_aspect_qualifier": "survival"}, "qualifier_quotes": {"object_aspect_qualifier": "survival"},
+      "rationale": "Napropamide is one of the separately named treatments providing greater control."
+    },
+    {
+      "pmcid": "PMC12713700", "src": "dichlobenil", "src_type": "ActiveIngredient", "relation": "controls", "dst": "Poa annua", "dst_type": "Weed", "polarity": "supports",
+      "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival.",
+      "qualifiers": {"object_aspect_qualifier": "survival"}, "qualifier_quotes": {"object_aspect_qualifier": "survival"},
+      "rationale": "Dichlobenil is one of the separately named treatments providing greater control."
+    },
+    {
+      "pmcid": "PMC12713700", "src": "pyroxasulfone", "src_type": "ActiveIngredient", "relation": "controls", "dst": "Poa annua", "dst_type": "Weed", "polarity": "supports",
+      "quote": "In contrast, napropamide, dichlobenil, and pyroxasulfone provided greater control, resulting in < 13% survival.",
+      "qualifiers": {"object_aspect_qualifier": "survival"}, "qualifier_quotes": {"object_aspect_qualifier": "survival"},
+      "rationale": "Pyroxasulfone is one of the separately named treatments providing greater control."
+    },
+    {
+      "pmcid": "PMC11298438", "src": "fludioxonil", "src_type": "ActiveIngredient", "relation": "controls", "dst": "B. cinerea", "dst_type": "Pathogen", "polarity": "supports",
+      "quote": "In 2019, 99% of B. cinerea isolates were sensitive to fludioxonil and fenhexamid and 98% were sensitive to iprodione and fluopyram ().",
+      "qualifiers": {"study_context": "2019", "population_context_qualifier": "B. cinerea isolates"}, "qualifier_quotes": {"study_context": "2019", "population_context_qualifier": "B. cinerea isolates"},
+      "rationale": "The aggregate isolate assay found high sensitivity to fludioxonil."
+    },
+    {
+      "pmcid": "PMC11298438", "src": "fenhexamid", "src_type": "ActiveIngredient", "relation": "controls", "dst": "B. cinerea", "dst_type": "Pathogen", "polarity": "supports",
+      "quote": "In 2019, 99% of B. cinerea isolates were sensitive to fludioxonil and fenhexamid and 98% were sensitive to iprodione and fluopyram ().",
+      "qualifiers": {"study_context": "2019", "population_context_qualifier": "B. cinerea isolates"}, "qualifier_quotes": {"study_context": "2019", "population_context_qualifier": "B. cinerea isolates"},
+      "rationale": "The aggregate isolate assay found high sensitivity to fenhexamid."
+    },
+    {
+      "pmcid": "PMC11298438", "src": "iprodione", "src_type": "ActiveIngredient", "relation": "controls", "dst": "B. cinerea", "dst_type": "Pathogen", "polarity": "supports",
+      "quote": "In 2019, 99% of B. cinerea isolates were sensitive to fludioxonil and fenhexamid and 98% were sensitive to iprodione and fluopyram ().",
+      "qualifiers": {"study_context": "2019", "population_context_qualifier": "B. cinerea isolates"}, "qualifier_quotes": {"study_context": "2019", "population_context_qualifier": "B. cinerea isolates"},
+      "rationale": "The aggregate isolate assay found high sensitivity to iprodione."
+    },
+    {
+      "pmcid": "PMC11298438", "src": "fluopyram", "src_type": "ActiveIngredient", "relation": "controls", "dst": "B. cinerea", "dst_type": "Pathogen", "polarity": "supports",
+      "quote": "In 2019, 99% of B. cinerea isolates were sensitive to fludioxonil and fenhexamid and 98% were sensitive to iprodione and fluopyram ().",
+      "qualifiers": {"study_context": "2019", "population_context_qualifier": "B. cinerea isolates"}, "qualifier_quotes": {"study_context": "2019", "population_context_qualifier": "B. cinerea isolates"},
+      "rationale": "The aggregate isolate assay found high sensitivity to fluopyram."
+    }
+  ],
+  "excluded": [
+    {"pmcid": "PMC12632097", "category": "methods and operational biological preparation or delivery"},
+    {"pmcid": "PMC12632097", "category": "strain-linked resistance and failure map"},
+    {"pmcid": "PMC12546283", "category": "methods and operational organism preparation or delivery"},
+    {"pmcid": "PMC12546283", "category": "organism strain efficacy and delivery assertions"},
+    {"pmcid": "PMC12563837", "category": "materials and methods sections"},
+    {"pmcid": "PMC12713700", "category": "materials and methods sections"},
+    {"pmcid": "PMC11298438", "category": "materials and methods sections"},
+    {"pmcid": "PMC11298438", "category": "isolate-linked multi-fungicide resistance maps"}
+  ],
+  "files_read": [
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-protocol.md",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/annotation-vocabulary.json",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12632097.txt",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12546283.txt",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12563837.txt",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC12713700.txt",
+    "/Users/hyunjun/Documents/MUNI/ontologylab-wt/w11-t37/tests/gold/agrochem-polarity/sources/full/PMC11298438.txt"
+  ]
+}

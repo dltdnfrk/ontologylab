@@ -315,11 +315,12 @@ class SchemaMixin:
             for entity in entity_types:
                 type_cur = self.conn.execute(
                     "INSERT INTO entity_type (schema_version_id, name, "
-                    "description, attributes_json, parent_name) "
-                    "VALUES (?,?,?,?,?)",
+                    "description, attributes_json, parent_name, extractable) "
+                    "VALUES (?,?,?,?,?,?)",
                     (sv_id, entity["name"], entity.get("description", ""),
                      json.dumps(entity.get("attributes", {})),
-                     entity.get("parent")),
+                     entity.get("parent"),
+                     0 if entity.get("extractable", True) is False else 1),
                 )
                 self._insert_schema_term(
                     self.conn,
@@ -335,7 +336,7 @@ class SchemaMixin:
                 type_cur = self.conn.execute(
                     "INSERT INTO relation_type (schema_version_id, name, "
                     "description, domain_type, range_type, directed, "
-                    "qualifiers_json) VALUES (?,?,?,?,?,?,?)",
+                    "qualifiers_json, extractable) VALUES (?,?,?,?,?,?,?,?)",
                     (
                         sv_id,
                         relation["name"],
@@ -344,6 +345,7 @@ class SchemaMixin:
                         relation.get("range_type", "*"),
                         1 if relation.get("directed", True) else 0,
                         json.dumps(relation.get("qualifiers", {})),
+                        0 if relation.get("extractable", True) is False else 1,
                     ),
                 )
                 self._insert_schema_term(
@@ -628,20 +630,28 @@ class SchemaMixin:
                 raise UnknownItem(
                     f"unknown schema version id {schema_version_id!r}"
                 )
-        entity_types = [
-            {
+        entity_types = []
+        for r in self.conn.execute(
+            "SELECT * FROM entity_type WHERE schema_version_id = ? ORDER BY name",
+            (sv["id"],),
+        ):
+            entity = {
                 "name": r["name"],
                 "description": r["description"],
                 "attributes": json.loads(r["attributes_json"]),
                 "parent": r["parent_name"],
             }
-            for r in self.conn.execute(
-                "SELECT * FROM entity_type WHERE schema_version_id = ? ORDER BY name",
-                (sv["id"],),
-            )
-        ]
-        relation_types = [
-            {
+            # Stated only when false, so every pre-overlay schema document
+            # (and every pack schema hash derived from it) is unchanged.
+            if "extractable" in r.keys() and not r["extractable"]:
+                entity["extractable"] = False
+            entity_types.append(entity)
+        relation_types = []
+        for r in self.conn.execute(
+            "SELECT * FROM relation_type WHERE schema_version_id = ? ORDER BY name",
+            (sv["id"],),
+        ):
+            relation = {
                 "name": r["name"],
                 "description": r["description"],
                 "domain_type": r["domain_type"],
@@ -653,11 +663,15 @@ class SchemaMixin:
                     else {}
                 ),
             }
-            for r in self.conn.execute(
-                "SELECT * FROM relation_type WHERE schema_version_id = ? ORDER BY name",
-                (sv["id"],),
-            )
-        ]
+            if "extractable" in r.keys() and not r["extractable"]:
+                relation["extractable"] = False
+            if sv["label"] == "agrochem-v2":
+                from ontologylab.schemas import AGROCHEM_STATEMENT_QUALIFIERS
+
+                relation["qualifiers"] = {
+                    **AGROCHEM_STATEMENT_QUALIFIERS, **relation["qualifiers"],
+                }
+            relation_types.append(relation)
         return {
             "schema_version_id": sv["id"],
             "schema_label": sv["label"],

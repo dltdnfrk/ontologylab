@@ -54,7 +54,7 @@ class PublicationScope(StrEnum):
     SOURCED = "sourced"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class PackReadinessRefused(Exception):
     code: PackReadinessCode
     member: str

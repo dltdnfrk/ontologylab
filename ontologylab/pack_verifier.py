@@ -68,7 +68,7 @@ class PackVerifyCode(StrEnum):
     INVALID_MANIFEST = "invalid_manifest"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class PackVerifyRefused(Exception):
     code: PackVerifyCode
     path: str | None = None

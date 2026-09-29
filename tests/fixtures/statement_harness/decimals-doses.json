@@ -1,0 +1,37 @@
+{
+  "id": "decimals-doses",
+  "case": "decimals_doses",
+  "rules_version": "units-v1",
+  "text": "Mesotrione at 0.1 kg a.i./ha reduced P. annua biomass relative to untreated plots.",
+  "section_spans": [
+    {
+      "section": "results",
+      "start": 0,
+      "end": 82
+    }
+  ],
+  "rationale": "Assigned arms: Mesotrione\nDose span: 0.1 kg a.i./ha\nMesotrione is supports. The dose 0.1 kg a.i./ha is one span; the decimal point is not a sentence boundary and not a second arm.",
+  "expected_slots": [
+    {
+      "quote": "Mesotrione",
+      "start": 0,
+      "end": 10,
+      "role": "arm",
+      "arm": "Mesotrione",
+      "polarity": "supports"
+    },
+    {
+      "quote": "0.1 kg a.i./ha",
+      "start": 14,
+      "end": 28,
+      "role": "dose"
+    },
+    {
+      "quote": "reduced P. annua biomass",
+      "start": 29,
+      "end": 53,
+      "role": "result",
+      "arm": "Mesotrione"
+    }
+  ]
+}

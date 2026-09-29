@@ -1,0 +1,91 @@
+{
+  "banner": "development-only, these papers were seen by earlier trials, not a precision or recall claim",
+  "rules_version": "units-v1",
+  "cue_version": "cues-v1",
+  "gold_dir": "tests/gold/agrochem-polarity",
+  "papers": [
+    {
+      "pmcid": "PMC12632097",
+      "doi": "10.1186/s12866-025-04356-y",
+      "eligible_sentences": 191,
+      "units": 191,
+      "explicit_units": 7,
+      "unresolved_units": 12,
+      "section_unresolved_units": 20,
+      "gold_spans": 6,
+      "gold_spans_in_units": 6,
+      "gold_spans_in_arm_slots": 2,
+      "gold_null_rows": 3,
+      "gold_null_rows_with_cues": 3
+    },
+    {
+      "pmcid": "PMC12546283",
+      "doi": "10.1007/s10340-025-01925-y",
+      "eligible_sentences": 90,
+      "units": 90,
+      "explicit_units": 8,
+      "unresolved_units": 5,
+      "section_unresolved_units": 17,
+      "gold_spans": 7,
+      "gold_spans_in_units": 7,
+      "gold_spans_in_arm_slots": 4,
+      "gold_null_rows": 4,
+      "gold_null_rows_with_cues": 4
+    },
+    {
+      "pmcid": "PMC12563837",
+      "doi": "10.3390/genes16101169",
+      "eligible_sentences": 116,
+      "units": 116,
+      "explicit_units": 3,
+      "unresolved_units": 30,
+      "section_unresolved_units": 10,
+      "gold_spans": 7,
+      "gold_spans_in_units": 7,
+      "gold_spans_in_arm_slots": 0,
+      "gold_null_rows": 4,
+      "gold_null_rows_with_cues": 1
+    },
+    {
+      "pmcid": "PMC12713700",
+      "doi": "10.1002/ps.70214",
+      "eligible_sentences": 156,
+      "units": 156,
+      "explicit_units": 12,
+      "unresolved_units": 11,
+      "section_unresolved_units": 7,
+      "gold_spans": 8,
+      "gold_spans_in_units": 8,
+      "gold_spans_in_arm_slots": 0,
+      "gold_null_rows": 3,
+      "gold_null_rows_with_cues": 3
+    },
+    {
+      "pmcid": "PMC11298438",
+      "doi": "10.3389/fmicb.2024.1425392",
+      "eligible_sentences": 189,
+      "units": 189,
+      "explicit_units": 0,
+      "unresolved_units": 22,
+      "section_unresolved_units": 7,
+      "gold_spans": 6,
+      "gold_spans_in_units": 6,
+      "gold_spans_in_arm_slots": 0,
+      "gold_null_rows": 3,
+      "gold_null_rows_with_cues": 3
+    }
+  ],
+  "totals": {
+    "papers": 5,
+    "eligible_sentences": 742,
+    "units": 742,
+    "explicit_units": 30,
+    "unresolved_units": 80,
+    "section_unresolved_units": 61,
+    "gold_spans": 34,
+    "gold_spans_in_units": 34,
+    "gold_spans_in_arm_slots": 6,
+    "gold_null_rows": 17,
+    "gold_null_rows_with_cues": 14
+  }
+}

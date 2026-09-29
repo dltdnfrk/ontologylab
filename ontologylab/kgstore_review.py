@@ -13,8 +13,11 @@ import uuid
 from typing import Any
 
 from ontologylab.paths import DEFAULT_ACTOR
+from ontologylab.statement_feedback import ReviewEvent, record_review_event
 
 from ontologylab.kgstore_base import (
+    EDGE_POLARITY_SQL,
+    EDGE_QUALIFIERS_SQL,
     EndpointNotVerified,
     GroundingPreflightError,
     InvalidTransition,
@@ -26,6 +29,12 @@ from ontologylab.kgstore_base import (
 )
 
 class ReviewMixin:
+
+    def record_review_event(self, event: ReviewEvent) -> str:
+        """Append a review receipt only inside the command's transaction."""
+        self._assert_writable()
+        assert self._tx_depth > 0, "review events require store.atomic()"
+        return record_review_event(self.conn, event)
 
     # ------------------------------------------------------------------
     # Human approval gate (the only path to status='verified')
@@ -107,7 +116,7 @@ class ReviewMixin:
                     approved.append(endpoint_id)
         self._set_status(kind, item_id, "verified", by=by, note=note)
         approved.append(item_id)
-        self.conn.commit()
+        self._commit()
         return {"kind": kind, "approved_ids": approved}
 
     def reject(
@@ -133,7 +142,7 @@ class ReviewMixin:
                 f"cannot reject a {row['status']!r} item; reopen it first"
             )
         self._set_status(kind, item_id, "rejected", by=by, note=note)
-        self.conn.commit()
+        self._commit()
         return {"kind": kind, "rejected_ids": [item_id]}
 
     def quarantine(
@@ -191,7 +200,7 @@ class ReviewMixin:
             result = approve_with_grounding_waiver(self.conn, request)
         except GroundedReviewRefused as exc:
             self._raise_grounded(exc)
-        self.conn.commit()
+        self._commit()
         return batch_payload(result, ReviewAction.APPROVE_WITH_GROUNDING_WAIVER)
 
     def _grounded_review(self, request: Any) -> dict[str, Any] | None:
@@ -225,7 +234,7 @@ class ReviewMixin:
             result = apply_review(self.conn, request)
         except GroundedReviewRefused as exc:
             self._raise_grounded(exc)
-        self.conn.commit()
+        self._commit()
         return batch_payload(result, request.action)
 
     def _require_grounded_review(self, request: Any) -> dict[str, Any]:
@@ -238,7 +247,7 @@ class ReviewMixin:
                 applied = apply_review(self.conn, request)
             except GroundedReviewRefused as exc:
                 self._raise_grounded(exc)
-            self.conn.commit()
+            self._commit()
             return batch_payload(applied, request.action)
         return result
 
@@ -318,7 +327,7 @@ class ReviewMixin:
             "review_note = COALESCE(?, review_note) WHERE id = ?",
             (note, item_id),
         )
-        self.conn.commit()
+        self._commit()
         return {"kind": kind, "reopened_ids": [item_id], "already_open": False}
 
     def _set_status(
@@ -364,7 +373,7 @@ class ReviewMixin:
             "invalidation_reason = ? WHERE id = ?",
             (now, by, reason, edge_id),
         )
-        self.conn.commit()
+        self._commit()
         return {
             "id": edge_id,
             "invalidated_ts": now,
@@ -447,7 +456,7 @@ class ReviewMixin:
                 edges_approved.append(row["id"])
             else:
                 edges_skipped.append(row["id"])
-        self.conn.commit()
+        self._commit()
         return {
             "nodes_approved": nodes_approved,
             "edges_approved": edges_approved,
@@ -488,7 +497,7 @@ class ReviewMixin:
             "VALUES (?, ?, ?, ?, ?, 'proposed', ?)",
             (uuid.uuid4().hex, a, b, score, json.dumps(reasons), time.time()),
         )
-        self.conn.commit()
+        self._commit()
         return True
 
     def _merge_candidate_row(self, candidate_id: str) -> sqlite3.Row:
@@ -558,7 +567,7 @@ class ReviewMixin:
                     existing["id"],
                 ),
             )
-            self.conn.commit()
+            self._commit()
             return existing["id"], False
 
         annotation_id = uuid.uuid4().hex
@@ -577,7 +586,7 @@ class ReviewMixin:
                 now,
             ),
         )
-        self.conn.commit()
+        self._commit()
         return annotation_id, True
 
     def annotations_pending(self, *, limit: int = 100) -> list[dict[str, Any]]:
@@ -684,7 +693,7 @@ class ReviewMixin:
                     "UPDATE nodes SET properties_json = ? WHERE id = ?",
                     (json.dumps(props, ensure_ascii=False), row["node_id"]),
                 )
-        self.conn.commit()
+        self._commit()
         return True
 
     def annotation_counts(self) -> dict[str, int]:
@@ -731,7 +740,7 @@ class ReviewMixin:
                         "decided_ts = ?, decided_by = 'system:hydrate' WHERE id = ?",
                         (time.time(), row["id"]),
                     )
-                    self.conn.commit()
+                    self._commit()
                 continue
             out.append(
                 {
@@ -760,7 +769,7 @@ class ReviewMixin:
             "decided_by = ?, decision_note = ? WHERE id = ?",
             (time.time(), by, note, candidate_id),
         )
-        self.conn.commit()
+        self._commit()
         return {"id": candidate_id, "status": "dismissed"}
 
     def merge_nodes(
@@ -880,6 +889,7 @@ class ReviewMixin:
                 dst_type=dst_node["entity_type"],
                 properties=edge_properties,
                 qualifiers=edge_qualifiers,
+                stored=True,
             )
 
         now = time.time()
@@ -952,9 +962,16 @@ class ReviewMixin:
             dup = self.conn.execute(
                 "SELECT id FROM edges WHERE schema_version_id = ? AND "
                 "relation_type = ? AND src_node_id = ? AND dst_node_id = ? AND "
+                f"{EDGE_POLARITY_SQL} = "
+                f"(SELECT {EDGE_POLARITY_SQL} FROM edges WHERE id = ?) AND "
+                f"{EDGE_QUALIFIERS_SQL} = "
+                f"(SELECT {EDGE_QUALIFIERS_SQL} FROM edges WHERE id = ?) AND "
                 "status IN ('proposed','verified') AND id != ? AND "
                 f"{self._edge_current_sql()}",
-                (sv_id, edge["relation_type"], new_src, new_dst, edge["id"]),
+                (
+                    sv_id, edge["relation_type"], new_src, new_dst,
+                    edge["id"], edge["id"], edge["id"],
+                ),
             ).fetchone()
             if dup is not None:
                 self.conn.execute(
@@ -997,5 +1014,5 @@ class ReviewMixin:
             "AND (node_a_id = ? OR node_b_id = ?)",
             (now, f"system:merge-by:{by}", source_id, source_id),
         )
-        self.conn.commit()
+        self._commit()
         return report

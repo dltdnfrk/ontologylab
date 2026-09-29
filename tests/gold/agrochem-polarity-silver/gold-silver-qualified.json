@@ -1,0 +1,2724 @@
+{
+  "schema": "agrochem-v2",
+  "format_version": 2,
+  "silver": "model-annotated, not human ground truth",
+  "annotation_version": "published-silver-v1",
+  "offset_convention": "span.start/end: zero-based half-open UTF-8 bytes; char_start/end: Unicode characters.",
+  "papers": [
+    {
+      "pmcid": "PMC10818810",
+      "doi": "10.3390/plants13020211",
+      "title": "Effectiveness and Selectivity of Pre- and Post-Emergence Herbicides for Weed Control in Grain Legumes",
+      "authors": [
+        "Kousta Angeliki",
+        "Katsis Christos",
+        "Tsekoura Anastasia",
+        "Chachalis Dimosthenis"
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "license_statements": [
+        {
+          "attributes": {},
+          "text": "Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (https://creativecommons.org/licenses/by/4.0/).",
+          "xml": "<license xmlns:ns0=\"http://www.w3.org/1999/xlink\"><license-p>Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (<ext-link ns0:href=\"https://creativecommons.org/licenses/by/4.0/\" ext-link-type=\"uri\">https://creativecommons.org/licenses/by/4.0/</ext-link>).</license-p></license>"
+        }
+      ],
+      "retrieved_at": "2026-09-27",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10818810/fullTextXML",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS body only with production jats_to_text; append LF; no truncation. Annotations exclude methods.",
+      "jats_sha256": "30393dc1c34c116b92db426cfb0dab084ecf77ba65533c5079ccc9ca5666b977",
+      "jats_bytes": 151083,
+      "body_sha256": "e21afb8a71c787eeb0072baa8280425a3d3f3ab5d2b93397c12f754a8bc89713",
+      "body_bytes": 44076,
+      "source": "sources/full/PMC10818810.txt",
+      "source_sha256": "31b39219de41b41a8fce75f44a9488ea6e1f65e0586cc96444f46cf5c37a9a83",
+      "source_bytes": 44077,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 44076,
+          "stored_start": 0,
+          "stored_end": 44076,
+          "sha256": "e21afb8a71c787eeb0072baa8280425a3d3f3ab5d2b93397c12f754a8bc89713"
+        }
+      ],
+      "stored_jats_sha256": "d76a73d7deb89aea851c8c5aa718838a19d632bad65280d969d43df4fd2b6bc9",
+      "stored_jats_bytes": 151084
+    },
+    {
+      "pmcid": "PMC11359421",
+      "doi": "10.3390/plants13162296",
+      "title": "Crop Safety and Weed Control of Foliar Application of Penoxsulam in Foxtail Millet",
+      "authors": [
+        "Dong Shuqi",
+        "Chen Tingting",
+        "Xi Ruize",
+        "Gao Shulin",
+        "Li Gaofeng",
+        "Zhou Xuena",
+        "Song Xie",
+        "Ma Yongqing",
+        "Hu Chunyan",
+        "Yuan Xiangyang"
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "license_statements": [
+        {
+          "attributes": {},
+          "text": "Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (https://creativecommons.org/licenses/by/4.0/).",
+          "xml": "<license xmlns:ns0=\"http://www.w3.org/1999/xlink\"><license-p>Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (<ext-link ns0:href=\"https://creativecommons.org/licenses/by/4.0/\" ext-link-type=\"uri\">https://creativecommons.org/licenses/by/4.0/</ext-link>).</license-p></license>"
+        }
+      ],
+      "retrieved_at": "2026-09-27",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11359421/fullTextXML",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS body only with production jats_to_text; append LF; no truncation. Annotations exclude methods.",
+      "jats_sha256": "a210f7fc00cbcca4ecdf3fe0a0dae2e6449aea63b6d719a34a5443e1a4bf5085",
+      "jats_bytes": 111306,
+      "body_sha256": "871d0018814e05dba8278fd463b464cb3778b3187ab36e697b80e7b15244a29e",
+      "body_bytes": 32503,
+      "source": "sources/full/PMC11359421.txt",
+      "source_sha256": "6faacd60d70819fa1960257a71a411151e4e2709bb6935127b1ad2b246dc6335",
+      "source_bytes": 32504,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 32503,
+          "stored_start": 0,
+          "stored_end": 32503,
+          "sha256": "871d0018814e05dba8278fd463b464cb3778b3187ab36e697b80e7b15244a29e"
+        }
+      ],
+      "stored_jats_sha256": "d2879743c459345421c96de39d17a9e2178862dbe97ad8603397b272019b5769",
+      "stored_jats_bytes": 111307
+    },
+    {
+      "pmcid": "PMC11723401",
+      "doi": "10.3390/plants14010019",
+      "title": "Chemical Control of the Invasive Weed Trianthema portulacastrum: Nethouse Studies",
+      "authors": [
+        "Goldwasser Yaakov",
+        "Rabinowitz Onn",
+        "Abu-Nasser Jackline",
+        "Smirnov Evgeny",
+        "Achdary Guy",
+        "Eizenberg Hanan"
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "license_statements": [
+        {
+          "attributes": {},
+          "text": "https://creativecommons.org/licenses/by/4.0/Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (https://creativecommons.org/licenses/by/4.0/).",
+          "xml": "<license xmlns:ns0=\"http://www.niso.org/schemas/ali/1.0/\" xmlns:ns1=\"http://www.w3.org/1999/xlink\"><ns0:license_ref specific-use=\"textmining\" content-type=\"ccbylicense\">https://creativecommons.org/licenses/by/4.0/</ns0:license_ref><license-p>Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (<ext-link ext-link-type=\"uri\" ns1:href=\"https://creativecommons.org/licenses/by/4.0/\">https://creativecommons.org/licenses/by/4.0/</ext-link>).</license-p></license>"
+        }
+      ],
+      "retrieved_at": "2026-09-27",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11723401/fullTextXML",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS body only with production jats_to_text; append LF; no truncation. Annotations exclude methods.",
+      "jats_sha256": "6778be85b7fa7873a9cfbddbed0db2880582a0ca8e8ac2c08f3b776740b3e45a",
+      "jats_bytes": 100336,
+      "body_sha256": "03e358bc7a6137b2f7725303808fe24740441d9fc503e6bb28cc7f7c8dd7777d",
+      "body_bytes": 17217,
+      "source": "sources/full/PMC11723401.txt",
+      "source_sha256": "34c72302e3d8652dfa68a1b65da2aab607f952bc38b33c4fd246ff3c80558fdd",
+      "source_bytes": 17218,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 17217,
+          "stored_start": 0,
+          "stored_end": 17217,
+          "sha256": "03e358bc7a6137b2f7725303808fe24740441d9fc503e6bb28cc7f7c8dd7777d"
+        }
+      ],
+      "stored_jats_sha256": "65b02c27e59998136964e4e67d4c4238e7d251d4c2be6eb6a739a194c98a32d3",
+      "stored_jats_bytes": 100337
+    },
+    {
+      "pmcid": "PMC11049747",
+      "doi": "10.1515/biol-2022-0868",
+      "title": "Impact of novel herbicide based on synthetic auxins and ALS inhibitor on weed control",
+      "authors": [
+        "Grzanka Monika",
+        "Joniec Andrzej",
+        "Rogulski Janusz",
+        "Sobiech Łukasz",
+        "Idziak Robert",
+        "Loryś Barbara"
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "license_statements": [
+        {
+          "attributes": {},
+          "text": "This work is licensed under the Creative Commons Attribution 4.0 International License.",
+          "xml": "<license><license-p>This work is licensed under the Creative Commons Attribution 4.0 International License.</license-p></license>"
+        }
+      ],
+      "retrieved_at": "2026-09-27",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11049747/fullTextXML",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS body only with production jats_to_text; append LF; no truncation. Annotations exclude methods.",
+      "jats_sha256": "29d03d7c5743b745e247ea21d39235fb8d5a6aff0463358d9666f03993efac1d",
+      "jats_bytes": 146324,
+      "body_sha256": "460a6e536b565909b11e0c2291553f7e9a5336ba7644b9eb7f3a8ce26cbd851e",
+      "body_bytes": 30474,
+      "source": "sources/full/PMC11049747.txt",
+      "source_sha256": "e121c99c7e2ce67586574855040c56c23ff57ebbd40467ae7ba0e48792cefaac",
+      "source_bytes": 30475,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 30474,
+          "stored_start": 0,
+          "stored_end": 30474,
+          "sha256": "460a6e536b565909b11e0c2291553f7e9a5336ba7644b9eb7f3a8ce26cbd851e"
+        }
+      ],
+      "stored_jats_sha256": "23205134cfcc53f20048794b5ad98457172a6da550f58812edeb417bdc087d3e",
+      "stored_jats_bytes": 146325
+    },
+    {
+      "pmcid": "PMC10004852",
+      "doi": "10.3390/plants12051118",
+      "title": "Impact of Multifunctional Adjuvants on Efficacy of Sulfonylurea Herbicide Applied in Maize (Zea mays L.)",
+      "authors": [
+        "Idziak Robert",
+        "Sobczak Angelika",
+        "Waligora Hubert",
+        "Szulc Piotr"
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "license_statements": [
+        {
+          "attributes": {},
+          "text": "https://creativecommons.org/licenses/by/4.0/Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (https://creativecommons.org/licenses/by/4.0/).",
+          "xml": "<license xmlns:ns0=\"http://www.niso.org/schemas/ali/1.0/\" xmlns:ns1=\"http://www.w3.org/1999/xlink\"><ns0:license_ref specific-use=\"textmining\" content-type=\"ccbylicense\">https://creativecommons.org/licenses/by/4.0/</ns0:license_ref><license-p>Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (<ext-link ext-link-type=\"uri\" ns1:href=\"https://creativecommons.org/licenses/by/4.0/\">https://creativecommons.org/licenses/by/4.0/</ext-link>).</license-p></license>"
+        }
+      ],
+      "retrieved_at": "2026-09-27",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10004852/fullTextXML",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS body only with production jats_to_text; append LF; no truncation. Annotations exclude methods.",
+      "jats_sha256": "56362f0d003a55476e1d967fb4c76d2f40dc56269ba2b1d6728def7a2870001d",
+      "jats_bytes": 143921,
+      "body_sha256": "19a0a0e66e3847e5a651b2a1d7431c4f5512d0cb0fb0d9b4728c02bfb1582aba",
+      "body_bytes": 25203,
+      "source": "sources/full/PMC10004852.txt",
+      "source_sha256": "3f6df258a4c099ebac5a980f728ee9ac772d6e7e2cb20b0c9854fae0b3f1cbf8",
+      "source_bytes": 25204,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 25203,
+          "stored_start": 0,
+          "stored_end": 25203,
+          "sha256": "19a0a0e66e3847e5a651b2a1d7431c4f5512d0cb0fb0d9b4728c02bfb1582aba"
+        }
+      ],
+      "stored_jats_sha256": "97ce733a99bf63932bf835edd3e1eddd41a4ac249a63f4363466dd2496016f80",
+      "stored_jats_bytes": 143922
+    },
+    {
+      "pmcid": "PMC12656408",
+      "doi": "10.3390/plants14223438",
+      "title": "Weed Management in Edamame Soybean Production",
+      "authors": [
+        "Pavlović Natalija",
+        "Dolijanović Željko",
+        "Simić Milena",
+        "Dragičević Vesna",
+        "Tolimir Miodrag",
+        "Dodevska Margarita S",
+        "Brankov Milan"
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "license_statements": [
+        {
+          "attributes": {},
+          "text": "Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (https://creativecommons.org/licenses/by/4.0/).",
+          "xml": "<license xmlns:ns0=\"http://www.w3.org/1999/xlink\"><license-p>Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (<ext-link ns0:href=\"https://creativecommons.org/licenses/by/4.0/\" ext-link-type=\"uri\">https://creativecommons.org/licenses/by/4.0/</ext-link>).</license-p></license>"
+        }
+      ],
+      "retrieved_at": "2026-09-27",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12656408/fullTextXML",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS body only with production jats_to_text; append LF; no truncation. Annotations exclude methods.",
+      "jats_sha256": "1627400af0304f4685a1f83e1d66ce13724430b747dab2ad65489f1e7fad6869",
+      "jats_bytes": 130230,
+      "body_sha256": "6018718a4da024ee4a1381aaadfde03fdbf91f1ddf42c47725361a16d14c529a",
+      "body_bytes": 37523,
+      "source": "sources/full/PMC12656408.txt",
+      "source_sha256": "17c8a595daf02689037ebf9447d06479d609c9ee2a1b4cd9c09a43e57c1ba808",
+      "source_bytes": 37524,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 37523,
+          "stored_start": 0,
+          "stored_end": 37523,
+          "sha256": "6018718a4da024ee4a1381aaadfde03fdbf91f1ddf42c47725361a16d14c529a"
+        }
+      ],
+      "stored_jats_sha256": "0e47d06873eafa9e691e93a1ebcfae2d2a65a5be5df46b5f273ec0a6fa5828f0",
+      "stored_jats_bytes": 130231
+    },
+    {
+      "pmcid": "PMC11858994",
+      "doi": "10.3390/plants14040574",
+      "title": "Effect of Different Temperatures on Herbicide Efficacy for the Management of the Invasive Weed Solanum rostratum Dunal (Family: Solanaceae)",
+      "authors": [
+        "Abu-Nassar Jackline",
+        "Matzrafi Maor"
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "license_statements": [
+        {
+          "attributes": {},
+          "text": "Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (https://creativecommons.org/licenses/by/4.0/).",
+          "xml": "<license xmlns:ns0=\"http://www.w3.org/1999/xlink\"><license-p>Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (<ext-link ns0:href=\"https://creativecommons.org/licenses/by/4.0/\" ext-link-type=\"uri\">https://creativecommons.org/licenses/by/4.0/</ext-link>).</license-p></license>"
+        }
+      ],
+      "retrieved_at": "2026-09-27",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11858994/fullTextXML",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS body only with production jats_to_text; append LF; no truncation. Annotations exclude methods.",
+      "jats_sha256": "72d4bb91825f84fe5ff91208adc9c2fbf0983bc1e86abf763781072d7745b913",
+      "jats_bytes": 105956,
+      "body_sha256": "07af09ad668c2c9d246f66408803ae42e439031b4853f98d6463c986240be960",
+      "body_bytes": 19044,
+      "source": "sources/full/PMC11858994.txt",
+      "source_sha256": "260e388cfcd949c24fa64922c9b2eea295c12459285349ef920cfa3cdf2f0749",
+      "source_bytes": 19045,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 19044,
+          "stored_start": 0,
+          "stored_end": 19044,
+          "sha256": "07af09ad668c2c9d246f66408803ae42e439031b4853f98d6463c986240be960"
+        }
+      ],
+      "stored_jats_sha256": "352ab661deb923260e66a910f88fd58a6a498a052533a016e219a6183f27357a",
+      "stored_jats_bytes": 105957
+    },
+    {
+      "pmcid": "PMC12157251",
+      "doi": "10.3390/plants14111572",
+      "title": "Herbicide Screening and Application Method Development for Sustainable Weed Management in Tagetes erecta L. Fields",
+      "authors": [
+        "Zhang Yiping",
+        "Feng Dongyan",
+        "Jia Chengcheng",
+        "Huang Wangqi",
+        "Xu Feng",
+        "Jiang Yalian",
+        "Huang Junhong",
+        "Li Ye",
+        "Wang Jihua",
+        "Tang Dongsheng"
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "license_statements": [
+        {
+          "attributes": {},
+          "text": "Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (https://creativecommons.org/licenses/by/4.0/).",
+          "xml": "<license xmlns:ns0=\"http://www.w3.org/1999/xlink\"><license-p>Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (<ext-link ns0:href=\"https://creativecommons.org/licenses/by/4.0/\" ext-link-type=\"uri\">https://creativecommons.org/licenses/by/4.0/</ext-link>).</license-p></license>"
+        }
+      ],
+      "retrieved_at": "2026-09-27",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12157251/fullTextXML",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS body only with production jats_to_text; append LF; no truncation. Annotations exclude methods.",
+      "jats_sha256": "a73664412475edb27c49e7ab9ed0ce8e1abb032e6b4243ca7a5926e2153eb80e",
+      "jats_bytes": 251170,
+      "body_sha256": "0623ff365894115a52493a0d6dd658323a3d8760925155c8d61eff8613f29b57",
+      "body_bytes": 59550,
+      "source": "sources/full/PMC12157251.txt",
+      "source_sha256": "f631d9b50c3c3131b9a8abeb0c9c5d07abbf2a1559f884983a5d49be65ea00e6",
+      "source_bytes": 59551,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 59550,
+          "stored_start": 0,
+          "stored_end": 59550,
+          "sha256": "0623ff365894115a52493a0d6dd658323a3d8760925155c8d61eff8613f29b57"
+        }
+      ],
+      "stored_jats_sha256": "e470bfe7d48c0a66f7d9b47b8801f468f31e2702eec87d2ceb0ee90b7a1f35b3",
+      "stored_jats_bytes": 251171
+    },
+    {
+      "pmcid": "PMC10569565",
+      "doi": "10.1371/journal.pone.0263154",
+      "title": "Chemical control and herbicide resistance of hairy fleabane (Erigeron bonariensis L.) in Jordan",
+      "authors": [
+        "Qasem Jamal R"
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "license_statements": [
+        {
+          "attributes": {},
+          "text": "This is an open access article distributed under the terms of the Creative Commons Attribution License, which permits unrestricted use, distribution, and reproduction in any medium, provided the original author and source are credited.",
+          "xml": "<license xmlns:ns0=\"http://www.w3.org/1999/xlink\"><license-p>This is an open access article distributed under the terms of the <ext-link ns0:href=\"https://creativecommons.org/licenses/by/4.0/\" ext-link-type=\"uri\">Creative Commons Attribution License</ext-link>, which permits unrestricted use, distribution, and reproduction in any medium, provided the original author and source are credited.</license-p></license>"
+        }
+      ],
+      "retrieved_at": "2026-09-27",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10569565/fullTextXML",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS body only with production jats_to_text; append LF; no truncation. Annotations exclude methods.",
+      "jats_sha256": "df3385af73ce519954f20a25bc9c367cff337974e9c42141d820970df7ec94bf",
+      "jats_bytes": 80187,
+      "body_sha256": "1ef2aa6112b4fdfb56719e7cf8708961446363206ae6058a789f693b41a72165",
+      "body_bytes": 28025,
+      "source": "sources/full/PMC10569565.txt",
+      "source_sha256": "68beb7b5537b62e8e7e402c94c95157291346725ae101c644abe70c32e45abe0",
+      "source_bytes": 28026,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 28025,
+          "stored_start": 0,
+          "stored_end": 28025,
+          "sha256": "1ef2aa6112b4fdfb56719e7cf8708961446363206ae6058a789f693b41a72165"
+        }
+      ],
+      "stored_jats_sha256": "13d894d999e27d899bba6fe9a6a4f5321106caebdf298a2aa3f957bc13cacf1a",
+      "stored_jats_bytes": 80188
+    },
+    {
+      "pmcid": "PMC12112036",
+      "doi": "10.3390/insects16050459",
+      "title": "Field-Based Evaluation of Insecticide Effectiveness on Megalurothrips usitatus in Guangdong, China: Implications for Pest Control Strategies",
+      "authors": [
+        "Peng Zhengke",
+        "Li Mengni",
+        "Guo Chaosong",
+        "Zheng Huixin",
+        "Wu Mingyue",
+        "Yin Fei",
+        "Xiao Yong",
+        "Wang Huanhuan",
+        "Kong Xiangyi",
+        "Zalucki Myron P",
+        "Xie Wen",
+        "Li Zhenyu"
+      ],
+      "license": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "license_statements": [
+        {
+          "attributes": {},
+          "text": "Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (https://creativecommons.org/licenses/by/4.0/).",
+          "xml": "<license xmlns:ns0=\"http://www.w3.org/1999/xlink\"><license-p>Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (<ext-link ns0:href=\"https://creativecommons.org/licenses/by/4.0/\" ext-link-type=\"uri\">https://creativecommons.org/licenses/by/4.0/</ext-link>).</license-p></license>"
+        }
+      ],
+      "retrieved_at": "2026-09-27",
+      "fulltext_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12112036/fullTextXML",
+      "content_kind": "full_body",
+      "transformation": "Parse JATS body only with production jats_to_text; append LF; no truncation. Annotations exclude methods.",
+      "jats_sha256": "c697e8a686e29f27b4b3b30668bd698a42d6e6ac80854ac8f6ca3ce9a61a49b8",
+      "jats_bytes": 128547,
+      "body_sha256": "d913d197886829e87c5299acc53a2f117d7e865174a36358abe9f3dbc4ca3709",
+      "body_bytes": 31004,
+      "source": "sources/full/PMC12112036.txt",
+      "source_sha256": "d0ba52818618a3713b3055ce74c83ba3a4967c02667403da3a4c2629171e861d",
+      "source_bytes": 31005,
+      "segments": [
+        {
+          "section": "Complete body",
+          "body_start": 0,
+          "body_end": 31004,
+          "stored_start": 0,
+          "stored_end": 31004,
+          "sha256": "d913d197886829e87c5299acc53a2f117d7e865174a36358abe9f3dbc4ca3709"
+        }
+      ],
+      "stored_jats_sha256": "3c94d7ab9024bbb469aba311e1d4524a0fd61cc6993fee007bb2bdfdc0d8e117",
+      "stored_jats_bytes": 128548
+    }
+  ],
+  "statement_model": "biolink-qualified-v1",
+  "relations": [
+    {
+      "pmcid": "PMC10818810",
+      "src": "flumioxazin",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Chenopodium album",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence assigns high control of C. album to flumioxazin.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 8471,
+        "end": 8763,
+        "quote": "With regard to the control of individual weed species and specifically the control of C. album, a high efficacy (>70%) was achieved by flumioxazin, benfluralin terbuthylazine plus pendimethalin, and imazamox, while moderate efficacy (55–69%) was documented for the application of aclonifen."
+      },
+      "char_start": 8467,
+      "char_end": 8757,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "benfluralin",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Chenopodium album",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence assigns high control of C. album to benfluralin.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 8471,
+        "end": 8763,
+        "quote": "With regard to the control of individual weed species and specifically the control of C. album, a high efficacy (>70%) was achieved by flumioxazin, benfluralin terbuthylazine plus pendimethalin, and imazamox, while moderate efficacy (55–69%) was documented for the application of aclonifen."
+      },
+      "char_start": 8467,
+      "char_end": 8757,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "terbuthylazine plus pendimethalin",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "Chenopodium album",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence assigns high control of C. album to the named mixture.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 8471,
+        "end": 8763,
+        "quote": "With regard to the control of individual weed species and specifically the control of C. album, a high efficacy (>70%) was achieved by flumioxazin, benfluralin terbuthylazine plus pendimethalin, and imazamox, while moderate efficacy (55–69%) was documented for the application of aclonifen."
+      },
+      "char_start": 8467,
+      "char_end": 8757,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "imazamox",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Chenopodium album",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence assigns high control of C. album to imazamox.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 8471,
+        "end": 8763,
+        "quote": "With regard to the control of individual weed species and specifically the control of C. album, a high efficacy (>70%) was achieved by flumioxazin, benfluralin terbuthylazine plus pendimethalin, and imazamox, while moderate efficacy (55–69%) was documented for the application of aclonifen."
+      },
+      "char_start": 8467,
+      "char_end": 8757,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "aclonifen",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Chenopodium album",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "Moderate efficacy is positive control, not a measured null.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 8471,
+        "end": 8763,
+        "quote": "With regard to the control of individual weed species and specifically the control of C. album, a high efficacy (>70%) was achieved by flumioxazin, benfluralin terbuthylazine plus pendimethalin, and imazamox, while moderate efficacy (55–69%) was documented for the application of aclonifen."
+      },
+      "char_start": 8467,
+      "char_end": 8757,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "aclonifen",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Sinapis arvensis",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence attributes high control of S. arvensis to aclonifen.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 9516,
+        "end": 9835,
+        "quote": "Regarding the weed control of S. arvensis, a high efficacy (>70%) was recorded for the use of aclonifen and flumioxazin, while a moderate efficacy (55–69%) was recorded for the application of all the remaining herbicides except for benfluralin and s-metolachlor plus pendimethalin, which had a low efficacy (<54%) ()."
+      },
+      "char_start": 9510,
+      "char_end": 9827,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "flumioxazin",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Sinapis arvensis",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence attributes high control of S. arvensis to flumioxazin.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 9516,
+        "end": 9835,
+        "quote": "Regarding the weed control of S. arvensis, a high efficacy (>70%) was recorded for the use of aclonifen and flumioxazin, while a moderate efficacy (55–69%) was recorded for the application of all the remaining herbicides except for benfluralin and s-metolachlor plus pendimethalin, which had a low efficacy (<54%) ()."
+      },
+      "char_start": 9510,
+      "char_end": 9827,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "benfluralin",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Sinapis arvensis",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The low efficacy is still an observed positive control effect.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 9516,
+        "end": 9835,
+        "quote": "Regarding the weed control of S. arvensis, a high efficacy (>70%) was recorded for the use of aclonifen and flumioxazin, while a moderate efficacy (55–69%) was recorded for the application of all the remaining herbicides except for benfluralin and s-metolachlor plus pendimethalin, which had a low efficacy (<54%) ()."
+      },
+      "char_start": 9510,
+      "char_end": 9827,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "s-metolachlor plus pendimethalin",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "Sinapis arvensis",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The named mixture retained low but positive efficacy.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 9516,
+        "end": 9835,
+        "quote": "Regarding the weed control of S. arvensis, a high efficacy (>70%) was recorded for the use of aclonifen and flumioxazin, while a moderate efficacy (55–69%) was recorded for the application of all the remaining herbicides except for benfluralin and s-metolachlor plus pendimethalin, which had a low efficacy (<54%) ()."
+      },
+      "char_start": 9510,
+      "char_end": 9827,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "terbuthylazine plus pendimethalin",
+      "src_type": "Product",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The mixture caused explicitly measured crop injury in GS1.",
+      "qualifiers": {
+        "study_context": "other:gs1"
+      },
+      "qualifier_quotes": {
+        "study_context": "GS1"
+      },
+      "span": {
+        "start": 12867,
+        "end": 13064,
+        "quote": "In GS1 (November–June 2019–2020), the herbicide mixtures of terbuthylazine plus pendimethalin and s-metolachlor plus pendimethalin caused severe crop injury (<20%) of 20% and 22%, respectively."
+      },
+      "char_start": 12835,
+      "char_end": 13028,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "s-metolachlor plus pendimethalin",
+      "src_type": "Product",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The second named mixture caused explicitly measured crop injury.",
+      "qualifiers": {
+        "study_context": "other:gs1"
+      },
+      "qualifier_quotes": {
+        "study_context": "GS1"
+      },
+      "span": {
+        "start": 12867,
+        "end": 13064,
+        "quote": "In GS1 (November–June 2019–2020), the herbicide mixtures of terbuthylazine plus pendimethalin and s-metolachlor plus pendimethalin caused severe crop injury (<20%) of 20% and 22%, respectively."
+      },
+      "char_start": 12835,
+      "char_end": 13028,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "benfluralin",
+      "src_type": "ActiveIngredient",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The sentence explicitly reports vetch phytotoxicity for benfluralin.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 13065,
+        "end": 13350,
+        "quote": "In addition, the herbicide treatments benfluralin, flumioxazin, and imazamox showed phytotoxicity at the rate of 10–15% (average damage and consistent on vetch), whereas pendimethalin plus clomazone, metribuzin plus clomazone, and pyridate caused inconsistent lower damage of 3–7%."
+      },
+      "char_start": 13029,
+      "char_end": 13310,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "flumioxazin",
+      "src_type": "ActiveIngredient",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The sentence explicitly reports vetch phytotoxicity for flumioxazin.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 13065,
+        "end": 13350,
+        "quote": "In addition, the herbicide treatments benfluralin, flumioxazin, and imazamox showed phytotoxicity at the rate of 10–15% (average damage and consistent on vetch), whereas pendimethalin plus clomazone, metribuzin plus clomazone, and pyridate caused inconsistent lower damage of 3–7%."
+      },
+      "char_start": 13029,
+      "char_end": 13310,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "imazamox",
+      "src_type": "ActiveIngredient",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The sentence explicitly reports vetch phytotoxicity for imazamox.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 13065,
+        "end": 13350,
+        "quote": "In addition, the herbicide treatments benfluralin, flumioxazin, and imazamox showed phytotoxicity at the rate of 10–15% (average damage and consistent on vetch), whereas pendimethalin plus clomazone, metribuzin plus clomazone, and pyridate caused inconsistent lower damage of 3–7%."
+      },
+      "char_start": 13029,
+      "char_end": 13310,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "pendimethalin plus clomazone",
+      "src_type": "Product",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The mixture caused lower but positive vetch damage.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 13065,
+        "end": 13350,
+        "quote": "In addition, the herbicide treatments benfluralin, flumioxazin, and imazamox showed phytotoxicity at the rate of 10–15% (average damage and consistent on vetch), whereas pendimethalin plus clomazone, metribuzin plus clomazone, and pyridate caused inconsistent lower damage of 3–7%."
+      },
+      "char_start": 13029,
+      "char_end": 13310,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "metribuzin plus clomazone",
+      "src_type": "Product",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The mixture caused lower but positive vetch damage.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 13065,
+        "end": 13350,
+        "quote": "In addition, the herbicide treatments benfluralin, flumioxazin, and imazamox showed phytotoxicity at the rate of 10–15% (average damage and consistent on vetch), whereas pendimethalin plus clomazone, metribuzin plus clomazone, and pyridate caused inconsistent lower damage of 3–7%."
+      },
+      "char_start": 13029,
+      "char_end": 13310,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "pyridate",
+      "src_type": "ActiveIngredient",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "Pyridate caused lower but positive vetch damage.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 13065,
+        "end": 13350,
+        "quote": "In addition, the herbicide treatments benfluralin, flumioxazin, and imazamox showed phytotoxicity at the rate of 10–15% (average damage and consistent on vetch), whereas pendimethalin plus clomazone, metribuzin plus clomazone, and pyridate caused inconsistent lower damage of 3–7%."
+      },
+      "char_start": 13029,
+      "char_end": 13310,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "benfluralin",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "Lupinus albus",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "Benfluralin-treated lupine had the highest grain yield in both seasons.",
+      "qualifiers": {
+        "application_timing": "pre_emergence",
+        "object_aspect_qualifier": "other:grain yield"
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence",
+        "object_aspect_qualifier": "grain yield"
+      },
+      "span": {
+        "start": 22870,
+        "end": 23054,
+        "quote": "Lastly, the significantly highest grain yield was observed in plants treated with pre-emergence benfluralin at 4.1 t ha−1 and 3.9 t ha−1 in the first and second growing seasons ()."
+      },
+      "char_start": 22762,
+      "char_end": 22942,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Sulfosulfuron + Fomesafen",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The named mixture controlled the weed in both specified soils.",
+      "qualifiers": {
+        "study_context": "other:lehavot and the shamir soils"
+      },
+      "qualifier_quotes": {
+        "study_context": "Lehavot and the Shamir soils"
+      },
+      "span": {
+        "start": 10565,
+        "end": 10831,
+        "quote": "However, the combinations of Sulfosulfuron + Fomesafen and Fomesafen + Terbutryne effectively and significantly controlled the weed in the Lehavot and the Shamir soils ( and ), while in the Menara soil all herbicide combinations significantly controlled the weed ()."
+      },
+      "char_start": 10540,
+      "char_end": 10806,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Fomesafen + Terbutryne",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The named mixture controlled the weed in both specified soils.",
+      "qualifiers": {
+        "study_context": "other:lehavot and the shamir soils"
+      },
+      "qualifier_quotes": {
+        "study_context": "Lehavot and the Shamir soils"
+      },
+      "span": {
+        "start": 10565,
+        "end": 10831,
+        "quote": "However, the combinations of Sulfosulfuron + Fomesafen and Fomesafen + Terbutryne effectively and significantly controlled the weed in the Lehavot and the Shamir soils ( and ), while in the Menara soil all herbicide combinations significantly controlled the weed ()."
+      },
+      "char_start": 10540,
+      "char_end": 10806,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11049747",
+      "src": "MT-565 SG",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "Viola arvensis",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The product showed quantified control of VIOAR at both assessments.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 22485,
+        "end": 22650,
+        "quote": "MT-565 SG at both rates controlled VIOAR in the range of 35.2–39.6% at the first assessment 14 DAT and in the range of 58.4–67.3% at the final assessment 28 DAT."
+      },
+      "char_start": 21806,
+      "char_end": 21967,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11049747",
+      "src": "MT-565 SG",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "Stellaria media",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The named product controlled S. media at the explicitly stated dose.",
+      "qualifiers": {
+        "dose": "1 kg/ha"
+      },
+      "qualifier_quotes": {
+        "dose": "1.0 kg ha−1"
+      },
+      "span": {
+        "start": 23299,
+        "end": 23539,
+        "quote": "Stellaria media was moderately controlled at the first assessment by all products (48.4–55.3%), giving at the final assessment very good control by MT-565 SG at a dose of 1.0 kg ha−1 (92.7%) and reference products based on MCPA (92.6%)."
+      },
+      "char_start": 22610,
+      "char_end": 22846,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11049747",
+      "src": "MT-565 SG",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "Galium aparine",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The product is explicitly credited with good GALAP control.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 23540,
+        "end": 23641,
+        "quote": "GALAP was well controlled by a higher dose of MT-565 SG (67 vs 77.9%) at the final assessment 28 DAT."
+      },
+      "char_start": 22847,
+      "char_end": 22948,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10004852",
+      "src": "nicosulfuron",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Echinochloa crus-galli",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "Nicosulfuron effectively controlled ECHCG at both tested rates in 2017.",
+      "qualifiers": {
+        "study_context": "other:2017"
+      },
+      "qualifier_quotes": {
+        "study_context": "2017"
+      },
+      "span": {
+        "start": 9302,
+        "end": 9394,
+        "quote": "In 2017, nicosulfuron at recommended and reduced rates effectively controlled only ECHCG ()."
+      },
+      "char_start": 9282,
+      "char_end": 9374,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10004852",
+      "src": "nicosulfuron",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Geranium pusillum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence assigns GER control to nicosulfuron in 2018.",
+      "qualifiers": {
+        "study_context": "other:2018"
+      },
+      "qualifier_quotes": {
+        "study_context": "2018"
+      },
+      "span": {
+        "start": 9737,
+        "end": 9840,
+        "quote": "In 2018, nicosulfuron considerably controlled GER and VIO (100%), independently of rates and adjuvants."
+      },
+      "char_start": 9717,
+      "char_end": 9820,
+      "quote_occurrences": 2
+    },
+    {
+      "pmcid": "PMC10004852",
+      "src": "nicosulfuron",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Viola arvensis",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence assigns VIO control to nicosulfuron in 2018.",
+      "qualifiers": {
+        "study_context": "other:2018"
+      },
+      "qualifier_quotes": {
+        "study_context": "2018"
+      },
+      "span": {
+        "start": 9737,
+        "end": 9840,
+        "quote": "In 2018, nicosulfuron considerably controlled GER and VIO (100%), independently of rates and adjuvants."
+      },
+      "char_start": 9717,
+      "char_end": 9820,
+      "quote_occurrences": 2
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "acetochlor",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "broad-leaved weeds",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "Acetochlor had an explicitly quantified positive control outcome.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 16296,
+        "end": 16502,
+        "quote": "The control efficacy of acetochlor and metolachlor · oxyfluorfen · pendimethalin against broad-leaved weeds was the highest (approximately 65%), markedly exceeding that of other herbicides (below 60%) ()."
+      },
+      "char_start": 16212,
+      "char_end": 16416,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "metolachlor · oxyfluorfen · pendimethalin",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "broad-leaved weeds",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The intact mixture had an explicitly quantified positive outcome.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 16296,
+        "end": 16502,
+        "quote": "The control efficacy of acetochlor and metolachlor · oxyfluorfen · pendimethalin against broad-leaved weeds was the highest (approximately 65%), markedly exceeding that of other herbicides (below 60%) ()."
+      },
+      "char_start": 16212,
+      "char_end": 16416,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12112036",
+      "src": "cyantraniliprole",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Megalurothrips usitatus",
+      "dst_type": "Pest",
+      "polarity": "supports",
+      "context": "Cyantraniliprole showed the best field control of cowpea thrips.",
+      "qualifiers": {
+        "study_context": "field_trial"
+      },
+      "qualifier_quotes": {
+        "study_context": "field"
+      },
+      "span": {
+        "start": 26792,
+        "end": 27009,
+        "quote": "Though the laboratory toxicity of cyantraniliprole against M. usitatus field populations was not the highest, it showed the best control efficacy when applied in the field, with a corrected control efficacy of 76% ()."
+      },
+      "char_start": 26669,
+      "char_end": 26886,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12112036",
+      "src": "spirotetramat",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Megalurothrips usitatus",
+      "dst_type": "Pest",
+      "polarity": "supports",
+      "context": "Lower relative toxicity did not negate the positive measured field control.",
+      "qualifiers": {
+        "study_context": "field_trial"
+      },
+      "qualifier_quotes": {
+        "study_context": "field"
+      },
+      "span": {
+        "start": 27243,
+        "end": 27414,
+        "quote": "Nonetheless, spirotetramat showed the lowest toxicity but not the least efficient insecticides (with corrected control efficacy of 60% at 7 dpa) when applied in the field."
+      },
+      "char_start": 27120,
+      "char_end": 27291,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10569565",
+      "src": "bromoxynil/MCPA mixture",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "Erigeron bonariensis",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The intact commercial mixture completely controlled the tested weed.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 16993,
+        "end": 17145,
+        "quote": "Bromoxynil/MCPA mixture (Buctril®M) was first (0) in controlling the weed and totally controlled all plants in treated plots 15 days after application."
+      },
+      "char_start": 16966,
+      "char_end": 17117,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "pyridate",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Chenopodium album",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence asserts moderate C. album control by pyridate.",
+      "qualifiers": {
+        "application_timing": "post_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "post-emergence"
+      },
+      "span": {
+        "start": 27928,
+        "end": 28015,
+        "quote": "Among the post-emergence herbicides, pyridate caused a moderate control of C. album ()."
+      },
+      "char_start": 27813,
+      "char_end": 27900,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "aclonifen",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "Aclonifen increased the measured vetch dry biomass.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:plant dry biomass",
+        "object_direction_qualifier": "other:higher",
+        "study_context": "other:gs1"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "plant dry biomass",
+        "object_direction_qualifier": "higher",
+        "study_context": "GS1"
+      },
+      "span": {
+        "start": 15248,
+        "end": 15417,
+        "quote": "In GS1, only the three herbicide treatments of aclonifen, flumioxazine, and imazamox showed significantly higher plant dry biomass than the weedy check plots (p < 0.05)."
+      },
+      "char_start": 15188,
+      "char_end": 15357,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "flumioxazine",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The sentence reports higher dry biomass with flumioxazine.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:plant dry biomass",
+        "object_direction_qualifier": "other:higher",
+        "study_context": "other:gs1"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "plant dry biomass",
+        "object_direction_qualifier": "higher",
+        "study_context": "GS1"
+      },
+      "span": {
+        "start": 15248,
+        "end": 15417,
+        "quote": "In GS1, only the three herbicide treatments of aclonifen, flumioxazine, and imazamox showed significantly higher plant dry biomass than the weedy check plots (p < 0.05)."
+      },
+      "char_start": 15188,
+      "char_end": 15357,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "imazamox",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The sentence reports higher dry biomass with imazamox.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:plant dry biomass",
+        "object_direction_qualifier": "other:higher",
+        "study_context": "other:gs1"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "plant dry biomass",
+        "object_direction_qualifier": "higher",
+        "study_context": "GS1"
+      },
+      "span": {
+        "start": 15248,
+        "end": 15417,
+        "quote": "In GS1, only the three herbicide treatments of aclonifen, flumioxazine, and imazamox showed significantly higher plant dry biomass than the weedy check plots (p < 0.05)."
+      },
+      "char_start": 15188,
+      "char_end": 15357,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "benfluralin",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "Lupinus albus",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "Benfluralin increased lupine dry biomass in GS2.",
+      "qualifiers": {
+        "study_context": "other:gs2",
+        "object_aspect_qualifier": "other:dry biomass"
+      },
+      "qualifier_quotes": {
+        "study_context": "GS2",
+        "object_aspect_qualifier": "dry biomass"
+      },
+      "span": {
+        "start": 21273,
+        "end": 21379,
+        "quote": "For GS2, only two herbicide treatments (i.e., aclonifen, benfluralin) led to increased lupine dry biomass."
+      },
+      "char_start": 21179,
+      "char_end": 21285,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "aclonifen",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "Lupinus albus",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "Aclonifen increased lupine dry biomass in GS2.",
+      "qualifiers": {
+        "study_context": "other:gs2",
+        "object_aspect_qualifier": "other:dry biomass"
+      },
+      "qualifier_quotes": {
+        "study_context": "GS2",
+        "object_aspect_qualifier": "dry biomass"
+      },
+      "span": {
+        "start": 21273,
+        "end": 21379,
+        "quote": "For GS2, only two herbicide treatments (i.e., aclonifen, benfluralin) led to increased lupine dry biomass."
+      },
+      "char_start": 21179,
+      "char_end": 21285,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11359421",
+      "src": "penoxsulam",
+      "src_type": "ActiveIngredient",
+      "relation": "phytotoxic_to",
+      "dst": "foxtail millet",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The sentence explicitly asserts phytotoxicity to foxtail millet without borrowing a dose.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 17876,
+        "end": 17977,
+        "quote": "However, penoxsulam has obvious phytotoxicity to foxtail millet after being treated with this dosage."
+      },
+      "char_start": 17822,
+      "char_end": 17923,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Fomesafen",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "Fomesafen is among the explicitly effective pre-emergence arms.",
+      "qualifiers": {
+        "application_timing": "pre_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence"
+      },
+      "span": {
+        "start": 6579,
+        "end": 6994,
+        "quote": "The weekly estimations of T. portulacastrum plant vigor conducted for the pre-emergence pot trial reveal that at the end of the experiment, 32 DAA, Fomesafen, Terbutryne, Flurochloridon, Sulfosulfuron, Cyprosulfamid + Izoxaflutole, and Dimethenamid controlled 95–100% of the weed infestation throughout the experiment, Saflufenacil application resulted in partial control, and Imazamox was the least effective ()."
+      },
+      "char_start": 6558,
+      "char_end": 6971,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Terbutryne",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "Terbutryne is among the explicitly effective pre-emergence arms.",
+      "qualifiers": {
+        "application_timing": "pre_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence"
+      },
+      "span": {
+        "start": 6579,
+        "end": 6994,
+        "quote": "The weekly estimations of T. portulacastrum plant vigor conducted for the pre-emergence pot trial reveal that at the end of the experiment, 32 DAA, Fomesafen, Terbutryne, Flurochloridon, Sulfosulfuron, Cyprosulfamid + Izoxaflutole, and Dimethenamid controlled 95–100% of the weed infestation throughout the experiment, Saflufenacil application resulted in partial control, and Imazamox was the least effective ()."
+      },
+      "char_start": 6558,
+      "char_end": 6971,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Flurochloridon",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "Flurochloridon is among the explicitly effective pre-emergence arms.",
+      "qualifiers": {
+        "application_timing": "pre_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence"
+      },
+      "span": {
+        "start": 6579,
+        "end": 6994,
+        "quote": "The weekly estimations of T. portulacastrum plant vigor conducted for the pre-emergence pot trial reveal that at the end of the experiment, 32 DAA, Fomesafen, Terbutryne, Flurochloridon, Sulfosulfuron, Cyprosulfamid + Izoxaflutole, and Dimethenamid controlled 95–100% of the weed infestation throughout the experiment, Saflufenacil application resulted in partial control, and Imazamox was the least effective ()."
+      },
+      "char_start": 6558,
+      "char_end": 6971,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Sulfosulfuron",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "Sulfosulfuron is among the explicitly effective pre-emergence arms.",
+      "qualifiers": {
+        "application_timing": "pre_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence"
+      },
+      "span": {
+        "start": 6579,
+        "end": 6994,
+        "quote": "The weekly estimations of T. portulacastrum plant vigor conducted for the pre-emergence pot trial reveal that at the end of the experiment, 32 DAA, Fomesafen, Terbutryne, Flurochloridon, Sulfosulfuron, Cyprosulfamid + Izoxaflutole, and Dimethenamid controlled 95–100% of the weed infestation throughout the experiment, Saflufenacil application resulted in partial control, and Imazamox was the least effective ()."
+      },
+      "char_start": 6558,
+      "char_end": 6971,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Cyprosulfamid + Izoxaflutole",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The mixture, without ingredient projection, is explicitly effective.",
+      "qualifiers": {
+        "application_timing": "pre_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence"
+      },
+      "span": {
+        "start": 6579,
+        "end": 6994,
+        "quote": "The weekly estimations of T. portulacastrum plant vigor conducted for the pre-emergence pot trial reveal that at the end of the experiment, 32 DAA, Fomesafen, Terbutryne, Flurochloridon, Sulfosulfuron, Cyprosulfamid + Izoxaflutole, and Dimethenamid controlled 95–100% of the weed infestation throughout the experiment, Saflufenacil application resulted in partial control, and Imazamox was the least effective ()."
+      },
+      "char_start": 6558,
+      "char_end": 6971,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Dimethenamid",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "Dimethenamid is among the explicitly effective pre-emergence arms.",
+      "qualifiers": {
+        "application_timing": "pre_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence"
+      },
+      "span": {
+        "start": 6579,
+        "end": 6994,
+        "quote": "The weekly estimations of T. portulacastrum plant vigor conducted for the pre-emergence pot trial reveal that at the end of the experiment, 32 DAA, Fomesafen, Terbutryne, Flurochloridon, Sulfosulfuron, Cyprosulfamid + Izoxaflutole, and Dimethenamid controlled 95–100% of the weed infestation throughout the experiment, Saflufenacil application resulted in partial control, and Imazamox was the least effective ()."
+      },
+      "char_start": 6558,
+      "char_end": 6971,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Saflufenacil",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "Partial weed control is a positive measured effect.",
+      "qualifiers": {
+        "application_timing": "pre_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence"
+      },
+      "span": {
+        "start": 6579,
+        "end": 6994,
+        "quote": "The weekly estimations of T. portulacastrum plant vigor conducted for the pre-emergence pot trial reveal that at the end of the experiment, 32 DAA, Fomesafen, Terbutryne, Flurochloridon, Sulfosulfuron, Cyprosulfamid + Izoxaflutole, and Dimethenamid controlled 95–100% of the weed infestation throughout the experiment, Saflufenacil application resulted in partial control, and Imazamox was the least effective ()."
+      },
+      "char_start": 6558,
+      "char_end": 6971,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Fomesafen",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "Fomesafen eradicated plants in the pre-emergence trial.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:final shoot fresh weight"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "final shoot fresh weight"
+      },
+      "span": {
+        "start": 6995,
+        "end": 7291,
+        "quote": "At the end of the experiment, 32 DAA, all herbicide treatments excluding Imazamox drastically reduced the T. portulacastrum final shoot fresh weight in comparison to the non-treated control, whereas Fomesafen and Cyprosulfamid + Izoxaflutole applications led to 100% eradication of the plants ()."
+      },
+      "char_start": 6972,
+      "char_end": 7268,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Cyprosulfamid + Izoxaflutole",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The intact mixture eradicated plants in the pre-emergence trial.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:final shoot fresh weight"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "final shoot fresh weight"
+      },
+      "span": {
+        "start": 6995,
+        "end": 7291,
+        "quote": "At the end of the experiment, 32 DAA, all herbicide treatments excluding Imazamox drastically reduced the T. portulacastrum final shoot fresh weight in comparison to the non-treated control, whereas Fomesafen and Cyprosulfamid + Izoxaflutole applications led to 100% eradication of the plants ()."
+      },
+      "char_start": 6972,
+      "char_end": 7268,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Imazamox",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "no_effect",
+      "context": "The post-emergence trial explicitly calls Imazamox ineffective.",
+      "qualifiers": {
+        "application_timing": "post_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "post-emergence"
+      },
+      "span": {
+        "start": 8450,
+        "end": 8781,
+        "quote": "The weekly assessments of plant vigor conducted for the post-emergence pot trial revealed that the herbicides Saflufenacil, Foramsulfuron, Tembotrione + Isoxdifen-ethyl, Pyraflufen, and Rimsulfuron Methyl were the most effective in T. portulacastrum control throughout the trial, while Imazamox and Aclonifen were not effective ()."
+      },
+      "char_start": 8425,
+      "char_end": 8756,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Aclonifen",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "no_effect",
+      "context": "The post-emergence trial explicitly calls Aclonifen ineffective.",
+      "qualifiers": {
+        "application_timing": "post_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "post-emergence"
+      },
+      "span": {
+        "start": 8450,
+        "end": 8781,
+        "quote": "The weekly assessments of plant vigor conducted for the post-emergence pot trial revealed that the herbicides Saflufenacil, Foramsulfuron, Tembotrione + Isoxdifen-ethyl, Pyraflufen, and Rimsulfuron Methyl were the most effective in T. portulacastrum control throughout the trial, while Imazamox and Aclonifen were not effective ()."
+      },
+      "char_start": 8425,
+      "char_end": 8756,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Saflufenacil",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "Saflufenacil was one of the most effective post-emergence treatments.",
+      "qualifiers": {
+        "application_timing": "post_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "post-emergence"
+      },
+      "span": {
+        "start": 8450,
+        "end": 8781,
+        "quote": "The weekly assessments of plant vigor conducted for the post-emergence pot trial revealed that the herbicides Saflufenacil, Foramsulfuron, Tembotrione + Isoxdifen-ethyl, Pyraflufen, and Rimsulfuron Methyl were the most effective in T. portulacastrum control throughout the trial, while Imazamox and Aclonifen were not effective ()."
+      },
+      "char_start": 8425,
+      "char_end": 8756,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Foramsulfuron",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "Foramsulfuron was one of the most effective post-emergence treatments.",
+      "qualifiers": {
+        "application_timing": "post_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "post-emergence"
+      },
+      "span": {
+        "start": 8450,
+        "end": 8781,
+        "quote": "The weekly assessments of plant vigor conducted for the post-emergence pot trial revealed that the herbicides Saflufenacil, Foramsulfuron, Tembotrione + Isoxdifen-ethyl, Pyraflufen, and Rimsulfuron Methyl were the most effective in T. portulacastrum control throughout the trial, while Imazamox and Aclonifen were not effective ()."
+      },
+      "char_start": 8425,
+      "char_end": 8756,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Tembotrione + Isoxdifen-ethyl",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The intact mixture was one of the most effective treatments.",
+      "qualifiers": {
+        "application_timing": "post_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "post-emergence"
+      },
+      "span": {
+        "start": 8450,
+        "end": 8781,
+        "quote": "The weekly assessments of plant vigor conducted for the post-emergence pot trial revealed that the herbicides Saflufenacil, Foramsulfuron, Tembotrione + Isoxdifen-ethyl, Pyraflufen, and Rimsulfuron Methyl were the most effective in T. portulacastrum control throughout the trial, while Imazamox and Aclonifen were not effective ()."
+      },
+      "char_start": 8425,
+      "char_end": 8756,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Pyraflufen",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "Pyraflufen was one of the most effective post-emergence treatments.",
+      "qualifiers": {
+        "application_timing": "post_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "post-emergence"
+      },
+      "span": {
+        "start": 8450,
+        "end": 8781,
+        "quote": "The weekly assessments of plant vigor conducted for the post-emergence pot trial revealed that the herbicides Saflufenacil, Foramsulfuron, Tembotrione + Isoxdifen-ethyl, Pyraflufen, and Rimsulfuron Methyl were the most effective in T. portulacastrum control throughout the trial, while Imazamox and Aclonifen were not effective ()."
+      },
+      "char_start": 8425,
+      "char_end": 8756,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Rimsulfuron Methyl",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "Rimsulfuron Methyl was one of the most effective treatments.",
+      "qualifiers": {
+        "application_timing": "post_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "post-emergence"
+      },
+      "span": {
+        "start": 8450,
+        "end": 8781,
+        "quote": "The weekly assessments of plant vigor conducted for the post-emergence pot trial revealed that the herbicides Saflufenacil, Foramsulfuron, Tembotrione + Isoxdifen-ethyl, Pyraflufen, and Rimsulfuron Methyl were the most effective in T. portulacastrum control throughout the trial, while Imazamox and Aclonifen were not effective ()."
+      },
+      "char_start": 8425,
+      "char_end": 8756,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10004852",
+      "src": "nicosulfuron with MSO 3",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "weeds",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The intact combination had an observed 84% overall weed control effect.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 9601,
+        "end": 9736,
+        "quote": "The total WCE of nicosulfuron with MSO 3 (84%) was higher than that with MSO 1 (68%) and standard adjuvants MSO 4 and NIS (63 and 71%)."
+      },
+      "char_start": 9581,
+      "char_end": 9716,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10004852",
+      "src": "nicosulfuron with MSO 1",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "weeds",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The comparator combination also had a positive measured control effect.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 9601,
+        "end": 9736,
+        "quote": "The total WCE of nicosulfuron with MSO 3 (84%) was higher than that with MSO 1 (68%) and standard adjuvants MSO 4 and NIS (63 and 71%)."
+      },
+      "char_start": 9581,
+      "char_end": 9716,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "metolachlor · oxyfluorfen · pendimethalin",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "grassy weeds",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The intact mixture controlled both measured aspects of grassy weeds at site 2.",
+      "qualifiers": {
+        "study_context": "other:experimental site 2",
+        "object_aspect_qualifier": "other:plant density control and fresh weight control"
+      },
+      "qualifier_quotes": {
+        "study_context": "experimental site 2",
+        "object_aspect_qualifier": "plant density control and fresh weight control"
+      },
+      "span": {
+        "start": 15965,
+        "end": 16295,
+        "quote": "In experimental site 2, where no film covering was applied, metolachlor · oxyfluorfen · pendimethalin achieved the highest control efficacy against grassy weeds, with plant density control and fresh weight control efficacy ranging from 55% to 65%, significantly surpassing those of other herbicides (control efficacy below 50%)."
+      },
+      "char_start": 15883,
+      "char_end": 16211,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "pendimethalin",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "marigolds",
+      "dst_type": "Crop",
+      "polarity": "no_effect",
+      "context": "The measured marigold yield was comparable to the control.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:yields"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "yields"
+      },
+      "span": {
+        "start": 21865,
+        "end": 22056,
+        "quote": "The yields of marigolds in the pendimethalin and oxyfluorfen treatments were comparable to those in the control group, while the yields in the other eight treatments were significantly lower."
+      },
+      "char_start": 21591,
+      "char_end": 21782,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "oxyfluorfen",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "marigolds",
+      "dst_type": "Crop",
+      "polarity": "no_effect",
+      "context": "The measured marigold yield was comparable to the control.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:yields"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "yields"
+      },
+      "span": {
+        "start": 21865,
+        "end": 22056,
+        "quote": "The yields of marigolds in the pendimethalin and oxyfluorfen treatments were comparable to those in the control group, while the yields in the other eight treatments were significantly lower."
+      },
+      "char_start": 21591,
+      "char_end": 21782,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "fomesafen",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "broad-leaved weeds",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The composite density and fresh-weight reduction is attributed to fomesafen.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:density and fresh weight",
+        "study_context": "other:two experimental sites"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "density and fresh weight",
+        "study_context": "two experimental sites"
+      },
+      "span": {
+        "start": 35644,
+        "end": 35864,
+        "quote": "Among the five selective herbicides tested for controlling broad-leaved weeds, the fomesafen treatment showed the highest reduction rates in both the density and fresh weight of these weeds across two experimental sites."
+      },
+      "char_start": 34858,
+      "char_end": 35078,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "haloxyfop-P-methyl",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "gramineous weeds",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The herbicide achieved the highest grass fresh-weight suppression.",
+      "qualifiers": {
+        "object_aspect_qualifier": "fresh_weight"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "fresh weight"
+      },
+      "span": {
+        "start": 50982,
+        "end": 51224,
+        "quote": "The experimental results demonstrated that haloxyfop-P-methyl achieved the highest fresh weight suppression rate (>92%) against gramineous weeds among all tested herbicides, with no observed phytotoxicity to marigolds (phytotoxicity level 1)."
+      },
+      "char_start": 49852,
+      "char_end": 50094,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "haloxyfop-P-methyl",
+      "src_type": "ActiveIngredient",
+      "relation": "phytotoxic_to",
+      "dst": "marigolds",
+      "dst_type": "Crop",
+      "polarity": "no_effect",
+      "context": "The sentence explicitly reports no observed marigold phytotoxicity.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 50982,
+        "end": 51224,
+        "quote": "The experimental results demonstrated that haloxyfop-P-methyl achieved the highest fresh weight suppression rate (>92%) against gramineous weeds among all tested herbicides, with no observed phytotoxicity to marigolds (phytotoxicity level 1)."
+      },
+      "char_start": 49852,
+      "char_end": 50094,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "fomesafen",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Galinsoga quadriradiata",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence says fomesafen \"effectively controlled\" Galinsoga at the stated rate.",
+      "qualifiers": {
+        "study_context": "other:marigold fields",
+        "dose": "0.4125 kg/ha a.i."
+      },
+      "qualifier_quotes": {
+        "study_context": "marigold fields",
+        "dose": "412.5 g a.i. ha−1"
+      },
+      "span": {
+        "start": 52647,
+        "end": 52979,
+        "quote": "Although fomesafen is a selective herbicide for soybean fields, our trial showed that at the recommended rate (412.5 g a.i. ha−1), it effectively controlled major broadleaf weeds in marigold fields, including Galinsoga quadriradiata, Ageratum conyzoides, and Acroglochin persicarioides, without causing phytotoxicity to marigolds."
+      },
+      "char_start": 51515,
+      "char_end": 51845,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "fomesafen",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Ageratum conyzoides",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence says fomesafen \"effectively controlled\" Ageratum at the stated rate.",
+      "qualifiers": {
+        "study_context": "other:marigold fields",
+        "dose": "0.4125 kg/ha a.i."
+      },
+      "qualifier_quotes": {
+        "study_context": "marigold fields",
+        "dose": "412.5 g a.i. ha−1"
+      },
+      "span": {
+        "start": 52647,
+        "end": 52979,
+        "quote": "Although fomesafen is a selective herbicide for soybean fields, our trial showed that at the recommended rate (412.5 g a.i. ha−1), it effectively controlled major broadleaf weeds in marigold fields, including Galinsoga quadriradiata, Ageratum conyzoides, and Acroglochin persicarioides, without causing phytotoxicity to marigolds."
+      },
+      "char_start": 51515,
+      "char_end": 51845,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "fomesafen",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Acroglochin persicarioides",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence says fomesafen \"effectively controlled\" Acroglochin at the stated rate.",
+      "qualifiers": {
+        "study_context": "other:marigold fields",
+        "dose": "0.4125 kg/ha a.i."
+      },
+      "qualifier_quotes": {
+        "study_context": "marigold fields",
+        "dose": "412.5 g a.i. ha−1"
+      },
+      "span": {
+        "start": 52647,
+        "end": 52979,
+        "quote": "Although fomesafen is a selective herbicide for soybean fields, our trial showed that at the recommended rate (412.5 g a.i. ha−1), it effectively controlled major broadleaf weeds in marigold fields, including Galinsoga quadriradiata, Ageratum conyzoides, and Acroglochin persicarioides, without causing phytotoxicity to marigolds."
+      },
+      "char_start": 51515,
+      "char_end": 51845,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "fomesafen",
+      "src_type": "ActiveIngredient",
+      "relation": "phytotoxic_to",
+      "dst": "marigolds",
+      "dst_type": "Crop",
+      "polarity": "no_effect",
+      "context": "\"without causing phytotoxicity to marigolds\" is a measured absence at the stated rate.",
+      "qualifiers": {
+        "study_context": "other:marigold fields",
+        "dose": "0.4125 kg/ha a.i."
+      },
+      "qualifier_quotes": {
+        "study_context": "marigold fields",
+        "dose": "412.5 g a.i. ha−1"
+      },
+      "span": {
+        "start": 52647,
+        "end": 52979,
+        "quote": "Although fomesafen is a selective herbicide for soybean fields, our trial showed that at the recommended rate (412.5 g a.i. ha−1), it effectively controlled major broadleaf weeds in marigold fields, including Galinsoga quadriradiata, Ageratum conyzoides, and Acroglochin persicarioides, without causing phytotoxicity to marigolds."
+      },
+      "char_start": 51515,
+      "char_end": 51845,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12112036",
+      "src": "spinetoram",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Megalurothrips usitatus",
+      "dst_type": "Pest",
+      "polarity": "supports",
+      "context": "Spinetoram is associated with positive toxicity and field control of thrips.",
+      "qualifiers": {
+        "study_context": "other:laboratory and field experiments"
+      },
+      "qualifier_quotes": {
+        "study_context": "laboratory and field experiments"
+      },
+      "span": {
+        "start": 26378,
+        "end": 26606,
+        "quote": "Among these insecticides, spinetoram showed good toxicity in both laboratory and field experiments, with an LC50 between approximately 0.1 and 0.7 and corrected control efficacy of 43~75% within a week after application ( and )."
+      },
+      "char_start": 26255,
+      "char_end": 26483,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11858994",
+      "src": "oxyfluorfen",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Solanum rostratum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The discussion assigns improved efficacy under low temperatures to oxyfluorfen without identifying populations.",
+      "qualifiers": {
+        "study_context": "other:low temperatures"
+      },
+      "qualifier_quotes": {
+        "study_context": "low temperatures"
+      },
+      "span": {
+        "start": 13931,
+        "end": 14057,
+        "quote": "For example, metribuzin was more effective under high temperatures, while oxyfluorfen performed better under low temperatures."
+      },
+      "char_start": 13796,
+      "char_end": 13922,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "fomesafen",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "marigolds",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The chemical produced the highest observed marigold yield.",
+      "qualifiers": {
+        "object_aspect_qualifier": "yield",
+        "object_direction_qualifier": "other:highest"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "yield",
+        "object_direction_qualifier": "highest"
+      },
+      "span": {
+        "start": 43117,
+        "end": 43248,
+        "quote": "However, the fomesafen treatment produced the highest yield, exceeding that of both the control and carfentrazone ethyl treatments."
+      },
+      "char_start": 42085,
+      "char_end": 42216,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "metolachlor · oxyfluorfen · pendimethalin",
+      "src_type": "Product",
+      "relation": "associated_with",
+      "dst": "marigolds",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The mixture is associated with the highest composite yield outcome.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:yield and yield increase rate",
+        "object_direction_qualifier": "other:highest"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "yield and yield increase rate",
+        "object_direction_qualifier": "highest"
+      },
+      "span": {
+        "start": 31845,
+        "end": 32085,
+        "quote": "However, the yield and yield increase rate for marigolds treated with metolachlor · oxyfluorfen · pendimethalin were the highest, significantly exceeding those observed in the acetochlor, clomazone · acetochlor, and clomazone treatments."
+      },
+      "char_start": 31189,
+      "char_end": 31426,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "aclonifen",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "S. marianum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The quote attributes \"moderate control of S. marianum\" to aclonifen.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 8971,
+        "end": 9264,
+        "quote": "More specifically, the use of aclonifen, benfluralin, terbuthylazine plus pendimethalin, and flumioxazin resulted in a moderate control of S. marianum, while pendimethalin plus clomazone, metribuzin plus clomazone, s-metolachlor plus pendimethalin, pyridate, and imazamox showed poor efficacy."
+      },
+      "char_start": 8965,
+      "char_end": 9258,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "benfluralin",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "S. marianum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The quote attributes \"moderate control of S. marianum\" to benfluralin.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 8971,
+        "end": 9264,
+        "quote": "More specifically, the use of aclonifen, benfluralin, terbuthylazine plus pendimethalin, and flumioxazin resulted in a moderate control of S. marianum, while pendimethalin plus clomazone, metribuzin plus clomazone, s-metolachlor plus pendimethalin, pyridate, and imazamox showed poor efficacy."
+      },
+      "char_start": 8965,
+      "char_end": 9258,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "terbuthylazine plus pendimethalin",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "S. marianum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The intact mixture \"terbuthylazine plus pendimethalin\" has \"moderate control of S. marianum\".",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 8971,
+        "end": 9264,
+        "quote": "More specifically, the use of aclonifen, benfluralin, terbuthylazine plus pendimethalin, and flumioxazin resulted in a moderate control of S. marianum, while pendimethalin plus clomazone, metribuzin plus clomazone, s-metolachlor plus pendimethalin, pyridate, and imazamox showed poor efficacy."
+      },
+      "char_start": 8965,
+      "char_end": 9258,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "flumioxazin",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "S. marianum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The quote attributes \"moderate control of S. marianum\" to flumioxazin.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 8971,
+        "end": 9264,
+        "quote": "More specifically, the use of aclonifen, benfluralin, terbuthylazine plus pendimethalin, and flumioxazin resulted in a moderate control of S. marianum, while pendimethalin plus clomazone, metribuzin plus clomazone, s-metolachlor plus pendimethalin, pyridate, and imazamox showed poor efficacy."
+      },
+      "char_start": 8965,
+      "char_end": 9258,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11359421",
+      "src": "penoxsulam",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Amaranthus retroflexus",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence explicitly assigns weed-control effect to penoxsulam.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 4344,
+        "end": 4517,
+        "quote": "As shown in , penoxsulam has some effect on A. retroflexus, C. album, D. sanguinalis, and E. crus-galli, and has the best control effect on A. retroflexus and E. crus-galli."
+      },
+      "char_start": 4338,
+      "char_end": 4511,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11359421",
+      "src": "penoxsulam",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Chenopodium album",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence reports some control effect against C. album.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 4344,
+        "end": 4517,
+        "quote": "As shown in , penoxsulam has some effect on A. retroflexus, C. album, D. sanguinalis, and E. crus-galli, and has the best control effect on A. retroflexus and E. crus-galli."
+      },
+      "char_start": 4338,
+      "char_end": 4511,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11359421",
+      "src": "penoxsulam",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Digitaria sanguinalis",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence reports some control effect against D. sanguinalis.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 4344,
+        "end": 4517,
+        "quote": "As shown in , penoxsulam has some effect on A. retroflexus, C. album, D. sanguinalis, and E. crus-galli, and has the best control effect on A. retroflexus and E. crus-galli."
+      },
+      "char_start": 4338,
+      "char_end": 4511,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11359421",
+      "src": "penoxsulam",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "Echinochloa crus-galli",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "The sentence identifies E. crus-galli among the best-controlled weeds.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 4344,
+        "end": 4517,
+        "quote": "As shown in , penoxsulam has some effect on A. retroflexus, C. album, D. sanguinalis, and E. crus-galli, and has the best control effect on A. retroflexus and E. crus-galli."
+      },
+      "char_start": 4338,
+      "char_end": 4511,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11359421",
+      "src": "penoxsulam",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "foxtail millet",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The sentence describes a composite set of yield indexes decreasing with dose.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:yield indexes",
+        "object_direction_qualifier": "decreased"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "yield indexes",
+        "object_direction_qualifier": "decreasing"
+      },
+      "span": {
+        "start": 21699,
+        "end": 21906,
+        "quote": "After spraying penoxsulam, all five yield indexes of foxtail millet (ear length, ear diameter, ear weight, ear grain weight, and 1000 grain weight) showed a decreasing trend with an increasing spraying dose."
+      },
+      "char_start": 21645,
+      "char_end": 21852,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Fomesafen + Terbutryne",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "This mixture is individually listed as controlling the weed across three soils.",
+      "qualifiers": {
+        "application_timing": "pre_emergence",
+        "study_context": "other:nethouse"
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence",
+        "study_context": "nethouse"
+      },
+      "span": {
+        "start": 12076,
+        "end": 12365,
+        "quote": "In the final nethouse experiment using three representative Hula Valley soils, three pre-emergence herbicide combinations demonstrated superior control of Trianthema portulacastrum across all soil types: Fomesafen + Terbutryne, Sulfosulfuron + Fomesafen, and Dimethenamid + Flurochloridon."
+      },
+      "char_start": 12051,
+      "char_end": 12340,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Sulfosulfuron + Fomesafen",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "This mixture is individually listed as controlling the weed across three soils.",
+      "qualifiers": {
+        "application_timing": "pre_emergence",
+        "study_context": "other:nethouse"
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence",
+        "study_context": "nethouse"
+      },
+      "span": {
+        "start": 12076,
+        "end": 12365,
+        "quote": "In the final nethouse experiment using three representative Hula Valley soils, three pre-emergence herbicide combinations demonstrated superior control of Trianthema portulacastrum across all soil types: Fomesafen + Terbutryne, Sulfosulfuron + Fomesafen, and Dimethenamid + Flurochloridon."
+      },
+      "char_start": 12051,
+      "char_end": 12340,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC11723401",
+      "src": "Dimethenamid + Flurochloridon",
+      "src_type": "Product",
+      "relation": "controls",
+      "dst": "Trianthema portulacastrum",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "This mixture is individually listed as controlling the weed across three soils.",
+      "qualifiers": {
+        "application_timing": "pre_emergence",
+        "study_context": "other:nethouse"
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence",
+        "study_context": "nethouse"
+      },
+      "span": {
+        "start": 12076,
+        "end": 12365,
+        "quote": "In the final nethouse experiment using three representative Hula Valley soils, three pre-emergence herbicide combinations demonstrated superior control of Trianthema portulacastrum across all soil types: Fomesafen + Terbutryne, Sulfosulfuron + Fomesafen, and Dimethenamid + Flurochloridon."
+      },
+      "char_start": 12051,
+      "char_end": 12340,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "pendimethalin",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "marigolds",
+      "dst_type": "Crop",
+      "polarity": "no_effect",
+      "context": "The measured flower-count outcome did not differ from control.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:number of flowers per plant"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "number of flowers per plant"
+      },
+      "span": {
+        "start": 21690,
+        "end": 21864,
+        "quote": "There were no differences in the number of flowers per plant among the treatments of pendimethalin, metolachlor, butralin, and oxyfluorfen when compared to the control group."
+      },
+      "char_start": 21416,
+      "char_end": 21590,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "metolachlor",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "marigolds",
+      "dst_type": "Crop",
+      "polarity": "no_effect",
+      "context": "The measured flower-count outcome did not differ from control.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:number of flowers per plant"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "number of flowers per plant"
+      },
+      "span": {
+        "start": 21690,
+        "end": 21864,
+        "quote": "There were no differences in the number of flowers per plant among the treatments of pendimethalin, metolachlor, butralin, and oxyfluorfen when compared to the control group."
+      },
+      "char_start": 21416,
+      "char_end": 21590,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "butralin",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "marigolds",
+      "dst_type": "Crop",
+      "polarity": "no_effect",
+      "context": "The measured flower-count outcome did not differ from control.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:number of flowers per plant"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "number of flowers per plant"
+      },
+      "span": {
+        "start": 21690,
+        "end": 21864,
+        "quote": "There were no differences in the number of flowers per plant among the treatments of pendimethalin, metolachlor, butralin, and oxyfluorfen when compared to the control group."
+      },
+      "char_start": 21416,
+      "char_end": 21590,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12157251",
+      "src": "oxyfluorfen",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "marigolds",
+      "dst_type": "Crop",
+      "polarity": "no_effect",
+      "context": "The measured flower-count outcome did not differ from control.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:number of flowers per plant"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "number of flowers per plant"
+      },
+      "span": {
+        "start": 21690,
+        "end": 21864,
+        "quote": "There were no differences in the number of flowers per plant among the treatments of pendimethalin, metolachlor, butralin, and oxyfluorfen when compared to the control group."
+      },
+      "char_start": 21416,
+      "char_end": 21590,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "terbuthylazine plus pendimethalin",
+      "src_type": "Product",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The named mixture caused vetch damage in GS2.",
+      "qualifiers": {
+        "study_context": "other:gs2"
+      },
+      "qualifier_quotes": {
+        "study_context": "GS2"
+      },
+      "span": {
+        "start": 14328,
+        "end": 14563,
+        "quote": "In GS2 (November–June 2020–2021), more herbicide treatments (i.e. terbuthylazine plus pendimethalin, s-metolachlor plus pendimethalin, pendimethalin plus clomazone, benfluralin, and imazamox) caused 18–25% severe damage on vetch."
+      },
+      "char_start": 14276,
+      "char_end": 14505,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "s-metolachlor plus pendimethalin",
+      "src_type": "Product",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The named mixture caused vetch damage in GS2.",
+      "qualifiers": {
+        "study_context": "other:gs2"
+      },
+      "qualifier_quotes": {
+        "study_context": "GS2"
+      },
+      "span": {
+        "start": 14328,
+        "end": 14563,
+        "quote": "In GS2 (November–June 2020–2021), more herbicide treatments (i.e. terbuthylazine plus pendimethalin, s-metolachlor plus pendimethalin, pendimethalin plus clomazone, benfluralin, and imazamox) caused 18–25% severe damage on vetch."
+      },
+      "char_start": 14276,
+      "char_end": 14505,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "pendimethalin plus clomazone",
+      "src_type": "Product",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The named mixture caused vetch damage in GS2.",
+      "qualifiers": {
+        "study_context": "other:gs2"
+      },
+      "qualifier_quotes": {
+        "study_context": "GS2"
+      },
+      "span": {
+        "start": 14328,
+        "end": 14563,
+        "quote": "In GS2 (November–June 2020–2021), more herbicide treatments (i.e. terbuthylazine plus pendimethalin, s-metolachlor plus pendimethalin, pendimethalin plus clomazone, benfluralin, and imazamox) caused 18–25% severe damage on vetch."
+      },
+      "char_start": 14276,
+      "char_end": 14505,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "benfluralin",
+      "src_type": "ActiveIngredient",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "Benfluralin caused vetch damage in GS2.",
+      "qualifiers": {
+        "study_context": "other:gs2"
+      },
+      "qualifier_quotes": {
+        "study_context": "GS2"
+      },
+      "span": {
+        "start": 14328,
+        "end": 14563,
+        "quote": "In GS2 (November–June 2020–2021), more herbicide treatments (i.e. terbuthylazine plus pendimethalin, s-metolachlor plus pendimethalin, pendimethalin plus clomazone, benfluralin, and imazamox) caused 18–25% severe damage on vetch."
+      },
+      "char_start": 14276,
+      "char_end": 14505,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "imazamox",
+      "src_type": "ActiveIngredient",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "Imazamox caused vetch damage in GS2.",
+      "qualifiers": {
+        "study_context": "other:gs2"
+      },
+      "qualifier_quotes": {
+        "study_context": "GS2"
+      },
+      "span": {
+        "start": 14328,
+        "end": 14563,
+        "quote": "In GS2 (November–June 2020–2021), more herbicide treatments (i.e. terbuthylazine plus pendimethalin, s-metolachlor plus pendimethalin, pendimethalin plus clomazone, benfluralin, and imazamox) caused 18–25% severe damage on vetch."
+      },
+      "char_start": 14276,
+      "char_end": 14505,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "flumioxazine",
+      "src_type": "ActiveIngredient",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "Flumioxazine caused measured injury to vetch.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 14564,
+        "end": 14757,
+        "quote": "Furthermore, pyridate and flumioxazine herbicide treatments caused an average of 12% injury, while aclonifen and metribuzin plus clomazone affected vetch with 5–7% inconsistent phytotoxicity."
+      },
+      "char_start": 14506,
+      "char_end": 14697,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "aclonifen",
+      "src_type": "ActiveIngredient",
+      "relation": "phytotoxic_to",
+      "dst": "Vicia sativa",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "Aclonifen is associated with measured vetch phytotoxicity.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 14564,
+        "end": 14757,
+        "quote": "Furthermore, pyridate and flumioxazine herbicide treatments caused an average of 12% injury, while aclonifen and metribuzin plus clomazone affected vetch with 5–7% inconsistent phytotoxicity."
+      },
+      "char_start": 14506,
+      "char_end": 14697,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "terbuthylazine plus pendimethalin",
+      "src_type": "Product",
+      "relation": "phytotoxic_to",
+      "dst": "Pisum sativum",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The first named mixture caused pea injury in both seasons.",
+      "qualifiers": {
+        "study_context": "other:both seasons"
+      },
+      "qualifier_quotes": {
+        "study_context": "both seasons"
+      },
+      "span": {
+        "start": 16438,
+        "end": 16689,
+        "quote": "Also, the treatment of pea plants with terbuthylazine plus pendimethalin caused an average and consistent damage of 12–13% in both seasons, whereas the treatment of pendimethalin plus clomazone caused an average and more consistent damage of 7–8%."
+      },
+      "char_start": 16376,
+      "char_end": 16623,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "pendimethalin plus clomazone",
+      "src_type": "Product",
+      "relation": "phytotoxic_to",
+      "dst": "Pisum sativum",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The second named mixture caused measured pea injury.",
+      "qualifiers": {},
+      "qualifier_quotes": {},
+      "span": {
+        "start": 16438,
+        "end": 16689,
+        "quote": "Also, the treatment of pea plants with terbuthylazine plus pendimethalin caused an average and consistent damage of 12–13% in both seasons, whereas the treatment of pendimethalin plus clomazone caused an average and more consistent damage of 7–8%."
+      },
+      "char_start": 16376,
+      "char_end": 16623,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC10818810",
+      "src": "benfluralin",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "Pisum sativum",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "The second arm assigns a positive pea biomass effect to benfluralin in GS2.",
+      "qualifiers": {
+        "object_aspect_qualifier": "other:pea dry biomass",
+        "study_context": "other:gs2"
+      },
+      "qualifier_quotes": {
+        "object_aspect_qualifier": "pea dry biomass",
+        "study_context": "GS2"
+      },
+      "span": {
+        "start": 17889,
+        "end": 18171,
+        "quote": "At GS1, only three herbicide treatments (i.e., aclonifen, flumioxazine, and imazamox) showed higher plant dry biomass than the untreated plots, while four herbicide treatments (i.e., aclonifen, benfluralin, flumioxazin, and imazamox) promotively impacted the pea dry biomass in GS2."
+      },
+      "char_start": 17811,
+      "char_end": 18093,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12656408",
+      "src": "metribuzin",
+      "src_type": "ActiveIngredient",
+      "relation": "controls",
+      "dst": "weeds",
+      "dst_type": "Weed",
+      "polarity": "supports",
+      "context": "A cited study reports weed control by named metribuzin.",
+      "qualifiers": {
+        "application_timing": "pre_emergence"
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence"
+      },
+      "span": {
+        "start": 24866,
+        "end": 25141,
+        "quote": "The obtained results are consistent with Pornprom et al. [] who pointed out that pre-emergence herbicide application (a.i. metribuzin) was sufficient to control weeds and ensure the highest edamame yield (11.8 t ha−1) compared to manual weeding and untreated control plots."
+      },
+      "char_start": 24715,
+      "char_end": 24988,
+      "quote_occurrences": 1
+    },
+    {
+      "pmcid": "PMC12656408",
+      "src": "metribuzin",
+      "src_type": "ActiveIngredient",
+      "relation": "associated_with",
+      "dst": "edamame",
+      "dst_type": "Crop",
+      "polarity": "supports",
+      "context": "A cited study attributes the highest edamame yield to the named herbicide.",
+      "qualifiers": {
+        "application_timing": "pre_emergence",
+        "object_aspect_qualifier": "other:edamame yield",
+        "object_direction_qualifier": "other:highest"
+      },
+      "qualifier_quotes": {
+        "application_timing": "pre-emergence",
+        "object_aspect_qualifier": "edamame yield",
+        "object_direction_qualifier": "highest"
+      },
+      "span": {
+        "start": 24866,
+        "end": 25141,
+        "quote": "The obtained results are consistent with Pornprom et al. [] who pointed out that pre-emergence herbicide application (a.i. metribuzin) was sufficient to control weeds and ensure the highest edamame yield (11.8 t ha−1) compared to manual weeding and untreated control plots."
+      },
+      "char_start": 24715,
+      "char_end": 24988,
+      "quote_occurrences": 1
+    }
+  ]
+}

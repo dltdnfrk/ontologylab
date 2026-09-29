@@ -33,7 +33,7 @@ Consequences worth knowing before debugging:
 A FastAPI route's defaults are `Query(...)` **objects**, not values.
 `search_entities(q=query)` binds a marker object as `limit`, which reaches
 sqlite as `Error binding parameter 4: type 'Query' is not supported`. There
-are 21 such defaults in `server/routes.py`. If you call one internally,
+are many such defaults in `server/routes.py`. If you call one internally,
 supply every parameter by name.
 
 ## MockEngine only finds CamelCase

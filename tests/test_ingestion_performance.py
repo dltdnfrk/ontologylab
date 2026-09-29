@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -78,6 +79,10 @@ def test_fixture_outputs_are_preserved_across_create_and_duplicate(
     assert outbox_rows == 38
 
 
+@pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="historical 10,195 ms macOS p95 ceiling is not a Linux VM benchmark",
+)
 def test_frozen_fixture_ingest_p95_stays_within_bounded_gate(
     tmp_path: Path,
 ) -> None:

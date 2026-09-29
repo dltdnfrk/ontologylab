@@ -35,7 +35,7 @@ _READY_SCHEMA: Final = "ontologylab-ready-v1"
 _NONCE_PATTERN: Final = r"^[0-9a-f]{32}$"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class DesktopSocketError(Exception):
     member: str
 
@@ -43,7 +43,7 @@ class DesktopSocketError(Exception):
         return f"desktop socket refused: {self.member}"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(eq=False)
 class ReadinessWriteError(Exception):
     expected: int
     written: int

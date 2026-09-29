@@ -84,7 +84,7 @@ def test_manifest_carries_basis_and_the_default_policy(tmp_path) -> None:
     assert baseline["version"] == 1
     assert baseline == {
         "version": 1,
-        "fingerprint_algorithm": "sha256-canonical-json-v1",
+        "fingerprint_algorithm": "sha256-canonical-json-v2",
         "source": "pack.sqlite",
     }
     assert "nodes" not in baseline
