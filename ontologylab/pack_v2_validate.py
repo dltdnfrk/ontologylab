@@ -135,7 +135,7 @@ def _typed_v2_contract_complete(pack_dir: Path) -> bool:
     if not isinstance(payload, dict) or payload.get("pack_schema_version") != 2:
         return False
     mode = payload.get("evidence_mode")
-    if not isinstance(mode, str) or mode not in EvidenceMode:
+    if not isinstance(mode, str) or mode not in {m.value for m in EvidenceMode}:
         return False
     claimed = payload.get("closure")
     if not isinstance(claimed, dict) or set(claimed) != set(CLOSURE_MEMBERS):
