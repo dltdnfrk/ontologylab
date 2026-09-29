@@ -12,10 +12,10 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # The executable product-status audit puts the matrix at ~21-25 min on
-    # runners. 35 keeps ten minutes of machine-variance headroom without
-    # leaving a hung job unbounded.
-    timeout-minutes: 35
+    # The suite plus the executable product-status audit took 33-35+ min per
+    # job on runners in 2026-09 (4,660 tests). 60 keeps headroom for machine
+    # variance without leaving a hung job unbounded.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
