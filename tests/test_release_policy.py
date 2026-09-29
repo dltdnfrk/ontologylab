@@ -82,7 +82,7 @@ def _mutate_source_byte(root: Path) -> None:
 
 
 def _mutate_added_file(root: Path) -> None:
-    (root / "web" / "extra.js").write_text("// added\n", encoding="utf-8")
+    (root / "launcher" / "extra.js").write_text("// added\n", encoding="utf-8")
 
 
 def _mutate_lock(root: Path) -> None:
@@ -187,7 +187,7 @@ def _mutate_manifest_unsafe_path(root: Path) -> None:
     ("mutate", "code", "member"),
     [
         (_mutate_source_byte, C.SOURCE_CHANGED, "ontologylab/__init__.py"),
-        (_mutate_added_file, C.SOURCE_CHANGED, "web/extra.js"),
+        (_mutate_added_file, C.SOURCE_CHANGED, "launcher/extra.js"),
         (_mutate_lock, C.LOCK_CHANGED, "uv.lock"),
         (_mutate_lock_missing, C.LOCK_MISSING, "uv.lock"),
         (_mutate_manifest_missing, C.SNAPSHOT_MISSING, MANIFEST_REL),

@@ -70,8 +70,7 @@ def test_task11_policy_covers_every_authoritative_path_class() -> None:
     # When policy coverage is evaluated, then every exact file is safely declared.
     assert not audit.missing, sorted(audit.missing)
     # The completion wave added carry_forward, extraction_eligibility,
-    # polarity_eval, and species_abbreviation; the rebuilt web assets replace
-    # the two old hashed files rather than changing their count. Qualified
+    # polarity_eval, and species_abbreviation. Qualified
     # statements added ontologylab/statement_qualifiers.py,
     # ontologylab/qualified_extraction.py, and ontologylab/qualified_polarity_eval.py.
     # The row 40 rebuild added ontologylab/missed_null.py.
@@ -83,7 +82,7 @@ def test_task11_policy_covers_every_authoritative_path_class() -> None:
         len(audit.task10_authoritative),
         len(audit.missing),
         len(audit.generated_violations),
-    ) == (100, 372, 27, 0, 0)
+    ) == (99, 372, 27, 0, 0)
     assert not audit.generated_violations
     assert covered("ontologylab/storage-compatibility.json", audit.declared)
     assert not any(
