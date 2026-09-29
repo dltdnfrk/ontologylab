@@ -1906,9 +1906,9 @@
       "sha256": "642766cb9b32bdb6c3603458448f6b3f1411302d2c8c3900f0e75019bd055119"
     },
     {
-      "bytes": 6300,
+      "bytes": 6305,
       "path": "tests/test_release_eligibility_binding.py",
-      "sha256": "46d5689ab55c1ec6e206abb5ac788db7626fe71f69a7b39ed2b1a98580650018"
+      "sha256": "6f35125742d4abe7eac615db7d182a6055115a558174205807d956e600fb2350"
     },
     {
       "bytes": 2227,
@@ -1959,10 +1959,10 @@
   "git_staged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "git_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "git_unstaged_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "inventory_sha256": "b0c0d8dbb86b4d24d66344e21eb9188222833d6b75ebf9a7825f43a24ae45fe8",
+  "inventory_sha256": "25379b6e4ba78ceefc2cb3e61aef9a3a1c7ebc9087476d19f991cce3281e468b",
   "policy_sha256": "9baf1b6dbe299b96c9469e295136d0f34204628736b3125d2524ab5bd920bc03",
   "schema": "ontologylab.release.source-snapshot.v1",
-  "snapshot_sha256": "4eada4c3b572a156298c4739e0bd9525d1754f78e04fd4d4d0b86c36c3d308c5",
+  "snapshot_sha256": "01e00888384be47a1ff68e61557f16177dc8d034bd3c65c553d63f9a1c15cbc4",
   "uv_lock": {
     "bytes": 461552,
     "path": "uv.lock",
