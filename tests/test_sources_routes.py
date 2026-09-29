@@ -82,6 +82,8 @@ def _isolated_keychain(monkeypatch, tmp_path):
     monkeypatch.setattr(keychain, "KEYCHAIN_SERVICE", test_service)
     monkeypatch.setattr(keychain, "KEYCHAIN_SERVICE_LEGACY", f"{test_service}-legacy")
     yield
+    if sys.platform != "darwin" or shutil.which("security") is None:
+        return
     for service in (test_service, f"{test_service}-legacy"):
         for _ in range(20):
             found = _REAL_RUN(
