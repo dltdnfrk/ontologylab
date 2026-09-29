@@ -60,5 +60,5 @@ jobs:
         # so a `scripts/<stdlib-name>.py` is imported before the checker re-execs itself.
         run: python -P scripts/check_product_status.py --root . --document docs/PRODUCT_SPEC.md
 
-      - name: Dashboard JS syntax check
-        run: node --check ontologylab/web/app.js
+      - name: Dashboard asset manifest check
+        run: python -m ontologylab.web_assets check
